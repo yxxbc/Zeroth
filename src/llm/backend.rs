@@ -912,9 +912,6 @@ impl ReplySource for LlmBackend {
                 |call: &crate::llm::tools::ToolCallRequest,
                  on_output: &mut dyn FnMut(crate::llm::exec::ToolProgress<'_>)|
                  -> crate::llm::tools::ToolOutcome {
-                    if let Ok(mut log) = turn_context.lock() {
-                        log.record_call(&call.name, &call.arguments);
-                    }
                     super::secret_exec::run_with_secrets(
                         secrets.as_ref(),
                         call,
@@ -922,8 +919,17 @@ impl ReplySource for LlmBackend {
                         |call, on_output| executor.execute(call, &cancel, on_output),
                     )
                 };
+            // The classifier's action log is written by the loop, in the
+            // model's order, before the workers start — never by a worker at
+            // pick-up time (that order is scheduling, not the request).
+            let parallel_record = |call: &crate::llm::tools::ToolCallRequest| {
+                if let Ok(mut log) = turn_context.lock() {
+                    log.record_call(&call.name, &call.arguments);
+                }
+            };
             let parallel_tools = agent::ParallelTools {
                 execute: &parallel_execute,
+                record: &parallel_record,
                 workers: std::thread::available_parallelism()
                     .map_or(4, |cores| cores.get())
                     .clamp(2, 8),

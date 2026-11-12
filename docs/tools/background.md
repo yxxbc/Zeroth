@@ -125,9 +125,13 @@ executor (`llm::exec`), and the `!` shell runner:
   mid-run, which takes `prior` as its first chunk into the same fold as the
   rest, so a bar interrupted mid-line finishes as one line.
 - `request_background()` / `take_background_request()` is the Ctrl+B flag: the
-  loop sets it when a running `bash`/`!` command is on screen; the runner's
-  poll loop consumes it (and clears any stale request when a new command
-  starts). At most one command ever runs at a time, so one flag suffices.
+  loop sets it when the front running `bash`/`!` command is on screen; the
+  runner's poll loop consumes it (and clears any stale request when a new
+  command starts). A parallel `bash` batch can have several runners in flight,
+  so the flag is best-effort there: the first runner to poll it backgrounds
+  itself, which may not be the visible cell (`docs/tools/parallel-tools.md`,
+  *Limitations*). Serial and lone commands — the case the key was designed for —
+  remain exact.
 - `kill(id)` / `kill_all()` send `SIGKILL` to the process **group** directly
   (synchronously — quit must not depend on monitor-thread scheduling) after
   marking the task killed, so the monitor reports `killed: true`.

@@ -32,24 +32,35 @@ context cells keep the one-row `⎿ Waiting…`, since the prompt shows the file
 
 This lifts the old limitation (`docs/tools/tools.md`, before this change: *"Parallel
 tool calls … are executed sequentially (the TUI shows one running tool at a
-time)"*). Execution is **still sequential** — the calls run one after another,
-preserving the existing timeout / cancel / safety machinery — but the whole batch
-is now **visible**, and each call commits to scrollback the moment it finishes.
-"Waiting…" is exactly the state of a queued-but-not-started call, so sequential
-execution and this display are the same thing the user sees in Claude Code.
+time)"*). The whole batch is **visible**, and each call commits to scrollback the
+moment its turn in the model's order resolves.
 
-## Why display-the-batch, not run-concurrently
+**Execution is no longer always sequential.** A batch whose calls are
+independent runs on a bounded worker pool (`run_agent_parallel`, below): a round
+of three one-second `bash` calls finishes in about one second when the machine
+has workers to spare. A batch that is not provably independent keeps the serial
+loop. The gate is `llm::tools::batch_is_parallelizable`:
 
-The reference (the user's ping example) shows the siblings as `Waiting…` *while*
-the first one runs — i.e. they are **not** producing output concurrently. So the
-right model is: announce the batch, run in order, show the rest waiting. This:
+- every call must be a `bash`/`read`/`write`/`edit` call (the tools whose
+  executors hold no shared session state);
+- a batch mixing `bash` with file tools is serial — the shell can read or write
+  any path the file calls name, and a `Write(script.py)` + `Bash(python3
+  script.py)` round depends on the write landing first;
+- two file calls naming the same path (canonicalized, so `/repo/a`,
+  `/repo/./a` and a symlinked directory collide) are serial — `write`/`edit` are
+  unlocked read-modify-write, so concurrent edits to one file would silently
+  drop one;
+- unparseable arguments keep the serial loop, where tool errors are answered
+  deterministically.
 
-- keeps `llm::exec`'s single-child timeout + `kill_process_group` + cancel exactly
-  as-is (no thread-pool, no interleaved stdout, no multi-child reaping);
-- reuses the app's existing **progressive commit** pipeline (a finished item flows
-  into real scrollback while the live region shows what's left);
-- is the foundation a future *concurrent* executor could build on (the
-  Waiting/Running/Ok/Failed cell states already exist).
+## Why the batch is displayed before it runs
+
+The display predates the executor: the visible batch was built so every call is
+announced up front, then resolved in the model's order. That ordering is now
+also the concurrency contract — the cells still resolve in the announced order
+even when jobs finish in another — so the app's one-`Running`-call model is
+never violated. The concurrent executor reuses the same Waiting/Running/Ok/Failed
+cell states; only `llm` gained a worker pool.
 
 ## The mechanism
 
@@ -65,7 +76,8 @@ pub struct ToolCallSummary { pub name: String, pub args: String }
 
 /// The model requested a batch of tool calls this round, announced up front so
 /// the UI can show every call — the ones not yet executing as `⎿ Waiting…`.
-/// Sequential execution then transitions them one at a time via ToolStart/ToolEnd.
+/// Execution transitions them via ToolStart/ToolEnd one at a time, in this
+/// order, whether it runs serially or on the worker pool.
 ToolBatch(Vec<ToolCallSummary>),
 ```
 
@@ -105,9 +117,29 @@ are `ToolStatus::Waiting`.
 ### Backend (`llm::agent::run_agent`)
 
 The agentic loop already has every call up front (`RoundOutcome::ToolCalls{calls}`).
-It now emits one `ToolBatch` (built from `calls`) **before** the existing
-`for call in calls { ToolStart; execute; ToolEnd }` loop. Nothing else in the loop
-changes; execution stays sequential and cancellation still checks between calls.
+It emits one `ToolBatch` (built from `calls`) before any execution, as before.
+
+`run_agent_parallel` (the backend's entry point) hands the loop a
+`ParallelTools` seam; `run_agent` passes `None` and keeps the serial loop for
+subagents, tests, and every non-qualifying batch. For a qualifying batch the
+loop's pre-pass still runs `PreToolUse` hooks and the permission gate **serially
+in model order** — nothing runs, and nothing shows as running, while a hook or
+the user decides — and writes each allowed call to the classifier's action log
+at that point, so a later verdict in the same batch reads the earlier calls in
+the order the model asked. Only then do the workers start.
+
+Jobs execute on `min(worker count, jobs)` scoped threads fed by one atomic
+index. A worker checks the turn's `CancelToken` before it picks a job up, so a
+call the serial loop would never have reached after Esc is not started; the
+resolution pass answers it as `Interrupted` without firing a
+`PostToolUseFailure` hook for a tool that never ran. Resolutions and
+`PostToolUse` hooks still happen on the loop thread, in model order, after the
+workers join. `ToolProgress` streams only for the first call, which is the
+queue's front; a later call's live output is dropped rather than misattributed.
+
+The backend supplies the same secret-expanded executor and classifier log it
+gives the serial loop, just through `Sync` closures: `ParallelTools::execute`
+and `ParallelTools::record`.
 
 ### Rendering (`ui/tool.rs`, `ui/live.rs`)
 
@@ -218,8 +250,28 @@ than a cell per call — the tree is a roster, not a transcript.
 
 ## Limitations
 
-- Execution is sequential (see above) — a genuinely concurrent executor is future
-  work; the cell states are ready for it.
+- Only the **first** call of a batch streams live output. The app still models
+  one `Running` cell (the queue front); giving every concurrent call its own
+  live channel needs a call id on the tool events and a queue keyed by it — the
+  next iteration (`docs/tools/tools.md`).
+- The permission prompt's context assumes the asked-about call is the queue
+  front. A parallel batch asks every call's permission **before** the first
+  `ToolStart`, so a prompt for call 5 of 6 shows call 1's context and can
+  collapse call 5 into `+N more waiting`. Batches that prompt therefore gain no
+  overlap (the waits are serialized in the pre-pass) and can show the wrong
+  context; a serial batch never does.
+- Ctrl+B is one latch shared by every foreground `bash` in flight, and only the
+  queue front offers it. In a multi-`bash` batch the first runner to poll it
+  backgrounds itself, which may not be the visible one.
+- A batch's cells resolve only after the **whole** batch finishes, so an Esc
+  that lands while a slow sibling still runs records a sibling that already
+  succeeded as `Interrupted by user`; its side effect is on disk. Serial
+  execution resolves each call before the next starts.
+- `write`/`edit` on two distinct paths may still race through an **aliased**
+  path the canonicalizer cannot see (a symlink created during the batch), and a
+  `bash` batch can of course make its own calls depend on each other. The gate
+  is a safety rail, not a dependency analysis; the model is told independent
+  calls are the ones that may be batched.
 - A very large batch grows the live region upward; it is clamped to the terminal
   height like the rest of the live region (the box then scrolls internally). No
   per-batch cap / "+N more" collapse yet.
@@ -227,5 +279,5 @@ than a cell per call — the tree is a roster, not a transcript.
   calls that were never announced still leave no record, so the next request
   does not carry them: the ordinary calls behind a foreground agent group (the
   batch is announced only once the group finishes, `docs/agents/agent-tool.md`), and
-  a task call the sequential loop had not reached yet (task calls render no
+  a task call the loop had not reached yet (task calls render no
   cell and are never announced, `docs/tools/task-tools.md`).

@@ -1534,6 +1534,56 @@ pub fn is_parallel_safe(name: &str) -> bool {
     matches!(name, "bash" | "read" | "write" | "edit")
 }
 
+/// Whether a whole batch may run on the worker pool. Every call must be
+/// [`is_parallel_safe`], and no two may touch the same state:
+///
+/// - a batch containing `bash` runs in parallel only when **every** call is
+///   `bash` — the shell can read or write any path the file calls name, and
+///   the model may have written a file for that very command to run;
+/// - two file calls naming the same path (after canonicalization) keep the
+///   serial loop: `write`/`edit` are unlocked read-modify-write, so two edits
+///   to one file would race and silently drop one.
+///
+/// Anything the gate cannot classify — unparseable arguments, a missing
+/// `path` — runs serially, where the tool's own error answer is deterministic.
+#[must_use]
+pub fn batch_is_parallelizable(calls: &[&ToolCallRequest]) -> bool {
+    if calls.len() < 2 || !calls.iter().all(|call| is_parallel_safe(&call.name)) {
+        return false;
+    }
+    if calls.iter().any(|call| call.name == "bash") {
+        return calls.iter().all(|call| call.name == "bash");
+    }
+    let mut paths: Vec<String> = Vec::with_capacity(calls.len());
+    for call in calls {
+        let Some(path) = call_path(call) else {
+            return false;
+        };
+        if paths.contains(&path) {
+            return false;
+        }
+        paths.push(path);
+    }
+    true
+}
+
+/// The `path` argument of a file tool, canonicalized as far as the filesystem
+/// allows so `/repo/a` and `/repo/./a` (or a symlinked directory) collide.
+fn call_path(call: &ToolCallRequest) -> Option<String> {
+    let arguments: Value = serde_json::from_str(call.arguments.trim()).ok()?;
+    let path = arguments.get("path")?.as_str()?;
+    let path = std::path::Path::new(path);
+    if let Ok(path) = path.canonicalize() {
+        return Some(path.to_string_lossy().into_owned());
+    }
+    if let (Some(parent), Some(name)) = (path.parent(), path.file_name())
+        && let Ok(parent) = parent.canonicalize()
+    {
+        return Some(parent.join(name).to_string_lossy().into_owned());
+    }
+    Some(path.to_string_lossy().into_owned())
+}
+
 /// The display name shown in the `● name(args)` cell header for a model tool
 /// (title-cased), falling back to the raw name for anything unrecognised.
 #[must_use]
@@ -4712,5 +4762,46 @@ mod tests {
         );
         // Unparseable arguments degrade to the flattened text.
         assert_eq!(summarize_call("mcp__s__t", "not json"), "not json");
+    }
+
+    #[test]
+    fn only_independent_batches_run_in_parallel() {
+        let call = |name: &str, arguments: &str| ToolCallRequest {
+            id: name.to_string(),
+            name: name.to_string(),
+            arguments: arguments.to_string(),
+        };
+        let bash_a = call("bash", r#"{"command":"a"}"#);
+        let bash_b = call("bash", r#"{"command":"b"}"#);
+        let read_a = call("read", r#"{"path":"/tmp/a"}"#);
+        let read_b = call("read", r#"{"path":"/tmp/b"}"#);
+        let write_a = call("write", r#"{"path":"/tmp/a","content":"x"}"#);
+        let edit_a = call(
+            "edit",
+            r#"{"path":"/tmp/a","old_string":"x","new_string":"y"}"#,
+        );
+        let same_a = call("read", r#"{"path":"/tmp/./a"}"#);
+        let bad = call("read", "not json");
+
+        assert!(batch_is_parallelizable(&[&bash_a, &bash_b]));
+        assert!(
+            !batch_is_parallelizable(&[&bash_a, &read_a]),
+            "a shell can touch any path the file calls name"
+        );
+        assert!(
+            !batch_is_parallelizable(&[&write_a, &edit_a]),
+            "two unlocked read-modify-writes to one path would race"
+        );
+        assert!(
+            !batch_is_parallelizable(&[&read_a, &same_a]),
+            "the same path spelled differently is still the same path"
+        );
+        assert!(batch_is_parallelizable(&[&read_a, &read_b]));
+        assert!(batch_is_parallelizable(&[&write_a, &read_b]));
+        assert!(
+            !batch_is_parallelizable(&[&bash_a]),
+            "a lone call has no one to overlap"
+        );
+        assert!(!batch_is_parallelizable(&[&bad, &read_b]));
     }
 }

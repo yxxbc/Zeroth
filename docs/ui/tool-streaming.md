@@ -56,10 +56,11 @@ being drawn (a progress bar redrawn with `\r`, a prompt taking its answer)
 travels as `live` and is **replaced** by the next update instead of stacking
 a row per frame, and a line that is final travels once as `settled`
 (`docs/tools/interactive-shell.md` *Streaming the running cell*). Both target the
-**front** of `App::tool_queue` (the only `Running` call — execution is
-sequential even for a parallel batch, so the running call is always the
-front; see `docs/tools/parallel-tools.md`). A backend that never streams simply
-omits them — `ToolStart`/`ToolEnd` still work unchanged.
+**front** of `App::tool_queue` (the only `Running` call — a parallel batch
+resolves its cells in model order, so the visible running call is always the
+front; a worker behind it has no live sink, and its output is dropped rather
+than misattributed; see `docs/tools/parallel-tools.md`). A backend that never
+streams simply omits them — `ToolStart`/`ToolEnd` still work unchanged.
 
 ## App state — `push_tool_output` / `push_tool_screen`
 

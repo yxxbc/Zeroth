@@ -793,11 +793,13 @@ peek), so old sessions and edge cases keep rendering sensibly.
 - No sandbox / approval prompts — the executor trusts the operator (env-gated).
 - `edit` requires a unique `old_string` (or `replace_all`); it does not do fuzzy
   context matching like codex's `apply_patch`.
-- Parallel tool calls in one assistant turn are executed **sequentially** — but
-  the whole batch is now **visible**: it is announced up front (a
+- Parallel tool calls in one assistant turn are announced up front (a
   `StreamEvent::ToolBatch`), so the running call shows live while the not-yet-run
-  ones show `⎿ Waiting…`, each committing as it finishes (`docs/tools/parallel-tools.md`;
-  invariant 4 in `CLAUDE.md`). True concurrent *execution* is still future work.
+  ones show `⎿ Waiting…`, each committing as it finishes
+  (`docs/tools/parallel-tools.md`; invariant 4 in `CLAUDE.md`). A batch that is
+  provably independent — all `bash`, or file calls naming distinct paths, never a
+  mix of shell and file tools — executes concurrently on a bounded worker pool;
+  every other batch stays serial.
 - Token counts remain an app-side estimate (the protocol's `usage` is still not
   surfaced).
 - A `write`'s replayed arguments are **uncapped**, where the numbered result

@@ -342,6 +342,29 @@ pub enum PendingInput {
     User(String),
 }
 
+/// The parallel tool seam: a **`Sync`** executor for the ordinary
+/// file/command tools, the classifier-log callback, and how many workers may
+/// run the executor. The serial [`run_agent`] passes `None`; the real backend
+/// passes the executor behind its secret/logging wrappers, whose `Fn` shape is
+/// shareable across threads. Tools outside
+/// [`is_parallel_safe`](super::tools::is_parallel_safe) (subagents, ask, MCP,
+/// skills, tasks) keep the serial path: their executors own state a worker must
+/// not race.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)] // two borrowed seams and a worker count
+pub struct ParallelTools<'a> {
+    /// Run one ordinary tool call. `Sync`: called from every worker.
+    pub execute:
+        &'a (dyn Fn(&ToolCallRequest, &mut dyn FnMut(ToolProgress<'_>)) -> ToolOutcome + Sync),
+    /// Record one call in the action log the permission classifier reads
+    /// (`docs/state/permissions.md`). Called on the loop's thread, in the
+    /// model's order, before any worker starts — so a later verdict sees the
+    /// batch in the order it was asked, not the order workers picked it up.
+    pub record: &'a (dyn Fn(&ToolCallRequest) + Sync),
+    /// How many calls may run at once (the caller clamps it to the machine).
+    pub workers: usize,
+}
+
 /// Drive one agentic turn to completion, sending the terminal `StreamDone` /
 /// `Error` (or nothing on a cancel) and the per-tool `ToolStart`/`ToolEnd`
 /// events. Generic over `round` (one streaming request), `execute` (running
@@ -402,22 +425,6 @@ pub enum PendingInput {
 /// turn: the loop keeps what it said and asks for the rest in a new user
 /// message, up to [`MAX_CONTINUATIONS`] rounds in a row, and only then ends
 /// the turn on an error saying so (`docs/architecture/unfinished-replies.md`).
-/// The parallel tool seam: a **`Sync`** executor for the ordinary
-/// file/command tools, and how many workers may run it. The serial
-/// [`run_agent`] passes `None`; the real backend passes the executor behind
-/// its secret/logging wrappers, whose `Fn` shape is shareable across threads.
-/// Tools outside [`is_parallel_safe`] (subagents, ask, MCP, skills, tasks)
-/// keep the serial path: their executors own state a worker must not race.
-#[derive(Clone, Copy)]
-#[allow(clippy::type_complexity)] // one executor reference and a worker count
-pub struct ParallelTools<'a> {
-    /// Run one ordinary tool call. `Sync`: called from every worker.
-    pub execute:
-        &'a (dyn Fn(&ToolCallRequest, &mut dyn FnMut(ToolProgress<'_>)) -> ToolOutcome + Sync),
-    /// How many calls may run at once (the caller clamps it to the machine).
-    pub workers: usize,
-}
-
 #[allow(clippy::too_many_arguments)] // the loop's full seam set (docs/agents/agent-tool.md)
 pub fn run_agent(
     tx: &UnboundedSender<StreamEvent>,
@@ -449,10 +456,12 @@ pub fn run_agent(
 }
 
 /// [`run_agent`] with the ordinary tool batch allowed to execute concurrently
-/// — a homogeneous batch of [`is_parallel_safe`] calls runs on `tools.workers`
-/// workers; every other round shape keeps the serial loop. The cells still
-/// resolve in the model's order: the batch's first call shows its live output,
-/// and the rest start and finish as the order reaches them.
+/// — a batch of independent
+/// [`is_parallel_safe`](super::tools::is_parallel_safe) calls runs on
+/// `tools.workers` workers; every other round shape keeps the serial loop
+/// ([`batch_is_parallelizable`](super::tools::batch_is_parallelizable)). The
+/// cells still resolve in the model's order: the batch's first call shows its
+/// live output, and the rest start and finish as the order reaches them.
 #[allow(clippy::too_many_arguments)] // the loop's full seam set
 pub fn run_agent_parallel(
     tx: &UnboundedSender<StreamEvent>,
@@ -691,9 +700,11 @@ fn run_agent_inner(
                 // them all **concurrently**, emits the AgentBatch /
                 // AgentGroupDone events, waits for foreground completion
                 // (polling this same cancel), and returns each call's tool
-                // result. The ordinary calls run sequentially exactly as
-                // before; every result then appends in the model's original
-                // call order (strict providers pair results by contiguity).
+                // result. The ordinary calls run on the serial loop, or on the
+                // shared worker pool when the whole batch is independent
+                // (`docs/tools/parallel-tools.md`); every result then appends in
+                // the model's original call order (strict providers pair
+                // results by contiguity).
                 let (agent_calls, rest): (Vec<&ToolCallRequest>, Vec<&ToolCallRequest>) = allowed
                     .iter()
                     .partition(|call| call.name == super::tools::AGENT_TOOL_NAME);
@@ -768,9 +779,11 @@ fn run_agent_inner(
                 // Announce the ordinary batch up front — before any tool runs
                 // — so the UI shows every requested call at once, the ones not
                 // yet executing as `⎿ Waiting…`. Each entry's (name, args)
-                // equals the matching ToolStart's; execution below is still
-                // sequential. The refused tail rides the same announcement, so
-                // a clamped batch still shows whole. See `docs/tools/parallel-tools.md`.
+                // equals the matching ToolStart's. Execution below may overlap
+                // on the worker pool when the batch is independent, but every
+                // cell still resolves in this announced order. The refused tail
+                // rides the same announcement, so a clamped batch still shows
+                // whole. See `docs/tools/parallel-tools.md`.
                 // Task calls are left out: they render no cell anywhere — the
                 // live checklist is their display (docs/tools/task-tools.md).
                 let announced: Vec<&ToolCallRequest> = rest
@@ -805,15 +818,13 @@ fn run_agent_inner(
                 // `docs/tools/tools.md`.
                 let mut attachments: Vec<ChatMessage> = Vec::new();
                 let mut cancelled_mid_tools = false;
-                // A homogeneous batch of parallel-safe calls runs on the shared
-                // pool (`docs/tools/parallel-tools.md`); every other shape keeps
-                // the serial loop below.
+                // An independent batch of parallel-safe calls runs on the
+                // shared pool (`docs/tools/parallel-tools.md`); every other
+                // shape — a shell-plus-file mix, a path two calls share,
+                // anything outside the file/command tools — keeps the serial
+                // loop below.
                 let parallel_batch = parallel.filter(|tools| {
-                    tools.workers >= 2
-                        && rest.len() >= 2
-                        && rest
-                            .iter()
-                            .all(|call| super::tools::is_parallel_safe(&call.name))
+                    tools.workers >= 2 && super::tools::batch_is_parallelizable(&rest)
                 });
                 if let Some(tools) = parallel_batch {
                     if run_parallel_batch(
@@ -1181,11 +1192,13 @@ fn send_tool_notes(tx: &UnboundedSender<StreamEvent>, notes: &[String]) {
     }
 }
 
-/// Run a homogeneous batch of parallel-safe calls: hooks and approvals
+/// Run an independent batch of parallel-safe calls: hooks and approvals
 /// serially, the executions on `tools.workers` workers, and the cells
-/// resolved in the model's order. The first call is the queue's front, so its
-/// live output reaches the TUI; the rest run silently until the order reaches
-/// them. Returns `true` when the turn was cancelled while the batch ran.
+/// resolved in the model's order. Callers gate the batch through
+/// [`batch_is_parallelizable`](super::tools::batch_is_parallelizable). The
+/// first call is the queue's front, so its live output reaches the TUI; the
+/// rest run silently until the order reaches them. Returns `true` when the
+/// turn was cancelled while the batch ran.
 #[allow(clippy::too_many_arguments)] // the batch's seam set
 #[allow(clippy::type_complexity)] // the per-call outcome slots
 fn run_parallel_batch(
@@ -1267,6 +1280,10 @@ fn run_parallel_batch(
         } else if let Some(note) = &hook.note {
             notes.push(note.clone());
         }
+        // The classifier's action log is written in the model's order, before
+        // any worker runs: a later verdict in this batch sees the earlier calls
+        // the model asked for, exactly as the serial loop's log did.
+        (tools.record)(call);
         steps.push(ParallelStep::Job {
             call: call.clone(),
             notes,
@@ -1302,6 +1319,14 @@ fn run_parallel_batch(
                         let Some((index, call)) = jobs.get(job) else {
                             break;
                         };
+                        // A call the serial loop would never have reached: Esc
+                        // landed before this worker picked it up. Leave its slot
+                        // empty; the resolution pass answers it as interrupted
+                        // without firing a PostToolUse failure hook for a tool
+                        // that never ran.
+                        if cancel.is_cancelled() {
+                            break;
+                        }
                         let live = *index == 0;
                         let started = std::time::Instant::now();
                         let mut sink = |progress: ToolProgress<'_>| {
@@ -1352,19 +1377,23 @@ fn run_parallel_batch(
                 results.push((call.id.clone(), result));
             }
             ParallelStep::Job { call, context, .. } => {
-                let (mut outcome, elapsed) = outcomes[index]
-                    .lock()
-                    .ok()
-                    .and_then(|mut slot| slot.take())
-                    .unwrap_or_else(|| {
-                        (
-                            ToolOutcome::error(crate::app::INTERRUPT_TOOL_OUTPUT),
-                            std::time::Duration::ZERO,
-                        )
-                    });
-                let ran = outcome.run(elapsed);
+                let slot = outcomes[index].lock().ok().and_then(|mut slot| slot.take());
+                let (mut outcome, elapsed, dispatched) = match slot {
+                    Some((outcome, elapsed)) => (outcome, elapsed, true),
+                    None => (
+                        ToolOutcome::error(crate::app::INTERRUPT_TOOL_OUTPUT),
+                        std::time::Duration::ZERO,
+                        false,
+                    ),
+                };
+                let ran = if dispatched {
+                    outcome.run(elapsed)
+                } else {
+                    crate::stream::ToolRun::refused(crate::stream::ToolErrorKind::Interrupted)
+                };
                 let post = match (&outcome.background, outcome.ok) {
                     (Some(_), _) => super::hooks::PostToolVerdict::default(),
+                    _ if !dispatched => super::hooks::PostToolVerdict::default(),
                     (None, true) => hooks.post_tool_use(&call, &outcome, cancel),
                     (None, false) => hooks.post_tool_use_failure(&call, &outcome, cancel),
                 };
@@ -5499,8 +5528,15 @@ mod tests {
             live.fetch_sub(1, Ordering::SeqCst);
             ToolOutcome::ok(format!("out {}", call.id))
         };
+        let recorded = std::sync::Mutex::new(Vec::new());
+        let record = |call: &ToolCallRequest| {
+            if let Ok(mut recorded) = recorded.lock() {
+                recorded.push(call.id.clone());
+            }
+        };
         let tools = ParallelTools {
             execute: &execute,
+            record: &record,
             workers: 2,
         };
         let mut approve = |_: &ToolCallRequest, _: bool| Approval::Allow;
@@ -5548,5 +5584,10 @@ mod tests {
             })
             .collect();
         assert_eq!(ends, ["out a", "out b"], "and resolve in that order");
+        assert_eq!(
+            *recorded.lock().unwrap(),
+            ["a", "b"],
+            "the classifier log is written in the model's order, not worker order"
+        );
     }
 }

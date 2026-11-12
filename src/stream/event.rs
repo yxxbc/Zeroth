@@ -265,8 +265,9 @@ pub enum StreamEvent {
     /// UI can show every requested call at once, the ones not yet executing as
     /// dim `⎿ Waiting…` cells. Each [`ToolCallSummary`] is the `name`/`args` the
     /// `● name(args)` header shows (the same summary the matching `ToolStart`
-    /// carries). Sequential execution then transitions the calls one at a time via
-    /// [`StreamEvent::ToolStart`]/[`StreamEvent::ToolEnd`]. A backend that never
+    /// carries). The calls then transition one at a time, in this order, via
+    /// [`StreamEvent::ToolStart`]/[`StreamEvent::ToolEnd`], even when the batch
+    /// executes concurrently. A backend that never
     /// batches (the `!` shell, the dummy's lone calls) simply omits this — a lone
     /// `ToolStart` still works. See `docs/tools/parallel-tools.md`.
     ToolBatch(Vec<ToolCallSummary>),

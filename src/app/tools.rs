@@ -102,8 +102,9 @@ impl App {
     /// Announce a **parallel batch** of tool calls the model requested this
     /// round (each [`ToolCallSummary`]'s `name`/`args` for the `● name(args)`
     /// header), all queued as [`ToolStatus::Waiting`] so the live region shows
-    /// every call at once — the ones not yet running as `⎿ Waiting…`. Sequential
-    /// execution then flips them to `Running` one at a time via
+    /// every call at once — the ones not yet running as `⎿ Waiting…`. Each
+    /// call's `ToolStart` flips its cell to `Running` in the model's order,
+    /// whether the batch executes serially or on the worker pool, via
     /// [`start_tool`](App::start_tool). Called by the boundary on a
     /// [`crate::stream::StreamEvent::ToolBatch`]; a backend that never batches
     /// (the `!` shell, the dummy's lone calls) skips it and a lone

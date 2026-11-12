@@ -328,8 +328,9 @@ pub struct App {
     /// calls behind it are [`ToolStatus::Waiting`] siblings of a **parallel
     /// batch** (`start_tool_batch`), shown as `⎿ Waiting…` until each starts.
     /// Empty when no tool is in flight. A lone tool (the `!` shell, the dummy's
-    /// single calls) is a one-element queue. Execution is sequential, so at most
-    /// one call is ever `Running`, and it is always the front. Private: read the
+    /// single calls) is a one-element queue. A parallel batch resolves its
+    /// cells in model order, so at most one call is ever `Running`, and it is
+    /// always the front. Private: read the
     /// active call through [`current_tool`](App::current_tool) and the whole
     /// batch through [`tool_queue`](App::tool_queue). See `docs/tools/parallel-tools.md`.
     tool_queue: VecDeque<ToolCall>,
