@@ -103,6 +103,21 @@ release heading when a version is cut.
 
 ### Changed
 
+- **The startup banner's hint is state-aware.** A configured session teaches
+  the three entry points beyond typing a message — `/ commands`, `@ files`,
+  `? shortcuts` — with the sigils in the accent and their names dim, instead
+  of naming three commands that may not apply. A session on the offline demo
+  (no provider, model and key resolved) shows the one action that changes
+  that: `Connect a model → /login` (`docs/header.md`).
+
+- **The footer brackets the provider beside the model's own name.** The model
+  title under the input box now reads `[provider]model-suffix` —
+  `[magpie]deepseek-v4.1-flash` for
+  `commandcode/deepseek/deepseek-v4.1-flash` — the provider in the footer's
+  dim, the model in its accent, so the row stops repeating the provider's
+  prefix. The offline demo (no provider) keeps the bare model name, and the
+  full id stays in `/model` and Ctrl+O (`docs/footer.md`).
+
 - **The `/model` picker groups its list by provider.** A list that spans
   several providers now sorts by provider, then id, and draws a bold provider
   heading before each group; the `[provider]` tag is dropped there while the
