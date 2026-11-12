@@ -8,8 +8,8 @@ that feature, ported to this codebase.
 ```
 ● Bash(rm -rf build/)
   ⎿  Blocked by PreToolUse hook: no destructive deletes outside ./tmp
-     Hook: ~/.alter-zero/hooks/no-deletes.sh
-     Config: ~/.alter-zero/hooks.json
+     Hook: ~/.zeroth/hooks/no-deletes.sh
+     Config: ~/.zeroth/hooks.json
 ```
 
 The **`/hooks`** command opens a read-only inline browser over this
@@ -464,8 +464,8 @@ is the one thing a user goes looking for the cause of:
 ```
 ● Bash(npm --version)
   ⎿  Blocked by PreToolUse hook: Use pnpm instead of npm.
-     Hook: ~/.alter-zero/hooks/pnpm-only.sh
-     Config: ~/.alter-zero/hooks.json
+     Hook: ~/.zeroth/hooks/pnpm-only.sh
+     Config: ~/.zeroth/hooks.json
 ```
 
 It used to read `Blocked by hook: {reason}` and nothing else, which left the
@@ -530,7 +530,7 @@ and in Ctrl+O, every hook that ran with what it said under it:
 ```
 ● Ran 1 Stop hook
   ⎿  bash "$HOME/.alter-zero/hooks/check-git.sh" (0.4s)
-     Config: ~/.alter-zero/hooks.json
+     Config: ~/.zeroth/hooks.json
   ⎿  Stop hook feedback: There are uncommitted Git changes. Review the
      changes and commit the relevant files with a descriptive commit
      message before finishing.
@@ -711,7 +711,7 @@ A rollout recorded before this wording keeps what it was sent with: a
 
 ## A worked config
 
-`~/.alter-zero/hooks.json`, doing the two things people ask for most — guard a
+`~/.zeroth/hooks.json`, doing the two things people ask for most — guard a
 command, and lint after a file change:
 
 ```json
@@ -759,7 +759,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalCon
 ## Configuration and trust
 
 **Two layers, and nothing runs until it is trusted.**
-`~/.alter-zero/hooks.json` (`ALTER_ZERO_HOOKS_FILE` overrides that user
+`~/.zeroth/hooks.json` (`ALTER_ZERO_HOOKS_FILE` overrides that user
 path; `ALTER_ZERO_HOOKS` gates the feature off entirely, the
 `ALTER_ZERO_PERMISSIONS` pattern) — and, since `docs/state/project-config.md`, the
 project's own `{root}/.alter-zero/hooks.json`, discovered at the
@@ -898,8 +898,8 @@ a scripted turn with both halves of the contract:
 ```
 ● Bash(rm -rf build/)
   ⎿  Blocked by PreToolUse hook: no destructive deletes outside ./tmp
-     Hook: ~/.alter-zero/hooks/no-deletes.sh
-     Config: ~/.alter-zero/hooks.json
+     Hook: ~/.zeroth/hooks/no-deletes.sh
+     Config: ~/.zeroth/hooks.json
 
 ● Bash(ls -la src)
   ⎿  total 8

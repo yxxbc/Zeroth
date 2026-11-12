@@ -17,7 +17,7 @@ fn tall_mcp_app() -> App {
     app.open_mcp_menu(vec![McpServerSnapshot {
         name: "deepwiki".to_string(),
         scope: crate::mcp::McpScope::User,
-        config_path: "~/.alter-zero/mcp.json".to_string(),
+        config_path: "~/.zeroth/mcp.json".to_string(),
         config: McpServerConfig::Http {
             url: "https://deepwiki.test/mcp".to_string(),
             headers: Default::default(),
@@ -48,7 +48,7 @@ fn tall_mcp_server_app(first_arg: &str) -> App {
     app.open_mcp_menu(vec![McpServerSnapshot {
         name: "fixture".to_string(),
         scope: crate::mcp::McpScope::User,
-        config_path: "~/.alter-zero/mcp.json".to_string(),
+        config_path: "~/.zeroth/mcp.json".to_string(),
         config: McpServerConfig::Stdio {
             command: "npx".to_string(),
             args,

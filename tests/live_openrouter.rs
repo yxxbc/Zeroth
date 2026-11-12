@@ -3683,7 +3683,7 @@ fn live_mcp_deepwiki_tool_call_round_trips() {
                     oauth: None,
                 },
                 scope: McpScope::User,
-                config_path: "~/.alter-zero/mcp.json".to_string(),
+                config_path: "~/.zeroth/mcp.json".to_string(),
             }],
             project: "/live".to_string(),
             ..Default::default()

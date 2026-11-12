@@ -532,7 +532,7 @@ mod tests {
 
     #[test]
     fn a_block_names_the_handler_that_gave_it() {
-        let guard = "~/.alter-zero/hooks/guard.sh";
+        let guard = "~/.zeroth/hooks/guard.sh";
         let exit_two = HookRun {
             command: guard.into(),
             exit_code: Some(2),

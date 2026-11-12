@@ -15,7 +15,7 @@ step that asks the prior question first, and a second half behind it.
   └─ Sign in with a local model ──► LM Studio / Ollama / … ──► an address, tested       docs/providers/local-models.md
 ```
 
-Both halves end in the **same place**: a secret in `~/.alter-zero/.env` under
+Both halves end in the **same place**: a secret in `~/.zeroth/.env` under
 the provider's `api_key_env`. That is the whole reason the split is cheap —
 `/model`, the capability probe, the ✓ marks, the startup key resolution and the
 next launch all keep working with no second mechanism to teach them.

@@ -13,7 +13,7 @@ fn snapshot(name: &str, status: McpServerStatus, tools: usize) -> McpServerSnaps
     McpServerSnapshot {
         name: name.to_string(),
         scope: McpScope::User,
-        config_path: "~/.alter-zero/mcp.json".to_string(),
+        config_path: "~/.zeroth/mcp.json".to_string(),
         config: McpServerConfig::Http {
             url: format!("https://{name}.test/mcp"),
             headers: Default::default(),

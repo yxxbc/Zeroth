@@ -21,7 +21,7 @@
 #   scripts/smoke.sh 50-60 permission     # a range, a name substring
 #   scripts/smoke.sh --skip 115           # everything but
 #   scripts/smoke.sh --failed             # re-run what failed last time
-#   scripts/smoke.sh --sweep-leaked       # list (then --yes: delete) rollouts old runs leaked into ~/.alter-zero
+#   scripts/smoke.sh --sweep-leaked       # list (then --yes: delete) rollouts old runs leaked into ~/.zeroth
 #   scripts/smoke.sh --list               # the phases, their tags, last timings
 #   scripts/smoke.sh -v                   # print every phase's log, not just failures
 #   scripts/smoke.sh target/release/zeroth   # another binary (default: target/debug)
@@ -150,13 +150,13 @@ done
 # --- --sweep-leaked: the rollouts the old suite left in the real sessions dir ---
 # Before the suite pointed ALTER_ZERO_SESSIONS_DIR into its temp tree (and
 # before the app kept sessions under the config home), every phase's turns were
-# recorded into the developer's own `~/.alter-zero/sessions` — a few hundred
+# recorded into the developer's own `~/.zeroth/sessions` — a few hundred
 # dummy-backend conversations per run, listed by /resume in this checkout. They
 # are recognisable by the offline backends' model names in their `session_meta`
 # line (`stream::dummy` and `stream::stall`), which no real provider ever uses.
 # The listing is the default; deleting takes --yes.
 if [ "$SWEEP" -eq 1 ]; then
-	sweep_root="${ALTER_ZERO_SESSIONS_DIR:-${ALTER_ZERO_CONFIG_DIR:-$HOME/.alter-zero}/sessions}"
+	sweep_root="${ALTER_ZERO_SESSIONS_DIR:-${ALTER_ZERO_CONFIG_DIR:-$HOME/.zeroth}/sessions}"
 	if [ ! -d "$sweep_root" ]; then
 		echo "smoke: no sessions dir at $sweep_root — nothing to sweep"
 		exit 0

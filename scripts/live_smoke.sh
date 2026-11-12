@@ -50,7 +50,7 @@ S="alterzero_live_$$"
 SUMMARY_RE='(Worked|Generated|Pondered|Cooked|Brewed|Crunched|Conjured|Churned|Computed|Synthesized) for [0-9]'
 
 # Isolated config home so the run can't touch (or be steered by) the real
-# ~/.alter-zero; checkpoints/history/project-config off for hermeticity, the
+# ~/.zeroth; checkpoints/history/project-config off for hermeticity, the
 # sessions dir inside it (Phase L4 resumes one), the provider pinned with
 # the env key. Tools are OFF: every phase here is about the streamed *text*,
 # and a model that answers "print ZEBRAFISH" with a `bash` call parks the

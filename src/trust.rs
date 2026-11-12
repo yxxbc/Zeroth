@@ -70,7 +70,7 @@ pub fn fingerprint(bytes: &[u8]) -> String {
 /// config home — the layer would rediscover the user's `hooks.json` and
 /// `mcp.json` as "project config". The boundary skips the layer instead (the
 /// per-file identity guard in `tui::trust` catches the same collision when
-/// `ALTER_ZERO_CONFIG_DIR` moves the config home somewhere else).
+/// `ZEROTH_CONFIG_DIR` moves the config home somewhere else).
 #[must_use]
 pub fn is_project_root(root: &Path, home: Option<&Path>) -> bool {
     home != Some(root)

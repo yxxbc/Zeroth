@@ -339,7 +339,7 @@ pub trait HookSink: Send + Sync + std::fmt::Debug {
 
     /// The user's home directory, which the cell of a call this sink's
     /// hooks refuse names the hook's `hooks.json` from
-    /// (`~/.alter-zero/hooks.json`) — the spelling the startup review and
+    /// (`~/.zeroth/hooks.json`) — the spelling the startup review and
     /// the `/hooks` menu give the same file — while the model keeps the
     /// absolute path ([`block_texts`], `docs/tools/hooks.md` *What the user
     /// sees*). `None`, the default — a sink nobody told — names the file as
@@ -1205,7 +1205,7 @@ fn hook_lines(origin: Option<&HookOrigin>, home: Option<&Path>) -> String {
 }
 
 /// `file` as the screen names a config file: `~`-relative under `home`
-/// (`~/.alter-zero/hooks.json`), as given elsewhere or with no home —
+/// (`~/.zeroth/hooks.json`), as given elsewhere or with no home —
 /// `ui::display_cwd`'s rule, which names the same file on the startup
 /// review's headings and the `/hooks` detail page (held to it by a test
 /// rather than imported, since the backend reaches into no renderer). A
@@ -1381,7 +1381,7 @@ const BLOCKED_NEXT_STEP: &str = "Do not retry the same call; address the reason 
 /// `/resume` path is the one that already exists. Both are codex's `Blocked
 /// by PreToolUse hook: {reason}` with the hook named under it — `event` is
 /// the event whose hook refused, `PreToolUse` or `PermissionRequest`. The
-/// cell names the hook's `hooks.json` from `home` (`~/.alter-zero/hooks.json`,
+/// cell names the hook's `hooks.json` from `home` (`~/.zeroth/hooks.json`,
 /// `docs/tools/hooks.md` *What the user sees*); the model reads its absolute path
 /// and one line on what to do (*What the model reads*).
 #[must_use]
@@ -1918,7 +1918,7 @@ mod tests {
         let block = HookBlock {
             reason: "no destructive deletes".into(),
             hook: Some(HookOrigin {
-                command: "~/.alter-zero/hooks/guard.sh".into(),
+                command: "~/.zeroth/hooks/guard.sh".into(),
                 file: Some("/home/u/.alter-zero/hooks.json".into()),
             }),
         };
@@ -1929,15 +1929,15 @@ mod tests {
         assert_eq!(
             display,
             "Blocked by PreToolUse hook: no destructive deletes\n\
-             Hook: ~/.alter-zero/hooks/guard.sh\n\
-             Config: ~/.alter-zero/hooks.json"
+             Hook: ~/.zeroth/hooks/guard.sh\n\
+             Config: ~/.zeroth/hooks.json"
         );
         // The model reads the same with the file's absolute path, which it
         // can open, and one line on what to do.
         assert_eq!(
             result,
             "Blocked by PreToolUse hook: no destructive deletes\n\
-             Hook: ~/.alter-zero/hooks/guard.sh\n\
+             Hook: ~/.zeroth/hooks/guard.sh\n\
              Config: /home/u/.alter-zero/hooks.json\n\
              Do not retry the same call; address the reason or ask the user."
         );
@@ -2032,10 +2032,10 @@ mod tests {
         // shows as written.
         assert_eq!(
             shown_file(
-                Path::new("~/.alter-zero/hooks.json"),
+                Path::new("~/.zeroth/hooks.json"),
                 Some(Path::new("/home/u"))
             ),
-            "~/.alter-zero/hooks.json"
+            "~/.zeroth/hooks.json"
         );
     }
 
@@ -2121,7 +2121,7 @@ mod tests {
                 event: "Stop".into(),
                 hooks: vec![RanHook {
                     command: command.into(),
-                    config: Some("~/.alter-zero/hooks.json".into()),
+                    config: Some("~/.zeroth/hooks.json".into()),
                     millis: 412,
                     said: vec![HookSaid::Feedback(
                         "Stop hook feedback: There are uncommitted Git changes.".into()
@@ -3185,7 +3185,7 @@ mod tests {
                     display,
                     "Blocked by PermissionRequest hook: never in prod\n\
                      Hook: echo 'never in prod' >&2; exit 2\n\
-                     Config: ~/.alter-zero/hooks.json"
+                     Config: ~/.zeroth/hooks.json"
                 );
                 assert!(
                     result.contains("\nConfig: /home/u/.alter-zero/hooks.json\n"),

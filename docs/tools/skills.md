@@ -67,7 +67,7 @@ its own project:
 | 2 | `<cwd>/.claude/skills` | directory (compat) |
 | 3 | `<project root>/.alter-zero/skills` | project |
 | 4 | `<project root>/.claude/skills` | project (compat) |
-| 5 | `{config_home}/skills` | personal (`~/.alter-zero/skills`) |
+| 5 | `{config_home}/skills` | personal (`~/.zeroth/skills`) |
 | 6 | `~/.claude/skills` | personal (compat) |
 
 Rows 3–4 are the **`.git` walk-up** — `project_doc::find_project_root`, the
@@ -80,7 +80,7 @@ to start in. The cwd keeps precedence over the project root for the same
 reason project keeps it over personal: the more specific root wins.
 
 The personal root hangs off the **config home**, so it follows
-`ALTER_ZERO_CONFIG_DIR` exactly like `hooks.json`, `permissions.json`,
+`ZEROTH_CONFIG_DIR` exactly like `hooks.json`, `permissions.json`,
 `settings.json` and `config.json` do — one rule for where per-user state
 lives, rather than a second one reading `$HOME` directly.
 

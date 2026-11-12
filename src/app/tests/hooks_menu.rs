@@ -31,11 +31,7 @@ fn sample_overview() -> HooksOverview {
 /// loop produces after `Action::OpenHooksMenu`.
 fn hooks_app() -> App {
     let mut app = App::new();
-    app.open_hooks_menu(
-        sample_overview(),
-        Some("~/.alter-zero/hooks.json".into()),
-        true,
-    );
+    app.open_hooks_menu(sample_overview(), Some("~/.zeroth/hooks.json".into()), true);
     app
 }
 
@@ -336,7 +332,7 @@ fn enter_on_a_hooks_detail_page_toggles_its_trust() {
             .with_source(source),
     );
     let mut app = App::new();
-    app.open_hooks_menu(overview, Some("~/.alter-zero/hooks.json".into()), true);
+    app.open_hooks_menu(overview, Some("~/.zeroth/hooks.json".into()), true);
     // PreToolUse → bash → ./guard.sh → its detail page.
     for _ in 0..3 {
         app.on_key(key(KeyCode::Enter));

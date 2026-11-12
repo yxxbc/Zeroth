@@ -3,7 +3,7 @@
 # These are the providers the app ships with; this file is embedded in the
 # binary. To add one of your own — any OpenAI-compatible API, or a local
 # server such as llama.cpp or vLLM — don't copy this file: write the
-# block in ~/.alter-zero/providers.toml, which is laid over these
+# block in ~/.zeroth/providers.toml, which is laid over these
 # (docs/providers/user-providers.md). A block there with a new id adds a provider, and
 # one naming a provider here changes only the keys it sets.
 #
@@ -50,9 +50,9 @@
 #
 # The active provider/model is chosen with `ALTER_ZERO_PROVIDER` /
 # `ALTER_ZERO_MODEL`, or interactively with the `/model` picker, and persists to
-# ~/.alter-zero/config.json between runs. With no API key configured — or with
+# ~/.zeroth/config.json between runs. With no API key configured — or with
 # `ALTER_ZERO_DUMMY=1` — the app falls back to the built-in dummy backend, so it
-# always runs offline. Add a key in-app with `/login` (saved to ~/.alter-zero/.env).
+# always runs offline. Add a key in-app with `/login` (saved to ~/.zeroth/.env).
 #
 # Prompt caching needs no configuration here (docs/providers/prompt-caching.md): the
 # payload builder marks `cache_control` breakpoints for the models that need

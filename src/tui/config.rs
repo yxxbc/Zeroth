@@ -418,22 +418,137 @@ fn signin_kinds(auth: AuthScheme) -> Vec<SigninKind> {
 }
 
 /// The app's config home — where the `.env` key store and `config.json` live:
-/// `ALTER_ZERO_CONFIG_DIR`, else `~/.alter-zero`, else `None` (no HOME and no
-/// override, so file persistence is disabled). Every per-user file resolves
-/// under it — `providers.toml`, the `.env` key store, the checkpoints root and
-/// the sessions root (`resume::sessions_root`) alike — so moving it moves the
-/// whole state dir. See `docs/providers/llm.md`.
+/// `ZEROTH_CONFIG_DIR` (or the pre-fork `ALTER_ZERO_CONFIG_DIR`), else
+/// `~/.zeroth`, else `None` (no HOME and no override, so file persistence is
+/// disabled). Every per-user file resolves under it — `providers.toml`, the
+/// `.env` key store, the checkpoints root and the sessions root
+/// (`resume::sessions_root`) alike — so moving it moves the whole state dir.
+/// The old `~/.alter-zero` home is left alone: [`migrate_from_alter_zero`]
+/// copies the model config and sign-ins out of it once, so the previous app
+/// keeps working. See `docs/providers/llm.md`.
 pub(crate) fn config_home() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("ALTER_ZERO_CONFIG_DIR") {
+    if let Some(dir) =
+        std::env::var_os("ZEROTH_CONFIG_DIR").or_else(|| std::env::var_os("ALTER_ZERO_CONFIG_DIR"))
+    {
         return Some(PathBuf::from(dir));
     }
-    std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".alter-zero"))
+    std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".zeroth"))
 }
 
-/// The `.env` key store path: `ALTER_ZERO_ENV_FILE`, else `{config_home}/.env`,
+/// The durable identity files a one-time migration copies from the pre-fork
+/// home: the `/model` selections, the user's own providers, and the `.env`
+/// sign-in store. Everything else under the old home — sessions, history,
+/// image cache, skills, agents, looks, trust, hooks — is deliberately left
+/// behind, because the old app may keep using it.
+pub(crate) const HOME_MIGRATION_FILES: [&str; 3] = ["config.json", "providers.toml", ".env"];
+
+/// What [`migrate_home`] did.
+pub(crate) struct HomeMigration {
+    /// The file names copied, in [`HOME_MIGRATION_FILES`] order.
+    pub(crate) copied: Vec<&'static str>,
+    /// The files that could not be copied, with the reason.
+    pub(crate) failed: Vec<(&'static str, String)>,
+}
+
+impl HomeMigration {
+    /// The one-row startup notice, or `None` when there is nothing to say.
+    #[must_use]
+    pub(crate) fn notice(&self) -> Option<String> {
+        if self.copied.is_empty() && self.failed.is_empty() {
+            return None;
+        }
+        let failed = self
+            .failed
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(if self.copied.is_empty() {
+            format!("Could not import model config and sign-ins from ~/.alter-zero: {failed}")
+        } else if self.failed.is_empty() {
+            "Imported model config and sign-ins from ~/.alter-zero".to_string()
+        } else {
+            format!(
+                "Imported model config and sign-ins from ~/.alter-zero — could not copy: {failed}"
+            )
+        })
+    }
+}
+
+/// Copy [`HOME_MIGRATION_FILES`] from `src` to `dst` once. `None` when there
+/// is nothing to do: the destination already exists (the migration ran), the
+/// source is absent, or it holds none of the files. The source is never
+/// modified, so the previous app keeps a working home. The destination
+/// directory is private to the user and `.env` is tightened to `0600`.
+pub(crate) fn migrate_home(src: &Path, dst: &Path) -> Option<HomeMigration> {
+    if dst.exists() || !src.is_dir() {
+        return None;
+    }
+    if !HOME_MIGRATION_FILES
+        .iter()
+        .any(|name| src.join(name).is_file())
+    {
+        return None;
+    }
+    let mut copied = Vec::new();
+    let mut failed = Vec::new();
+    if let Err(err) = std::fs::create_dir_all(dst) {
+        return Some(HomeMigration {
+            copied,
+            failed: HOME_MIGRATION_FILES
+                .iter()
+                .map(|name| (*name, err.to_string()))
+                .collect(),
+        });
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(dst, std::fs::Permissions::from_mode(0o700));
+    }
+    for name in HOME_MIGRATION_FILES {
+        let from = src.join(name);
+        if !from.is_file() {
+            continue;
+        }
+        match std::fs::copy(&from, dst.join(name)) {
+            Ok(_) => {
+                #[cfg(unix)]
+                if name == ".env" {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(
+                        dst.join(name),
+                        std::fs::Permissions::from_mode(0o600),
+                    );
+                }
+                copied.push(name);
+            }
+            Err(err) => failed.push((name, err.to_string())),
+        }
+    }
+    Some(HomeMigration { copied, failed })
+}
+
+/// The startup migration from the pre-fork `~/.alter-zero` home into
+/// `~/.zeroth`, run once before any config file is read. An explicit
+/// config-dir override means the user manages the path, so nothing is
+/// migrated.
+pub(crate) fn migrate_from_alter_zero() -> Option<HomeMigration> {
+    if std::env::var_os("ZEROTH_CONFIG_DIR").is_some()
+        || std::env::var_os("ALTER_ZERO_CONFIG_DIR").is_some()
+    {
+        return None;
+    }
+    let home = PathBuf::from(std::env::var_os("HOME")?);
+    migrate_home(&home.join(".alter-zero"), &home.join(".zeroth"))
+}
+
+/// The `.env` key store path: `ZEROTH_ENV_FILE`, else `{config_home}/.env`,
 /// else `./.env` when there's no config home. Written by the `/login` flow.
 pub(crate) fn env_file_path() -> PathBuf {
-    if let Some(path) = std::env::var_os("ALTER_ZERO_ENV_FILE") {
+    if let Some(path) =
+        std::env::var_os("ZEROTH_ENV_FILE").or_else(|| std::env::var_os("ALTER_ZERO_ENV_FILE"))
+    {
         return PathBuf::from(path);
     }
     config_home().map_or_else(|| PathBuf::from(".env"), |dir| dir.join(".env"))
@@ -547,7 +662,7 @@ pub(crate) fn project_config_enabled() -> bool {
 
 /// `{config_home}/trust.json` — what the user trusted to run
 /// (`docs/state/config-review.md`). No override var of its own (the
-/// `permissions.json` posture): `ALTER_ZERO_CONFIG_DIR` moves it.
+/// `permissions.json` posture): `ZEROTH_CONFIG_DIR` moves it.
 pub(crate) fn trust_json_path() -> Option<PathBuf> {
     config_home().map(|dir| dir.join("trust.json"))
 }
@@ -594,7 +709,7 @@ pub(crate) fn load_trust_file(path: Option<&Path>) -> (zeroth::trust::TrustFile,
 
 /// The checkpoints root — `ALTER_ZERO_CHECKPOINTS_DIR` (the smoke test points
 /// it at a temp dir, the `ALTER_ZERO_SESSIONS_DIR` pattern), else
-/// `~/.alter-zero/checkpoints`. `None` (no HOME and no override) disables
+/// `~/.zeroth/checkpoints`. `None` (no HOME and no override) disables
 /// checkpoints. Each working directory gets one isolated store under this root
 /// ([`checkpoint::store_git_dir`]). See `docs/state/checkpoint.md`.
 pub(crate) fn checkpoints_root() -> Option<PathBuf> {
@@ -1544,4 +1659,103 @@ pub(crate) fn mcp_tool_timeout() -> std::time::Duration {
         "ALTER_ZERO_MCP_TOOL_TIMEOUT_MS",
         zeroth::llm::mcp::DEFAULT_TOOL_TIMEOUT,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write(path: &Path, body: &str) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, body).unwrap();
+    }
+
+    fn homes(root: &Path) -> (PathBuf, PathBuf) {
+        let src = root.join(".alter-zero");
+        let dst = root.join(".zeroth");
+        std::fs::create_dir_all(&src).unwrap();
+        (src, dst)
+    }
+
+    #[test]
+    fn migration_copies_the_three_identity_files_and_leaves_the_source() {
+        let root = tempfile::tempdir().unwrap();
+        let (src, dst) = homes(root.path());
+        write(&src.join("config.json"), "{}");
+        write(&src.join("providers.toml"), "[provider.x]\n");
+        write(&src.join(".env"), "OPENAI_API_KEY=x\n");
+        write(&src.join("sessions/s.jsonl"), "{}\n");
+        write(&src.join("history.jsonl"), "{}\n");
+
+        let migration = migrate_home(&src, &dst).expect("a migration");
+        assert_eq!(migration.copied, ["config.json", "providers.toml", ".env"]);
+        assert!(migration.failed.is_empty());
+        assert!(dst.join("config.json").is_file());
+        assert!(dst.join("providers.toml").is_file());
+        assert!(dst.join(".env").is_file());
+        assert!(!dst.join("sessions").exists());
+        assert!(!dst.join("history.jsonl").exists());
+        assert!(src.join("config.json").is_file(), "the source stays");
+    }
+
+    #[test]
+    fn migration_runs_once() {
+        let root = tempfile::tempdir().unwrap();
+        let (src, dst) = homes(root.path());
+        write(&src.join("config.json"), "{}");
+        assert!(migrate_home(&src, &dst).is_some());
+        assert!(
+            migrate_home(&src, &dst).is_none(),
+            "the destination now exists"
+        );
+    }
+
+    #[test]
+    fn migration_skips_a_missing_file() {
+        let root = tempfile::tempdir().unwrap();
+        let (src, dst) = homes(root.path());
+        write(&src.join("config.json"), "{}");
+        let migration = migrate_home(&src, &dst).unwrap();
+        assert_eq!(migration.copied, ["config.json"]);
+        assert!(!dst.join(".env").exists());
+    }
+
+    #[test]
+    fn migration_does_nothing_without_identity_files() {
+        let root = tempfile::tempdir().unwrap();
+        let (src, dst) = homes(root.path());
+        write(&src.join("sessions/s.jsonl"), "{}\n");
+        assert!(migrate_home(&src, &dst).is_none());
+        assert!(!dst.exists(), "no empty home is created");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_migrated_directory_and_env_file_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let (src, dst) = homes(root.path());
+        write(&src.join(".env"), "K=v\n");
+        migrate_home(&src, &dst).unwrap();
+        let dir_mode = std::fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+        let env_mode = std::fs::metadata(dst.join(".env"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(dir_mode, 0o700);
+        assert_eq!(env_mode, 0o600);
+    }
+
+    #[test]
+    fn the_notice_names_what_moved() {
+        let migration = HomeMigration {
+            copied: vec!["config.json"],
+            failed: Vec::new(),
+        };
+        assert_eq!(
+            migration.notice().as_deref(),
+            Some("Imported model config and sign-ins from ~/.alter-zero")
+        );
+    }
 }

@@ -430,7 +430,7 @@ pub struct KeyOnboarding {
     pub server: Option<ServerPage>,
     /// Where saved keys land (the `~`-relative `.env` path), injected at open by
     /// the boundary so the provider-step hint names the real file even under an
-    /// `ALTER_ZERO_ENV_FILE` override. See `docs/providers/llm.md`.
+    /// `ZEROTH_ENV_FILE` override. See `docs/providers/llm.md`.
     pub env_path: String,
 }
 

@@ -1,7 +1,7 @@
 //! The persisted `/model` selection — kept **per working directory**, so each
 //! project runs the model that was picked *in* it, with the last choice made
 //! anywhere seeding a directory launched in for the first time
-//! (`docs/state/per-directory-state.md`). Written to `~/.alter-zero/config.json` by
+//! (`docs/state/per-directory-state.md`). Written to `~/.zeroth/config.json` by
 //! the boundary (`tui::config`); the parse/serialize here is **pure and
 //! unit-tested**, like the `.env` keystore's. See `docs/providers/llm.md`.
 

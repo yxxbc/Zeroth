@@ -73,6 +73,11 @@ impl<'t> Session<'t> {
         let headless_verbose = print.is_some_and(|options| options.verbose);
         let round_budget =
             print.map(|options| zeroth::llm::agent::RoundBudget::new(options.max_turns));
+        // The pre-fork home's model config and sign-ins move into `~/.zeroth`
+        // once, before anything reads the config home. The old directory is
+        // left untouched, so the previous app keeps working
+        // (docs/providers/llm.md).
+        let home_migration = config::migrate_from_alter_zero();
         // Backend → loop (the streamed reply). A tokio channel so the loop can
         // `select!` on it; the backend thread sends without touching the runtime.
         let (tx, reply_rx) = tokio::sync::mpsc::unbounded_channel::<StreamEvent>();
@@ -298,7 +303,7 @@ impl<'t> Session<'t> {
         let subagents = zeroth::subagents::SubagentRegistry::new(found_agents);
 
         // What the startup review decides over (docs/state/config-review.md): the
-        // user's lifecycle hooks (`~/.alter-zero/hooks.json`, or
+        // user's lifecycle hooks (`~/.zeroth/hooks.json`, or
         // `ALTER_ZERO_HOOKS_FILE`), the project's `.alter-zero` layer
         // (docs/state/project-config.md) and trust.json — each read once, here,
         // BEFORE the MCP manager and the hooks setup, both of which run only
@@ -648,6 +653,16 @@ impl<'t> Session<'t> {
         // it asks about runs until it is answered, and the SessionStart
         // fire below stays queued until then.
         let reviewing = session.open_startup_review();
+        if !headless
+            && let Some(notice) = home_migration
+                .as_ref()
+                .and_then(|migration| migration.notice())
+        {
+            let width = session.term.screen().width;
+            session
+                .term
+                .insert_before(ui::startup_notice_lines(&notice, width));
+        }
         session.paint_first_frame(picker)?;
         // SessionStart (docs/tools/hooks.md), in the background as the session
         // opens — Claude Code's timing: the user can type at once, and the

@@ -54,7 +54,7 @@ const HISTORY_MAX_ENTRY_BYTES: usize = 100 * 1024;
 pub(crate) struct InputHistoryStore {
     /// The history file (`ALTER_ZERO_HISTORY_FILE`, else
     /// `{config_home}/history.jsonl` — beside `config.json`/`.env`, which
-    /// `ALTER_ZERO_CONFIG_DIR` already redirects). `None` disables persistence
+    /// `ZEROTH_CONFIG_DIR` already redirects). `None` disables persistence
     /// (no HOME and no override).
     path: Option<PathBuf>,
     /// This process's id, stamped into each record's `session_id` field. The

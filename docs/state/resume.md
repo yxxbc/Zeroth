@@ -90,8 +90,8 @@ overlay machinery.
 ### The session file (src/session.rs, pure)
 
 - Files: `{root}/YYYY/MM/DD/rollout-YYYY-MM-DDThh-mm-ss-{id}.jsonl`, where
-  `{root}` is the config home's `sessions/` — `~/.alter-zero/sessions` by
-  default, and inside a moved `ALTER_ZERO_CONFIG_DIR`, so the state dir moves
+  `{root}` is the config home's `sessions/` — `~/.zeroth/sessions` by
+  default, and inside a moved `ZEROTH_CONFIG_DIR`, so the state dir moves
   whole (it used to fall back to `$HOME` regardless, which is how the smoke
   suite's throwaway sessions reached the developer's own picker) — with
   `ALTER_ZERO_SESSIONS_DIR` overriding it outright (the

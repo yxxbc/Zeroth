@@ -178,7 +178,7 @@ the variable is unset.
 There is deliberately no "save anyway" for an address that fails its test.
 `/login` saves what it has seen work. A server that is down right now is
 pointed at by setting its variable by hand (`export LMSTUDIO_HOST=…`, or a
-line in `~/.alter-zero/.env`).
+line in `~/.zeroth/.env`).
 
 ## LM Studio as a provider
 

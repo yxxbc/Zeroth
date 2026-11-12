@@ -48,7 +48,7 @@ fn hooks_page() -> ReviewPage {
         vec![
             ReviewSection {
                 scope: Some("User".to_string()),
-                path: "~/.alter-zero/hooks.json".to_string(),
+                path: "~/.zeroth/hooks.json".to_string(),
                 items: vec![hook(
                     "Stop",
                     "",
@@ -118,7 +118,7 @@ fn many_hooks(n: usize) -> ReviewPage {
         ReviewKind::Hooks,
         vec![ReviewSection {
             scope: Some("User".to_string()),
-            path: "~/.alter-zero/hooks.json".to_string(),
+            path: "~/.zeroth/hooks.json".to_string(),
             items: (0..n)
                 .map(|i| {
                     hook(
@@ -140,7 +140,7 @@ fn the_hooks_page_shows_each_hook_verbatim_under_its_file() {
     let title = find(&texts, "2 hooks to review · 1 new, 1 changed");
     assert!(texts[title].ends_with("1/2"), "{:?}", texts[title]);
     let info = find(&texts, "Hooks run shell commands on their own");
-    let user = find(&texts, "User · ~/.alter-zero/hooks.json");
+    let user = find(&texts, "User · ~/.zeroth/hooks.json");
     let stop = find(&texts, "[✔] Stop");
     let command = find(
         &texts,
@@ -413,7 +413,7 @@ fn the_windowed_list_says_what_it_hides_and_names_the_highlighted_file() {
     find(&texts, "more above");
     find(&texts, "more below");
     // The file headings are gone; the highlighted hook names its file.
-    find(&texts, "from User · ~/.alter-zero/hooks.json");
+    find(&texts, "from User · ~/.zeroth/hooks.json");
 }
 
 #[test]

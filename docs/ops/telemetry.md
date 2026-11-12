@@ -216,7 +216,7 @@ turning it *off* must always be possible; only "no" is enforced against the
 UI.
 
 And a fourth that is not a door but a fact: **no config home, no telemetry**.
-Without `~/.alter-zero` (or `ALTER_ZERO_CONFIG_DIR`) there is nowhere to keep
+Without `~/.zeroth` (or `ZEROTH_CONFIG_DIR`) there is nowhere to keep
 an install id, and a fresh random id per launch would count one person as
 many; the `/settings` row then reads `false (unavailable)` like every knob the
 host can't serve.

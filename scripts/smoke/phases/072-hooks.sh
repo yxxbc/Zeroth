@@ -32,8 +32,8 @@ expect_has "$hooks_pane" -F "Blocked by PreToolUse hook: no destructive deletes 
 # explicitly.)
 hooks_after_blocked="$(printf '%s\n' "$hooks_pane" | awk '/● Bash\(rm -rf build\/\)/{for (i = 0; i < 3 && (getline line) > 0; i++) print line; exit}')"
 expect_has "$(printf '%s\n' "$hooks_after_blocked" | sed -n 1p)" -F "Blocked by PreToolUse hook" "the blocked call produced output of its own; it must never have run (saw: $hooks_after_blocked)"
-expect_has "$(printf '%s\n' "$hooks_after_blocked" | sed -n 2p)" -F "Hook: ~/.alter-zero/hooks/no-deletes.sh" "the refusal cell did not name the hook that refused (saw: $hooks_after_blocked)"
-expect_has "$(printf '%s\n' "$hooks_after_blocked" | sed -n 3p)" -F "Config: ~/.alter-zero/hooks.json" "the refusal cell did not name the hooks.json its hook is configured in (saw: $hooks_after_blocked)"
+expect_has "$(printf '%s\n' "$hooks_after_blocked" | sed -n 2p)" -F "Hook: ~/.zeroth/hooks/no-deletes.sh" "the refusal cell did not name the hook that refused (saw: $hooks_after_blocked)"
+expect_has "$(printf '%s\n' "$hooks_after_blocked" | sed -n 3p)" -F "Config: ~/.zeroth/hooks.json" "the refusal cell did not name the hooks.json its hook is configured in (saw: $hooks_after_blocked)"
 expect_has "$hooks_pane" -F "Context added by PostToolUse hook" "the PostToolUse hook left no dim provenance row naming its event on the cell it annotated"
 expect_has "$hooks_pane" -F "drwxr-xr-x" "the allowed call lost its own output"
 # The model reads one thing the cell does not show — the line on what to do
@@ -68,8 +68,8 @@ printf '%s\n' "$hooks_overlay_tail"
 # pass on the cell while this one had lost its own: read the three lines
 # right under the expanded header.
 hooks_expanded="$(printf '%s\n' "$hooks_overlay_tail" | awk '/● Ran 1 Stop hook *$/{for (i = 0; i < 3 && (getline line) > 0; i++) print line; exit}')"
-expect_has "$(printf '%s\n' "$hooks_expanded" | sed -n 1p)" -E "⎿  ~/\.alter-zero/hooks/stop\.sh \([0-9.]+m?s\)" "the Ctrl+O cell lost the hook that ran, or how long it ran (saw: $hooks_expanded)"
-expect_has "$(printf '%s\n' "$hooks_expanded" | sed -n 2p)" -F "Config: ~/.alter-zero/hooks.json" "the Ctrl+O cell lost the hooks.json its hook is configured in (saw: $hooks_expanded)"
+expect_has "$(printf '%s\n' "$hooks_expanded" | sed -n 1p)" -E "⎿  ~/\.zeroth/hooks/stop\.sh \([0-9.]+m?s\)" "the Ctrl+O cell lost the hook that ran, or how long it ran (saw: $hooks_expanded)"
+expect_has "$(printf '%s\n' "$hooks_expanded" | sed -n 2p)" -F "Config: ~/.zeroth/hooks.json" "the Ctrl+O cell lost the hooks.json its hook is configured in (saw: $hooks_expanded)"
 expect_has "$(printf '%s\n' "$hooks_expanded" | sed -n 3p)" -F "⎿  Stop hook feedback: Before you finish" "the Ctrl+O cell lost what the hook said (saw: $hooks_expanded)"
 tmux send-keys -t "$S72" q
 sleep 0.3

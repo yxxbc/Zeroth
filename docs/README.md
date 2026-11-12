@@ -126,7 +126,7 @@ Signing in, the wire formats, model catalogs, prompt caching, reasoning and subs
 - [`providers/prompt-caching.md`](providers/prompt-caching.md): Prompt caching and real usage accounting
 - [`providers/reasoning.md`](providers/reasoning.md): Ctrl+T thinking modes (reasoning effort)
 - [`providers/usage.md`](providers/usage.md): `/usage` — what is left of your subscription
-- [`providers/user-providers.md`](providers/user-providers.md): Your own providers — `~/.alter-zero/providers.toml`
+- [`providers/user-providers.md`](providers/user-providers.md): Your own providers — `~/.zeroth/providers.toml`
 - [`providers/venice.md`](providers/venice.md): Venice as a provider
 
 ## State

@@ -173,9 +173,9 @@ fn list_lines(menu: &McpMenu, mcp_on: bool, width: u16) -> Vec<Line<'static>> {
     if menu.servers.is_empty() {
         lines.push(dim_line(MCP_NONE_FOUND, width));
         // Wrapped: the paths are the instruction, and the clip used to eat
-        // exactly the actionable tail (`~/.alter-zero/mcp.json`).
+        // exactly the actionable tail (`~/.zeroth/mcp.json`).
         lines.extend(inset_wrapped(
-            "{project}/.mcp.json · ~/.alter-zero/mcp.json",
+            "{project}/.mcp.json · ~/.zeroth/mcp.json",
             Style::new().fg(ai_color()),
             width,
         ));

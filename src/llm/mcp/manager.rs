@@ -1624,7 +1624,7 @@ mod tests {
                 env: Default::default(),
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         }
     }
 
@@ -1741,7 +1741,7 @@ done"#
                 env: Default::default(),
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         }
     }
 
@@ -1893,7 +1893,7 @@ done"#
                 oauth: None,
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         }]);
         manager.start_connections();
         wait_connected(&manager, "remote");
@@ -1915,7 +1915,7 @@ done"#
                 oauth,
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         }
     }
 
@@ -2206,7 +2206,7 @@ done"#,
                 env: Default::default(),
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         }
     }
 
@@ -2349,7 +2349,7 @@ done"#,
                 oauth: None,
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         };
         let (manager, _rx) = manager_with(vec![entry]);
         manager.start_connections();
@@ -2447,7 +2447,7 @@ done"#,
                         oauth: None,
                     },
                     scope: McpScope::User,
-                    config_path: "~/.alter-zero/mcp.json".to_string(),
+                    config_path: "~/.zeroth/mcp.json".to_string(),
                 }],
                 project: "/proj".to_string(),
                 auth_path: Some(store),
@@ -2522,7 +2522,7 @@ echo {name} >> '{marks}'"#,
                     env: Default::default(),
                 },
                 scope: McpScope::User,
-                config_path: "~/.alter-zero/mcp.json".to_string(),
+                config_path: "~/.zeroth/mcp.json".to_string(),
             }
         };
         let (manager, _rx) = manager_with(vec![entry("one"), entry("two")]);
@@ -2634,7 +2634,7 @@ echo {name} >> '{marks}'"#,
                 oauth: None,
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         };
         let (manager, _rx) = manager_with(vec![entry]);
         manager.start_connections();
@@ -2681,7 +2681,7 @@ done
                 env: Default::default(),
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         };
         let (manager, _rx) = manager_with(vec![entry]);
         manager.start_connections();
@@ -2941,7 +2941,7 @@ done
                 oauth: None,
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         };
         let (manager, _rx) = manager_with(vec![entry]);
         manager.start_connections();
@@ -2984,7 +2984,7 @@ done
                 env: Default::default(),
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         }
     }
 
@@ -3186,7 +3186,7 @@ done
                 env: Default::default(),
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         }
     }
 
@@ -3619,7 +3619,7 @@ done
                         oauth: None,
                     },
                     scope: McpScope::User,
-                    config_path: "~/.alter-zero/mcp.json".to_string(),
+                    config_path: "~/.zeroth/mcp.json".to_string(),
                 }],
                 project: "/proj".to_string(),
                 auth_path: Some(auth_path.to_path_buf()),
@@ -3856,7 +3856,7 @@ done
                 oauth: None,
             },
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
         };
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
         let manager = McpManager::new(
@@ -3988,7 +3988,7 @@ done
                         oauth: None,
                     },
                     scope: McpScope::User,
-                    config_path: "~/.alter-zero/mcp.json".to_string(),
+                    config_path: "~/.zeroth/mcp.json".to_string(),
                 }],
                 project: "/proj".to_string(),
                 auth_path: Some(auth_path.to_path_buf()),

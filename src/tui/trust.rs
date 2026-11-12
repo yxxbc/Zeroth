@@ -404,7 +404,7 @@ pub(crate) fn load_project_layer(cwd: &Path) -> Option<ProjectLayer> {
         return None;
     }
     // A project path that IS the user layer's file (an
-    // `ALTER_ZERO_CONFIG_DIR` pointed inside the project) is already loaded
+    // `ZEROTH_CONFIG_DIR` pointed inside the project) is already loaded
     // as the user's — never read twice.
     let user_files = [
         config::user_hooks_path(),

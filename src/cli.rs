@@ -352,7 +352,7 @@ const MCP_DOC: HelpDoc = HelpDoc {
     title: "zeroth mcp",
     description: "\
 Manage MCP servers in the user config file (ALTER_ZERO_MCP_FILE, else
-~/.alter-zero/mcp.json) from a script — inside the app, /mcp manages them live.",
+~/.zeroth/mcp.json) from a script — inside the app, /mcp manages them live.",
     usage: &[
         (
             "zeroth mcp add",

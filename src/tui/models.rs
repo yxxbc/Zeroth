@@ -81,7 +81,7 @@ pub(crate) struct ModelSession {
     env_file: EnvFile,
     env_file_path: std::path::PathBuf,
     /// The `~`-relative `.env` path shown in the `/login` provider-step hint,
-    /// so it names the real file even under an `ALTER_ZERO_ENV_FILE` override.
+    /// so it names the real file even under an `ZEROTH_ENV_FILE` override.
     env_path_display: String,
     /// `config.json`'s path; `None` disables persistence (no config home).
     settings_path: Option<std::path::PathBuf>,
@@ -257,7 +257,7 @@ impl ModelSession {
     ) -> Self {
         let (providers, provider_issues) = config::startup_providers(home);
         // The persistent API-key store: `.env` in the config home (or
-        // `ALTER_ZERO_ENV_FILE`), written by the `/login` flow and consulted
+        // `ZEROTH_ENV_FILE`), written by the `/login` flow and consulted
         // during key resolution (a real process env var still wins).
         let env_file_path = config::env_file_path();
         let env_file = config::load_env_file(&env_file_path);
@@ -305,7 +305,7 @@ impl ModelSession {
         if let Some(base) = config::github_api_base() {
             llm::copilot::set_github_api(base);
         }
-        // The persisted `/model` selection (`~/.alter-zero/config.json`), per
+        // The persisted `/model` selection (`~/.zeroth/config.json`), per
         // working directory (docs/state/per-directory-state.md): this directory's
         // own entry, or — launched in for the first time — the last selection
         // made anywhere, pinned as this directory's own right here so a later
@@ -1700,7 +1700,7 @@ pub(crate) struct HookSetup {
     /// when the session has none (`docs/tools/scratchpad.md`).
     pub(crate) scratchpad_dir: Option<std::path::PathBuf>,
     /// The user's home, which a refused call's cell names its hook's
-    /// `hooks.json` from — `~/.alter-zero/hooks.json`, as the startup review
+    /// `hooks.json` from — `~/.zeroth/hooks.json`, as the startup review
     /// names it (`docs/tools/hooks.md` *What the user sees*).
     pub(crate) home: Option<std::path::PathBuf>,
 }

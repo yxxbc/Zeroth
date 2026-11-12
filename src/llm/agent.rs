@@ -2841,7 +2841,7 @@ mod tests {
                 blocked: Some(crate::hooks::HookBlock {
                     reason: "Use pnpm instead of npm.".into(),
                     hook: Some(crate::hooks::HookOrigin {
-                        command: "~/.alter-zero/hooks/pnpm-only.sh".into(),
+                        command: "~/.zeroth/hooks/pnpm-only.sh".into(),
                         file: Some("/home/u/.alter-zero/hooks.json".into()),
                     }),
                 }),
@@ -2861,8 +2861,8 @@ mod tests {
         assert_eq!(
             display,
             "Blocked by PreToolUse hook: Use pnpm instead of npm.\n\
-             Hook: ~/.alter-zero/hooks/pnpm-only.sh\n\
-             Config: ~/.alter-zero/hooks.json"
+             Hook: ~/.zeroth/hooks/pnpm-only.sh\n\
+             Config: ~/.zeroth/hooks.json"
         );
         assert!(
             result.contains("\nConfig: /home/u/.alter-zero/hooks.json\n"),

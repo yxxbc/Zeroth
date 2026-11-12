@@ -33,7 +33,7 @@ fn overview() -> HooksOverview {
 
 fn hooks_app() -> App {
     let mut app = App::new();
-    app.open_hooks_menu(overview(), Some("~/.alter-zero/hooks.json".into()), true);
+    app.open_hooks_menu(overview(), Some("~/.zeroth/hooks.json".into()), true);
     app
 }
 
@@ -84,7 +84,7 @@ fn every_level_hugs_its_frame() {
     assert_frame_hugs_content("an empty event", &hooks_view_lines(&empty, 78));
 
     let mut off = App::new();
-    off.open_hooks_menu(overview(), Some("~/.alter-zero/hooks.json".into()), false);
+    off.open_hooks_menu(overview(), Some("~/.zeroth/hooks.json".into()), false);
     assert_frame_hugs_content("the disabled note", &hooks_view_lines(&off, 78));
 }
 
@@ -284,10 +284,7 @@ fn the_detail_page_shows_fields_the_boxed_command_and_the_note() {
     assert_eq!(texts[3], "  Event:    PreToolUse");
     assert_eq!(texts[4], "  Matcher:  bash");
     assert_eq!(texts[5], "  Type:     command");
-    assert_eq!(
-        texts[6],
-        "  Source:   User settings (~/.alter-zero/hooks.json)"
-    );
+    assert_eq!(texts[6], "  Source:   User settings (~/.zeroth/hooks.json)");
     let label = find(&texts, "Command:");
     assert!(texts[label + 1].starts_with("  ╭") && texts[label + 1].ends_with('╮'));
     assert!(
@@ -601,7 +598,7 @@ fn sourced_app(trusted: &'static [&'static str]) -> App {
     )
     .with_trust(&|_, hook| trusted.contains(&hook.command.as_str()));
     let mut app = App::new();
-    app.open_hooks_menu(overview, Some("~/.alter-zero/hooks.json".into()), true);
+    app.open_hooks_menu(overview, Some("~/.zeroth/hooks.json".into()), true);
     app
 }
 

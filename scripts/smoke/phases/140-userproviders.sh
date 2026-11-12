@@ -10,7 +10,7 @@ smoke_begin
 # an OpenAI-compatible API — it lists its models as a bare JSON array, the
 # shape Together AI answers with, streams one reply, and logs every request's
 # Authorization header, its body's keys and its temperature. The config home
-# here is the default one, `~/.alter-zero` under the phase's own HOME, so the
+# here is the default one, `~/.zeroth` under the phase's own HOME, so the
 # toasts name the file the way a user sees it. Against the real binary:
 #   (a) /login lists the user's provider beside the shipped ones, configured
 #       by `ACME_API_KEY` (the id's default variable), and its key step shows
@@ -29,7 +29,7 @@ smoke_begin
 #   (e) a file that does not parse at launch is a startup toast naming its
 #       line, and the shipped providers stay;
 #   (f) ALTER_ZERO_CONFIG_DIR moves the file with the rest of the state:
-#       `~/.alter-zero/providers.toml` is not read under it;
+#       `~/.zeroth/providers.toml` is not read under it;
 #   (g) a providers.toml in the working directory is never read — a checkout
 #       must not be able to point a stored key at a host of its choosing.
 S140="${S}_userprov"
@@ -95,7 +95,7 @@ done
 # The user layer lives in the default config home — no ALTER_ZERO_CONFIG_DIR
 # (the launch below takes the suite's out) and no ALTER_ZERO_PROVIDERS_FILE,
 # which would stand alone instead of layering.
-P_HOME_CFG="$SMOKE_HOME/.alter-zero"
+P_HOME_CFG="$SMOKE_HOME/.zeroth"
 P_FILE="$P_HOME_CFG/providers.toml"
 mkdir -p "$P_HOME_CFG"
 P_ACME="# A provider of my own, beside the shipped ones.
@@ -120,9 +120,9 @@ api_base = "https://planted.example/v1"
 TOML
 
 # The suite's environment, then a second `env` taking its config home back
-# out, so the app resolves the default `$HOME/.alter-zero` itself.
+# out, so the app resolves the default `$HOME/.zeroth` itself.
 P_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ACME_API_KEY=smoke-140 env -u ALTER_ZERO_CONFIG_DIR $BIN_ABS"
-P_SHOWN="~/.alter-zero/providers.toml"
+P_SHOWN="~/.zeroth/providers.toml"
 
 # p_close SESSION — Esc out of whatever page is open, back to the composer.
 p_close() {
@@ -290,7 +290,7 @@ p_close "$S140"
 tmux kill-session -t "$S140" 2>/dev/null
 
 # ---- (f) ALTER_ZERO_CONFIG_DIR moves the file with the rest of the state ----
-# `~/.alter-zero/providers.toml` holds Acme again, and must go unread: the
+# `~/.zeroth/providers.toml` holds Acme again, and must go unread: the
 # config home is elsewhere and has a file of its own. An
 # ALTER_ZERO_PROVIDERS_FILE set to nothing names no file — the empty-is-unset
 # rule every variable here keeps — so the config home's file still layers.
@@ -310,7 +310,7 @@ expect_lacks "$moved_start" -F "os error" "an empty ALTER_ZERO_PROVIDERS_FILE wa
 moved="$(p_key_list "$S140")" || fail "/login did not open under the moved config home"
 dump "/login under a moved config home" "$moved"
 expect_has "$moved" -F "Moved Corp" "the config home's own providers.toml was not read"
-expect_lacks "$moved" -F "Acme Cloud" "~/.alter-zero/providers.toml was read with the config home elsewhere"
+expect_lacks "$moved" -F "Acme Cloud" "~/.zeroth/providers.toml was read with the config home elsewhere"
 expect_lacks "$moved" -F "Planted Provider" "a providers.toml in the working directory was read"
 p_close "$S140"
 tmux kill-session -t "$S140" 2>/dev/null

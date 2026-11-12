@@ -564,7 +564,7 @@ pub(super) fn login_app() -> App {
         login_choices(),
         login_subscriptions(),
         login_locals(),
-        "~/.alter-zero/.env",
+        "~/.zeroth/.env",
     );
     app
 }
@@ -599,7 +599,7 @@ pub(super) fn login_app_signin_method() -> App {
         login_choices(),
         subscriptions,
         login_locals(),
-        "~/.alter-zero/.env",
+        "~/.zeroth/.env",
     );
     let onboarding = app.key_onboarding.as_mut().unwrap();
     onboarding.step = KeyStep::SigninMethod;

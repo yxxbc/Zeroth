@@ -31,7 +31,7 @@ fn opening_onboarding_abandons_other_bands_and_the_model_picker() {
         sample_choices(),
         sample_subscriptions(),
         sample_locals(),
-        "~/.alter-zero/.env",
+        "~/.zeroth/.env",
     );
     assert!(!app.shortcuts_open);
     assert!(app.command_menu.is_none());

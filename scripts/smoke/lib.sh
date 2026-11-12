@@ -305,7 +305,7 @@ smoke_begin() {
 	SMOKE_TMP="$(smoke_real_path "$(mktemp -d "${TMPDIR:-/tmp}/smoke-${SMOKE_PHASE}.XXXXXX")")"
 	export TMPDIR="$SMOKE_TMP"
 	SMOKE_TMUX_SOCKET="$SMOKE_TMP/tmux.sock"
-	# Isolate the config home (~/.alter-zero by default) so the dummy stays the
+	# Isolate the config home (~/.zeroth by default) so the dummy stays the
 	# backend regardless of any real key/model a developer has saved there.
 	SMOKE_CFG="$SMOKE_TMP/cfg"
 	# ALTER_ZERO_SKILLS_DIR REPLACES the skills root list, so an empty directory
@@ -324,7 +324,7 @@ smoke_begin() {
 	SMOKE_SESSIONS="$SMOKE_TMP/sessions"
 	# And HOME itself moves into the tree, so there is NO path by which the
 	# binary under test — or tmux, or git, whatever a phase's own env string
-	# says — can read or write the developer's home: `~/.alter-zero`,
+	# says — can read or write the developer's home: `~/.zeroth`,
 	# `~/.claude/skills`, `~/.tmux.conf`, `~/.gitconfig` all resolve to an
 	# empty directory that dies with the phase. (The checkpoint store supplies
 	# its own git identity, so it needs nothing from there.) A phase that

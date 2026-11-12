@@ -1009,7 +1009,7 @@ impl PermissionRules {
 /// the marker can't be mistaken for content that matters.
 const PREFIX_RULE_SUFFIX: &str = " *";
 
-/// The persisted permissions — `~/.alter-zero/permissions.json` — keyed by
+/// The persisted permissions — `~/.zeroth/permissions.json` — keyed by
 /// **project directory** so "don't ask again" and the [`PermissionMode`] stick
 /// to the project they were granted in, Claude Code's per-project settings:
 ///
@@ -2332,7 +2332,7 @@ mod tests {
         assert!(!gate.allows(&request(PermissionKind::Bash, "git push")));
     }
 
-    // --- the permissions file (`~/.alter-zero/permissions.json`) ---
+    // --- the permissions file (`~/.zeroth/permissions.json`) ---
 
     #[test]
     fn the_permissions_file_parses_the_documented_shape() {

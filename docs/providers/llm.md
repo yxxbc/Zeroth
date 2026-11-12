@@ -159,7 +159,7 @@ and `venice`, Venice's own API behind it, `docs/providers/venice.md`; `openroute
 `cline` and `cline_pass` (`docs/providers/cline.md`); `antigravity`
 (`docs/providers/antigravity.md`); `ollama` and `ollama_cloud`; and `lmstudio`,
 `docs/providers/local-models.md`), with
-the user's own `~/.alter-zero/providers.toml` **laid over** them: a block with
+the user's own `~/.zeroth/providers.toml` **laid over** them: a block with
 a new id adds a provider, one naming a shipped provider changes only the keys
 it sets, and every problem in the file is a toast rather than a silence
 (`docs/providers/user-providers.md`). `ALTER_ZERO_PROVIDERS_FILE` instead names a file
@@ -168,7 +168,7 @@ the working directory is never read: a checkout could otherwise point a
 stored key at a host of its choosing.
 
 The active backend is chosen at startup — from env, then the **persisted
-selection** (`~/.alter-zero/config.json`, written by `/model` — **this working
+selection** (`~/.zeroth/config.json`, written by `/model` — **this working
 directory's** entry, or the last selection made anywhere for a directory
 launched in for the first time, `docs/state/per-directory-state.md`), then the
 file's default — and can be switched live by `/model`. A **resumed**
@@ -183,9 +183,9 @@ directory's entry being only what a *new* session starts on
 | `ALTER_ZERO_MODEL` | active model id | saved selection, then unset → dummy |
 | `ALTER_ZERO_API_KEY` | generic API key (fallback) | unset |
 | `<PROVIDER>_API_KEY` | per-provider key, e.g. `OPENROUTER_API_KEY` | unset |
-| `ALTER_ZERO_CONFIG_DIR` | the config home (holds `.env` + `config.json`, and the user's own `providers.toml`) | `~/.alter-zero` |
+| `ZEROTH_CONFIG_DIR` | the config home (holds `.env` + `config.json`, and the user's own `providers.toml`) | `~/.zeroth` |
 | `ALTER_ZERO_PROVIDERS_FILE` | a provider file that stands **alone** — only its providers, none of the built-ins (`docs/providers/user-providers.md`) | the built-ins + `{config_home}/providers.toml` |
-| `ALTER_ZERO_ENV_FILE` | the `.env` key store `/login` reads and writes (and where a rotated ChatGPT refresh token is written back — `docs/providers/chatgpt.md`) | `{config_home}/.env` |
+| `ZEROTH_ENV_FILE` | the `.env` key store `/login` reads and writes (and where a rotated ChatGPT refresh token is written back — `docs/providers/chatgpt.md`) | `{config_home}/.env` |
 | `ALTER_ZERO_OPENAI_ISSUER` | the auth server ChatGPT Codex's browser and device-code sign-ins talk to — a fork's own, or the smoke suite's local stub (`docs/providers/chatgpt.md`) | `https://auth.openai.com` |
 | `ALTER_ZERO_CLINE_AUTH_BASE` / `ALTER_ZERO_CLINE_API_BASE` | the two hosts Cline's account sign-in talks to — WorkOS and Cline's own API — a fork's own, or the smoke suite's local stub (`docs/providers/cline.md`) | `https://api.workos.com` / `https://api.cline.bot` |
 | `OLLAMA_HOST` / `OLLAMA_HOST_API_KEY` / `OLLAMA_CONTEXT_LENGTH` | the `ollama` provider's host (pointing at it is what configures it), that server's optional bearer, and the mirrored server default window (`docs/providers/ollama.md`) | unset |
@@ -203,16 +203,16 @@ Ollama, `docs/providers/ollama.md`). Otherwise the app uses `DummyAi`. `smoke.sh
 always gets the dummy — the canned replies, the `dummy_model_name` footer, and the
 scripted tool calls its assertions depend on are untouched.
 
-### The config home: `~/.alter-zero`
+### The config home: `~/.zeroth`
 
-The app keeps its per-user state under a **config home** — `ALTER_ZERO_CONFIG_DIR`,
-else `~/.alter-zero` (the same base `providers.toml` and the sessions dir already
+The app keeps its per-user state under a **config home** — `ZEROTH_CONFIG_DIR`,
+else `~/.zeroth` (the same base `providers.toml` and the sessions dir already
 use), else `None` when there's no `HOME` (persistence then disabled, falling back
 to `./.env`). It holds two files, both written best-effort (a failure is swallowed
 so it can never kill the TUI) and created on first write:
 
 - **`.env`** — the API-key store the `/login` flow writes (`tui::config::env_file_path`,
-  overridable with `ALTER_ZERO_ENV_FILE`). Git-ignored so keys are never committed.
+  overridable with `ZEROTH_ENV_FILE`). Git-ignored so keys are never committed.
 - **`config.json`** — the `/model` selections (`llm::settings::Settings`): one
   entry per working directory under `projects`, over the last selection made
   anywhere at the top level (`{ "provider", "model", … }` — the pre-directory
@@ -223,6 +223,15 @@ so it can never kill the TUI) and created on first write:
 Beside them sits one file the app reads and never writes: **`providers.toml`**,
 the user's own providers, laid over the shipped ones and re-read whenever
 `/login` or `/model` opens (`docs/providers/user-providers.md`).
+
+On the first launch after the fork, if the pre-fork `~/.alter-zero` home exists
+and `~/.zeroth` does not, the app copies **only** `config.json`,
+`providers.toml` and `.env` into the new home once
+(`tui::config::migrate_from_alter_zero`). Sessions, history, image caches,
+skills, agents, looks and trust stay behind, and the old directory is never
+modified — the previous app keeps working from it. An explicit
+`ZEROTH_CONFIG_DIR` (or its `ALTER_ZERO_CONFIG_DIR` alias) disables the
+migration, since the user manages that path.
 
 ### Where a key comes from: `.env` persistence
 
@@ -481,7 +490,7 @@ local half — a server's address, **tested before it is saved** — is
     OpenRouter · ◯ unconfigured                          (no key yet; the word stays dim)
     (1/2)                                                (position/total, dim)
 
-  Keys are saved to ~/.alter-zero/.env                   (dim hint — the real path)
+  Keys are saved to ~/.zeroth/.env                   (dim hint — the real path)
 ────────────────────────────────────────────────
 ```
 
@@ -606,7 +615,7 @@ local half — a server's address, **tested before it is saved** — is
   placeholder in the list's place. The key step, the sign-in pages and the
   local server page keep their one shape — their field or their wait sits at
   the bottom, which the anchor already keeps on screen.
-- On save, the loop `EnvFile::upsert`s the key into `~/.alter-zero/.env` (creating
+- On save, the loop `EnvFile::upsert`s the key into `~/.zeroth/.env` (creating
   the config home first), refreshes its in-memory copy (so the next `/model`
   fetch/switch resolves it immediately), and commits a
   `Saved {ENV} to {path} — run /model to use {provider}` system notice. It does

@@ -43,7 +43,7 @@ executes on load.
 | `<cwd>/.alter-zero/skills` | this project (preferred for project skills) |
 | `<cwd>/.claude/skills` | this project, shared with Claude Code |
 | `<project root>/.alter-zero/skills` | the repo, when the cwd is a subdirectory |
-| `<config home>/skills` | personal, every project (usually `~/.alter-zero/skills`) |
+| `<config home>/skills` | personal, every project (usually `~/.zeroth/skills`) |
 | `~/.claude/skills` | personal, shared with Claude Code |
 
 Default to the **project** root when the skill is about this codebase, and to

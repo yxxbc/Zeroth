@@ -192,10 +192,10 @@ impl SettingKey {
             }
             Self::ProjectDocs => "Load the project's AGENTS.md instructions into every request",
             Self::Hooks => {
-                "Run the lifecycle hooks in ~/.alter-zero/hooks.json around tool calls and turns"
+                "Run the lifecycle hooks in ~/.zeroth/hooks.json around tool calls and turns"
             }
             Self::Skills => {
-                "Offer the model the SKILL.md skills found in .claude/skills and ~/.alter-zero/skills"
+                "Offer the model the SKILL.md skills found in .claude/skills and ~/.zeroth/skills"
             }
             Self::Mcp => {
                 "Connect the MCP servers and let the model call them — each server keeps its /mcp on/off"
@@ -284,7 +284,7 @@ type Mode = Option<PermissionMode>;
 
 /// The live values behind the `/settings` menu.
 ///
-/// Serialized to `~/.alter-zero/settings.json` with every field optional, so an
+/// Serialized to `~/.zeroth/settings.json` with every field optional, so an
 /// old, partial, or future file still loads and a value left at its default
 /// stays off the wire. [`SettingAvailability`] is **not** persisted — it is a
 /// fact about the host, re-derived every run.

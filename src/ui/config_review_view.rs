@@ -155,7 +155,7 @@ fn wrapped(text: &str, style: Style, width: u16) -> Vec<Line<'static>> {
         .collect()
 }
 
-/// A file's heading: `User · ~/.alter-zero/hooks.json`, or the path alone.
+/// A file's heading: `User · ~/.zeroth/hooks.json`, or the path alone.
 fn heading_spans(section: &ReviewSection) -> Vec<Span<'static>> {
     let dim = Style::new().fg(model_meta_color());
     match &section.scope {

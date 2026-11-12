@@ -1429,7 +1429,7 @@ mod tests {
             hooks: vec![
                 RanHook {
                     command: "./check-git.sh".into(),
-                    config: Some("~/.alter-zero/hooks.json".into()),
+                    config: Some("~/.zeroth/hooks.json".into()),
                     millis: 412,
                     said: vec![HookSaid::Feedback(
                         "Stop hook feedback: commit first".into(),

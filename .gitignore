@@ -1,6 +1,6 @@
 /target
 .claude/
-# The /login flow writes API keys to ~/.alter-zero/.env by default (outside the
+# The /login flow writes API keys to ~/.zeroth/.env by default (outside the
 # repo); this guards a local ./.env (ALTER_ZERO_ENV_FILE / no-HOME fallback) too —
 # never commit secrets (docs/providers/llm.md).
 .env

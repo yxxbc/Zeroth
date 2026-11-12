@@ -196,7 +196,7 @@ a whole-cwd `git add -A` before the first frame — and neither seemed
 something you want on in a directory you did not choose it for: a hooks file
 written for one project fires in every project, and a checkpoint store for a
 tree you opened once to read a file costs seconds at startup and a copy of
-the tree under `~/.alter-zero`. With settings per directory, opting **in** is
+the tree under `~/.zeroth`. With settings per directory, opting **in** is
 one `/settings` cycle in the directory that wants it, recorded as
 `"checkpoints": true` in that directory's entry (the diff predicates flipped
 with the defaults, so the file still records only what changed).

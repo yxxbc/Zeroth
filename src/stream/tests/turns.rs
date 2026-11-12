@@ -335,8 +335,8 @@ fn the_hooks_demo_s_refusal_names_the_event_the_hook_and_its_file() {
         [
             "● Bash(rm -rf build/)",
             "  ⎿  Blocked by PreToolUse hook: no destructive deletes outside ./tmp",
-            "     Hook: ~/.alter-zero/hooks/no-deletes.sh",
-            "     Config: ~/.alter-zero/hooks.json",
+            "     Hook: ~/.zeroth/hooks/no-deletes.sh",
+            "     Config: ~/.zeroth/hooks.json",
         ]
     );
     // The call that ran carries the PostToolUse hook's row, naming its event
@@ -374,8 +374,7 @@ fn the_hooks_demo_s_stop_hook_keeps_it_going_under_the_live_cell() {
     assert_eq!(label, "Stop hook");
     assert!(
         text.starts_with("Stop hook feedback: ")
-            && text
-                .ends_with("\nHook: ~/.alter-zero/hooks/stop.sh\nConfig: ~/.alter-zero/hooks.json"),
+            && text.ends_with("\nHook: ~/.zeroth/hooks/stop.sh\nConfig: ~/.zeroth/hooks.json"),
         "the model's feedback, naming the hook: {text}"
     );
     let report = report.as_ref().expect("the block is shown");

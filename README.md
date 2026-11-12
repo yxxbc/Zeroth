@@ -142,7 +142,7 @@ Without a configured provider, Zeroth opens an offline demo with scripted turns 
 2. Run **`/model`** to choose a model. Zeroth remembers your selection for this directory.
 3. Describe a task, review any approval prompts, and follow the work as it happens.
 
-Sign-ins added through `/login` are saved to `~/.alter-zero/.env`, outside your repository. Use `/` to browse commands or `?` in an empty composer to see shortcuts.
+Sign-ins added through `/login` are saved to `~/.zeroth/.env`, outside your repository. Use `/` to browse commands or `?` in an empty composer to see shortcuts.
 
 <details>
 <summary><strong>Connect with environment variables</strong></summary>
@@ -194,7 +194,7 @@ The footer shows your active model, thinking mode, speed tier and context usage.
 <details>
 <summary><strong>Add a provider of your own</strong></summary>
 
-Any service with an OpenAI-compatible API, or a local server such as llama.cpp or vLLM, can be added in `~/.alter-zero/providers.toml`. The file adds to the providers above rather than replacing them:
+Any service with an OpenAI-compatible API, or a local server such as llama.cpp or vLLM, can be added in `~/.zeroth/providers.toml`. The file adds to the providers above rather than replacing them:
 
 ```toml
 [providers.groq]
@@ -361,16 +361,18 @@ Run `zeroth mcp --help` for MCP server management commands, and `zeroth update` 
 
 ## Where things live
 
-Your sign-ins, saved sessions, input history, and per-directory settings live under `~/.alter-zero/`. Keep shared extensions there, or add project-specific ones alongside your code.
+Your sign-ins, saved sessions, input history, and per-directory settings live under `~/.zeroth/`. Keep shared extensions there, or add project-specific ones alongside your code.
+
+If `~/.alter-zero/` exists from a previous install, the first launch copies `config.json`, `providers.toml` and `.env` out of it once. Sessions, history, caches, skills and agents stay behind, and the old directory is never modified — the previous app keeps working from it.
 
 <details>
 <summary><strong>Configuration and extension paths</strong></summary>
 
 | Location | Contents |
 | --- | --- |
-| `~/.alter-zero/.env` | Keys and tokens saved through `/login` |
-| `~/.alter-zero/agents/` and `~/.alter-zero/skills/` | Your shared agent definitions and skills |
-| `~/.alter-zero/hooks.json` and `~/.alter-zero/mcp.json` | Your shared hooks and MCP servers |
+| `~/.zeroth/.env` | Keys and tokens saved through `/login` |
+| `~/.zeroth/agents/` and `~/.zeroth/skills/` | Your shared agent definitions and skills |
+| `~/.zeroth/hooks.json` and `~/.zeroth/mcp.json` | Your shared hooks and MCP servers |
 | `.alter-zero/` in a project | Project-specific `agents/`, `skills/`, `hooks.json`, and `mcp.json` |
 | `AGENTS.md` | Project instructions read by the agent |
 

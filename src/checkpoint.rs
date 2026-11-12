@@ -25,7 +25,7 @@
 //! Both guards exist for the same reason: the session-start snapshot runs
 //! **before the first frame paints**, in raw mode, and `git add -A` is
 //! O(bytes). A 235 MB working directory measured 9.7 s to first frame with a
-//! dead Ctrl+C; `/tmp` and `~/.alter-zero` are the directories where that is
+//! dead Ctrl+C; `/tmp` and `~/.zeroth` are the directories where that is
 //! most likely and least wanted.
 //!
 //! The store is keyed by the working directory, so every session run in a
@@ -88,7 +88,7 @@ pub fn retain_surviving(checkpoints: &mut Vec<Checkpoint>, len: usize) {
 }
 
 /// The isolated store's `GIT_DIR` for `cwd` under `root` (e.g.
-/// `~/.alter-zero/checkpoints`): one per working directory, keyed by the cwd
+/// `~/.zeroth/checkpoints`): one per working directory, keyed by the cwd
 /// with every non-alphanumeric char dashed (`/home/user/proj` →
 /// `-home-user-proj`) so all sessions in a directory share one object store.
 /// Pure: the boundary injects `root`.
@@ -146,7 +146,7 @@ pub enum CheckpointRefusal {
     FilesystemRoot,
     /// The home directory itself, or an ancestor of it (`/home`).
     HomeDirectory,
-    /// zeroth's own state directory (`~/.alter-zero`) or anything under
+    /// zeroth's own state directory (`~/.zeroth`) or anything under
     /// it: the rollouts, the input history, and every project's checkpoint
     /// store live there. A cwd that merely *contains* this session's store is
     /// not refused — [`store_exclude_line`] handles that direction.
@@ -296,7 +296,7 @@ pub const SHARED_PARENTS: &[&str] = &[
 /// ordinary layout, nothing to exclude).
 ///
 /// A `checkpoints_root` *inside* the cwd is the mechanism behind the reported
-/// 2 GB `~/.alter-zero`: without this, every `git add -A` re-stages the
+/// 2 GB `~/.zeroth`: without this, every `git add -A` re-stages the
 /// previous snapshots' object files, so the tracked set doubles each turn
 /// (measured 59 → 130 → 269 → 528 over four snapshots) and the store
 /// compounds into itself. [`CHECKPOINT_EXCLUDES`] cannot cover it — those are
@@ -336,7 +336,7 @@ pub fn store_exclude_line(work_tree: &Path, checkpoints_root: &Path) -> Option<S
 pub struct CheckpointEnv<'a> {
     /// `$HOME`.
     pub home: Option<&'a Path>,
-    /// zeroth's config/state directory (`~/.alter-zero`).
+    /// zeroth's config/state directory (`~/.zeroth`).
     pub state_dir: Option<&'a Path>,
     /// `$TMPDIR` — `/tmp` under another name, and on macOS a per-user path
     /// (`/var/folders/xx/yyy/T`) no fixed list can predict.
@@ -563,7 +563,7 @@ pub fn git_available() -> bool {
 
 /// The isolated git object store behind the checkpoint feature — the I/O
 /// boundary. Every git command runs against a private `GIT_DIR` (under
-/// `~/.alter-zero/checkpoints`) with the cwd as its detached work tree and its
+/// `~/.zeroth/checkpoints`) with the cwd as its detached work tree and its
 /// **own** config/index, so it never touches the user's real `.git`, staging
 /// area, branches, or global git config. A disabled store (no root, git
 /// missing, or `ALTER_ZERO_CHECKPOINTS=0`) makes every operation an inert
@@ -591,7 +591,7 @@ pub struct CheckpointStore {
 
 impl CheckpointStore {
     /// Build a store snapshotting `cwd`. `root` is the checkpoints root
-    /// (`~/.alter-zero/checkpoints`, or `ALTER_ZERO_CHECKPOINTS_DIR`) and
+    /// (`~/.zeroth/checkpoints`, or `ALTER_ZERO_CHECKPOINTS_DIR`) and
     /// `capable` is whether this host can snapshot at all (a `git` binary is
     /// on PATH and the cwd is project-scoped). A `None` root or
     /// `capable == false` yields a permanently disabled store; otherwise it
@@ -983,8 +983,8 @@ mod tests {
 
     // ===== cwd_scope (the "zeroth hangs in a huge directory" guard) =====
 
-    /// The usual layout: `$HOME=/home/user`, state dir `~/.alter-zero`, store
-    /// root `~/.alter-zero/checkpoints`, `$TMPDIR` unset.
+    /// The usual layout: `$HOME=/home/user`, state dir `~/.zeroth`, store
+    /// root `~/.zeroth/checkpoints`, `$TMPDIR` unset.
     fn env() -> CheckpointEnv<'static> {
         CheckpointEnv {
             home: Some(Path::new("/home/user")),
@@ -1055,7 +1055,7 @@ mod tests {
 
     #[test]
     fn cwd_scope_refuses_the_apps_own_state_directory_and_everything_under_it() {
-        // `~/.alter-zero` holds the rollouts, the background task logs — and
+        // `~/.zeroth` holds the rollouts, the background task logs — and
         // the checkpoint stores themselves. Snapshotting it means the store
         // hashing its own objects back into itself every turn: the tracked
         // file count doubles per snapshot and the store grows without bound

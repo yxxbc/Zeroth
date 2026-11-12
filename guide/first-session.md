@@ -46,7 +46,7 @@ Run `/login`. It asks how you want to sign in:
 | Row | Use it when |
 | --- | --- |
 | **Sign in with an account** | You have a subscription or console account — ChatGPT, Anthropic Console, GitHub Copilot, Cline, Google Antigravity. Some open a browser; some show a code to enter at a URL. |
-| **Sign in with an API key** | You have a provider key. It is masked while you type and saved to `~/.alter-zero/.env`, outside your repository. |
+| **Sign in with an API key** | You have a provider key. It is masked while you type and saved to `~/.zeroth/.env`, outside your repository. |
 | **Sign in with a local model** | You run Ollama or LM Studio. The page tests the address before it saves it. |
 
 Each provider row shows `✔ configured` or `◯ unconfigured`; `Esc` backs out

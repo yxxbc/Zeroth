@@ -159,7 +159,7 @@ fn a_hook_note_with_a_report_is_its_cell_inline_and_expanded_in_the_transcript()
         event: "Stop".to_string(),
         hooks: vec![crate::hooks::RanHook {
             command: "./stop.sh".to_string(),
-            config: Some("~/.alter-zero/hooks.json".to_string()),
+            config: Some("~/.zeroth/hooks.json".to_string()),
             millis: 40,
             said: vec![crate::hooks::HookSaid::Feedback(
                 "Stop hook feedback: tests are red".to_string(),
@@ -212,7 +212,7 @@ fn a_hook_note_with_a_report_is_its_cell_inline_and_expanded_in_the_transcript()
         [
             "● Ran 1 Stop hook",
             "  ⎿  ./stop.sh (40ms)",
-            "     Config: ~/.alter-zero/hooks.json",
+            "     Config: ~/.zeroth/hooks.json",
             "  ⎿  Stop hook feedback: tests are red",
         ]
     );

@@ -27,7 +27,7 @@ fn snapshot(name: &str, scope: McpScope, status: McpServerStatus) -> McpServerSn
         scope,
         config_path: match scope {
             McpScope::Project => "~/repo/.mcp.json".to_string(),
-            McpScope::User => "~/.alter-zero/mcp.json".to_string(),
+            McpScope::User => "~/.zeroth/mcp.json".to_string(),
         },
         config: McpServerConfig::Http {
             url: format!("https://{name}.test/mcp"),
@@ -83,7 +83,7 @@ fn the_list_groups_by_scope_with_status_rows() {
     assert!(all.contains("Manage MCP servers"));
     assert!(all.contains("3 servers"));
     assert!(all.contains("Project MCPs (~/repo/.mcp.json)"));
-    assert!(all.contains("User MCPs (~/.alter-zero/mcp.json)"));
+    assert!(all.contains("User MCPs (~/.zeroth/mcp.json)"));
     assert!(all.contains("linear · △ needs authentication"));
     assert!(all.contains("deepwiki · ✔ connected · 1 tool"));
     assert!(all.contains("github · ◯ disabled"));

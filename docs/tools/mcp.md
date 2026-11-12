@@ -19,7 +19,7 @@ Code precedence, minus the `local` scope we don't model):
   nearest-`.git` root (the `AGENTS.md` walk-up,
   `project_doc::find_project_root`), so launching in `repo/src` still finds
   the repo's servers.
-- **User**: `{config_home}/mcp.json` (`~/.alter-zero/mcp.json`) — personal
+- **User**: `{config_home}/mcp.json` (`~/.zeroth/mcp.json`) — personal
   servers, every project.
 
 **A project server runs only once the user enables it**
@@ -1126,7 +1126,7 @@ mid-turn (the strip stays above it). Pages:
 
 1. **Server list** — `Manage MCP servers` + `{n} servers`, the rows grouped
    under dim scope headings that name the config file
-   (`Project MCPs ({root}/.mcp.json)`, `User MCPs (~/.alter-zero/mcp.json)`),
+   (`Project MCPs ({root}/.mcp.json)`, `User MCPs (~/.zeroth/mcp.json)`),
    each row `{name} · {glyph} {status}` (`✔ connected · 3 tools`,
    `△ needs authentication`, `◯ disabled`, `✘ failed`). The ` · `
    separators are **chrome, not status**, so they stay dim at every state

@@ -189,7 +189,7 @@ The port keeps the project's pure-core / boundary split.
   recognise it, and the reminder's tags already bound the block.
 - **No user-level global AGENTS.md** (codex's `~/.codex/AGENTS.md` combined
   over a `--- project-doc ---` separator). We have no other global
-  instruction source; a `~/.alter-zero/AGENTS.md` would be a follow-up —
+  instruction source; a `~/.zeroth/AGENTS.md` would be a follow-up —
   one more `Contents of` block, with the reference's `(user's private global
   instructions for all projects)` caption.
 - **No fallback-filename / root-marker config** — codex's

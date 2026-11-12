@@ -39,7 +39,7 @@ fn hooks_page(commands: &[&str]) -> ReviewPage {
         ReviewKind::Hooks,
         vec![ReviewSection {
             scope: Some("User".to_string()),
-            path: "~/.alter-zero/hooks.json".to_string(),
+            path: "~/.zeroth/hooks.json".to_string(),
             items: commands.iter().map(|c| hook_item(c)).collect(),
         }],
     )

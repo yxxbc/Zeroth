@@ -192,8 +192,8 @@ pub(crate) fn find_session_by_id(root: Option<&Path>, id: &str) -> Result<PathBu
 }
 
 /// The sessions root: `ALTER_ZERO_SESSIONS_DIR`, else `{config_home}/sessions`
-/// — `~/.alter-zero/sessions` by default, and *inside* a moved
-/// `ALTER_ZERO_CONFIG_DIR`, the way the checkpoints root resolves
+/// — `~/.zeroth/sessions` by default, and *inside* a moved
+/// `ZEROTH_CONFIG_DIR`, the way the checkpoints root resolves
 /// (`config::checkpoints_root`); `None` disables recording (no HOME and no
 /// override). Shared by the [`SessionRecorder`] and the CLI resolution in
 /// `main` (`docs/cli/cli.md`). It used to fall back to `$HOME` regardless of the
@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn sessions_root_follows_the_config_home_when_nothing_overrides_it() {
-        // A moved `ALTER_ZERO_CONFIG_DIR` takes its rollouts with it, the way
+        // A moved `ZEROTH_CONFIG_DIR` takes its rollouts with it, the way
         // the checkpoints root already does: recording into `$HOME/.alter-zero`
         // behind a redirected config home is how the smoke suite's throwaway
         // sessions leaked into the developer's own `/resume` picker.

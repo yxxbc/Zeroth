@@ -280,7 +280,7 @@ mod tests {
         McpServerSnapshot {
             name: "deepwiki".to_string(),
             scope: McpScope::User,
-            config_path: "~/.alter-zero/mcp.json".to_string(),
+            config_path: "~/.zeroth/mcp.json".to_string(),
             config: McpServerConfig::Http {
                 url: "https://mcp.deepwiki.com/mcp".to_string(),
                 headers: BTreeMap::new(),

@@ -424,7 +424,7 @@ pub(super) fn login_app_with_chatgpt() -> App {
         sample_choices(),
         subscriptions,
         sample_locals(),
-        "~/.alter-zero/.env",
+        "~/.zeroth/.env",
     );
     app
 }
@@ -448,7 +448,7 @@ pub(super) fn login_app() -> App {
         sample_choices(),
         sample_subscriptions(),
         sample_locals(),
-        "~/.alter-zero/.env",
+        "~/.zeroth/.env",
     );
     app
 }

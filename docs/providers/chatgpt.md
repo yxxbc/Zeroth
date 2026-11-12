@@ -594,7 +594,7 @@ rather than left to a default.
 | --- | --- |
 | `CHATGPT_CODEX_REFRESH_TOKEN` | the stored refresh token (a real env var wins over `.env`, as everywhere) |
 | `OPENAI_CHATGPT_REFRESH_TOKEN` | the variable's name before the rename — still read when the current one is unset, never written |
-| `ALTER_ZERO_ENV_FILE` | relocates the store the rotation writes back to |
+| `ZEROTH_ENV_FILE` | relocates the store the rotation writes back to |
 | `ALTER_ZERO_OPENAI_ISSUER` | the auth server both sign-ins (and the refresh) talk to — a fork's, or `smoke.sh` Phase 119's local stub; `https://auth.openai.com` by default |
 
 The seat's rate limits and credits — what `/usage` shows — are read from the

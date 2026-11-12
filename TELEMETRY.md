@@ -154,7 +154,7 @@ export DO_NOT_TRACK=1                    # every tool that honours it, including
 ```
 
 There is also a case where it never runs at all: **no config home**. Without
-`~/.alter-zero` (or `ALTER_ZERO_CONFIG_DIR`) there is nowhere to keep an
+`~/.zeroth` (or `ZEROTH_CONFIG_DIR`) there is nowhere to keep an
 install id, and inventing a fresh one each launch would count one person as
 many — so nothing is sent, and the `/settings` row reads
 `false (unavailable)`.
@@ -189,7 +189,7 @@ nothing, because there is nothing to disclose.
 
 ## What is kept on your machine
 
-`~/.alter-zero/telemetry.json`, which you are welcome to read or edit:
+`~/.zeroth/telemetry.json`, which you are welcome to read or edit:
 
 ```json
 {
@@ -245,7 +245,7 @@ HTTPServer(('127.0.0.1', 8787), H).serve_forever()"
 
 # In another — a fresh config home, so this is a 'first install':
 ALTER_ZERO_TELEMETRY_URL=http://127.0.0.1:8787/v1/ping \
-ALTER_ZERO_CONFIG_DIR=/tmp/az-telemetry-check zeroth
+ZEROTH_CONFIG_DIR=/tmp/az-telemetry-check zeroth
 ```
 
 The first terminal prints the one line the app sends, and nothing else, for as
@@ -300,7 +300,7 @@ one you may not want:
 As with Telemetry, the variable withdraws the `/settings` row (`false
 (unavailable)`) so nothing in the app can quietly turn it back on, and without
 a config home nothing runs at all. What is kept is
-`~/.alter-zero/update.json`: the switch, the last day a check was attempted,
+`~/.zeroth/update.json`: the switch, the last day a check was attempted,
 the newest version the last check found, and the last day the notice was
 shown. `ALTER_ZERO_UPDATE_URL` points the check at another repository — a
 fork of your own — and `scripts/smoke.sh` Phase 116 drives the whole thing

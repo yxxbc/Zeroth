@@ -103,7 +103,7 @@ const BUILTIN_SKILL_FILES: [(&str, &str); 12] = [
 /// the more specific directory keeps precedence over the more general one.
 ///
 /// The personal `.alter-zero/skills` hangs off `config_home` rather than
-/// `$HOME` directly, so it follows `ALTER_ZERO_CONFIG_DIR` like `hooks.json`,
+/// `$HOME` directly, so it follows `ZEROTH_CONFIG_DIR` like `hooks.json`,
 /// `permissions.json` and `settings.json` do. The `.claude/skills` rows are
 /// deliberate: a skill is portable markdown with no tool-specific behaviour in
 /// it, the ecosystem writes them there, and reading the directory costs one
@@ -277,7 +277,7 @@ pub fn discover_skills(roots: &[PathBuf]) -> (Vec<SkillMetadata>, Vec<SkillError
 /// [`discover_skills`] over the roots this environment resolves to —
 /// `ALTER_ZERO_SKILLS_DIR` alone when it is set, else the project's, the
 /// config home's, and `$HOME`'s. `config_home` is passed in rather than read
-/// here so the override that moves it (`ALTER_ZERO_CONFIG_DIR`) resolves once,
+/// here so the override that moves it (`ZEROTH_CONFIG_DIR`) resolves once,
 /// at the boundary, the way `llm::hooks::hooks_file_path` takes it.
 #[must_use]
 pub fn load_skills(
@@ -479,7 +479,7 @@ mod tests {
     #[test]
     fn the_roots_run_project_first_then_personal() {
         // The personal `.alter-zero/skills` hangs off the **config home**, not
-        // raw $HOME, so it follows ALTER_ZERO_CONFIG_DIR like every other
+        // raw $HOME, so it follows ZEROTH_CONFIG_DIR like every other
         // per-user file here (hooks.json, permissions.json, settings.json).
         let roots = skill_roots(
             Path::new("/work"),

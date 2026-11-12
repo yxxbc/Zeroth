@@ -100,14 +100,14 @@ is never ambiguous.
 
 `/login` → **Sign in with an API key** → **Venice** → the key step introduces the
 provider with the file's description and links the key page, and Enter saves
-the key as `VENICE_API_KEY` in `~/.alter-zero/.env`. Venice issues two kinds
+the key as `VENICE_API_KEY` in `~/.zeroth/.env`. Venice issues two kinds
 of key; an **Inference Only** key is all the app needs (the Admin kind exists
 to manage keys programmatically). From the environment,
 `ALTER_ZERO_PROVIDER=venice` with `VENICE_API_KEY` exported launches on it
 directly (`ALTER_ZERO_MODEL` names the model, else `/model` picks one).
 
 Every other Venice knob rides the same table, and needs no copy of the
-shipped file: a block in the user's own `~/.alter-zero/providers.toml`
+shipped file: a block in the user's own `~/.zeroth/providers.toml`
 patches the shipped one key by key (`docs/providers/user-providers.md`), so
 `enable_web_search = "auto"`, `strip_thinking_response = true` or a
 `character_slug` under `[providers.venice.kwargs.venice_parameters]` lands

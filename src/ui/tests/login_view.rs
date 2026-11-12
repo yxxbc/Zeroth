@@ -146,7 +146,7 @@ fn render_login_provider_step_frames_lists_and_marks_configured() {
     // The hints name the real .env path and the step's own key grammar, the
     // last of them straight over the bottom rule.
     assert!(
-        row(&buf, 7, 60).contains("Keys are saved to ~/.alter-zero/.env"),
+        row(&buf, 7, 60).contains("Keys are saved to ~/.zeroth/.env"),
         "hint: {:?}",
         row(&buf, 7, 60)
     );
@@ -1100,7 +1100,7 @@ fn login_app_described() -> App {
             .into(),
         key_url: "https://openrouter.ai/workspaces/default/keys".into(),
     };
-    app.open_key_onboarding(vec![choice], Vec::new(), Vec::new(), "~/.alter-zero/.env");
+    app.open_key_onboarding(vec![choice], Vec::new(), Vec::new(), "~/.zeroth/.env");
     let onboarding = app.key_onboarding.as_mut().unwrap();
     onboarding.step = KeyStep::Key;
     onboarding.chosen = Some(0);

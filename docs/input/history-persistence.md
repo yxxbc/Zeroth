@@ -123,8 +123,8 @@ swallowing every error (recording must never kill the TUI, like `SessionRecorder
 and `save_settings`):
 
 - **Path**: `ALTER_ZERO_HISTORY_FILE` override, else `{config_home}/history.jsonl`
-  (`~/.alter-zero/history.jsonl` — beside `config.json`/`.env`/`sessions/`;
-  `ALTER_ZERO_CONFIG_DIR` already redirects it, which is how the smoke test
+  (`~/.zeroth/history.jsonl` — beside `config.json`/`.env`/`sessions/`;
+  `ZEROTH_CONFIG_DIR` already redirects it, which is how the smoke test
   isolates it). `None` (no HOME, no override) disables persistence.
 - **`load()`** → `Vec<String>`: read the file's **bytes** and lossy-decode
   (`String::from_utf8_lossy`, like the shell reader) — a torn/interleaved append

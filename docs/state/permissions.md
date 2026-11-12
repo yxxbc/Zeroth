@@ -843,11 +843,11 @@ visible, through the same channel the classifier's verdict uses:
   ⎿  Allowed in the session scratchpad
 ```
 
-## Persisted per project (`~/.alter-zero/permissions.json`)
+## Persisted per project (`~/.zeroth/permissions.json`)
 
 Standing approvals used to be session-only — quit and every rule was gone,
 which is not what "don't ask again" says. They now persist in the config home
-(`ALTER_ZERO_CONFIG_DIR`, else `~/.alter-zero`), **keyed by project
+(`ZEROTH_CONFIG_DIR`, else `~/.zeroth`), **keyed by project
 directory** so a rule granted in one project never leaks into another —
 Claude Code's per-project settings:
 

@@ -4,7 +4,7 @@ Claude Code's agent files, ported: the subagent types the `agent` tool can
 launch are **markdown files on disk** — YAML frontmatter over an optional
 system-prompt body — instead of two names hard-coded in a `match`. The
 built-in `general-purpose` and `explore` agents are seeded into
-`~/.alter-zero/agents/` on first run, so the defaults are editable and a new
+`~/.zeroth/agents/` on first run, so the defaults are editable and a new
 type is one new file.
 
 `docs/agents/agent-tool.md` is the tool itself (the launch, the roster, the session
@@ -12,8 +12,8 @@ view); this is only where a type's **definition** comes from and what it
 changes about the run.
 
 ```
-~/.alter-zero/agents/general-purpose.md   ← seeded, user-wide
-~/.alter-zero/agents/explore.md           ← seeded, user-wide
+~/.zeroth/agents/general-purpose.md   ← seeded, user-wide
+~/.zeroth/agents/explore.md           ← seeded, user-wide
 {project}/.alter-zero/agents/reviewer.md  ← per project, wins over the above
 ```
 
@@ -59,8 +59,8 @@ can shadow a personal agent of the same name:
 2. `{project_root}/.alter-zero/agents` — the nearest `.git` ancestor, skipped
    when it *is* the cwd (launching in `repo/src` still finds the repo's
    agents, the `AGENTS.md` walk-up)
-3. `{config_home}/agents` — `~/.alter-zero/agents`, following
-   `ALTER_ZERO_CONFIG_DIR` like every other user-level config
+3. `{config_home}/agents` — `~/.zeroth/agents`, following
+   `ZEROTH_CONFIG_DIR` like every other user-level config
 
 Deliberately **no `.claude/agents`**, unlike skills. A `SKILL.md` is inert
 markdown; an agent file names a *model* and a *tool allowlist*, and silently

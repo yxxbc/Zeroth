@@ -16,7 +16,7 @@ make `{root}/.alter-zero` the user's own config home, and the layer would
 rediscover the user's `hooks.json`/`mcp.json` as "project config" and read
 the user's own files twice. In `~` the layer is simply off, while the same
 files keep loading as the user layer they are. A per-file identity guard in `tui::trust` catches
-the same collision anywhere else (an `ALTER_ZERO_CONFIG_DIR` pointed inside
+the same collision anywhere else (an `ZEROTH_CONFIG_DIR` pointed inside
 a project): a project path that *is* the user layer's file is never re-read
 as project config.
 
@@ -111,7 +111,7 @@ Skills keep their per-turn rescan.
   both subsystems; the project layer's own kill switch is
   `ALTER_ZERO_PROJECT_CONFIG=0`.
 - `trust.json` hangs off the config home like `permissions.json` — no
-  override var of its own; `ALTER_ZERO_CONFIG_DIR` moves it.
+  override var of its own; `ZEROTH_CONFIG_DIR` moves it.
 
 ## Module split
 

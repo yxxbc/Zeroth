@@ -328,8 +328,8 @@ rm -rf "$RV_CFG2" "$RV_CFG3" "$RV_CFG4" "$RV_ONE" "$RV_TWO" "$RV_OLD"
 # `/private/var/…` — a HOME spelled the other way is "not the home directory",
 # and the layer would read the user's own files as a project's (`smoke_real_path`).
 RV_HOME="$(smoke_real_path "$(mktemp -d)")"
-mkdir -p "$RV_HOME/.alter-zero"
-cat >"$RV_HOME/.alter-zero/hooks.json" <<'RVHOME'
+mkdir -p "$RV_HOME/.zeroth"
+cat >"$RV_HOME/.zeroth/hooks.json" <<'RVHOME'
 {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./home-fmt.sh"}]}]}}
 RVHOME
 RV_HOME_APP="env HOME=$RV_HOME ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_UPDATE_CHECK=0 ALTER_ZERO_TIPS=0 ALTER_ZERO_PROJECT_CONFIG=1 ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HOOKS=1 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
@@ -337,7 +337,7 @@ launch -c "$RV_HOME" -w "Esc to continue without trusting" "$S83" 100 40 "$RV_HO
 rv_home="$(tmux capture-pane -t "$S83" -p)"
 dump "launched in the home directory" "$rv_home"
 expect_has "$rv_home" -F "1 new hook found" "the home hooks file was not reviewed once"
-expect_has "$rv_home" -F "User · ~/.alter-zero/hooks.json" "the home hooks file is not reviewed as the user's"
+expect_has "$rv_home" -F "User · ~/.zeroth/hooks.json" "the home hooks file is not reviewed as the user's"
 expect_lacks "$rv_home" -F "Project ·" "the user's own config home was read as a project"
 tmux kill-session -t "$S83" 2>/dev/null
 rm -rf "$RV_CFG" "$RV_WORK" "$RV_HOME"

@@ -1,12 +1,12 @@
-# Your own providers — `~/.alter-zero/providers.toml`
+# Your own providers — `~/.zeroth/providers.toml`
 
 The providers the app ships with live in the repository's `providers.toml`,
 embedded in the binary. Anything else that speaks an OpenAI-compatible API —
 a hosted service like Groq, DeepSeek, Mistral or Together, a company proxy,
 or a model server on your own machine like llama.cpp or vLLM — is
 added in a file of the user's own (Ollama and LM Studio ship built in,
-`docs/providers/local-models.md`): `~/.alter-zero/providers.toml`
-(`{config_home}/providers.toml`, so `ALTER_ZERO_CONFIG_DIR` moves it with the
+`docs/providers/local-models.md`): `~/.zeroth/providers.toml`
+(`{config_home}/providers.toml`, so `ZEROTH_CONFIG_DIR` moves it with the
 rest of the state). The block shape is the shipped file's, and the file is
 **laid over** the built-in providers: it adds to them, and it can change one
 of them, but it never replaces the set.
@@ -48,7 +48,7 @@ api_base = "https://api.groq.com/openai/v1"
   to make one.
 
 Then `/login` → **Sign in with an API key** → **Groq** saves the key to
-`~/.alter-zero/.env` (an exported `GROQ_API_KEY` works as well), and `/model`
+`~/.zeroth/.env` (an exported `GROQ_API_KEY` works as well), and `/model`
 lists Groq's models beside every other configured provider's. **Both re-read
 the file when they open**, so a provider added while the app is running — by
 hand, or by asking the agent to write the block — is there without a restart.
@@ -285,7 +285,7 @@ at launch instead, with `ALTER_ZERO_PROVIDER` and `ALTER_ZERO_MODEL`.
 Nothing about the file is skipped in silence. Every problem is one row, raised
 as a red toast at startup and again **every time** `/login` or `/model` opens,
 showing the first row with the rest counted (`(+2 more)`), each led by the
-file, `~`-relative (`~/.alter-zero/providers.toml: …`). Every time, because
+file, `~`-relative (`~/.zeroth/providers.toml: …`). Every time, because
 a toast is easily lost: the startup one can be covered at once by the next
 (a resumed session's checkpoint notice, say), and the page a provider is
 missing from is the moment to say why. A problem costs only the block it is
@@ -319,7 +319,7 @@ load (`docs/providers/copilot.md`) — and so do unknown keys; what changed is t
 user's own typo is said.
 
 **Keys stay out of the file.** A provider file is meant to be read, shared
-and copied between machines, and a key is not: keys live in `~/.alter-zero/.env`
+and copied between machines, and a key is not: keys live in `~/.zeroth/.env`
 (written by `/login`) or in the environment, and an `api_key` in a block is
 reported, never read.
 
@@ -331,7 +331,7 @@ retyped. A re-read never takes anything away from the model that is running:
 
 - A file that **can't be used at all** — unreadable, not TOML, no table of
   providers — leaves the session's providers exactly as they were:
-  ``~/.alter-zero/providers.toml: line 1, column 16: invalid table header, expected `.`, `]` — keeping the providers already loaded``.
+  ``~/.zeroth/providers.toml: line 1, column 16: invalid table header, expected `.`, `]` — keeping the providers already loaded``.
 - A file that loads but no longer gives a **usable definition of the provider
   in use** — its block skipped, or gone from the file — keeps the definition
   the running model was built from, its row ending `— kept the one in use`
@@ -396,7 +396,7 @@ goes too, at the next re-read, and a restart leaves the file alone to decide.
   `a_listing_that_is_a_bare_array_reads_like_the_envelope` and
   `the_window_spellings_self_hosted_servers_use_are_read`.
 - **Smoke** — Phase 140 (`scripts/smoke/phases/140-userproviders.sh`) writes a
-  provider into the phase HOME's `~/.alter-zero/providers.toml` and drives the
+  provider into the phase HOME's `~/.zeroth/providers.toml` and drives the
   real binary against a stub that lists its models as a bare array and logs
   each request's keys and temperature: `/login` shows the provider configured
   beside every shipped one, its key step shows the file's description and key
@@ -409,6 +409,6 @@ goes too, at the next re-read, and a restart leaves the file alone to decide.
   provider in use is kept and its next request still goes to the stub, and
   the fixed file says nothing. A file that does not parse at launch is a
   toast naming its line with the built-ins standing in; with
-  `ALTER_ZERO_CONFIG_DIR` set, `~/.alter-zero/providers.toml` goes unread;
+  `ZEROTH_CONFIG_DIR` set, `~/.zeroth/providers.toml` goes unread;
   and a `providers.toml` planted in the working directory never becomes a
   row.

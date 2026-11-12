@@ -137,7 +137,7 @@ pub(crate) fn run(cmd: &McpCli) -> i32 {
 /// subcommand's body; an `Err(message)` prints to stderr and exits 1.
 fn with_user_file(body: impl FnOnce(&Path, String) -> Result<(), String>) -> i32 {
     let Some(path) = config::mcp_user_file_path() else {
-        eprintln!("No MCP config path (set HOME or ALTER_ZERO_CONFIG_DIR)");
+        eprintln!("No MCP config path (set HOME or ZEROTH_CONFIG_DIR)");
         return 1;
     };
     let contents = match read_user_file(&path) {

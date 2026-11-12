@@ -482,7 +482,7 @@ const FILES_REPLY: &str = concat!(
 
 const HOOKS_REPLY: &str = concat!(
     "Sure — lifecycle hooks are your own commands wedged into my tool loop. \
-     You configure them in `~/.alter-zero/hooks.json`; I'll try two `bash` \
+     You configure them in `~/.zeroth/hooks.json`; I'll try two `bash` \
      calls so you can see both halves.\n\n",
     "That's the pair. The first call never ran: a **PreToolUse** hook exited \
      `2`, so its stderr became the refusal — a red cell naming the event, \
@@ -519,9 +519,9 @@ pub(in crate::stream) fn hooks_turn(cue: &Cue) -> Vec<StreamEvent> {
     const BLOCKED: &str = "rm -rf build/";
     const ALLOWED: &str = "ls -la src";
     const HOOK_REASON: &str = "no destructive deletes outside ./tmp";
-    const HOOK_COMMAND: &str = "~/.alter-zero/hooks/no-deletes.sh";
+    const HOOK_COMMAND: &str = "~/.zeroth/hooks/no-deletes.sh";
     // Already in the cell's `~` form, so no home is needed to name it.
-    const HOOKS_FILE: &str = "~/.alter-zero/hooks.json";
+    const HOOKS_FILE: &str = "~/.zeroth/hooks.json";
 
     let (first, second) = reply_parts(HOOKS_REPLY);
     let ran = ScriptedCall::command(ALLOWED, "total 8\ndrwxr-xr-x  app\ndrwxr-xr-x  ui\n", 0);
@@ -589,7 +589,7 @@ pub(in crate::stream) fn hooks_turn(cue: &Cue) -> Vec<StreamEvent> {
     // round it bought.
     let stop = crate::hooks::HookEvent::Stop;
     let run = crate::hooks::HookRun {
-        command: "~/.alter-zero/hooks/stop.sh".to_string(),
+        command: "~/.zeroth/hooks/stop.sh".to_string(),
         file: Some(HOOKS_FILE.into()),
         exit_code: Some(2),
         stderr: HOOKS_STOP_REASON.to_string(),
@@ -1202,7 +1202,7 @@ pub(in crate::stream) fn download_turn(cue: &Cue) -> Vec<StreamEvent> {
 /// what the one-line cell hides.
 const SKILLS_REPLY: &str = concat!(
     "Skills are folders of authored markdown I can pull in on demand — a \
-     `SKILL.md` per skill under `.claude/skills/` or `~/.alter-zero/skills/`. \
+     `SKILL.md` per skill under `.claude/skills/` or `~/.zeroth/skills/`. \
      Only each one's description sits in my context until I need it, so a \
      library of them costs almost nothing. Let me load one.\n\n",
     "That's the whole visible surface: one green line. What I got back is the \

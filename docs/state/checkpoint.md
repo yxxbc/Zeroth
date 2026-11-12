@@ -27,7 +27,7 @@ pure logic from boundary I/O.
   **final** checkpoint — even if the files diverged since. A `Restored files to
   this session's checkpoint` toast confirms it.
 - **Your real git is never touched.** Snapshots live in a private object store
-  under `~/.alter-zero/checkpoints`, with its own `GIT_DIR`, index, config, and
+  under `~/.zeroth/checkpoints`, with its own `GIT_DIR`, index, config, and
   branch. Your `.git`, staging area, branches, and commits are never read or
   written. A restore's cleanup never deletes your `.git` or vendored dirs.
 - **Nothing is truly lost.** A restore is destructive to the current working
@@ -123,7 +123,7 @@ that were never this session's to touch. Refused, each with its own
 - **`HomeDirectory`** — the home directory itself or an ancestor of it
   (`/home`): the user's entire tree (the original "alter-zero hangs in `~`"
   bug).
-- **`StateDirectory`** — alter-zero's own `~/.alter-zero` **and everything
+- **`StateDirectory`** — alter-zero's own `~/.zeroth` **and everything
   under it**: it holds the rollouts, the input history, and every project's
   checkpoint store, so a restore's `git clean -fd` there deletes other
   sessions' records. A cwd that merely *contains* this session's store is
@@ -152,7 +152,7 @@ injected path counts as unknown rather than as a prefix of everything.
 
 ### The store never snapshots itself
 
-The other half of the 2 GB `~/.alter-zero`, and the one that is a *bug* rather
+The other half of the 2 GB `~/.zeroth`, and the one that is a *bug* rather
 than a scope question. When the checkpoints root lands **inside** the work
 tree, every `git add -A` re-stages the previous snapshots' object files, so
 the tracked set compounds turn after turn — measured on a 40 MB state dir:
@@ -298,7 +298,7 @@ store-local file), no prompts, all stdio detached.
   `config::config_home()`, `config::checkpoints_root()` and `config::tmp_dir()`
   — **and** a `git` binary being present (probed last, so a refused cwd never
   even spawns git). Root: `ALTER_ZERO_CHECKPOINTS_DIR`, else
-  `~/.alter-zero/checkpoints` (the `ALTER_ZERO_SESSIONS_DIR` pattern; the smoke
+  `~/.zeroth/checkpoints` (the `ALTER_ZERO_SESSIONS_DIR` pattern; the smoke
   test points it at a temp dir).
 - **The pre-flight probe** then runs in `seed_checkpoints`, between `init` and
   the pristine snapshot — the last moment before the first frame at which the

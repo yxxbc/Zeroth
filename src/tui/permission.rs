@@ -50,7 +50,7 @@ pub(crate) struct PermissionStore {
     /// are disabled. One gate for the whole session, so "allow all edits" and
     /// "don't ask again for X" stick across turns and across a `/model` rebuild.
     gate: Option<PermissionGate>,
-    /// `~/.alter-zero/permissions.json`; `None` disables persistence, and every
+    /// `~/.zeroth/permissions.json`; `None` disables persistence, and every
     /// session then starts afresh — no rules, and the default mode unless the
     /// run is seeded.
     path: Option<PathBuf>,

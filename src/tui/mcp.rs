@@ -36,7 +36,7 @@ pub(crate) fn load_mcp_sources(cwd: &Path, trust: &super::trust::TrustState) -> 
     let user_display = user_path
         .as_deref()
         .map(|path| zeroth::ui::display_cwd(path, home.as_deref()))
-        .unwrap_or_else(|| "~/.alter-zero/mcp.json".to_string());
+        .unwrap_or_else(|| "~/.zeroth/mcp.json".to_string());
     // Where each project server stands with the review, and so which of
     // each file's servers may run.
     let reviews = trust.server_reviews();

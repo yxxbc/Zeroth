@@ -194,7 +194,7 @@ mod tests {
     fn ran(command: &str, said: Vec<HookSaid>) -> RanHook {
         RanHook {
             command: command.to_string(),
-            config: Some("~/.alter-zero/hooks.json".to_string()),
+            config: Some("~/.zeroth/hooks.json".to_string()),
             millis: 12,
             said,
         }

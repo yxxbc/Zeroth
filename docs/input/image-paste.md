@@ -329,9 +329,9 @@ typing a stray `v`. The character arm excludes `SUPER` for the same reason.
 ## Where a paste is saved
 
 **The folder** is `clipboard::paste_store_dir(config_home, session)` =
-`{config_home}/image-cache/{session}` — `~/.alter-zero/image-cache/773c1c6cb321/`
+`{config_home}/image-cache/{session}` — `~/.zeroth/image-cache/773c1c6cb321/`
 by default, moving with the rest of the config home under
-`ALTER_ZERO_CONFIG_DIR`; with no config home at all (no `HOME`, no override)
+`ZEROTH_CONFIG_DIR`; with no config home at all (no `HOME`, no override)
 the same layout under the system temp dir (`tui::config::paste_store_dir`).
 The session id is the one the scratchpad tree and the hooks payloads carry
 (`docs/tools/scratchpad.md`). Under the config home rather than `/tmp` because the
@@ -413,7 +413,7 @@ rollout is kept indefinitely, so a conversation stays resumable for as long
 as the user keeps it, and dropping its pictures on a calendar would break one
 that is still perfectly good while there is disk to spare. Here nothing goes
 until the store is actually big, and then the cost falls on the conversations
-nobody has opened in longest. `rm -rf ~/.alter-zero/image-cache/{session}`
+nobody has opened in longest. `rm -rf ~/.zeroth/image-cache/{session}`
 retires one by hand; either way its messages then carry the `[image
 unavailable: …]` note.
 

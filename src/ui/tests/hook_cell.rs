@@ -12,7 +12,7 @@ const FEEDBACK: &str = "Stop hook feedback: There are uncommitted Git changes.";
 fn ran(command: &str, millis: u64, said: Vec<HookSaid>) -> RanHook {
     RanHook {
         command: command.to_string(),
-        config: Some("~/.alter-zero/hooks.json".to_string()),
+        config: Some("~/.zeroth/hooks.json".to_string()),
         millis,
         said,
     }
@@ -304,10 +304,10 @@ fn a_broken_hook_is_named_on_its_row_but_not_twice_under_its_own_line() {
         vec![
             "● Ran 2 Stop hooks",
             "  ⎿  ./notify.sh (9ms)",
-            "     Config: ~/.alter-zero/hooks.json",
+            "     Config: ~/.zeroth/hooks.json",
             "  ⎿  Stop hook error: failed (exit 1): offline",
             "  ⎿  bash \"$HOME/.alter-zero/hooks/check-git.sh\" (412ms)",
-            "     Config: ~/.alter-zero/hooks.json",
+            "     Config: ~/.zeroth/hooks.json",
             "  ⎿  Stop hook feedback: There are uncommitted Git changes.",
         ]
     );
@@ -368,9 +368,9 @@ fn the_expanded_cell_lists_each_hook_with_its_time_and_file_then_what_it_said() 
         vec![
             "● Ran 2 Stop hooks",
             "  ⎿  ./notify.sh (9ms)",
-            "     Config: ~/.alter-zero/hooks.json",
+            "     Config: ~/.zeroth/hooks.json",
             "  ⎿  bash \"$HOME/.alter-zero/hooks/check-git.sh\" (412ms)",
-            "     Config: ~/.alter-zero/hooks.json",
+            "     Config: ~/.zeroth/hooks.json",
             "  ⎿  Stop hook feedback: There are uncommitted Git changes.",
         ]
     );
