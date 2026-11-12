@@ -427,7 +427,7 @@ which Ctrl+V reads the clipboard from.
   (`→` marks the selection, `❯` the search prompt, seven rows at a time over
   the `(n/total)` counter — `docs/ui/view-flow.md` *A picker's page*), and
   `Enter` rebuilds the backend for the chosen model, updates the footer, and
-  **persists the choice** to `~/.alter-zero/config.json` (`llm::settings::Settings`)
+  **persists the choice** to `~/.zeroth/config.json` (`llm::settings::Settings`)
   so it's the default next run **in this working directory** — a directory
   launched in for the first time takes the last choice made anywhere and pins
   it as its own (`docs/state/per-directory-state.md`) — and into the session's own
@@ -447,14 +447,14 @@ which Ctrl+V reads the clipboard from.
   it is saved**: the page lists the server's models the way `/model` will, a
   failure stays on the page in red, and a server answering 401 asks for its
   token (`docs/providers/local-models.md`). On save the key, token or address is written
-  to `~/.alter-zero/.env` (`llm::keystore::EnvFile`, a pure `.env`
+  to `~/.zeroth/.env` (`llm::keystore::EnvFile`, a pure `.env`
   reader/writer) so it **persists across runs** — key resolution consults the
   real process env first, then this file. Because `std::env::set_var` is
   `unsafe` (forbidden here), the loaded keys live in an in-memory map, never
   the process env. Opens mid-turn — over the same kept streaming strip — like
   `/model`.
 - **Your own providers** (`docs/providers/user-providers.md`). The shipped providers are
-  embedded; a user's `~/.alter-zero/providers.toml` is laid over them block by
+  embedded; a user's `~/.zeroth/providers.toml` is laid over them block by
   block — a new id adds a provider, a shipped id is patched key by key — and
   re-read whenever `/login` or `/model` opens. A re-read never takes the
   running model's provider away: a file that can't be used keeps the whole
@@ -658,7 +658,7 @@ which Ctrl+V reads the clipboard from.
 - **`/resume` picks up a saved session** (codex's `/resume` — see
   `docs/state/resume.md`). Every conversation records to a rollout JSONL file
   (`{config_home}/sessions/YYYY/MM/DD/rollout-…-{id}.jsonl` —
-  `~/.alter-zero/sessions` by default, moving with `ALTER_ZERO_CONFIG_DIR` —
+  `~/.zeroth/sessions` by default, moving with `ZEROTH_CONFIG_DIR` —
   overridable via `ALTER_ZERO_SESSIONS_DIR`): a `session_meta` line, then one line per
   finished `HistoryItem` — completed items only, never streaming deltas
   (codex's persistence policy). The file is created lazily on the first
@@ -737,7 +737,7 @@ which Ctrl+V reads the clipboard from.
   is authored, not compiled in — `agents/*.md` files of YAML frontmatter
   (`name`, `description`, `model`, `tools`) over a body that replaces the
   persona half of that type's system prompt. The cwd's, the project root's and
-  `~/.alter-zero/agents` are walked at **every turn start**, so a file the
+  `~/.zeroth/agents` are walked at **every turn start**, so a file the
   agent just wrote for itself is launchable on the next turn; the two built-ins
   are seeded into the user's directory as editable files and stay compiled in
   as the fallback; the `tools:` allowlist is enforced where a call **runs**,
