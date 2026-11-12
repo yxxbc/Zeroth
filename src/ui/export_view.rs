@@ -162,7 +162,7 @@ pub fn render_export_picker(area: Rect, buf: &mut Buffer, app: &App) {
 
 /// The conversation **on screen** as plain text, at `width` columns: the
 /// Ctrl+O page's own rows, top to bottom — the startup banner it opens
-/// with (the mascot beside `Alter Zero (v…)`, the cwd, the
+/// with (the mascot beside `Zeroth (v…)`, the cwd, the
 /// `/ commands   @ files   ? shortcuts` hint), then every message and every tool
 /// call's full output, in order, plus the live tail mid-turn — inside a
 /// subagent's session view that agent's transcript, else the main one

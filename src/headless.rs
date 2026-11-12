@@ -1,4 +1,4 @@
-//! Headless mode's pure core — `alter-zero -p` (see `docs/cli/headless.md`).
+//! Headless mode's pure core — `zeroth -p` (see `docs/cli/headless.md`).
 //!
 //! `-p`/`--print` runs one prompt with no screen: the same conversation the
 //! TUI runs, its answer printed to stdout and its progress logged to stderr,
@@ -85,7 +85,7 @@ pub const STDIN_NOTE_AFTER: Duration = Duration::from_secs(10);
 /// input this large is a mistake to report, not a prompt to send.
 pub const STDIN_MAX_BYTES: usize = 8 * 1024 * 1024;
 
-/// The prompt argument that names stdin itself: `alter-zero -p -`.
+/// The prompt argument that names stdin itself: `zeroth -p -`.
 pub const STDIN_ARG: &str = "-";
 
 /// What stdin is, as far as reading it goes.
@@ -346,7 +346,7 @@ pub enum Emit {
 
 /// The prefix of every line the app itself — not the run's log — writes to
 /// stderr: a warning, a retry, what a run left behind.
-pub const STDERR_PREFIX: &str = "alter-zero: ";
+pub const STDERR_PREFIX: &str = "zeroth: ";
 
 /// A warning line for stderr — a startup toast, a held hook — in every format.
 #[must_use]
@@ -1045,7 +1045,7 @@ fn trailing_line(item: &HistoryItem) -> Option<String> {
 /// The log's first line: what is running, where, on what.
 fn header_line(start: &RunStart<'_>) -> String {
     let mut line = format!(
-        "alter-zero {} · {} · {}",
+        "zeroth {} · {} · {}",
         start.version, start.model, start.cwd_display
     );
     if let Some(mode) = start.permission_mode {
@@ -1933,7 +1933,7 @@ mod tests {
     fn a_warning_is_a_prefixed_stderr_line() {
         assert_eq!(
             warning("2 hooks wait for review"),
-            Emit::Stderr("alter-zero: 2 hooks wait for review".to_string())
+            Emit::Stderr("zeroth: 2 hooks wait for review".to_string())
         );
     }
 
@@ -1960,7 +1960,7 @@ mod tests {
         assert_eq!(
             stderr(&emits),
             vec![
-                "alter-zero 0.18.0 · gpt-5.5 · ~/proj · auto · session 18a9-1a2b",
+                "zeroth 0.18.0 · gpt-5.5 · ~/proj · auto · session 18a9-1a2b",
                 "Running the tests first.",
                 "● Bash(cargo test)",
                 "  ⎿ exit 101 · 2 lines",
@@ -2174,7 +2174,7 @@ mod tests {
             let lines = stderr(&Reporter::new(format, false).finish(&end));
             assert!(
                 lines.contains(
-                    &"alter-zero: 2 tool calls needed approval and did not run: bash rm -rf build, \
+                    &"zeroth: 2 tool calls needed approval and did not run: bash rm -rf build, \
                       write /home/u/proj/a.rs (--permission-mode decides what runs unasked)"
                         .to_string()
                 ),
@@ -2182,14 +2182,13 @@ mod tests {
             );
             assert!(
                 lines.contains(
-                    &"alter-zero: stopped 1 background command still running: npm run dev"
-                        .to_string()
+                    &"zeroth: stopped 1 background command still running: npm run dev".to_string()
                 ),
                 "{format:?}: {lines:?}"
             );
             assert!(
                 lines.contains(
-                    &"alter-zero: stopped 1 background agent still running: Review the diff \
+                    &"zeroth: stopped 1 background agent still running: Review the diff \
                       (ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS sets how long a run waits for them)"
                         .to_string()
                 ),
@@ -2209,11 +2208,7 @@ mod tests {
         );
         for format in [OutputFormat::Json, OutputFormat::StreamJson] {
             let out = not_started(format, error, took);
-            assert_eq!(
-                stderr(&out),
-                vec![format!("alter-zero: {error}")],
-                "{format:?}"
-            );
+            assert_eq!(stderr(&out), vec![format!("zeroth: {error}")], "{format:?}");
             let lines = stdout(&out);
             assert_eq!(lines.len(), 1, "{format:?}: {lines:?}");
             let result = json(&lines[0]);
@@ -2263,7 +2258,7 @@ mod tests {
         assert_eq!(
             verbose.retrying(2, 5),
             vec![Emit::Stderr(
-                "alter-zero: the request failed — retrying (2/5)".into()
+                "zeroth: the request failed — retrying (2/5)".into()
             )]
         );
         // An outage can hold the run for as long as it lasts: said either way.
@@ -2271,7 +2266,7 @@ mod tests {
             assert_eq!(
                 reporter.offline("api.openai.com", 1),
                 vec![Emit::Stderr(
-                    "alter-zero: no connection to api.openai.com — waiting for it".into()
+                    "zeroth: no connection to api.openai.com — waiting for it".into()
                 )]
             );
             assert!(reporter.offline("api.openai.com", 2).is_empty());
@@ -2308,7 +2303,7 @@ mod tests {
             let lines = stderr(&whole_run(format, false, &outcome));
             assert_eq!(
                 lines,
-                vec!["alter-zero: HTTP 400: bad request".to_string()],
+                vec!["zeroth: HTTP 400: bad request".to_string()],
                 "{format:?}"
             );
         }
@@ -2317,7 +2312,7 @@ mod tests {
         assert!(
             !lines
                 .iter()
-                .any(|line| line.starts_with("alter-zero: HTTP 400")),
+                .any(|line| line.starts_with("zeroth: HTTP 400")),
             "{lines:?}"
         );
         assert!(
@@ -2332,7 +2327,7 @@ mod tests {
             let out = whole_run(format, true, &RunOutcome::Success);
             let lines = stderr(&out);
             assert!(
-                lines[0].starts_with("alter-zero 0.18.0 · gpt-5.5"),
+                lines[0].starts_with("zeroth 0.18.0 · gpt-5.5"),
                 "{format:?}: {lines:?}"
             );
             assert!(

@@ -955,7 +955,7 @@ mod tests {
         );
         assert_eq!(
             headers.get("X-OpenRouter-Title").map(String::as_str),
-            Some("Alter Zero")
+            Some("Zeroth")
         );
         assert_eq!(
             headers.get("X-OpenRouter-Categories").map(String::as_str),

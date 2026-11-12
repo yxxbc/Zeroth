@@ -67,11 +67,11 @@ fn generating(index: usize, name: &str, arguments: &str) -> StreamEvent {
     })
 }
 
-/// The **default turn's story**: alter-zero's own calling card, read, fixed,
+/// The **default turn's story**: zeroth's own calling card, read, fixed,
 /// and run — the loop a real coding agent spends its life in, and the reason
 /// the three cells belong together.
 ///
-/// The bug is the interesting part: `about.py` knows who wrote alter-zero —
+/// The bug is the interesting part: `about.py` knows who wrote zeroth —
 /// it carries `CREATOR` and `HOME` right at the top — and then prints a card
 /// that never mentions either. So the demo isn't editing a line at random: it
 /// spots something the file already meant to say, wires it into the card, and
@@ -87,8 +87,8 @@ fn generating(index: usize, name: &str, arguments: &str) -> StreamEvent {
 /// pages to `__main__` to prove it).
 const DUMMY_ABOUT_PATH: &str = "about.py";
 const DUMMY_ABOUT_V1: &str = "#!/usr/bin/env python3\n\
-    \"\"\"Print the alter-zero calling card.\"\"\"\n\n\
-    NAME = \"alter-zero\"\n\
+    \"\"\"Print the zeroth calling card.\"\"\"\n\n\
+    NAME = \"zeroth\"\n\
     TAGLINE = \"an autonomous AI agent that lives in your terminal\"\n\
     CREATOR = \"linuztx\"\n\
     HOME = \"https://github.com/linuztx\"\n\n\n\
@@ -100,8 +100,8 @@ const DUMMY_ABOUT_V1: &str = "#!/usr/bin/env python3\n\
 /// The same file after the `edit`: one line, wiring the credit the card was
 /// carrying all along into what it actually prints.
 const DUMMY_ABOUT_V2: &str = "#!/usr/bin/env python3\n\
-    \"\"\"Print the alter-zero calling card.\"\"\"\n\n\
-    NAME = \"alter-zero\"\n\
+    \"\"\"Print the zeroth calling card.\"\"\"\n\n\
+    NAME = \"zeroth\"\n\
     TAGLINE = \"an autonomous AI agent that lives in your terminal\"\n\
     CREATOR = \"linuztx\"\n\
     HOME = \"https://github.com/linuztx\"\n\n\n\
@@ -111,7 +111,7 @@ const DUMMY_ABOUT_V2: &str = "#!/usr/bin/env python3\n\
     if __name__ == \"__main__\":\n    \
     print(card())";
 /// What the edited script prints — the payoff, and the proof the edit landed.
-const DUMMY_ABOUT_OUTPUT: &str = "alter-zero — an autonomous AI agent that lives in your terminal\n  \
+const DUMMY_ABOUT_OUTPUT: &str = "zeroth — an autonomous AI agent that lives in your terminal\n  \
     created by linuztx · https://github.com/linuztx";
 
 /// One scripted tool call: the two strings its `● name(args)` header shows, the
@@ -1384,7 +1384,7 @@ const EXPLORE_README: &str = "# about\n\n\
 
 /// What the explore demo's script prints — the card before the default
 /// turn's edit wires the credit in.
-const EXPLORE_RUN: &str = "alter-zero — an autonomous AI agent that lives in your terminal";
+const EXPLORE_RUN: &str = "zeroth — an autonomous AI agent that lives in your terminal";
 
 /// One scripted thinking phase streaming `text`.
 fn thought(text: &str) -> Vec<StreamEvent> {

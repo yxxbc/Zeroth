@@ -7,10 +7,10 @@
 //! `/login` device page's `copy_device_code` pattern over `/copy`'s own
 //! clipboard path.
 //!
-//! [`Action::CopyDonationAddress`]: alter_zero::app::Action::CopyDonationAddress
+//! [`Action::CopyDonationAddress`]: zeroth::app::Action::CopyDonationAddress
 
-use alter_zero::app::{DonationAddress, ToastKind};
-use alter_zero::clipboard;
+use zeroth::app::{DonationAddress, ToastKind};
+use zeroth::clipboard;
 
 use super::Session;
 

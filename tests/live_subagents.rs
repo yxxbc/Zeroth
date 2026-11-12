@@ -19,10 +19,10 @@
 
 use std::path::{Path, PathBuf};
 
-use alter_zero::context::{ContextMessage, ContextRole};
-use alter_zero::llm::LlmBackend;
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
-use alter_zero::subagents::SubagentRegistry;
+use zeroth::context::{ContextMessage, ContextRole};
+use zeroth::llm::LlmBackend;
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
+use zeroth::subagents::SubagentRegistry;
 
 /// A backend on the Agent Zero / Venice provider, tools **on** (the whole
 /// point here is which tools a subagent is offered), with a terse system
@@ -32,8 +32,8 @@ fn backend() -> LlmBackend {
         .expect("set A0_VENICE_API_KEY to run the subagent live tests");
     let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
-    let providers = alter_zero::llm::ProvidersFile::builtin();
-    let sel = alter_zero::llm::Selection {
+    let providers = zeroth::llm::ProvidersFile::builtin();
+    let sel = zeroth::llm::Selection {
         provider_id: "a0_venice".to_string(),
         model,
         api_key: Some(key),
@@ -54,16 +54,16 @@ fn backend() -> LlmBackend {
 }
 
 /// A backend that launches subagents, with `dir`'s definitions attached.
-fn backend_with_agents(dir: &Path) -> (LlmBackend, alter_zero::agents::AgentRegistry) {
+fn backend_with_agents(dir: &Path) -> (LlmBackend, zeroth::agents::AgentRegistry) {
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let scratch =
         std::env::temp_dir().join(format!("alter-zero-live-subagents-{}", std::process::id()));
-    let background = alter_zero::background::BackgroundRegistry::new(bg_tx, scratch);
+    let background = zeroth::background::BackgroundRegistry::new(bg_tx, scratch);
     let (agent_tx, _agent_rx) = tokio::sync::mpsc::unbounded_channel();
-    let agents = alter_zero::agents::AgentRegistry::new(agent_tx);
+    let agents = zeroth::agents::AgentRegistry::new(agent_tx);
     let (found, errors) =
-        alter_zero::llm::subagent::with_builtins(alter_zero::llm::subagent::discover_agents(&[
-            dir.to_path_buf(),
+        zeroth::llm::subagent::with_builtins(zeroth::llm::subagent::discover_agents(&[
+            dir.to_path_buf()
         ]));
     assert!(
         errors.is_empty(),
@@ -296,12 +296,11 @@ fn live_the_reminder_tells_the_model_which_types_exist() {
             "---\ndescription: Plans a database migration.\ntools: Read\n---\n",
         ),
     ]);
-    let (found, _) = alter_zero::llm::subagent::discover_agents(&[dir.path().to_path_buf()]);
+    let (found, _) = zeroth::llm::subagent::discover_agents(&[dir.path().to_path_buf()]);
     let registry = SubagentRegistry::new(found);
-    let reminder =
-        alter_zero::reminder::reminder_message(&[&alter_zero::subagents::agent_section(
-            &registry.listing(alter_zero::skills::listing_budget(None)),
-        )]);
+    let reminder = zeroth::reminder::reminder_message(&[&zeroth::subagents::agent_section(
+        &registry.listing(zeroth::skills::listing_budget(None)),
+    )]);
     println!("{reminder}");
     assert!(reminder.contains("(Tools: Read)"), "{reminder}");
 
@@ -412,15 +411,15 @@ fn live_the_model_resumes_a_finished_agent_by_id() {
         .find(|result| result.contains("agentsend continues this conversation"))
         .unwrap_or_else(|| panic!("the foreground result names the id: {agent_results:?}"));
     let id = named_id(result);
-    let sent = cell(&cells, alter_zero::llm::tools::AGENT_SEND_DISPLAY);
+    let sent = cell(&cells, zeroth::llm::tools::AGENT_SEND_DISPLAY);
     assert!(
         sent.contains(&format!("Agent {id} resumed")),
         "a finished agent resumes: {sent}"
     );
-    let report = cell(&cells, alter_zero::llm::tools::AGENT_OUTPUT_DISPLAY);
+    let report = cell(&cells, zeroth::llm::tools::AGENT_OUTPUT_DISPLAY);
     assert!(report.starts_with(&format!("Done (agent {id}")), "{report}");
     assert!(
-        report.contains(alter_zero::agents::AGENT_FOLLOW_UP_MARK),
+        report.contains(zeroth::agents::AGENT_FOLLOW_UP_MARK),
         "the lead's message is marked where it arrived: {report}"
     );
     assert!(report.contains("Final response:"), "{report}");
@@ -430,7 +429,7 @@ fn live_the_model_resumes_a_finished_agent_by_id() {
     );
     let snapshot = agents.snapshot(&id).expect("the agent is still kept");
     assert!(
-        matches!(snapshot.state, alter_zero::agents::AgentState::Done(_)),
+        matches!(snapshot.state, zeroth::agents::AgentState::Done(_)),
         "{snapshot:?}"
     );
 }
@@ -463,7 +462,7 @@ fn live_the_model_inspects_stops_and_lists_a_background_agent() {
         .find(|result| result.contains("launched as a"))
         .unwrap_or_else(|| panic!("the launch names the id: {agent_results:?}"));
     let id = named_id(ack);
-    let report = cell(&cells, alter_zero::llm::tools::AGENT_OUTPUT_DISPLAY);
+    let report = cell(&cells, zeroth::llm::tools::AGENT_OUTPUT_DISPLAY);
     assert!(
         report.starts_with(&format!("Running (agent {id}")),
         "{report}"
@@ -472,7 +471,7 @@ fn live_the_model_inspects_stops_and_lists_a_background_agent() {
         report.contains("Bash(sleep"),
         "the agent's command is one of its calls: {report}"
     );
-    let killed = cell(&cells, alter_zero::llm::tools::AGENT_KILL_DISPLAY);
+    let killed = cell(&cells, zeroth::llm::tools::AGENT_KILL_DISPLAY);
     assert!(
         killed.starts_with(&format!("Stopped (agent {id}")),
         "{killed}"
@@ -481,14 +480,14 @@ fn live_the_model_inspects_stops_and_lists_a_background_agent() {
         killed.contains("agentsend resumes it"),
         "the lead's stop keeps the conversation: {killed}"
     );
-    let listed = cell(&cells, alter_zero::llm::tools::AGENT_LIST_DISPLAY);
+    let listed = cell(&cells, zeroth::llm::tools::AGENT_LIST_DISPLAY);
     assert!(listed.contains(&format!("- {id} (sleeper)")), "{listed}");
     assert!(listed.contains("stopped after"), "{listed}");
     let snapshot = agents.snapshot(&id).expect("the agent is still kept");
     assert!(
         matches!(
             snapshot.state,
-            alter_zero::agents::AgentState::Stopped { by_user: false }
+            zeroth::agents::AgentState::Stopped { by_user: false }
         ),
         "{snapshot:?}"
     );

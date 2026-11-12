@@ -398,7 +398,7 @@ Tools are **on by default for the real backend** and never for the dummy (the
 dummy's canned tools are unaffected). Toggle with `ALTER_ZERO_TOOLS`
 (`0`/`false`/`no` disables). Enabling them adds **no prose to the system
 prompt** — the schemas carry the whole capability story, so the assembled
-prompt stays persona ([`prompts/alter_zero.md`](../../prompts/alter_zero.md)) →
+prompt stays persona ([`prompts/zeroth.md`](../../prompts/zeroth.md)) →
 runtime **environment context**
 ([`prompts/environment.md`](../../prompts/environment.md), `docs/architecture/environment.md`)
 and nothing else. (A `prompts/tools.md` note used to be appended here; it

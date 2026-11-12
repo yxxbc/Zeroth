@@ -32,10 +32,10 @@
 
 use ratatui::text::Line;
 
-use alter_zero::app::{CONNECTION_LOST_NOTICE, Role, ToastKind, View, group_kind};
-use alter_zero::session::RequestUsage;
-use alter_zero::stream::StreamEvent;
-use alter_zero::ui;
+use zeroth::app::{CONNECTION_LOST_NOTICE, Role, ToastKind, View, group_kind};
+use zeroth::session::RequestUsage;
+use zeroth::stream::StreamEvent;
+use zeroth::ui;
 
 use super::Session;
 
@@ -832,7 +832,7 @@ impl Session<'_> {
 
 impl Session<'_> {
     /// A `UserPromptSubmit` hook blocked the prompt (`docs/tools/hooks.md`): roll
-    /// the submission back ([`alter_zero::app::App::block_prompt`] — the
+    /// the submission back ([`zeroth::app::App::block_prompt`] — the
     /// message out of history and back into the composer, the red
     /// reason-only notice recorded) and purge-repaint so the echoed `❯`
     /// message leaves the screen and the scrollback alike; the loop-bottom
@@ -848,7 +848,7 @@ impl Session<'_> {
         // Ctrl+O right after Enter): a reflow now would write onto the alt
         // screen, so defer — the flag makes the overlay's return take the
         // purge-rebuild this rollback needs (history shrank).
-        if self.app.view != alter_zero::app::View::Conversation {
+        if self.app.view != zeroth::app::View::Conversation {
             self.overlay_resized = true;
             return;
         }

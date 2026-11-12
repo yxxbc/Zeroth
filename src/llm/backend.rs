@@ -32,15 +32,15 @@ use crate::stream::{
     AgentCallDone, AgentChatDelivery, AgentSpec, CancelToken, ReplySource, StreamEvent,
 };
 
-/// The default system prompt for the real backend — the "Alter Zero" agent
-/// identity, authored in [`prompts/alter_zero.md`](../../prompts/alter_zero.md)
+/// The default system prompt for the real backend — the "Zeroth" agent
+/// identity, authored in [`prompts/zeroth.md`](../../prompts/zeroth.md)
 /// and compiled in with `include_str!` so the wording lives in a maintainable
 /// markdown file (drop in a new `prompts/*.md` and point this const at it to
 /// swap personas). Kept short to save tokens. The boundary folds the runtime
 /// **environment context** (date/os/user/cwd) onto this at startup so the
 /// agent has context awareness — see [`augment_with_environment`] and
 /// `docs/architecture/environment.md`. Override the persona with `ALTER_ZERO_SYSTEM_PROMPT`.
-pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../../prompts/alter_zero.md");
+pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../../prompts/zeroth.md");
 
 /// A real OpenAI-compatible backend. Holds the streaming client (carrying the
 /// tool definitions when tools are enabled) plus the model id it answers as
@@ -2975,17 +2975,14 @@ mod tests {
     #[test]
     fn augment_with_environment_appends_the_block_after_the_base() {
         let out = augment_with_environment(
-            "You are Alter Zero",
+            "You are Zeroth",
             "Sunday 2026-07-19",
             "linux",
             "root",
             "/tmp/x",
         );
-        assert!(
-            out.starts_with("You are Alter Zero"),
-            "persona leads: {out}"
-        );
-        let persona = out.find("You are Alter Zero").unwrap();
+        assert!(out.starts_with("You are Zeroth"), "persona leads: {out}");
+        let persona = out.find("You are Zeroth").unwrap();
         let cwd = out.find("/tmp/x").unwrap();
         assert!(persona < cwd, "environment follows the persona: {out}");
         assert!(
@@ -3010,7 +3007,7 @@ mod tests {
         // (the tool schemas carry the capability detail), so the Ctrl+D
         // debug view reads persona → environment, whole.
         let base = augment_with_environment(
-            "You are Alter Zero",
+            "You are Zeroth",
             "Sunday 2026-07-19",
             "linux",
             "root",
@@ -3019,7 +3016,7 @@ mod tests {
         let backend = LlmBackend::configure(ModelConfig::fallback(), Some(base.clone()), true);
         let prompt = backend.system_prompt.as_deref().unwrap();
         assert_eq!(prompt, base, "tools add no prompt suffix");
-        let persona = prompt.find("Alter Zero").expect("persona present");
+        let persona = prompt.find("Zeroth").expect("persona present");
         let env = prompt.find("/repo").expect("environment present");
         assert!(persona < env, "order persona<env: {prompt}");
     }
@@ -3030,7 +3027,7 @@ mod tests {
         // model learns it runs with nobody watching the way it learns its
         // cwd and its scratchpad.
         let base = augment_with_scratchpad(
-            &augment_with_environment("You are Alter Zero", "d", "linux", "root", "/repo"),
+            &augment_with_environment("You are Zeroth", "d", "linux", "root", "/repo"),
             "/tmp/alter-zero-0/s1/scratchpad",
         );
         let out = augment_with_headless(&base);
@@ -3070,14 +3067,14 @@ mod tests {
     #[test]
     fn augment_with_scratchpad_appends_the_block_after_the_base() {
         let base = augment_with_environment(
-            "You are Alter Zero",
+            "You are Zeroth",
             "Sunday 2026-07-19",
             "linux",
             "root",
             "/repo",
         );
         let out = augment_with_scratchpad(&base, "/tmp/alter-zero-0/s1/scratchpad");
-        let persona = out.find("Alter Zero").expect("persona present");
+        let persona = out.find("Zeroth").expect("persona present");
         let env = out.find("/repo").expect("environment present");
         let pad = out
             .find("/tmp/alter-zero-0/s1/scratchpad")

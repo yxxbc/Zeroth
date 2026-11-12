@@ -155,9 +155,9 @@ Starts an interactive session by default; with -p, answers once and exits.";
 /// they share a look.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HelpPage {
-    /// `alter-zero --help`.
+    /// `zeroth --help`.
     Main,
-    /// `alter-zero mcp --help`.
+    /// `zeroth mcp --help`.
     Mcp,
 }
 
@@ -165,7 +165,7 @@ pub enum HelpPage {
 /// pipe, a log file and the tests receive; `Ansi` colours the title and the
 /// section headings **bold cyan** (the app's accent hue in the terminal's
 /// own palette — the banner's cyan, the pickers' selection colour), bolds
-/// the literals (`alter-zero`, `mcp`, the flags) and leaves the
+/// the literals (`zeroth`, `mcp`, the flags) and leaves the
 /// placeholders (`[PROMPT]`, `<COMMAND>`, `[ID]`) bare, the way clap and
 /// cargo dress theirs. The two renderings differ by escapes alone; the
 /// boundary picks one per stream with [`colour_enabled`] and `IsTerminal`.
@@ -213,8 +213,8 @@ const USAGE_CONTINUATION: &str = "       ";
 /// One help page's content — rendered by [`help`], never printed as-is.
 struct HelpDoc {
     /// The first line, in the heading style: the product's name on the
-    /// main page (`Alter Zero`, [`crate::APP_NAME`]), the command on the
-    /// subcommand's (`alter-zero mcp`).
+    /// main page (`Zeroth`, [`crate::APP_NAME`]), the command on the
+    /// subcommand's (`zeroth mcp`).
     title: &'static str,
     /// The paragraph under it, plain and pre-wrapped.
     description: &'static str,
@@ -245,10 +245,10 @@ const MAIN_DOC: HelpDoc = HelpDoc {
     title: crate::APP_NAME,
     description: DESCRIPTION,
     usage: &[
-        ("alter-zero", " [OPTIONS] [PROMPT]"),
-        ("alter-zero -p", " [OPTIONS] [PROMPT]"),
-        ("alter-zero mcp", " <COMMAND>"),
-        ("alter-zero update", ""),
+        ("zeroth", " [OPTIONS] [PROMPT]"),
+        ("zeroth -p", " [OPTIONS] [PROMPT]"),
+        ("zeroth mcp", " <COMMAND>"),
+        ("zeroth update", ""),
     ],
     sections: &[
         Section {
@@ -258,7 +258,7 @@ const MAIN_DOC: HelpDoc = HelpDoc {
                     literal: "mcp",
                     placeholder: "",
                     description: "Manage MCP servers in the user config file —\n\
-                                  see alter-zero mcp --help",
+                                  see zeroth mcp --help",
                 },
                 Row {
                     literal: "update",
@@ -349,23 +349,23 @@ const MAIN_DOC: HelpDoc = HelpDoc {
 };
 
 const MCP_DOC: HelpDoc = HelpDoc {
-    title: "alter-zero mcp",
+    title: "zeroth mcp",
     description: "\
 Manage MCP servers in the user config file (ALTER_ZERO_MCP_FILE, else
 ~/.alter-zero/mcp.json) from a script — inside the app, /mcp manages them live.",
     usage: &[
         (
-            "alter-zero mcp add",
+            "zeroth mcp add",
             " <name> --url <URL> [--transport http|sse] [-H \"Name: Value\"]...",
         ),
         (
-            "alter-zero mcp add",
+            "zeroth mcp add",
             " <name> [-e KEY=VALUE]... [--] <command> [args...]",
         ),
-        ("alter-zero mcp add-json", " <name> <json>"),
-        ("alter-zero mcp remove", " <name>"),
-        ("alter-zero mcp get", " <name>"),
-        ("alter-zero mcp list", ""),
+        ("zeroth mcp add-json", " <name> <json>"),
+        ("zeroth mcp remove", " <name>"),
+        ("zeroth mcp get", " <name>"),
+        ("zeroth mcp list", ""),
     ],
     sections: &[Section {
         heading: "Options:",
@@ -718,7 +718,7 @@ fn is_flag(arg: &str) -> bool {
 
 /// Take `arg` as the `[PROMPT]`: the one positional, non-blank. A second
 /// one is refused by name with the quoting hint — never joined, since
-/// `alter-zero write a -c program` would otherwise read `-c` as
+/// `zeroth write a -c program` would otherwise read `-c` as
 /// `--continue` and lose a word of the prompt (Claude Code errors here too).
 fn take_prompt(slot: &mut Option<String>, arg: String) -> Result<(), String> {
     if slot.is_some() {
@@ -1064,7 +1064,7 @@ where
 ///
 /// ```text
 /// Resume this session with:
-/// alter-zero --resume 18a9f2c33d41e5b6-1a2b
+/// zeroth --resume 18a9f2c33d41e5b6-1a2b
 /// ```
 #[must_use]
 pub fn resume_hint(bin: &str, session_id: &str) -> String {
@@ -1080,7 +1080,7 @@ pub fn resume_hint(bin: &str, session_id: &str) -> String {
 /// ```text
 /// error: could not start the interface: No such device or address (os error 6)
 /// It needs a terminal; to run without one (cron, CI, a script), use print mode:
-/// alter-zero -p "your prompt"
+/// zeroth -p "your prompt"
 /// ```
 #[must_use]
 pub fn no_terminal_error(bin: &str, cause: &str) -> String {
@@ -1093,7 +1093,7 @@ pub fn no_terminal_error(bin: &str, cause: &str) -> String {
 
 /// The program name the hint prints — how the user actually invoked us
 /// (`argv[0]`'s basename, so a renamed or symlinked install echoes the name
-/// that was actually run), falling back to the canonical `alter-zero` when
+/// that was actually run), falling back to the canonical `zeroth` when
 /// `argv[0]` is absent or empty.
 #[must_use]
 pub fn bin_name(arg0: Option<&str>) -> String {
@@ -1101,7 +1101,7 @@ pub fn bin_name(arg0: Option<&str>) -> String {
         .and_then(std::path::Path::file_name)
         .and_then(std::ffi::OsStr::to_str)
         .filter(|name| !name.is_empty())
-        .map_or_else(|| "alter-zero".to_string(), str::to_string)
+        .map_or_else(|| "zeroth".to_string(), str::to_string)
 }
 
 #[cfg(test)]
@@ -1254,7 +1254,7 @@ mod tests {
 
     #[test]
     fn a_second_positional_is_a_usage_error_with_the_quote_hint() {
-        // Never joined: `alter-zero write a -c program` would otherwise
+        // Never joined: `zeroth write a -c program` would otherwise
         // read `-c` as --continue and lose a word of the prompt.
         let err = parsed(&["fix", "the bug"]).expect_err("two positionals");
         assert!(err.contains("the bug") && err.contains("quote"), "{err}");
@@ -1568,7 +1568,7 @@ mod tests {
     #[test]
     fn resume_hint_is_the_two_line_command() {
         assert_eq!(
-            resume_hint("alter-zero", "18a9f2c3-1a2b"),
+            resume_hint("zeroth", "18a9f2c3-1a2b"),
             "Resume this session with:\nalter-zero --resume 18a9f2c3-1a2b",
         );
     }
@@ -1589,11 +1589,11 @@ mod tests {
 
     #[test]
     fn bin_name_basenames_argv0_and_falls_back() {
-        assert_eq!(bin_name(Some("target/debug/alter-zero")), "alter-zero");
-        assert_eq!(bin_name(Some("/usr/local/bin/alter-zero")), "alter-zero");
+        assert_eq!(bin_name(Some("target/debug/alter-zero")), "zeroth");
+        assert_eq!(bin_name(Some("/usr/local/bin/alter-zero")), "zeroth");
         assert_eq!(bin_name(Some("az")), "az");
-        assert_eq!(bin_name(Some("")), "alter-zero");
-        assert_eq!(bin_name(None), "alter-zero");
+        assert_eq!(bin_name(Some("")), "zeroth");
+        assert_eq!(bin_name(None), "zeroth");
     }
 
     // ===== the --help page (docs/cli/cli.md) =====
@@ -1601,18 +1601,18 @@ mod tests {
     /// The plain main page — exactly what a pipe receives, and what the
     /// design doc shows.
     const MAIN_PAGE: &str = "\
-Alter Zero
+Zeroth
 
 Starts an interactive session by default; with -p, answers once and exits.
 
-Usage: alter-zero [OPTIONS] [PROMPT]
-       alter-zero -p [OPTIONS] [PROMPT]
-       alter-zero mcp <COMMAND>
-       alter-zero update
+Usage: zeroth [OPTIONS] [PROMPT]
+       zeroth -p [OPTIONS] [PROMPT]
+       zeroth mcp <COMMAND>
+       zeroth update
 
 Commands:
   mcp                            Manage MCP servers in the user config file —
-                                 see alter-zero mcp --help
+                                 see zeroth mcp --help
   update                         Install the newest release over this binary,
                                  if one is out (the checksum-verified installer)
 
@@ -1659,11 +1659,11 @@ Print mode:
 
     #[test]
     fn the_main_page_opens_on_the_product_name() {
-        // `Alter Zero` — the one constant the app speaks its name from —
-        // not the binary's `alter-zero`, which the Usage line names.
+        // `Zeroth` — the one constant the app speaks its name from —
+        // not the binary's `zeroth`, which the Usage line names.
         let page = help(HelpPage::Main, HelpStyle::Plain);
         assert_eq!(page.lines().next(), Some(crate::APP_NAME));
-        assert!(page.contains("\nUsage: alter-zero "), "{page}");
+        assert!(page.contains("\nUsage: zeroth "), "{page}");
     }
 
     #[test]
@@ -1691,7 +1691,7 @@ Print mode:
         let heading = |text: &str| format!("\x1b[1;36m{text}\x1b[0m");
         // The title wears the heading style — the same colour as Usage /
         // Commands / Options.
-        assert!(styled.starts_with(&heading("Alter Zero")), "{styled}");
+        assert!(styled.starts_with(&heading("Zeroth")), "{styled}");
         for h in ["Usage:", "Commands:", "Arguments:", "Options:"] {
             assert!(
                 styled.contains(&heading(h)),
@@ -1734,17 +1734,13 @@ Print mode:
     #[test]
     fn the_mcp_page_is_titled_by_its_command_over_the_six_usage_lines() {
         let page = help(HelpPage::Mcp, HelpStyle::Plain);
-        assert_eq!(page.lines().next(), Some("alter-zero mcp"));
+        assert_eq!(page.lines().next(), Some("zeroth mcp"));
         assert!(
-            page.contains("\nUsage: alter-zero mcp add <name> --url <URL> [--transport http|sse]"),
+            page.contains("\nUsage: zeroth mcp add <name> --url <URL> [--transport http|sse]"),
             "{page}"
         );
-        assert_eq!(
-            page.matches("\n       alter-zero mcp ").count(),
-            5,
-            "{page}"
-        );
-        assert!(page.contains("\n       alter-zero mcp list\n"), "{page}");
+        assert_eq!(page.matches("\n       zeroth mcp ").count(), 5, "{page}");
+        assert!(page.contains("\n       zeroth mcp list\n"), "{page}");
         // The options column is the widest cell plus the gap.
         assert!(
             page.contains("\nOptions:\n  -t, --transport <T>   Pin the transport"),
@@ -1776,8 +1772,8 @@ Print mode:
         assert_eq!(
             text,
             "error: unrecognized argument: --frob\n\n\
-             Usage: alter-zero [OPTIONS] [PROMPT]\n       alter-zero -p [OPTIONS] [PROMPT]\n       \
-             alter-zero mcp <COMMAND>\n       alter-zero update\n\n\
+             Usage: zeroth [OPTIONS] [PROMPT]\n       zeroth -p [OPTIONS] [PROMPT]\n       \
+             zeroth mcp <COMMAND>\n       zeroth update\n\n\
              For more information, try '--help'."
         );
         let styled = usage_error(HelpPage::Main, "x", HelpStyle::Ansi);
@@ -1795,11 +1791,11 @@ Print mode:
             HelpStyle::Plain,
         );
         assert!(
-            mcp.starts_with("error: mcp add needs a server name\n\nUsage: alter-zero mcp add "),
+            mcp.starts_with("error: mcp add needs a server name\n\nUsage: zeroth mcp add "),
             "{mcp}"
         );
         assert!(
-            mcp.ends_with("       alter-zero mcp list\n\nFor more information, try '--help'."),
+            mcp.ends_with("       zeroth mcp list\n\nFor more information, try '--help'."),
             "{mcp}"
         );
     }

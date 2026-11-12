@@ -12,14 +12,14 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use alter_zero::app::{
+use zeroth::app::{
     ItemChange, ReviewAnswer, ReviewItem, ReviewKey, ReviewKind, ReviewPage, ReviewSection,
     ToastKind,
 };
-use alter_zero::trust::{
+use zeroth::trust::{
     self, HookIdentity, HookTrust, ServerChange, ServerReview, ServerTrust, TrustFile,
 };
-use alter_zero::{hooks, mcp};
+use zeroth::{hooks, mcp};
 
 use super::Session;
 use super::config;
@@ -227,7 +227,7 @@ impl TrustState {
             if !items.is_empty() {
                 sections.push(ReviewSection {
                     scope: Some(scope.to_string()),
-                    path: alter_zero::ui::display_cwd(Path::new(&source), home),
+                    path: zeroth::ui::display_cwd(Path::new(&source), home),
                     items,
                 });
             }
@@ -276,7 +276,7 @@ impl TrustState {
                     name: review.name.clone(),
                 },
             };
-            let path = alter_zero::ui::display_cwd(Path::new(&review.source), home);
+            let path = zeroth::ui::display_cwd(Path::new(&review.source), home);
             match sections.iter_mut().find(|section| section.path == path) {
                 Some(section) => section.items.push(item),
                 None => sections.push(ReviewSection {
@@ -398,7 +398,7 @@ pub(crate) fn load_project_layer(cwd: &Path) -> Option<ProjectLayer> {
     if !config::project_config_enabled() {
         return None;
     }
-    let root = alter_zero::project_doc::find_project_root(cwd).unwrap_or_else(|| cwd.to_path_buf());
+    let root = zeroth::project_doc::find_project_root(cwd).unwrap_or_else(|| cwd.to_path_buf());
     let home = std::env::var_os("HOME").map(PathBuf::from);
     if !trust::is_project_root(&root, home.as_deref()) {
         return None;

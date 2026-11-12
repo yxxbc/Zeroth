@@ -37,7 +37,7 @@ use std::io;
 
 use tokio_stream::StreamExt;
 
-use alter_zero::term::InlineViewport;
+use zeroth::term::InlineViewport;
 
 use super::Session;
 use super::actions::Flow;

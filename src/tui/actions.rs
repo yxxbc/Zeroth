@@ -20,9 +20,9 @@
 
 use ratatui::crossterm::event::{Event, KeyEventKind};
 
-use alter_zero::app::{Action, CHECKPOINT_REWOUND_NOTICE, COPY_OK_NOTICE, ToastKind, View};
-use alter_zero::checkpoint;
-use alter_zero::clipboard;
+use zeroth::app::{Action, CHECKPOINT_REWOUND_NOTICE, COPY_OK_NOTICE, ToastKind, View};
+use zeroth::checkpoint;
+use zeroth::clipboard;
 
 use super::turn::TurnInput;
 use super::{Session, workers};
@@ -417,7 +417,7 @@ impl Session<'_> {
         let interrupted = self.app.interrupt_turn(elapsed);
         self.finish_turn_agent_settle(owed, width);
         match interrupted {
-            Some(alter_zero::app::InterruptedTurn::Undone) => {
+            Some(zeroth::app::InterruptedTurn::Undone) => {
                 // Nothing had streamed and nothing was queued: the submission is
                 // undone — interrupt_turn put the message back in the composer
                 // and dropped it from history. Repaint scrollback without it (a
@@ -429,7 +429,7 @@ impl Session<'_> {
                 self.repaint_conversation()?;
                 self.dispatch_after_turn();
             }
-            Some(alter_zero::app::InterruptedTurn::Kept {
+            Some(zeroth::app::InterruptedTurn::Kept {
                 partial,
                 tools,
                 notice,
@@ -489,7 +489,7 @@ impl Session<'_> {
         self.render.reset();
         // …and the pictures the wiped conversation kept encoded for the wire
         // (`docs/architecture/memory.md`): nothing re-sends them now.
-        alter_zero::images::clear_attachments();
+        zeroth::images::clear_attachments();
         // A fresh slate kills the background shells too (clear_conversation
         // already forgot them, so their Exited events find nothing and owe no
         // notice — docs/tools/background.md). Notes already posted for the wiped

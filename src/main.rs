@@ -1,4 +1,4 @@
-//! Thin terminal shell around the [`alter_zero`] library.
+//! Thin terminal shell around the [`zeroth`] library.
 //!
 //! This binary does four things and delegates the rest: run the detached-exec
 //! hook, resolve the CLI arguments, open the inline viewport, and run the event
@@ -10,7 +10,7 @@
 //! The order below is not arbitrary. Two rules govern it:
 //!
 //! **The detached-exec hook must stay the first statement of [`main`].** When
-//! this process was spawned as `{exe} __alter-zero-detached-exec {cmd}` it is a
+//! this process was spawned as `{exe} __zeroth-detached-exec {cmd}` it is a
 //! shell runner's child, not a TUI: it has to `setsid` away from the controlling
 //! terminal and `exec` `sh` before it ever touches stdin/stdout or spawns a
 //! thread — the tokio runtime and the cursor query included — or it would boot a
@@ -24,13 +24,13 @@
 //! its channel. A second stdin reader would steal the cursor-position (DSR)
 //! reply — the source of the "cursor position could not be read" error.
 //!
-//! [`InlineViewport::init`]: alter_zero::term::InlineViewport::init
+//! [`InlineViewport::init`]: zeroth::term::InlineViewport::init
 
 use std::io;
 
-use alter_zero::cli;
-use alter_zero::term::InlineViewport;
-use alter_zero::ui;
+use zeroth::cli;
+use zeroth::term::InlineViewport;
+use zeroth::ui;
 
 mod tui;
 
@@ -39,7 +39,7 @@ use tui::startup::{Startup, resolve_cli};
 fn main() -> io::Result<()> {
     // The detached-exec helper hook FIRST (see the module doc): a helper re-exec
     // never returns from here, so nothing above it may touch the terminal.
-    alter_zero::subprocess::run_detached_exec_if_requested();
+    zeroth::subprocess::run_detached_exec_if_requested();
     // --continue/--resume resolve to a rollout *path* here — and a quoted
     // [PROMPT] rides along to become the first turn — before the tokio
     // runtime and the terminal boot (docs/cli/cli.md): --help/--version and every

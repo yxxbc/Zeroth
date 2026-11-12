@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use alter_zero::git_diff::{
+use zeroth::git_diff::{
     DiffFile, DiffLine, DiffLineKind, DiffSection, DiffSnapshot, parse_patch, parse_status,
 };
 

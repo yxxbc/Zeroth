@@ -23,7 +23,7 @@ use super::*;
 
 use crate::app::{DONATION_ADDRESSES, DonationAddress};
 
-/// The title row: `♥ Support Alter Zero` — the heart in its own red, the
+/// The title row: `♥ Support Zeroth` — the heart in its own red, the
 /// verb and the name bold and washed left-to-right in the banner's accent →
 /// link gradient (the mascot's own wash, `docs/ui/header.md`). Clamped with a
 /// trailing `…` at a width that can't seat it, like every banner row.

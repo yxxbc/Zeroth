@@ -342,7 +342,7 @@ fn a_wide_terminal_lays_the_preview_beside_the_list() {
     // list column closes on the counter just above the sample's code line.
     let code = texts
         .iter()
-        .position(|t| t.contains("greet(\"Alter Zero\")"))
+        .position(|t| t.contains("greet(\"Zeroth\")"))
         .expect("the sample's code line");
     assert!(
         texts[code - 1].trim_start().starts_with("(1/11)"),
@@ -521,7 +521,7 @@ fn the_preview_is_the_sample_conversations_real_cells() {
             "-    print(\"Hello, world\")",
             "+    print(f\"Hello, {name}\")",
             "● Done — greet.py greets by name now:",
-            "greet(\"Alter Zero\")  # Hello, Alter Zero",
+            "greet(\"Zeroth\")  # Hello, Zeroth",
         ] {
             assert!(
                 texts.iter().any(|t| t.contains(expect)),

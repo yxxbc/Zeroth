@@ -73,7 +73,7 @@ fn col_of(text: &str, needle: &str) -> usize {
 fn is_beside(app: &App, width: u16) -> bool {
     texts(app, width)
         .iter()
-        .any(|t| Mascot::ALL.iter().any(|m| is_row_for(t, m.name())) && t.contains("Alter Zero"))
+        .any(|t| Mascot::ALL.iter().any(|m| is_row_for(t, m.name())) && t.contains("Zeroth"))
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn the_page_is_framed_with_search_rows_preview_and_hint() {
         // banner uses.
         for expect in [
             "▙▄▙▄▟▄▟",
-            "Alter Zero (v",
+            "Zeroth (v",
             "~/alter-zero",
             "/ commands   @ files",
         ] {
@@ -251,7 +251,7 @@ fn a_wide_terminal_lays_the_preview_beside_the_list() {
         "a gap between the caption and the banner: {texts:#?}"
     );
     assert!(
-        row_for(&texts, "twin").contains("▙▄▙▄▟▄▟   Alter Zero (v"),
+        row_for(&texts, "twin").contains("▙▄▙▄▟▄▟   Zeroth (v"),
         "the banner's first row beside twin: {texts:#?}"
     );
     let counter = texts
@@ -643,7 +643,7 @@ fn a_short_terminal_keeps_the_mascot_choices_on_screen() {
             "{texts:#?}"
         );
         assert!(
-            !texts.iter().any(|t| t.contains("Alter Zero")),
+            !texts.iter().any(|t| t.contains("Zeroth")),
             "no banner preview: {texts:#?}"
         );
         assert!(
@@ -691,7 +691,7 @@ fn the_compact_mascot_window_rides_the_selection_and_holds_still() {
 #[test]
 fn the_whole_mascot_page_returns_once_it_fits() {
     let app = open_app();
-    let has_preview = |texts: &[String]| texts.iter().any(|t| t.contains("Alter Zero"));
+    let has_preview = |texts: &[String]| texts.iter().any(|t| t.contains("Zeroth"));
     for width in [WIDE, NARROW] {
         let whole = u16::try_from(page_at(&app, width, TALL).len()).expect("rows");
         assert!(

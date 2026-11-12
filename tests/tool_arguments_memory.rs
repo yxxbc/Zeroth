@@ -1,7 +1,7 @@
 //! Coding-task request snapshots must share the generated source arguments.
 //! Isolated because the resident-memory reading describes the whole process.
 
-use alter_zero::llm::{ChatMessage, ToolCallSpec};
+use zeroth::llm::{ChatMessage, ToolCallSpec};
 
 fn rss_bytes() -> Option<usize> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;

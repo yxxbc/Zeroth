@@ -1,5 +1,5 @@
 //! The `mcp` subcommand boundary (`docs/cli/mcp-cli.md`): the file I/O and
-//! printing behind `alter-zero mcp add/add-json/remove/get/list`, run by
+//! printing behind `zeroth mcp add/add-json/remove/get/list`, run by
 //! [`super::startup::resolve_cli`] in cooked mode — before the tokio runtime
 //! and the terminal, like every other CLI resolution (`docs/cli/cli.md`).
 //!
@@ -12,8 +12,8 @@
 
 use std::path::{Path, PathBuf};
 
-use alter_zero::cli::{self, HelpPage, McpCli};
-use alter_zero::mcp::{self, McpServerConfig, McpWriteError};
+use zeroth::cli::{self, HelpPage, McpCli};
+use zeroth::mcp::{self, McpServerConfig, McpWriteError};
 
 use super::config;
 use super::startup::stdout_style;
@@ -60,7 +60,7 @@ pub(crate) fn run(cmd: &McpCli) -> i32 {
                         println!("File: {}", path.display());
                         if let Some(secret) = &secret {
                             let store = config::mcp_auth_path();
-                            alter_zero::llm::mcp::save_client_secret(
+                            zeroth::llm::mcp::save_client_secret(
                                 store.as_deref(),
                                 &resolved_url(config),
                                 Some(secret),
@@ -170,7 +170,7 @@ fn read_user_file(path: &PathBuf) -> Result<String, String> {
 /// (owner-only for a new one) and any symlink to it, creating the config
 /// dir on first use (`docs/cli/mcp-cli.md`).
 fn write_user_file(path: &Path, contents: &str) -> Result<(), String> {
-    alter_zero::llm::mcp::write_config_file(path, contents)
+    zeroth::llm::mcp::write_config_file(path, contents)
         .map_err(|err| format!("Failed to write {}: {err}", path.display()))
 }
 
@@ -238,7 +238,7 @@ fn print_server(name: &str, config: &McpServerConfig, path: &Path) {
             println!("  Scopes: {scopes}");
         }
         // Where the secret is — never the secret.
-        let kept = alter_zero::llm::mcp::load_client_secret(
+        let kept = zeroth::llm::mcp::load_client_secret(
             config::mcp_auth_path().as_deref(),
             &resolved_url(config),
         )

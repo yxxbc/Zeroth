@@ -3199,7 +3199,7 @@ mod tests {
             (
                 true,
                 StreamEvent::ToolAnswered {
-                    display: "User answered Alter Zero's questions:\n· Q → A".to_string(),
+                    display: "User answered Zeroth's questions:\n· Q → A".to_string(),
                     result: r#"{"answers":{"Q":"A"}}"#.to_string(),
                     truncated: false,
                     run: crate::stream::ToolRun::default(),
@@ -3208,7 +3208,7 @@ mod tests {
             (
                 false,
                 StreamEvent::ToolRejected {
-                    display: "User answered Alter Zero's questions:\n· Q → A".to_string(),
+                    display: "User answered Zeroth's questions:\n· Q → A".to_string(),
                     result: r#"{"answers":{"Q":"A"}}"#.to_string(),
                     truncated: false,
                     // It ran and failed: the tool's own failure.
@@ -3243,7 +3243,7 @@ mod tests {
                 },
                 |_c, _sink| {
                     let outcome = ToolOutcome {
-                        output: "User answered Alter Zero's questions:\n· Q → A".to_string(),
+                        output: "User answered Zeroth's questions:\n· Q → A".to_string(),
                         ok,
                         truncated: false,
                         background: None,

@@ -23,20 +23,18 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use alter_zero::app::{
-    LocalChoice, Look, LookFile, ProviderChoice, SigninKind, SubscriptionChoice,
-};
-use alter_zero::checkpoint;
-use alter_zero::llm::config::Provider;
-use alter_zero::llm::{
+use zeroth::app::{LocalChoice, Look, LookFile, ProviderChoice, SigninKind, SubscriptionChoice};
+use zeroth::checkpoint;
+use zeroth::llm::config::Provider;
+use zeroth::llm::{
     self, AuthScheme, EnvFile, ModelConfig, ModelSelection, ProvidersFile, ReasoningSupport,
     Selection, Settings, ThinkingMode, ThinkingSettings, backend::DEFAULT_SYSTEM_PROMPT,
 };
-use alter_zero::permission::{PermissionMode, PermissionRules, PermissionsFile};
-use alter_zero::scratchpad;
-use alter_zero::settings::{SessionSettings, SettingKey, SettingsFile};
-use alter_zero::stream;
-use alter_zero::ui;
+use zeroth::permission::{PermissionMode, PermissionRules, PermissionsFile};
+use zeroth::scratchpad;
+use zeroth::settings::{SessionSettings, SettingKey, SettingsFile};
+use zeroth::stream;
+use zeroth::ui;
 
 use super::host::{self, local_date, os_context, user_context};
 
@@ -139,7 +137,7 @@ pub(crate) fn startup_providers(home: Option<&Path>) -> (ProvidersFile, Vec<Stri
 /// "set X" hint.
 pub(crate) fn key_env_name(providers: &ProvidersFile, provider: &str) -> String {
     providers.get(provider).map_or_else(
-        || alter_zero::llm::config::default_key_env(provider),
+        || zeroth::llm::config::default_key_env(provider),
         |p| p.key_env(provider),
     )
 }
@@ -170,7 +168,7 @@ pub(crate) fn resolve_api_key(
     let key_env = key_env_name(providers, provider);
     resolve_env(env_file, &key_env)
         .or_else(|| {
-            alter_zero::llm::chatgpt::legacy_key_env(&key_env)
+            zeroth::llm::chatgpt::legacy_key_env(&key_env)
                 .and_then(|legacy| resolve_env(env_file, legacy))
         })
         .or_else(|| resolve_env(env_file, "ALTER_ZERO_API_KEY"))
@@ -325,7 +323,7 @@ fn is_configured(providers: &ProvidersFile, env_file: &EnvFile, id: &str) -> boo
     let pointed_at = host_var.is_some_and(|var| resolve_env(env_file, var).is_some())
         || std::env::var("ALTER_ZERO_PROVIDER")
             .ok()
-            .is_some_and(|env| alter_zero::llm::chatgpt::canonical_provider_id(&env) == id);
+            .is_some_and(|env| zeroth::llm::chatgpt::canonical_provider_id(&env) == id);
     let defined = provider.is_some_and(Provider::configured_by_definition);
     keyed || pointed_at || defined
 }
@@ -515,13 +513,13 @@ fn save_permissions(path: Option<&Path>, change: impl FnOnce(&mut PermissionsFil
 /// empty config *and* an error the boundary shows.
 ///
 /// An absent file is not an error — most sessions have none.
-pub(crate) fn load_hooks(path: Option<&Path>) -> (alter_zero::hooks::HooksFile, Option<String>) {
-    let empty = alter_zero::hooks::HooksFile::default;
+pub(crate) fn load_hooks(path: Option<&Path>) -> (zeroth::hooks::HooksFile, Option<String>) {
+    let empty = zeroth::hooks::HooksFile::default;
     let Some(path) = path else {
         return (empty(), None);
     };
     match std::fs::read_to_string(path) {
-        Ok(text) => match alter_zero::hooks::HooksFile::parse(&text) {
+        Ok(text) => match zeroth::hooks::HooksFile::parse(&text) {
             // Every handler remembers this file, so a verdict can name it.
             Ok(file) => (file.with_source(path), None),
             Err(err) => (
@@ -561,7 +559,7 @@ pub(crate) fn trust_json_path() -> Option<PathBuf> {
 /// hook trusted in one would be trusted wherever the same relative path
 /// named another file.
 pub(crate) fn user_hooks_path() -> Option<PathBuf> {
-    alter_zero::llm::hooks::hooks_file_path(config_home().as_deref())
+    zeroth::llm::hooks::hooks_file_path(config_home().as_deref())
         .map(|path| std::path::absolute(&path).unwrap_or(path))
 }
 
@@ -570,27 +568,25 @@ pub(crate) fn user_hooks_path() -> Option<PathBuf> {
 /// decided must say so. Missing is the normal case; malformed/unreadable
 /// **fails closed** (nothing trusted) with the message to raise — and is
 /// never written over (`tui::trust`'s `persist`).
-pub(crate) fn load_trust_file(
-    path: Option<&Path>,
-) -> (alter_zero::trust::TrustFile, Option<String>) {
+pub(crate) fn load_trust_file(path: Option<&Path>) -> (zeroth::trust::TrustFile, Option<String>) {
     let closed = |err: String| {
         (
-            alter_zero::trust::TrustFile::default(),
+            zeroth::trust::TrustFile::default(),
             Some(format!(
                 "trust.json: {err} — nothing in it is trusted this session"
             )),
         )
     };
     let Some(path) = path else {
-        return (alter_zero::trust::TrustFile::default(), None);
+        return (zeroth::trust::TrustFile::default(), None);
     };
     match std::fs::read_to_string(path) {
-        Ok(text) => match alter_zero::trust::TrustFile::parse(&text) {
+        Ok(text) => match zeroth::trust::TrustFile::parse(&text) {
             Ok(file) => (file, None),
             Err(err) => closed(err),
         },
         Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            (alter_zero::trust::TrustFile::default(), None)
+            (zeroth::trust::TrustFile::default(), None)
         }
         Err(err) => closed(err.to_string()),
     }
@@ -660,7 +656,7 @@ pub(crate) fn prepare_scratchpad(session_root: &Path) -> Option<PathBuf> {
 /// not here: a session that never pastes never makes the folder.
 pub(crate) fn paste_store_dir(session: &str) -> PathBuf {
     match config_home() {
-        Some(home) => alter_zero::clipboard::paste_store_dir(&home, session),
+        Some(home) => zeroth::clipboard::paste_store_dir(&home, session),
         None => std::env::temp_dir()
             .join("alter-zero-image-cache")
             .join(session),
@@ -673,7 +669,7 @@ fn image_cache_cap() -> u64 {
     std::env::var("ALTER_ZERO_IMAGE_CACHE_MAX_BYTES")
         .ok()
         .and_then(|raw| raw.trim().parse::<u64>().ok())
-        .unwrap_or(alter_zero::clipboard::IMAGE_CACHE_MAX_BYTES)
+        .unwrap_or(zeroth::clipboard::IMAGE_CACHE_MAX_BYTES)
 }
 
 /// Delete the paste folders the image cache can no longer afford
@@ -705,7 +701,7 @@ pub(crate) fn sweep_image_cache(keep: &Path) {
             (dir, bytes, modified)
         })
         .collect();
-    for stale in alter_zero::clipboard::evictable_paste_dirs(&entries, image_cache_cap(), keep) {
+    for stale in zeroth::clipboard::evictable_paste_dirs(&entries, image_cache_cap(), keep) {
         let _ = std::fs::remove_dir_all(stale);
     }
 }
@@ -849,7 +845,7 @@ pub(crate) fn permissions_enabled() -> bool {
 /// `docs/state/permissions.md`).
 pub(crate) fn permission_mode_seed() -> Option<PermissionMode> {
     let value = std::env::var("ALTER_ZERO_PERMISSION_MODE").ok();
-    alter_zero::permission::mode_by_env(value.as_deref())
+    zeroth::permission::mode_by_env(value.as_deref())
 }
 
 /// A feature toggle read from the environment: **on** unless `name` is set to
@@ -902,7 +898,7 @@ pub(crate) fn skills_json_path() -> Option<PathBuf> {
 /// and written owner-only (`docs/state/secrets.md`). `None` (no config home)
 /// disables persistence: the page still works for the session.
 pub(crate) fn secrets_json_path() -> Option<PathBuf> {
-    config_home().map(|dir| dir.join(alter_zero::secrets::SECRETS_FILE_NAME))
+    config_home().map(|dir| dir.join(zeroth::secrets::SECRETS_FILE_NAME))
 }
 
 /// The banner-mascot file — `{config_home}/mascot.json`, its own file beside
@@ -988,15 +984,15 @@ pub(crate) fn theme_json_path() -> Option<PathBuf> {
 /// feature outright — nowhere to keep an id means no ping, since a fresh
 /// random id per launch would count one person as many.
 pub(crate) fn telemetry_json_path() -> Option<PathBuf> {
-    config_home().map(|dir| dir.join(alter_zero::telemetry::TELEMETRY_FILE_NAME))
+    config_home().map(|dir| dir.join(zeroth::telemetry::TELEMETRY_FILE_NAME))
 }
 
 /// Read `telemetry.json`. Best-effort like [`load_theme`] — an absent,
 /// unreadable or corrupt file reads as the defaults (on, no id yet), so a
 /// bad file costs at most a fresh install id and a repeated notice.
-pub(crate) fn load_telemetry_file(path: Option<&Path>) -> alter_zero::telemetry::TelemetryFile {
+pub(crate) fn load_telemetry_file(path: Option<&Path>) -> zeroth::telemetry::TelemetryFile {
     path.and_then(|p| std::fs::read_to_string(p).ok())
-        .map(|text| alter_zero::telemetry::TelemetryFile::parse(&text))
+        .map(|text| zeroth::telemetry::TelemetryFile::parse(&text))
         .unwrap_or_default()
 }
 
@@ -1012,8 +1008,8 @@ pub(crate) fn load_telemetry_file(path: Option<&Path>) -> alter_zero::telemetry:
 /// (`docs/ops/telemetry.md`).
 pub(crate) fn update_telemetry_file(
     path: Option<&Path>,
-    edit: impl FnOnce(&mut alter_zero::telemetry::TelemetryFile),
-) -> alter_zero::telemetry::TelemetryFile {
+    edit: impl FnOnce(&mut zeroth::telemetry::TelemetryFile),
+) -> zeroth::telemetry::TelemetryFile {
     let before = load_telemetry_file(path);
     let mut file = before.clone();
     edit(&mut file);
@@ -1033,7 +1029,7 @@ pub(crate) fn update_telemetry_file(
 /// fork's own), else `None` — the module's built-in default stands
 /// (`docs/providers/chatgpt.md`).
 pub(crate) fn openai_issuer() -> Option<String> {
-    std::env::var(alter_zero::llm::chatgpt::ISSUER_ENV)
+    std::env::var(zeroth::llm::chatgpt::ISSUER_ENV)
         .ok()
         .map(|url| url.trim().to_string())
         .filter(|url| !url.is_empty())
@@ -1043,33 +1039,33 @@ pub(crate) fn openai_issuer() -> Option<String> {
 /// set and non-empty (Phase 137's local stub, or a fork's own), else `None` —
 /// `https://api.workos.com` stands (`docs/providers/cline.md`).
 pub(crate) fn cline_auth_base() -> Option<String> {
-    nonempty_env(alter_zero::llm::cline::AUTH_BASE_ENV)
+    nonempty_env(zeroth::llm::cline::AUTH_BASE_ENV)
 }
 
 /// Where Cline's register/refresh calls go: `ALTER_ZERO_CLINE_API_BASE` when
 /// set and non-empty (Phase 137's stub again), else `None` —
 /// `https://api.cline.bot` stands.
 pub(crate) fn cline_api_base() -> Option<String> {
-    nonempty_env(alter_zero::llm::cline::API_BASE_ENV)
+    nonempty_env(zeroth::llm::cline::API_BASE_ENV)
 }
 
 /// Where the Google Antigravity sign-in's token and userinfo calls go:
 /// `ALTER_ZERO_GOOGLE_OAUTH_BASE` when set and non-empty (the smoke suite's
 /// stub), else `None` — Google's own hosts stand (`docs/providers/antigravity.md`).
 pub(crate) fn google_oauth_base() -> Option<String> {
-    nonempty_env(alter_zero::llm::antigravity::OAUTH_BASE_ENV)
+    nonempty_env(zeroth::llm::antigravity::OAUTH_BASE_ENV)
 }
 
 /// The `User-Agent` replacing the agy CLI's on Cloud Code requests:
 /// `ALTER_ZERO_ANTIGRAVITY_USER_AGENT`, for when Google moves its gate.
 pub(crate) fn antigravity_user_agent() -> Option<String> {
-    nonempty_env(alter_zero::llm::antigravity::USER_AGENT_ENV)
+    nonempty_env(zeroth::llm::antigravity::USER_AGENT_ENV)
 }
 
 /// The Cloud Code project to bill instead of the account's own:
 /// `ANTIGRAVITY_PROJECT_ID`.
 pub(crate) fn antigravity_project() -> Option<String> {
-    nonempty_env(alter_zero::llm::antigravity::PROJECT_ENV)
+    nonempty_env(zeroth::llm::antigravity::PROJECT_ENV)
 }
 
 /// Where GitHub's REST API calls go — the Copilot token exchange and the
@@ -1077,7 +1073,7 @@ pub(crate) fn antigravity_project() -> Option<String> {
 /// (Phase 145's stub, or a fork's own), else `None` —
 /// `https://api.github.com` stands (`docs/providers/usage.md`).
 pub(crate) fn github_api_base() -> Option<String> {
-    nonempty_env(alter_zero::llm::copilot::GITHUB_API_ENV)
+    nonempty_env(zeroth::llm::copilot::GITHUB_API_ENV)
 }
 
 /// A trimmed, non-empty environment value, or `None` — the shape every
@@ -1093,11 +1089,11 @@ fn nonempty_env(name: &str) -> Option<String> {
 /// non-empty (a fork's own collector, the smoke suite's local stub), else
 /// the built-in collector (`telemetry::DEFAULT_ENDPOINT`).
 pub(crate) fn telemetry_endpoint() -> String {
-    std::env::var(alter_zero::telemetry::ENDPOINT_ENV)
+    std::env::var(zeroth::telemetry::ENDPOINT_ENV)
         .ok()
         .map(|url| url.trim().to_string())
         .filter(|url| !url.is_empty())
-        .unwrap_or_else(|| alter_zero::telemetry::DEFAULT_ENDPOINT.to_string())
+        .unwrap_or_else(|| zeroth::telemetry::DEFAULT_ENDPOINT.to_string())
 }
 
 /// Whether the environment **forbids** telemetry this run — a falsy
@@ -1120,22 +1116,22 @@ pub(crate) fn telemetry_forbidden_by_env() -> bool {
 /// `DO_NOT_TRACK` — or `None` to defer to `telemetry.json`
 /// (`telemetry::enabled_by_env`, `docs/ops/telemetry.md`).
 fn telemetry_env_override() -> Option<bool> {
-    let telemetry = std::env::var(alter_zero::telemetry::TELEMETRY_ENV).ok();
-    let dnt = std::env::var(alter_zero::telemetry::DNT_ENV).ok();
-    alter_zero::telemetry::enabled_by_env(telemetry.as_deref(), dnt.as_deref())
+    let telemetry = std::env::var(zeroth::telemetry::TELEMETRY_ENV).ok();
+    let dnt = std::env::var(zeroth::telemetry::DNT_ENV).ok();
+    zeroth::telemetry::enabled_by_env(telemetry.as_deref(), dnt.as_deref())
 }
 
 /// The update-check file — `{config_home}/update.json`, its own per-user
 /// file like `telemetry.json` (`docs/ops/update.md`).
 pub(crate) fn update_json_path() -> Option<PathBuf> {
-    config_home().map(|dir| dir.join(alter_zero::update::UPDATE_FILE_NAME))
+    config_home().map(|dir| dir.join(zeroth::update::UPDATE_FILE_NAME))
 }
 
 /// Read `update.json`. Best-effort like [`load_telemetry_file`]: an absent,
 /// unreadable or corrupt file reads as the defaults (on, nothing known yet).
-pub(crate) fn load_update_file(path: Option<&Path>) -> alter_zero::update::UpdateFile {
+pub(crate) fn load_update_file(path: Option<&Path>) -> zeroth::update::UpdateFile {
     path.and_then(|p| std::fs::read_to_string(p).ok())
-        .map(|text| alter_zero::update::UpdateFile::parse(&text))
+        .map(|text| zeroth::update::UpdateFile::parse(&text))
         .unwrap_or_default()
 }
 
@@ -1146,8 +1142,8 @@ pub(crate) fn load_update_file(path: Option<&Path>) -> alter_zero::update::Updat
 /// `None` path edits nothing.
 pub(crate) fn update_update_file(
     path: Option<&Path>,
-    edit: impl FnOnce(&mut alter_zero::update::UpdateFile),
-) -> alter_zero::update::UpdateFile {
+    edit: impl FnOnce(&mut zeroth::update::UpdateFile),
+) -> zeroth::update::UpdateFile {
     let before = load_update_file(path);
     let mut file = before.clone();
     edit(&mut file);
@@ -1166,11 +1162,11 @@ pub(crate) fn update_update_file(
 /// when set and non-empty (a fork, the smoke suite's stand-in server), else
 /// the manifest's own (`update::DEFAULT_REPO_URL`).
 pub(crate) fn update_repo_url() -> String {
-    std::env::var(alter_zero::update::REPO_URL_ENV)
+    std::env::var(zeroth::update::REPO_URL_ENV)
         .ok()
         .map(|url| url.trim().to_string())
         .filter(|url| !url.is_empty())
-        .unwrap_or_else(|| alter_zero::update::DEFAULT_REPO_URL.to_string())
+        .unwrap_or_else(|| zeroth::update::DEFAULT_REPO_URL.to_string())
 }
 
 /// Whether the environment **forbids** the update check this run — a falsy
@@ -1178,22 +1174,22 @@ pub(crate) fn update_repo_url() -> String {
 /// the `/settings` row reports itself unavailable, so a "send nothing"
 /// stated in the environment cannot be cycled around from inside the app.
 pub(crate) fn update_check_forbidden_by_env() -> bool {
-    let value = std::env::var(alter_zero::update::UPDATE_ENV).ok();
-    alter_zero::update::enabled_by_env(value.as_deref()) == Some(false)
+    let value = std::env::var(zeroth::update::UPDATE_ENV).ok();
+    zeroth::update::enabled_by_env(value.as_deref()) == Some(false)
 }
 
 /// The spinner-tips file — `{config_home}/tips.json`, its own per-user file
 /// like `update.json`: the **Show tips** switch and where the walk through
 /// the catalog left off (`docs/ui/tips.md`).
 pub(crate) fn tips_json_path() -> Option<PathBuf> {
-    config_home().map(|dir| dir.join(alter_zero::tips::TIPS_FILE_NAME))
+    config_home().map(|dir| dir.join(zeroth::tips::TIPS_FILE_NAME))
 }
 
 /// Read `tips.json`. Best-effort like [`load_update_file`]: an absent,
 /// unreadable or corrupt file reads as the defaults (on, from the first tip).
-pub(crate) fn load_tips_file(path: Option<&Path>) -> alter_zero::tips::TipsFile {
+pub(crate) fn load_tips_file(path: Option<&Path>) -> zeroth::tips::TipsFile {
     path.and_then(|p| std::fs::read_to_string(p).ok())
-        .map(|text| alter_zero::tips::TipsFile::parse(&text))
+        .map(|text| zeroth::tips::TipsFile::parse(&text))
         .unwrap_or_default()
 }
 
@@ -1204,8 +1200,8 @@ pub(crate) fn load_tips_file(path: Option<&Path>) -> alter_zero::tips::TipsFile 
 /// TUI), an unchanged file is not rewritten, and a `None` path edits nothing.
 pub(crate) fn update_tips_file(
     path: Option<&Path>,
-    edit: impl FnOnce(&mut alter_zero::tips::TipsFile),
-) -> alter_zero::tips::TipsFile {
+    edit: impl FnOnce(&mut zeroth::tips::TipsFile),
+) -> zeroth::tips::TipsFile {
     let before = load_tips_file(path);
     let mut file = before.clone();
     edit(&mut file);
@@ -1223,30 +1219,30 @@ pub(crate) fn update_tips_file(
 /// Read the saved theme. Best-effort like [`load_spinner`] — an absent,
 /// unreadable, or corrupt file reads as `None` and the session keeps the
 /// default theme rather than failing startup.
-pub(crate) fn load_theme(path: Option<&Path>) -> Option<alter_zero::app::Theme> {
+pub(crate) fn load_theme(path: Option<&Path>) -> Option<zeroth::app::Theme> {
     path.and_then(|p| std::fs::read_to_string(p).ok())
         .as_deref()
-        .and_then(alter_zero::app::parse_theme_file)
+        .and_then(zeroth::app::parse_theme_file)
 }
 
 /// Persist the chosen theme. Best-effort like [`save_spinner`] — a
 /// read-only home must never kill the TUI — and a `None` path no-ops.
-pub(crate) fn save_theme(path: Option<&Path>, theme: alter_zero::app::Theme) {
+pub(crate) fn save_theme(path: Option<&Path>, theme: zeroth::app::Theme) {
     let Some(path) = path else {
         return;
     };
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(path, alter_zero::app::theme_file_json(theme));
+    let _ = std::fs::write(path, zeroth::app::theme_file_json(theme));
 }
 
 /// Read the skill on/off file. Best-effort like [`load_permissions`] — a
 /// corrupt file reads as "nothing disabled" rather than costing the session
 /// its skills.
-pub(crate) fn load_skills_file(path: Option<&Path>) -> alter_zero::skills::SkillsFile {
+pub(crate) fn load_skills_file(path: Option<&Path>) -> zeroth::skills::SkillsFile {
     path.and_then(|p| std::fs::read_to_string(p).ok())
-        .map(|text| alter_zero::skills::SkillsFile::parse(&text))
+        .map(|text| zeroth::skills::SkillsFile::parse(&text))
         .unwrap_or_default()
 }
 
@@ -1311,7 +1307,7 @@ pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionS
     // Checkpoints keep their own (identical) pure predicate, so the one
     // grammar stays in the module that owns the feature.
     if let Ok(value) = std::env::var("ALTER_ZERO_CHECKPOINTS") {
-        settings.checkpoints = alter_zero::checkpoint::enabled_by_env(Some(&value));
+        settings.checkpoints = zeroth::checkpoint::enabled_by_env(Some(&value));
     }
     // The project-doc knob's env form is a byte budget, whose documented off
     // switch is `0` (docs/state/project-doc.md).
@@ -1353,7 +1349,7 @@ pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionS
     // The Show tips row: `ALTER_ZERO_TIPS` seeds it for the run over the
     // value `tips.json` supplied, the `ALTER_ZERO_TOOLS` grammar — not a
     // privacy switch, so it never withdraws the row (`docs/ui/tips.md`).
-    if let Some(on) = env_flag_set(alter_zero::tips::TIPS_ENV) {
+    if let Some(on) = env_flag_set(zeroth::tips::TIPS_ENV) {
         settings.tips = on;
     }
     settings
@@ -1440,8 +1436,8 @@ pub(crate) fn context_window_override() -> Option<u64> {
         .filter(|&w| w > 0)
 }
 
-/// The real backend's system prompt: the "Alter Zero" persona
-/// (`prompts/alter_zero.md`) unless `ALTER_ZERO_SYSTEM_PROMPT` overrides it
+/// The real backend's system prompt: the "Zeroth" persona
+/// (`prompts/zeroth.md`) unless `ALTER_ZERO_SYSTEM_PROMPT` overrides it
 /// (an empty value sends no system prompt at all — `with_system_prompt` drops
 /// blanks). Either way we fold in the runtime environment — date, os, user,
 /// cwd — so the agent has context awareness (`docs/architecture/environment.md`), and —
@@ -1538,7 +1534,7 @@ fn mcp_timeout_ms(name: &str, default: std::time::Duration) -> std::time::Durati
 pub(crate) fn mcp_startup_timeout() -> std::time::Duration {
     mcp_timeout_ms(
         "ALTER_ZERO_MCP_STARTUP_TIMEOUT_MS",
-        alter_zero::llm::mcp::DEFAULT_STARTUP_TIMEOUT,
+        zeroth::llm::mcp::DEFAULT_STARTUP_TIMEOUT,
     )
 }
 
@@ -1546,6 +1542,6 @@ pub(crate) fn mcp_startup_timeout() -> std::time::Duration {
 pub(crate) fn mcp_tool_timeout() -> std::time::Duration {
     mcp_timeout_ms(
         "ALTER_ZERO_MCP_TOOL_TIMEOUT_MS",
-        alter_zero::llm::mcp::DEFAULT_TOOL_TIMEOUT,
+        zeroth::llm::mcp::DEFAULT_TOOL_TIMEOUT,
     )
 }

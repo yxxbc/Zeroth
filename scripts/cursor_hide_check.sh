@@ -14,7 +14,7 @@
 # Usage: scripts/cursor_hide_check.sh [path/to/binary]
 set -uo pipefail
 
-BIN="${1:-target/debug/alter-zero}"
+BIN="${1:-target/debug/zeroth}"
 if [ ! -x "$BIN" ]; then
 	echo "FAIL: binary not found at $BIN (run: cargo build)" >&2
 	exit 1

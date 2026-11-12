@@ -77,7 +77,7 @@ Use /tmp only when asked
 It is the **third** block of the assembled system prompt:
 
 ```
-persona        prompts/alter_zero.md    (who you are)
+persona        prompts/zeroth.md    (who you are)
 environment    prompts/environment.md   (where/when you are, as which user)
 scratchpad     prompts/scratchpad.md    (where your scratch goes)   ← this doc
 ```

@@ -22,12 +22,12 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 
-use alter_zero::background::{BackgroundRegistry, BgEvent};
-use alter_zero::context::{ContextMessage, ContextRole};
-use alter_zero::llm::LlmBackend;
-use alter_zero::llm::config::{ProvidersFile, Selection};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
 use tokio::sync::mpsc::unbounded_channel;
+use zeroth::background::{BackgroundRegistry, BgEvent};
+use zeroth::context::{ContextMessage, ContextRole};
+use zeroth::llm::LlmBackend;
+use zeroth::llm::config::{ProvidersFile, Selection};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// Print a model-facing tool result indented under its call, dim.
 fn show_result(label: &str, text: &str) {
@@ -71,12 +71,12 @@ fn main() {
     let cwd = std::env::current_dir().expect("a cwd");
     // The probe's commands really run, so the user is the real one: whether
     // the model reaches for `sudo` depends on it (docs/architecture/environment.md).
-    let user = alter_zero::llm::backend::user_label(
+    let user = zeroth::llm::backend::user_label(
         Some(rustix::process::geteuid().as_raw()),
         std::env::var("USER").ok().as_deref(),
     );
-    let system = alter_zero::llm::backend::augment_with_environment(
-        alter_zero::llm::backend::DEFAULT_SYSTEM_PROMPT,
+    let system = zeroth::llm::backend::augment_with_environment(
+        zeroth::llm::backend::DEFAULT_SYSTEM_PROMPT,
         "Wednesday 2026-09-23",
         "linux",
         &user,

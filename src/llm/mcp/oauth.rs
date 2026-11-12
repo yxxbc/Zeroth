@@ -1563,7 +1563,7 @@ pub fn register_client(
     let client = crate::llm::http_client(HTTP_TIMEOUT).map_err(|e| e.to_string())?;
     let method = registration_auth_method(supported_methods);
     let body = serde_json::json!({
-        "client_name": "alter-zero",
+        "client_name": "zeroth",
         "redirect_uris": [redirect_uri],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
@@ -1786,7 +1786,7 @@ pub fn run_auth_flow(
                         "{} registers no clients itself, so signing in needs the OAuth client \
                          you created with the provider: add it as oauth.clientId (and \
                          oauth.callbackPort, if its redirect URI names one) in the server's \
-                         entry, or with `alter-zero mcp add --client-id … --client-secret`",
+                         entry, or with `zeroth mcp add --client-id … --client-secret`",
                         meta.issuer.as_deref().unwrap_or("The authorization server")
                     ));
                 }

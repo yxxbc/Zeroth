@@ -11,7 +11,7 @@
 # chunk boundaries, real markdown (code fences, tables, emoji/CJK), real
 # first-token latency. Costs a few fractions of a cent per run.
 #
-#   OPENROUTER_API_KEY=sk-or-… scripts/live_smoke.sh [target/debug/alter-zero]
+#   OPENROUTER_API_KEY=sk-or-… scripts/live_smoke.sh [target/debug/zeroth]
 #
 # `ALTER_ZERO_LIVE_PROVIDER` picks any provider from providers.toml (default
 # openrouter); its key is read from that provider's default variable —
@@ -37,7 +37,7 @@ if [ "$PROVIDER" != "openrouter" ] && [ -z "${ALTER_ZERO_LIVE_MODEL:-}" ]; then
 	exit 2
 fi
 
-BIN="${1:-target/debug/alter-zero}"
+BIN="${1:-target/debug/zeroth}"
 if [ ! -x "$BIN" ]; then
 	echo "live_smoke: $BIN not found — cargo build first" >&2
 	exit 2

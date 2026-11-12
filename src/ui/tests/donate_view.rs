@@ -57,7 +57,7 @@ fn the_page_is_framed_with_title_blurb_rows_boxes_caution_and_hint() {
     assert!(is_rule(texts.first().expect("a top rule")), "top rule");
     assert!(is_rule(texts.last().expect("a bottom rule")), "bottom rule");
     for expect in [
-        "♥ Support Alter Zero",
+        "♥ Support Zeroth",
         "Free and open source",
         "❯ 1. BTC  Bitcoin",
         "Network: Bitcoin (Native SegWit)",

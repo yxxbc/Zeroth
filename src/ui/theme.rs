@@ -1633,7 +1633,8 @@ pub(super) const THEME_PREVIEW_TOOL: &str = "Edit";
 pub(super) const THEME_PREVIEW_PATH: &str = "greet.py";
 pub(super) const THEME_PREVIEW_OLD: &str = "def greet(name):\n    print(\"Hello, world\")\n";
 pub(super) const THEME_PREVIEW_NEW: &str = "def greet(name):\n    print(f\"Hello, {name}\")\n";
-pub(super) const THEME_PREVIEW_REPLY: &str = "Done — `greet.py` greets by name now:\n```python\ngreet(\"Alter Zero\")  # Hello, Alter Zero\n```";
+pub(super) const THEME_PREVIEW_REPLY: &str =
+    "Done — `greet.py` greets by name now:\n```python\ngreet(\"Zeroth\")  # Hello, Zeroth\n```";
 
 // --- the read-only /donate page (docs/ui/donate.md). The /hooks menu's frame —
 // the family's indent, its `❯` marker, the dim meta ink — over the const
@@ -1646,7 +1647,7 @@ pub(super) const THEME_PREVIEW_REPLY: &str = "Done — `greet.py` greets by name
 pub(super) const DONATE_HEART: &str = "♥ ";
 
 /// The title's verb; the app's name ([`HEADER_NAME`]) follows it, so the
-/// page reads `Support Alter Zero` from the one place the name lives.
+/// page reads `Support Zeroth` from the one place the name lives.
 pub(super) const DONATE_TITLE_PREFIX: &str = "Support ";
 
 /// The dim rows under the title: what the project is, what a donation does.
@@ -2305,7 +2306,7 @@ pub(super) const MCP_AUTH_SUBMITTED: &str = "Checking the pasted URL…";
 
 /// The closing direction on the detail page.
 pub(super) const HOOKS_MODIFY_NOTE: &str =
-    "To modify or remove this hook, edit hooks.json directly or ask alter-zero to help.";
+    "To modify or remove this hook, edit hooks.json directly or ask zeroth to help.";
 
 // --- Transcript timestamps (Ctrl+O view only). Only the *user* message shows
 // its wall-clock stamp: dim, right-aligned on its own line below the message

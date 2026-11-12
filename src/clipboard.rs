@@ -319,7 +319,7 @@ pub fn read_clipboard_image(dir: &Path) -> Result<PathBuf, String> {
 /// one a display-less Linux session gets — put the picture on disk and ask for
 /// its path (`docs/input/image-paste.md`).
 pub const NO_IMAGE_ON_CLIPBOARD: &str = "no image on the clipboard — copy a picture itself \
-     (not a file, and not a web page's selection), or save it and ask Alter Zero to read its \
+     (not a file, and not a web page's selection), or save it and ask Zeroth to read its \
      path";
 
 /// Why a Linux paste is refused in a session that names no display, and what
@@ -329,13 +329,13 @@ pub const NO_IMAGE_ON_CLIPBOARD: &str = "no image on the clipboard — copy a pi
 #[cfg(target_os = "linux")]
 const NO_DISPLAY_REASON: &str = "no desktop clipboard in this session (neither DISPLAY nor \
      WAYLAND_DISPLAY is set). Save the image file where this session can reach it, then ask \
-     Alter Zero to read its path.";
+     Zeroth to read its path.";
 
 /// What a Linux paste adds when a display *is* named but cannot be reached —
 /// a forwarded socket that went stale, an X server refusing the cookie.
 #[cfg(target_os = "linux")]
 const UNREACHABLE_HINT: &str = ". Check this session's display connection, or save the image \
-     file where this session can reach it and ask Alter Zero to read its path.";
+     file where this session can reach it and ask Zeroth to read its path.";
 
 /// Whether this session names a display server at all. Pure over the two
 /// values [`read_clipboard_image`] reads, so the rule is tested without

@@ -1,4 +1,4 @@
-//! The terminal shell around the [`alter_zero`] library: the async event loop
+//! The terminal shell around the [`zeroth`] library: the async event loop
 //! and every piece of real I/O it drives.
 //!
 //! `main.rs` opens the viewport and calls [`event_loop::run`]; everything else
@@ -30,7 +30,7 @@
 //! |--------|-------|
 //! | `mod.rs` | The [`Session`] struct and [`StatusClocks`] — the shared state. |
 //! | [`event_loop`] | [`event_loop::run`]: the `select!` over the eleven sources, the loop-bottom work, the teardown. |
-//! | [`actions`] | The [`alter_zero::app::Action`] dispatch — one method per key-press outcome. |
+//! | [`actions`] | The [`zeroth::app::Action`] dispatch — one method per key-press outcome. |
 //! | [`turn`] | Starting and ending turns: user, queued, `!` shell, background follow-up, `/compact`. |
 //! | [`stream`] | Folding one streamed reply event into `App` + scrollback. |
 //! | [`agent`] | Subagent events, the roster's clocks, the linger sweep (`docs/agents/agent-tool.md`). |
@@ -42,13 +42,13 @@
 //! | [`config`] | Reading the environment: providers, keys, settings, permission rules. |
 //! | [`bootstrap`] | Assembling a [`Session`] before the first frame. |
 //! | [`startup`] | The `--continue`/`--resume` argument resolution (`docs/cli/cli.md`). |
-//! | [`headless`] | `alter-zero -p`: the same session with no screen — its loop, its streams, its exit status (`docs/cli/headless.md`). |
+//! | [`headless`] | `zeroth -p`: the same session with no screen — its loop, its streams, its exit status (`docs/cli/headless.md`). |
 //! | [`recorder`] | Mirroring history to a rollout file (`docs/state/resume.md`). |
 //! | [`resume`] | Finding recorded sessions on disk. |
 //! | [`settings`] | Applying a `/settings` knob the menu cycled (`docs/state/settings.md`). |
 //! | [`telemetry`] | The once-a-day anonymous usage ping (once more on the day of an update): the install id, the notice, the send, the recorded day and version (`docs/ops/telemetry.md`). |
 //! | [`update`] | The once-a-day update check: the request, the card under the banner, the recorded day (`docs/ops/update.md`). |
-//! | [`update_cli`] | The `alter-zero update` subcommand: the check, then the one-line installer over this binary (`docs/ops/update.md`). |
+//! | [`update_cli`] | The `zeroth update` subcommand: the check, then the one-line installer over this binary (`docs/ops/update.md`). |
 //! | [`herdr`] | Telling the herdr pane this session runs in what it is doing: the loop-bottom sync into the library's tracker and worker, and the failed-turn hold (`docs/architecture/herdr.md`). |
 //! | [`history_store`] | The cross-session input history (`docs/input/history-persistence.md`). |
 //! | [`shell`] | The `!` command runner (`docs/input/shell-command.md`). |
@@ -63,16 +63,16 @@ use std::time::Instant;
 
 use ratatui::crossterm::event::EventStream;
 
-use alter_zero::agents::{AgentEvent, AgentRegistry};
-use alter_zero::app::App;
-use alter_zero::background::{BackgroundRegistry, BgEvent};
-use alter_zero::checkpoint::CheckpointStore;
-use alter_zero::clipboard::ClipboardLease;
-use alter_zero::frame::FrameRequester;
-use alter_zero::paste::PasteBurst;
-use alter_zero::stream::{CancelToken, StreamEvent};
-use alter_zero::term::InlineViewport;
-use alter_zero::ui;
+use zeroth::agents::{AgentEvent, AgentRegistry};
+use zeroth::app::App;
+use zeroth::background::{BackgroundRegistry, BgEvent};
+use zeroth::checkpoint::CheckpointStore;
+use zeroth::clipboard::ClipboardLease;
+use zeroth::frame::FrameRequester;
+use zeroth::paste::PasteBurst;
+use zeroth::stream::{CancelToken, StreamEvent};
+use zeroth::term::InlineViewport;
+use zeroth::ui;
 
 use self::history_store::InputHistoryStore;
 use self::models::ModelSession;
@@ -165,7 +165,7 @@ pub(crate) struct Session<'t> {
     /// tick, started over by every key or paste, resolving the waiting
     /// questions unanswered on [`Self::ask`] when it runs out — on this
     /// thread, so an answer and the expiry can never race.
-    ask_timer: alter_zero::ask::AskTimer,
+    ask_timer: zeroth::ask::AskTimer,
     /// When each background shell started, so the manager's Runtime ticks
     /// (`docs/tools/background.md`).
     bg_clocks: HashMap<String, Instant>,
@@ -203,7 +203,7 @@ pub(crate) struct Session<'t> {
     /// open one: crossterm opens the controlling terminal as the stream is
     /// built (`docs/cli/headless.md`).
     events: Option<EventStream>,
-    /// Whether this session runs **headless** — `alter-zero -p`, the same
+    /// Whether this session runs **headless** — `zeroth -p`, the same
     /// session over a viewport that paints nowhere (`docs/cli/headless.md`):
     /// nothing asked, nothing shown, toasts on stderr.
     headless: bool,
@@ -213,7 +213,7 @@ pub(crate) struct Session<'t> {
     /// A headless run's reply budget (`--max-turns`), shared with every
     /// backend build — what the run reports as its `num_turns`. `None` in
     /// the TUI.
-    round_budget: Option<alter_zero::llm::agent::RoundBudget>,
+    round_budget: Option<zeroth::llm::agent::RoundBudget>,
     /// Asks the frame scheduler for a redraw, and its coalesced, rate-limited
     /// draw ticks coming back.
     frame: FrameRequester,
@@ -271,13 +271,13 @@ pub(crate) struct Session<'t> {
     agent_rx: tokio::sync::mpsc::UnboundedReceiver<AgentEvent>,
     /// MCP server state changes (`docs/tools/mcp.md`) — never swapped either;
     /// connections outlive turns like background shells.
-    mcp_rx: tokio::sync::mpsc::UnboundedReceiver<alter_zero::llm::mcp::McpEvent>,
+    mcp_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::llm::mcp::McpEvent>,
     /// The telemetry ping worker's report (`docs/ops/telemetry.md`): the UTC day
     /// it delivered and the version the ping carried, which the **loop**
     /// then records in `telemetry.json` — the worker never writes the file,
     /// so it can't race the `/settings` toggle's write. Silent on failure.
-    telemetry_tx: tokio::sync::mpsc::UnboundedSender<alter_zero::telemetry::Delivery>,
-    telemetry_rx: tokio::sync::mpsc::UnboundedReceiver<alter_zero::telemetry::Delivery>,
+    telemetry_tx: tokio::sync::mpsc::UnboundedSender<zeroth::telemetry::Delivery>,
+    telemetry_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::telemetry::Delivery>,
     /// The UTC day this **session** last spawned a ping for, successful or
     /// not (`docs/ops/telemetry.md`). Two jobs: the turn-start rollover check
     /// compares against it and returns without touching the file on the
@@ -319,43 +319,43 @@ pub(crate) struct Session<'t> {
     /// `App::steered` is the mirror the strip renders — and the one that
     /// survives a turn that ended without reading them, which is why the
     /// reclaim at every turn end goes through both.
-    steer: alter_zero::steer::SteerQueue,
+    steer: zeroth::steer::SteerQueue,
     /// The tool-permission gate and this project's saved rules
     /// (`docs/state/permissions.md`).
     permissions: PermissionStore,
     /// The `AskUserQuestion` gate the modal's answers post on
     /// (`docs/tools/ask.md`) — always present (asking is not a permission), shared
     /// by every backend build.
-    ask: alter_zero::ask::AskGate,
+    ask: zeroth::ask::AskGate,
     /// The shared task list the task tools operate on
     /// (`docs/tools/task-tools.md`) — the loop syncs it to `App::tasks` after every
     /// history rewind so the model's next `tasklist` agrees with the strip.
-    task_registry: alter_zero::tasks::TaskRegistry,
+    task_registry: zeroth::tasks::TaskRegistry,
     /// The skills on disk (`docs/tools/skills.md`) — the set every backend build
     /// offers the `skill` tool over, and the source of the
     /// `<system-reminder>` listing the derived context leads with. Re-walked
     /// at every turn start ([`Session::rescan_skills`]), so a skill added
     /// mid-session — or written by the agent itself — is live on the next
     /// turn instead of waiting for a restart.
-    skill_registry: alter_zero::skills::SkillRegistry,
+    skill_registry: zeroth::skills::SkillRegistry,
     /// The subagent definitions on disk (`docs/agents/subagents.md`) — the
     /// `agents/*.md` types a launch resolves `subagent_type` against, and the
     /// source of the agent half of the `<system-reminder>`. Re-walked at
     /// every turn start ([`Session::rescan_agents`]) beside the skills, so a
     /// type added mid-session — or written by the agent itself — is
     /// launchable on the next turn.
-    subagents: alter_zero::subagents::SubagentRegistry,
+    subagents: zeroth::subagents::SubagentRegistry,
     /// The user's secrets (`docs/state/secrets.md`) — the one store the `/secrets`
     /// page edits, the reminder lists and every tool call expands and
     /// redacts with. The same handle the shell registry carries to the
     /// executor, the `!` runner and every backend build.
-    secrets: alter_zero::secrets::SecretRegistry,
+    secrets: zeroth::secrets::SecretRegistry,
     /// The MCP servers (`docs/tools/mcp.md`): every declared server's live
     /// connection state, the tool specs the backend folds in, and the OAuth
     /// flows. Built at every bootstrap, whatever the `/settings` **MCP** row
     /// (seeded by `ALTER_ZERO_MCP`) says — it switches the manager on and off
     /// for the session, so there is always one to switch.
-    mcp: alter_zero::llm::mcp::McpManager,
+    mcp: zeroth::llm::mcp::McpManager,
     /// What the startup review decides over (`docs/state/config-review.md`):
     /// `trust.json`, the user's hooks file and the project's `.alter-zero`
     /// layer, read once at bootstrap — every review answer and `/hooks` or
@@ -369,11 +369,11 @@ pub(crate) struct Session<'t> {
     /// The `SKILL.md` files whose parse failure has already been raised as a
     /// toast, so the rescan doesn't repeat itself every turn. Re-seeded from
     /// each walk's errors, so a file that is fixed and broken again reports
-    /// again (`alter_zero::skills::unreported_errors`).
+    /// again (`zeroth::skills::unreported_errors`).
     reported_skill_errors: std::collections::BTreeSet<std::path::PathBuf>,
     /// The agent definition files whose parse failure has already been raised
     /// as a toast — [`reported_skill_errors`](Self::reported_skill_errors)'s
-    /// twin, one feature over (`alter_zero::subagents::unreported_errors`).
+    /// twin, one feature over (`zeroth::subagents::unreported_errors`).
     reported_agent_errors: std::collections::BTreeSet<std::path::PathBuf>,
     /// Mirrors history to the `/resume` rollout file (`docs/state/resume.md`).
     recorder: SessionRecorder,

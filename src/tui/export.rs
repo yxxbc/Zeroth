@@ -10,13 +10,13 @@
 //! off the local clock (the rollout's own rule) and never over a file
 //! already there — and the confirming toast either way.
 //!
-//! [`Action::Export`]: alter_zero::app::Action::Export
+//! [`Action::Export`]: zeroth::app::Action::Export
 
 use std::io;
 use std::path::{Path, PathBuf};
 
-use alter_zero::app::{ExportTarget, ToastKind, export_file_name};
-use alter_zero::{clipboard, ui};
+use zeroth::app::{ExportTarget, ToastKind, export_file_name};
+use zeroth::{clipboard, ui};
 
 use super::Session;
 

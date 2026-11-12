@@ -17,7 +17,7 @@ use crate::subagents::{
 /// that name at all.
 ///
 /// Authored in `prompts/agents/`, beside every other `include_str!`'d markdown
-/// this crate embeds (`prompts/alter_zero.md`, `prompts/subagent.md`, …) — the
+/// this crate embeds (`prompts/zeroth.md`, `prompts/subagent.md`, …) — the
 /// file a user edits lives in *their* agents directory, and this is only the
 /// copy the binary carries.
 ///

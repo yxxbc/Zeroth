@@ -52,7 +52,7 @@ fn header_shows_mascot_title_cwd_and_hint() {
     let text = header_text(&with_session(), 90);
     // The default mascot (crest) draws flush-left.
     assert!(text.contains("▙▄▙▄▟▄▟"), "crest art: {text:?}");
-    assert!(text.contains("Alter Zero"), "name: {text:?}");
+    assert!(text.contains("Zeroth"), "name: {text:?}");
     assert!(
         text.contains(&format!("(v{})", env!("CARGO_PKG_VERSION"))),
         "version: {text:?}"
@@ -82,7 +82,7 @@ fn header_rows_compose_art_beside_the_metadata() {
     let pad = |row: &str| format!("{row}{}", " ".repeat(w - cols(row) + 2));
     assert_eq!(
         plain(&lines[0]),
-        format!("{}Alter Zero (v{})", pad(art[0]), env!("CARGO_PKG_VERSION"))
+        format!("{}Zeroth (v{})", pad(art[0]), env!("CARGO_PKG_VERSION"))
     );
     assert_eq!(plain(&lines[1]), format!("{}~/alter-zero", pad(art[1])));
     assert_eq!(
@@ -111,7 +111,7 @@ fn header_meta_block_seats_lower_beside_a_taller_mascot() {
             mascot.name()
         );
         assert!(
-            plain(&lines[1]).contains("Alter Zero"),
+            plain(&lines[1]).contains("Zeroth"),
             "{}: title on row 1",
             mascot.name()
         );
@@ -141,7 +141,7 @@ fn header_title_is_bold_name_over_dim_version() {
     let name = lines[0]
         .spans
         .iter()
-        .find(|s| s.content.contains("Alter Zero"))
+        .find(|s| s.content.contains("Zeroth"))
         .expect("the name span");
     assert!(
         name.style.add_modifier.contains(Modifier::BOLD),
@@ -236,7 +236,7 @@ fn header_falls_back_to_a_text_badge_when_very_narrow() {
         !text.contains('█'),
         "no room for the mascot at {width}: {text:?}"
     );
-    assert!(text.contains("Alter Zero"), "text badge: {text:?}");
+    assert!(text.contains("Zeroth"), "text badge: {text:?}");
     assert!(
         text.contains(env!("CARGO_PKG_VERSION")),
         "version: {text:?}"
@@ -341,7 +341,8 @@ fn startup_paragraph_wraps_under_the_banner_indent() {
     // status notice clamps: every row
     // wears the banner's indent and dim meta colour, no row is wider than the
     // terminal, and no word is lost at any width.
-    let text = "Alter Zero sends one anonymous ping a day so its users can be counted, never your prompts.";
+    let text =
+        "Zeroth sends one anonymous ping a day so its users can be counted, never your prompts.";
     let wide = startup_paragraph_lines(text, 120);
     assert_eq!(wide.len(), 1);
     assert_eq!(plain(&wide[0]), format!("  {text}"));

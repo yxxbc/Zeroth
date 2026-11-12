@@ -19,10 +19,10 @@
 
 use std::path::{Path, PathBuf};
 
-use alter_zero::app::HistoryItem;
-use alter_zero::checkpoint;
-use alter_zero::llm::ModelSelection;
-use alter_zero::session::{self, RequestUsage, SessionMeta};
+use zeroth::app::HistoryItem;
+use zeroth::checkpoint;
+use zeroth::llm::ModelSelection;
+use zeroth::session::{self, RequestUsage, SessionMeta};
 
 use super::host::{session_id, utc_stamp};
 use super::resume::sessions_root;
@@ -101,7 +101,7 @@ pub(crate) struct SessionRecorder {
     /// `session_id` is the `--resume` handle and its `transcript_path` names
     /// the file this conversation is actually recorded to — `None` while no
     /// file exists (deferred create), exactly the contract's nullable field.
-    conversation: alter_zero::llm::hooks::ConversationCell,
+    conversation: zeroth::llm::hooks::ConversationCell,
     /// The `App::history_generation` this recorder last mirrored. The length
     /// watermark alone cannot see a **replacement** — a blocked prompt's
     /// rollback removes the submission *and* records the notice, so
@@ -137,7 +137,7 @@ impl SessionRecorder {
             written: None,
             keep_record: false,
             next_id: id,
-            conversation: alter_zero::llm::hooks::ConversationCell::default(),
+            conversation: zeroth::llm::hooks::ConversationCell::default(),
             generation: 0,
         }
     }
@@ -180,10 +180,7 @@ impl SessionRecorder {
     /// Share the conversation with the hook sink (`docs/tools/hooks.md`): the cell
     /// is re-published on every `active` transition — the lazy create, a
     /// `/clear`'s reset, a `/resume`'s adopt.
-    pub(crate) fn with_conversation(
-        mut self,
-        cell: alter_zero::llm::hooks::ConversationCell,
-    ) -> Self {
+    pub(crate) fn with_conversation(mut self, cell: zeroth::llm::hooks::ConversationCell) -> Self {
         self.conversation = cell;
         self.publish_conversation();
         self
@@ -194,11 +191,11 @@ impl SessionRecorder {
     fn publish_conversation(&self) {
         if let Ok(mut cell) = self.conversation.write() {
             *cell = match &self.active {
-                Some((path, meta)) => alter_zero::llm::hooks::Conversation {
+                Some((path, meta)) => zeroth::llm::hooks::Conversation {
                     id: Some(meta.id.clone()),
                     transcript_path: Some(path.display().to_string()),
                 },
-                None => alter_zero::llm::hooks::Conversation {
+                None => zeroth::llm::hooks::Conversation {
                     id: Some(self.next_id.clone()),
                     transcript_path: None,
                 },
@@ -451,7 +448,7 @@ impl SessionRecorder {
             timestamp: utc_stamp(),
             cwd: self.cwd.clone(),
             model: self.model.clone(),
-            originator: "alter-zero".to_string(),
+            originator: "zeroth".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
         };
         let mut head = format!("{}\n", session::meta_line(&meta, &meta.timestamp));

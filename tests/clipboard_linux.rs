@@ -92,7 +92,7 @@ fn a_png_on_the_clipboard_streams_into_the_paste_folder_verbatim() {
     // taking the folder's next number.
     for (label, chunk, saved_as) in [("whole", None, "1.png"), ("INCR", Some(200_000), "2.png")] {
         let owner = Owner::serve(Some(Arc::clone(&png)), chunk).expect("own the selection");
-        let path = alter_zero::clipboard::read_clipboard_image(store.path())
+        let path = zeroth::clipboard::read_clipboard_image(store.path())
             .unwrap_or_else(|e| panic!("{label}: paste failed: {e}"));
         assert_eq!(
             path,
@@ -137,7 +137,7 @@ fn an_owner_with_only_a_jpeg_streams_it_under_its_own_extension() {
     let jpeg = Arc::new(served_jpeg(640, 480));
     let _owner =
         Owner::serve_as("image/jpeg", Some(Arc::clone(&jpeg)), None).expect("own the selection");
-    let path = alter_zero::clipboard::read_clipboard_image(store.path()).expect("a saved file");
+    let path = zeroth::clipboard::read_clipboard_image(store.path()).expect("a saved file");
     assert_eq!(path, store.path().join("1.jpg"), "kept as what it is");
     assert!(
         std::fs::read(&path).expect("read") == *jpeg,
@@ -157,12 +157,11 @@ fn a_clipboard_with_no_picture_is_reported_as_before() {
     // and saves nothing.
     let store = tempfile::tempdir().expect("a paste folder");
     let _owner = Owner::serve(None, None).expect("own the selection");
-    let err =
-        alter_zero::clipboard::read_clipboard_image(store.path()).expect_err("nothing to paste");
+    let err = zeroth::clipboard::read_clipboard_image(store.path()).expect_err("nothing to paste");
     // The exact wording lives in one place (`NO_IMAGE_ON_CLIPBOARD`), so a
     // change to what a user reads cannot leave a stale copy here — and the
     // refusal still has to say the two things it is there for.
-    assert_eq!(err, alter_zero::clipboard::NO_IMAGE_ON_CLIPBOARD);
+    assert_eq!(err, zeroth::clipboard::NO_IMAGE_ON_CLIPBOARD);
     assert!(
         err.contains("read its path"),
         "names the way around it: {err}"

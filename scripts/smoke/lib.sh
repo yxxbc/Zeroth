@@ -281,7 +281,7 @@ smoke_begin() {
 	smoke_sanitize_env
 	cd "$SMOKE_ROOT" || exit 2
 
-	BIN="${SMOKE_BIN:-target/debug/alter-zero}"
+	BIN="${SMOKE_BIN:-target/debug/zeroth}"
 	if [ ! -x "$BIN" ]; then
 		echo "FAIL: binary not found at $BIN (run: cargo build)" >&2
 		exit 2

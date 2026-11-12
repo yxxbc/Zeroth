@@ -1,7 +1,7 @@
 //! Integration proof of the `--help` page, the `[PROMPT]` grammar's errors
 //! and the version line (`docs/cli/cli.md`) against the **real built binary**
 //! (the `detached_exec.rs` pattern — cargo hands the path as
-//! `CARGO_BIN_EXE_alter-zero`). Offline and deterministic: every invocation
+//! `CARGO_BIN_EXE_zeroth`). Offline and deterministic: every invocation
 //! here prints and exits before the terminal boots, and the pipes cargo
 //! attaches are exactly the non-terminal streams the colour rule must
 //! answer with plain text.
@@ -9,14 +9,14 @@
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
-use alter_zero::cli::{self, HelpPage, HelpStyle};
+use zeroth::cli::{self, HelpPage, HelpStyle};
 
 /// The TUI binary this test run just built.
 fn bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_alter-zero"))
+    PathBuf::from(env!("CARGO_BIN_EXE_zeroth"))
 }
 
-/// Run `alter-zero …` with its stdio piped (so nothing is a terminal).
+/// Run `zeroth …` with its stdio piped (so nothing is a terminal).
 fn run(args: &[&str]) -> Output {
     Command::new(bin())
         .args(args)
@@ -57,11 +57,8 @@ fn piped_help_is_the_plain_main_page_byte_for_byte() {
 #[test]
 fn the_help_page_opens_on_the_product_name_and_names_the_prompt() {
     let text = stdout(&run(&["--help"]));
-    assert_eq!(text.lines().next(), Some(alter_zero::APP_NAME));
-    assert!(
-        text.contains("Usage: alter-zero [OPTIONS] [PROMPT]"),
-        "{text}"
-    );
+    assert_eq!(text.lines().next(), Some(zeroth::APP_NAME));
+    assert!(text.contains("Usage: zeroth [OPTIONS] [PROMPT]"), "{text}");
     assert!(text.contains("\nArguments:\n  [PROMPT]"), "{text}");
     assert!(text.contains("\nCommands:\n  mcp"), "{text}");
     assert!(text.contains("\nOptions:\n  -c, --continue"), "{text}");
@@ -75,7 +72,7 @@ fn piped_mcp_help_is_the_plain_mcp_page() {
         stdout(&out),
         format!("{}\n", cli::help(HelpPage::Mcp, HelpStyle::Plain))
     );
-    assert_eq!(stdout(&out).lines().next(), Some("alter-zero mcp"));
+    assert_eq!(stdout(&out).lines().next(), Some("zeroth mcp"));
 }
 
 #[test]
@@ -84,7 +81,7 @@ fn version_prints_the_bin_name_and_version() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        format!("alter-zero {}\n", env!("CARGO_PKG_VERSION"))
+        format!("zeroth {}\n", env!("CARGO_PKG_VERSION"))
     );
 }
 
@@ -111,7 +108,7 @@ fn a_grammar_error_is_the_clap_shaped_trailer_on_stderr_with_exit_2() {
     let text = stderr(&out);
     assert!(text.starts_with("error: "), "{text}");
     assert!(
-        text.contains("\nUsage: alter-zero [OPTIONS] [PROMPT]\n"),
+        text.contains("\nUsage: zeroth [OPTIONS] [PROMPT]\n"),
         "{text}"
     );
     assert!(

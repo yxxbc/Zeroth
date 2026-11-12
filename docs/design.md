@@ -15,7 +15,7 @@ Claude Code (a bottom-pinned input field framed by a top/bottom rule, messages
 and tool calls flowing above it in normal scrollback). Everything that can be
 unit-tested must be unit-tested.
 
-The same session also runs with **no screen at all**: `alter-zero -p
+The same session also runs with **no screen at all**: `zeroth -p
 "prompt"` answers one prompt for a script, a cron job or a CI step — the
 answer on stdout (or JSON), problems on stderr — every step too with
 `--verbose` — an exit status to branch on,
@@ -688,8 +688,8 @@ which Ctrl+V reads the clipboard from.
   `session::rollout_file_id` extracts; unique prefixes and plain paths work
   too), and bare `--resume` boots into this picker — the loaded transcript
   committed under the banner via `insert_before`, never a startup purge. A
-  quoted `[PROMPT]` positional (`alter-zero "fix the failing test"`,
-  `alter-zero --resume {id} "…"`) is submitted as the first turn of
+  quoted `[PROMPT]` positional (`zeroth "fix the failing test"`,
+  `zeroth --resume {id} "…"`) is submitted as the first turn of
   whichever session those open, and `--help` is a titled page — `Alter
   Zero` in the app's bold-cyan heading colour over a description, `Usage:`,
   `Commands:`, `Arguments:` and `Options:` — plain through a pipe or under
@@ -839,8 +839,8 @@ which Ctrl+V reads the clipboard from.
   `blocked` while a permission prompt or a question waits on the user (with
   the prompt in one line) and after a turn that failed, until the user moves
   past it, `idle` otherwise — so herdr's sidebar and notifications track it
-  with no setup, and herdr can resume the session (`alter-zero --resume {id}`,
-  or a fresh `alter-zero` before the first message and after a `/clear`)
+  with no setup, and herdr can resume the session (`zeroth --resume {id}`,
+  or a fresh `zeroth` before the first message and after a `/clear`)
   after a restart. The state is derived from the app at every loop bottom,
   after the turn end has dispatched what comes next, so chained turns never
   flash a false "finished"; the library's one worker writes the newest

@@ -69,16 +69,16 @@ fn shrinking_a_pasted_screenshot_never_materialises_its_pixels() {
     let dir = tempfile::tempdir().expect("tempdir");
     let warm_path = dir.path().join("warm.png");
     std::fs::write(&warm_path, &warm).expect("write");
-    drop(alter_zero::images::decode_png_fitted(
+    drop(zeroth::images::decode_png_fitted(
         Cursor::new(&warm[..]),
-        |px| alter_zero::images::fit_box(px, (16, 16)),
+        |px| zeroth::images::fit_box(px, (16, 16)),
     ));
-    drop(alter_zero::images::load_fitted(
+    drop(zeroth::images::load_fitted(
         warm_path.to_str().expect("utf-8 path"),
         (16, 16),
     ));
     drop(
-        alter_zero::clipboard::stream_encoded_image_into(dir.path(), &mut &warm[..], "png")
+        zeroth::clipboard::stream_encoded_image_into(dir.path(), &mut &warm[..], "png")
             .map(std::fs::remove_file),
     );
 
@@ -89,7 +89,7 @@ fn shrinking_a_pasted_screenshot_never_materialises_its_pixels() {
     // 1. The paste worker's streamed path: the clipboard's bytes copied into
     //    the paste folder. Nothing about the picture is decoded at all.
     let before = rss_bytes().expect("rss");
-    let saved = alter_zero::clipboard::stream_encoded_image_into(dir.path(), &mut &png[..], "png")
+    let saved = zeroth::clipboard::stream_encoded_image_into(dir.path(), &mut &png[..], "png")
         .expect("streams");
     let growth = rss_bytes().expect("rss").saturating_sub(before);
     let _ = std::fs::remove_file(&saved);
@@ -105,8 +105,8 @@ fn shrinking_a_pasted_screenshot_never_materialises_its_pixels() {
     //    generous allowance for the decoder's row buffers — an order of
     //    magnitude under the source's own RGBA.
     let before = rss_bytes().expect("rss");
-    let fitted = alter_zero::images::load_fitted(path.to_str().expect("utf-8 path"), (1200, 700))
-        .expect("fits");
+    let fitted =
+        zeroth::images::load_fitted(path.to_str().expect("utf-8 path"), (1200, 700)).expect("fits");
     let growth = rss_bytes().expect("rss").saturating_sub(before);
     let output = fitted.width() as usize * fitted.height() as usize * 4;
     drop(fitted);
@@ -121,8 +121,7 @@ fn shrinking_a_pasted_screenshot_never_materialises_its_pixels() {
     //    worth of slack for the encoder — still well under the source RGBA
     //    (36 MB) this replaced.
     let before = rss_bytes().expect("rss");
-    let small =
-        alter_zero::images::downscale_to(&png, image::ImageFormat::Png, 2000).expect("shrunk");
+    let small = zeroth::images::downscale_to(&png, image::ImageFormat::Png, 2000).expect("shrunk");
     let growth = rss_bytes().expect("rss").saturating_sub(before);
     let payload_px = small.size.0 as usize * small.size.1 as usize * 4;
     let budget = payload_px + 2 * small.bytes.len() + 4 * 1024 * 1024;

@@ -1,6 +1,6 @@
-//! Integration proof of the terminal detach (`alter_zero::subprocess`,
+//! Integration proof of the terminal detach (`zeroth::subprocess`,
 //! docs/tools/tools.md) against the **real built binary**: cargo hands integration
-//! tests the bin's path as `CARGO_BIN_EXE_alter-zero`, whose `main` installs
+//! tests the bin's path as `CARGO_BIN_EXE_zeroth`, whose `main` installs
 //! the helper hook — so the re-exec tier here is the exact production one,
 //! not a stand-in.
 //!
@@ -12,17 +12,17 @@
 
 use std::path::PathBuf;
 
-use alter_zero::llm::exec::{RealToolExecutor, ToolExecutor};
-use alter_zero::llm::tools::ToolCallRequest;
-use alter_zero::stream::CancelToken;
+use zeroth::llm::exec::{RealToolExecutor, ToolExecutor};
+use zeroth::llm::tools::ToolCallRequest;
+use zeroth::stream::CancelToken;
 
 /// The production detach helper: the TUI binary this test run just built.
 fn helper() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_alter-zero"))
+    PathBuf::from(env!("CARGO_BIN_EXE_zeroth"))
 }
 
 /// Run one `bash` tool call through the real executor + real helper.
-fn bash(command: &str) -> alter_zero::llm::tools::ToolOutcome {
+fn bash(command: &str) -> zeroth::llm::tools::ToolOutcome {
     let call = ToolCallRequest {
         id: "c".to_string(),
         name: "bash".to_string(),
@@ -82,7 +82,7 @@ fn the_helper_reexec_tier_detaches_on_its_own() {
     // second tier — the TUI's own binary re-execed in helper mode — must
     // detach by itself. Drive that tier directly (`command_for`), bypassing
     // the `setsid` tier Linux would normally win with.
-    use alter_zero::subprocess::{DetachTier, command_for};
+    use zeroth::subprocess::{DetachTier, command_for};
     let helper = helper();
     let mut child = command_for(
         &DetachTier::HelperReexec(&helper),
@@ -107,7 +107,7 @@ fn the_helper_becomes_the_shell_it_is_named() {
     // command runs under bash, whose syntax dash — `/bin/sh` on Debian,
     // Ubuntu and Kali — refuses. Where the machine has no bash the tool shell
     // is `sh` and there is nothing to prove.
-    use alter_zero::subprocess::{DEFAULT_SHELL, DetachTier, command_in, tool_shell};
+    use zeroth::subprocess::{DEFAULT_SHELL, DetachTier, command_in, tool_shell};
     if tool_shell() == std::path::Path::new(DEFAULT_SHELL) {
         return;
     }
@@ -158,10 +158,10 @@ fn the_tty_helper_tier_gives_the_session_its_own_controlling_terminal() {
     // `tty: true` command gets a controlling terminal. Driven alone against
     // the real binary, `/dev/tty` must reach the session's own terminal — a
     // password prompt the model can answer — and never fail.
-    use alter_zero::subprocess::DetachTier;
     use std::io::{Read, Write};
+    use zeroth::subprocess::DetachTier;
     let helper = helper();
-    let mut session = alter_zero::pty::spawn::spawn_in(
+    let mut session = zeroth::pty::spawn::spawn_in(
         &[DetachTier::HelperReexec(&helper)],
         "printf 'pw: ' > /dev/tty; read p < /dev/tty; echo got-$p; tty",
     )

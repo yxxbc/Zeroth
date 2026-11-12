@@ -3481,7 +3481,7 @@ os.write(1, b"\n")'"#;
         let (registry, _rx) = test_registry();
         let executor = RealToolExecutor::new().with_background(registry.clone());
         let command = r#"python3 -c 'import subprocess, sys
-print("   Compiling alter-zero", flush=True)
+print("   Compiling zeroth", flush=True)
 subprocess.run([sys.executable, "-c", "import time\nt = time.time()\nwhile time.time() - t < 12: pass"], capture_output=True)
 print("    Finished", flush=True)'"#;
         let out = exec_with(
@@ -3492,7 +3492,7 @@ print("    Finished", flush=True)'"#;
         registry.kill_all();
         assert_eq!(
             out.output,
-            "Exit code: 0\n   Compiling alter-zero\n    Finished\n"
+            "Exit code: 0\n   Compiling zeroth\n    Finished\n"
         );
     }
 

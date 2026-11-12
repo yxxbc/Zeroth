@@ -10,7 +10,7 @@
 //!   store-path derivation ([`store_git_dir`]), the ignore-file contents
 //!   ([`exclude_file_contents`]), the env gate ([`enabled_by_env`]), and the
 //!   two halves of the "is this worth snapshotting?" guard — the categorical
-//!   [`cwd_scope`] (never a filesystem root, the home dir, alter-zero's own
+//!   [`cwd_scope`] (never a filesystem root, the home dir, zeroth's own
 //!   state dir, a pseudo-filesystem, or a shared scratch parent like `/tmp`)
 //!   and the [`SnapshotBudget`] cost ceiling — plus [`store_exclude_line`],
 //!   which keeps a store that lands inside its own work tree out of its own
@@ -138,7 +138,7 @@ pub fn exclude_file_contents() -> String {
 /// Why checkpoints are off for a session — the boundary's reason, shown to
 /// the user as a one-row toast on the first frame. The feature disabling
 /// itself *silently* is what made the reported startup lag so hard to place:
-/// "alter-zero takes seconds to boot in `/tmp`" and "checkpoints do nothing
+/// "zeroth takes seconds to boot in `/tmp`" and "checkpoints do nothing
 /// here" are the same fact seen from two sides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckpointRefusal {
@@ -146,7 +146,7 @@ pub enum CheckpointRefusal {
     FilesystemRoot,
     /// The home directory itself, or an ancestor of it (`/home`).
     HomeDirectory,
-    /// alter-zero's own state directory (`~/.alter-zero`) or anything under
+    /// zeroth's own state directory (`~/.alter-zero`) or anything under
     /// it: the rollouts, the input history, and every project's checkpoint
     /// store live there. A cwd that merely *contains* this session's store is
     /// not refused — [`store_exclude_line`] handles that direction.
@@ -183,7 +183,7 @@ impl std::fmt::Display for CheckpointRefusal {
         match self {
             Self::FilesystemRoot => f.write_str("a filesystem root is not a project directory"),
             Self::HomeDirectory => f.write_str("the home directory is not a project directory"),
-            Self::StateDirectory => f.write_str("this is alter-zero's own state directory"),
+            Self::StateDirectory => f.write_str("this is zeroth's own state directory"),
             Self::SharedDirectory => {
                 f.write_str("a shared scratch directory holds other programs' files")
             }
@@ -270,7 +270,7 @@ pub const SYSTEM_ROOTS: &[&str] = &[
 /// Shared scratch and mount parents: the directory **itself** is refused —
 /// it belongs to every program on the box, not to one project — while a
 /// project *inside* it (`/tmp/scratch`, `/mnt/data/proj`) is ordinary and
-/// checkpoints as before. This is the list that answers "alter-zero lags in
+/// checkpoints as before. This is the list that answers "zeroth lags in
 /// `/tmp`".
 pub const SHARED_PARENTS: &[&str] = &[
     "/export",
@@ -336,7 +336,7 @@ pub fn store_exclude_line(work_tree: &Path, checkpoints_root: &Path) -> Option<S
 pub struct CheckpointEnv<'a> {
     /// `$HOME`.
     pub home: Option<&'a Path>,
-    /// alter-zero's config/state directory (`~/.alter-zero`).
+    /// zeroth's config/state directory (`~/.alter-zero`).
     pub state_dir: Option<&'a Path>,
     /// `$TMPDIR` — `/tmp` under another name, and on macOS a per-user path
     /// (`/var/folders/xx/yyy/T`) no fixed list can predict.
@@ -345,7 +345,7 @@ pub struct CheckpointEnv<'a> {
 
 /// Whether `cwd` is a directory checkpoints may snapshot at all — the
 /// project-scope guard beside the env gate, and the first half of the answer
-/// to "alter-zero takes seconds to boot here" (the second is
+/// to "zeroth takes seconds to boot here" (the second is
 /// [`SnapshotBudget`]).
 ///
 /// The session-start snapshot `git add -A`s the whole cwd *before the first
@@ -356,8 +356,8 @@ pub struct CheckpointEnv<'a> {
 /// - a **filesystem root** — never a project, and `git clean -fd` there is the
 ///   whole disk;
 /// - the **home directory** or an ancestor of it — the user's entire tree (the
-///   original "alter-zero hangs in `~`" bug);
-/// - **alter-zero's own state directory** and everything under it: it holds
+///   original "zeroth hangs in `~`" bug);
+/// - **zeroth's own state directory** and everything under it: it holds
 ///   the rollouts, the input history, and every project's checkpoint store, so
 ///   a restore's `git clean -fd` there deletes other sessions' records. (A cwd
 ///   that merely *contains* this session's store is **not** refused — see
@@ -701,7 +701,7 @@ impl CheckpointStore {
             // every snapshot reachable across the reset a restore performs).
             for (key, value) in [
                 ("user.email", "checkpoints@alter-zero.local"),
-                ("user.name", "alter-zero checkpoints"),
+                ("user.name", "zeroth checkpoints"),
                 ("commit.gpgsign", "false"),
                 ("gc.auto", "0"),
                 ("core.autocrlf", "false"),
@@ -981,7 +981,7 @@ mod tests {
         }
     }
 
-    // ===== cwd_scope (the "alter-zero hangs in a huge directory" guard) =====
+    // ===== cwd_scope (the "zeroth hangs in a huge directory" guard) =====
 
     /// The usual layout: `$HOME=/home/user`, state dir `~/.alter-zero`, store
     /// root `~/.alter-zero/checkpoints`, `$TMPDIR` unset.

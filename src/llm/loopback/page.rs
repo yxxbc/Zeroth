@@ -606,7 +606,7 @@ mod tests {
         Page {
             tone,
             title: "Authorization received",
-            lead: "You can close this tab and return to Alter Zero.",
+            lead: "You can close this tab and return to Zeroth.",
             restart: None,
             detail: None,
         }
@@ -745,15 +745,13 @@ mod tests {
         });
         assert!(html.starts_with("<!doctype html>"), "{html}");
         assert!(
-            html.contains("<title>Signed in to ChatGPT · Alter Zero</title>"),
+            html.contains("<title>Signed in to ChatGPT · Zeroth</title>"),
             "{html}"
         );
         assert!(html.contains("<h1>Signed in to ChatGPT</h1>"), "{html}");
         assert!(html.contains(r#"<main class="success">"#), "{html}");
         assert!(
-            html.contains(
-                r#"<p class="lead">You can close this tab and return to Alter Zero.</p>"#
-            ),
+            html.contains(r#"<p class="lead">You can close this tab and return to Zeroth.</p>"#),
             "{html}"
         );
         assert!(html.contains("<svg class=\"mascot\""), "{html}");
@@ -779,7 +777,7 @@ mod tests {
         assert!(
             html.contains(
                 "The response belongs to another sign-in attempt. To sign in, start again \
-                 from <code>/mcp</code> in Alter Zero.</p>"
+                 from <code>/mcp</code> in Zeroth.</p>"
             ),
             "{html}"
         );

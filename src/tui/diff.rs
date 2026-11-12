@@ -2,9 +2,9 @@
 
 use std::io;
 
-use alter_zero::app::{ToastKind, View};
-use alter_zero::git_diff::DiffSnapshot;
-use alter_zero::ui;
+use zeroth::app::{ToastKind, View};
+use zeroth::git_diff::DiffSnapshot;
+use zeroth::ui;
 
 use super::Session;
 

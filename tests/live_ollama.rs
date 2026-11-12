@@ -20,12 +20,12 @@
 
 use std::path::PathBuf;
 
-use alter_zero::context::{ContextMessage, ContextRole};
-use alter_zero::llm::models::fetch_models;
-use alter_zero::llm::{
+use zeroth::context::{ContextMessage, ContextRole};
+use zeroth::llm::models::fetch_models;
+use zeroth::llm::{
     LlmBackend, ModelConfig, ModelEntry, ProvidersFile, ReasoningEffort, Selection, ThinkingMode,
 };
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent, TokenUsage};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent, TokenUsage};
 
 /// The tool-capable thinking model under test.
 fn thinking_model() -> String {
@@ -153,7 +153,7 @@ fn live_catalog_carries_capabilities_and_windows() {
         assert!(support.can_disable);
         assert_eq!(
             qwen.context,
-            Some(alter_zero::llm::ollama::DEFAULT_NUM_CTX_CAP),
+            Some(zeroth::llm::ollama::DEFAULT_NUM_CTX_CAP),
             "40960 capped"
         );
     }

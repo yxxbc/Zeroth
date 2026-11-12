@@ -54,10 +54,10 @@ pub const SOCKET_PATH_ENV: &str = "HERDR_SOCKET_PATH";
 /// Who is reporting — the integration's label on every request. herdr keeps
 /// one report per source; its own sources are `herdr:`-prefixed, so a
 /// third-party source must not be.
-pub const SOURCE: &str = "alter-zero";
+pub const SOURCE: &str = "zeroth";
 
 /// Which agent holds the pane — the name herdr shows for it.
-pub const AGENT: &str = "alter-zero";
+pub const AGENT: &str = "zeroth";
 
 /// The longest blocked message the reports carry, in characters: one line —
 /// herdr 0.9.3 stores the message but shows it nowhere yet, and a sidebar row
@@ -1344,8 +1344,8 @@ mod tests {
     #[test]
     fn the_resume_command_reopens_the_recorded_session() {
         assert_eq!(
-            resume_argv("alter-zero", Some("18a9f2c33d41e5b6-1a2b")),
-            Some(words(&["alter-zero", "--resume", "18a9f2c33d41e5b6-1a2b"]))
+            resume_argv("zeroth", Some("18a9f2c33d41e5b6-1a2b")),
+            Some(words(&["zeroth", "--resume", "18a9f2c33d41e5b6-1a2b"]))
         );
         // A renamed install keeps the name it was run as.
         assert_eq!(
@@ -1359,10 +1359,7 @@ mod tests {
         // Before the first message — and after a `/clear` — there is nothing
         // to resume, and leaving the last command in herdr's hands would
         // bring back the conversation the user just cleared.
-        assert_eq!(
-            resume_argv("alter-zero", None),
-            Some(words(&["alter-zero"]))
-        );
+        assert_eq!(resume_argv("zeroth", None), Some(words(&["zeroth"])));
     }
 
     #[test]
@@ -1383,22 +1380,22 @@ mod tests {
             assert_eq!(resume_argv(bin, Some("abc")), None, "{bin:?}");
             assert_eq!(resume_argv(bin, None), None, "{bin:?}");
         }
-        assert!(resume_argv("alter_zero.2", Some("abc")).is_some());
+        assert!(resume_argv("zeroth.2", Some("abc")).is_some());
     }
 
     #[test]
     fn a_session_id_herdr_would_refuse_is_left_out() {
         for id in ["", "it's", "a\nb", "a\tb", "a\u{7f}b"] {
             assert_eq!(
-                resume_argv("alter-zero", Some(id)),
-                Some(words(&["alter-zero"])),
+                resume_argv("zeroth", Some(id)),
+                Some(words(&["zeroth"])),
                 "{id:?}"
             );
         }
         let long = "a".repeat(RESUME_MAX_BYTES);
         assert_eq!(
-            resume_argv("alter-zero", Some(&long)),
-            Some(words(&["alter-zero"])),
+            resume_argv("zeroth", Some(&long)),
+            Some(words(&["zeroth"])),
             "over 8 KiB"
         );
     }
@@ -1407,7 +1404,7 @@ mod tests {
 
     /// A wall clock, in microseconds — any value; a tracker has no clock.
     fn tracker() -> Tracker {
-        Tracker::new(Some("alter-zero".to_string()))
+        Tracker::new(Some("zeroth".to_string()))
     }
 
     fn idle() -> Activity {
@@ -1454,7 +1451,7 @@ mod tests {
             tracker().update(&idle(), None),
             Some(Report {
                 status: status(State::Idle, None),
-                resume: Some(words(&["alter-zero"])),
+                resume: Some(words(&["zeroth"])),
             })
         );
     }
@@ -1588,22 +1585,22 @@ mod tests {
         let mut tracker = tracker();
         assert_eq!(
             resume(tracker.update(&idle(), None)),
-            Some(words(&["alter-zero"]))
+            Some(words(&["zeroth"]))
         );
         assert_eq!(
             resume(tracker.update(&idle(), Some("18a9f2c3-1a2b"))),
-            Some(words(&["alter-zero", "--resume", "18a9f2c3-1a2b"])),
+            Some(words(&["zeroth", "--resume", "18a9f2c3-1a2b"])),
             "the first message gave the conversation a file: news"
         );
         assert_eq!(tracker.update(&idle(), Some("18a9f2c3-1a2b")), None);
         assert_eq!(
             resume(tracker.update(&idle(), None)),
-            Some(words(&["alter-zero"])),
+            Some(words(&["zeroth"])),
             "/clear: the next restore is a fresh launch"
         );
         assert_eq!(
             resume(tracker.update(&idle(), Some("0c1d"))),
-            Some(words(&["alter-zero", "--resume", "0c1d"])),
+            Some(words(&["zeroth", "--resume", "0c1d"])),
             "/resume switched conversations"
         );
     }
@@ -1743,13 +1740,13 @@ mod tests {
         // the resume command is what brings this session back.
         let report = Report {
             status: status(State::Idle, None),
-            resume: Some(words(&["alter-zero", "--resume", "18a9f2c3-1a2b"])),
+            resume: Some(words(&["zeroth", "--resume", "18a9f2c3-1a2b"])),
         };
         let request = parsed(&report_request(&test_pane(), &report, 9));
         let params = &request["params"];
         assert_eq!(
             params["resume_argv"],
-            serde_json::json!(["alter-zero", "--resume", "18a9f2c3-1a2b"])
+            serde_json::json!(["zeroth", "--resume", "18a9f2c3-1a2b"])
         );
         assert!(params.get("agent_session_id").is_none(), "{params}");
     }
@@ -1770,10 +1767,10 @@ mod tests {
         // herdr echoes the id in its reply and wants it a string; the seq
         // already never repeats, so it makes the id unique for free.
         let request = parsed(&report_request(&test_pane(), &report(State::Idle), 41));
-        assert_eq!(request["id"], "alter-zero:41");
+        assert_eq!(request["id"], "zeroth:41");
         assert_eq!(
             parsed(&release_request(&test_pane(), 42))["id"],
-            "alter-zero:42"
+            "zeroth:42"
         );
     }
 
@@ -1782,7 +1779,7 @@ mod tests {
     #[test]
     fn an_ok_reply_is_success() {
         assert_eq!(
-            reply_outcome(br#"{"id":"alter-zero:1","result":{"type":"ok"}}"#),
+            reply_outcome(br#"{"id":"zeroth:1","result":{"type":"ok"}}"#),
             Ok(())
         );
     }
@@ -1791,7 +1788,7 @@ mod tests {
     fn an_error_reply_is_its_code_and_message() {
         assert_eq!(
             reply_outcome(
-                br#"{"id":"alter-zero:1","error":{"code":"pane_not_found","message":"pane w9:p9 not found"}}"#
+                br#"{"id":"zeroth:1","error":{"code":"pane_not_found","message":"pane w9:p9 not found"}}"#
             ),
             Err("pane_not_found: pane w9:p9 not found".to_string())
         );
@@ -1912,7 +1909,7 @@ mod tests {
         (dir, path, server)
     }
 
-    const OK: &str = "{\"id\":\"alter-zero:1\",\"result\":{\"type\":\"ok\"}}\n";
+    const OK: &str = "{\"id\":\"zeroth:1\",\"result\":{\"type\":\"ok\"}}\n";
 
     #[test]
     fn send_writes_one_line_and_reads_the_reply() {

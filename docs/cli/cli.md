@@ -277,7 +277,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
 
 - **Arg parsing runs in `main()`, *after* the detached-exec hook.** The hook
   must stay the first statement (invariant 1 — a helper re-exec never parses
-  TUI flags; its argv is `__alter-zero-detached-exec {cmd}`), and the CLI
+  TUI flags; its argv is `__zeroth-detached-exec {cmd}`), and the CLI
   work touches no terminal state, so `--help`/errors print to a normal
   cooked-mode stdio and exit before the tokio runtime boots.
 - **An interface that cannot start says what to do instead.** When
@@ -382,7 +382,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
   (dashed ids included), rejects foreign/stampless names; `latest_for_cwd`
   picks the newest `updated_secs` among matching-cwd rows only, `None`
   otherwise.
-- `tests/cli_help.rs` (the real binary, `CARGO_BIN_EXE_alter-zero`,
+- `tests/cli_help.rs` (the real binary, `CARGO_BIN_EXE_zeroth`,
   offline): a piped `--help` is byte-for-byte `help(Main, Plain)` — no
   escapes off a tty — and `mcp --help` the `Mcp` page; `--version` prints
   `alter-zero {version}`; a grammar error exits 2 with the `error:` shape

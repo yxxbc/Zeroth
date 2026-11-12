@@ -1,7 +1,7 @@
 //! The `/theme` picker at the boundary: applying a selection
 //! (`docs/ui/theme.md`).
 //!
-//! The pure side ([`alter_zero::app::App::theme`]) already holds the new
+//! The pure side ([`zeroth::app::App::theme`]) already holds the new
 //! theme when the picker's Enter lands here; what has to *happen* — the
 //! `theme.json` write, the palette switch, the repaint in the new colours,
 //! the confirming toast — lives at the boundary, the
@@ -9,8 +9,8 @@
 
 use std::io;
 
-use alter_zero::app::{Theme, ToastKind};
-use alter_zero::ui;
+use zeroth::app::{Theme, ToastKind};
+use zeroth::ui;
 
 use super::{Session, config};
 

@@ -543,14 +543,14 @@ mod tests {
             &ctx(),
             "permission_prompt",
             "Permission needed",
-            "Alter Zero needs your permission to use Bash",
+            "Zeroth needs your permission to use Bash",
         ));
         assert_eq!(v["hook_event_name"], json!("Notification"));
         assert_eq!(v["notification_type"], json!("permission_prompt"));
         assert_eq!(v["title"], json!("Permission needed"));
         assert_eq!(
             v["message"],
-            json!("Alter Zero needs your permission to use Bash")
+            json!("Zeroth needs your permission to use Bash")
         );
     }
 

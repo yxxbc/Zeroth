@@ -13,12 +13,12 @@
 
 use std::time::Duration;
 
-use alter_zero::agents::{AgentEvent, AgentRegistry};
-use alter_zero::context::{ContextMessage, ContextRole};
-use alter_zero::llm::LlmBackend;
-use alter_zero::llm::config::{ProvidersFile, Selection};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
 use tokio::sync::mpsc::unbounded_channel;
+use zeroth::agents::{AgentEvent, AgentRegistry};
+use zeroth::context::{ContextMessage, ContextRole};
+use zeroth::llm::LlmBackend;
+use zeroth::llm::config::{ProvidersFile, Selection};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -201,7 +201,7 @@ fn main() {
                      error_kind={:?}\x1b[0m\n{head}\n  ---",
                     run.exit_code,
                     run.duration_ms,
-                    run.error_kind.map(alter_zero::stream::ToolErrorKind::wire),
+                    run.error_kind.map(zeroth::stream::ToolErrorKind::wire),
                 );
             }
             StreamEvent::ToolRejected {

@@ -20,7 +20,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use alter_zero::history;
+use zeroth::history;
 
 use super::config::config_home;
 use super::host::{session_id, unix_secs};

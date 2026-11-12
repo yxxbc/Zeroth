@@ -275,8 +275,8 @@ pub fn input_required(result: &Value) -> Option<InputRequired> {
 /// `_meta`-carried one are the same object.
 fn client_info() -> Value {
     json!({
-        "name": "alter-zero",
-        "title": "Alter Zero",
+        "name": "zeroth",
+        "title": "Zeroth",
         "version": env!("CARGO_PKG_VERSION"),
     })
 }
@@ -1117,7 +1117,7 @@ mod tests {
         // modern one has no initialize to ride.
         let params = initialize_params();
         assert_eq!(params["protocolVersion"], LEGACY_PROTOCOL_VERSION);
-        assert_eq!(params["clientInfo"]["name"], "alter-zero");
+        assert_eq!(params["clientInfo"]["name"], "zeroth");
         assert_eq!(
             initialize_params_for("2025-03-26")["protocolVersion"],
             "2025-03-26"
@@ -1141,7 +1141,7 @@ mod tests {
         );
         assert_eq!(
             params["_meta"]["io.modelcontextprotocol/clientInfo"]["name"],
-            "alter-zero"
+            "zeroth"
         );
         // An empty capabilities object is the schema's own "no optional
         // capabilities" — required on every request, never elided.

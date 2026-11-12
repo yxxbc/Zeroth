@@ -22,10 +22,10 @@
 //! `ANTHROPIC_CONSOLE_REFRESH_TOKEN` key is the one to keep.
 //! `ALTER_ZERO_LIVE_ANTHROPIC_MODEL` overrides the model.
 
-use alter_zero::context::{ContextMessage, ContextRole};
-use alter_zero::llm::agent::{CUT_OFF_LABEL, CUT_OFF_NOTE, EMPTY_REPLY_NOTE, MAX_CONTINUATIONS};
-use alter_zero::llm::{LlmBackend, ProvidersFile, Selection};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
+use zeroth::context::{ContextMessage, ContextRole};
+use zeroth::llm::agent::{CUT_OFF_LABEL, CUT_OFF_NOTE, EMPTY_REPLY_NOTE, MAX_CONTINUATIONS};
+use zeroth::llm::{LlmBackend, ProvidersFile, Selection};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// Where the Console sign-in's refresh token lives.
 const REFRESH_VAR: &str = "ANTHROPIC_CONSOLE_REFRESH_TOKEN";
@@ -80,7 +80,7 @@ fn credential() -> String {
 /// `output_cap` when one is given.
 fn console_backend(output_cap: Option<u64>) -> LlmBackend {
     seed_store();
-    alter_zero::llm::claude::set_store_path(token_store());
+    zeroth::llm::claude::set_store_path(token_store());
     let model = std::env::var("ALTER_ZERO_LIVE_ANTHROPIC_MODEL")
         .unwrap_or_else(|_| "claude-haiku-4-5".to_string());
     let mut cfg = ProvidersFile::builtin()

@@ -42,7 +42,7 @@ pub const TERMINAL_ENV: [(&str, &str); 5] = [
 /// emulator does not have (tmux passthrough, kitty's protocols), override
 /// the session's size with a stale one, or point it at the TUI's own pane:
 /// a nested agent's herdr integration reporting under `HERDR_PANE_ID` would
-/// make itself the owner of the pane alter-zero reports for, and `herdr …
+/// make itself the owner of the pane zeroth reports for, and `herdr …
 /// --current` would type into the TUI (`docs/architecture/herdr.md`; `HERDR_ENV` and
 /// herdr's socket stay, so herdr's CLI and agent skill still work — the
 /// pipe path drops the pane id too, in `subprocess::command_in`).
@@ -192,7 +192,7 @@ pub fn spawn_in(
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         "no way to give the command a terminal of its own here \
-         (neither `setsid` nor the alter-zero helper is available)",
+         (neither `setsid` nor the zeroth helper is available)",
     ))
 }
 

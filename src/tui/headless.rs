@@ -1,4 +1,4 @@
-//! `alter-zero -p`: the session with no screen (`docs/cli/headless.md`).
+//! `zeroth -p`: the session with no screen (`docs/cli/headless.md`).
 //!
 //! A headless run is the TUI's own [`Session`] — the same bootstrap, the same
 //! turn starts, the same stream folding, notice settling and follow-up turns
@@ -12,7 +12,7 @@
 //!
 //! - **The prompt is read before the runtime** ([`read_prompt`]): the
 //!   argument, stdin, or both — and an open pipe that never says anything is
-//!   left alone after [`STDIN_WAIT`](alter_zero::headless::STDIN_WAIT), so a
+//!   left alone after [`STDIN_WAIT`](zeroth::headless::STDIN_WAIT), so a
 //!   parent that never closes it cannot hold the run forever.
 //! - **The run decides when it is over**: no turn in flight, nothing queued,
 //!   no subagent still working — then whatever background command still runs
@@ -25,14 +25,14 @@ use std::io::{IsTerminal, Write};
 use std::os::fd::AsFd;
 use std::time::{Duration, Instant};
 
-use alter_zero::app::{HistoryItem, Role};
-use alter_zero::headless::{
+use zeroth::app::{HistoryItem, Role};
+use zeroth::headless::{
     self as core, Denial, Emit, Reporter, RunEnd, RunOutcome, RunStart, RunUsage, StdinKind,
     StdinRead,
 };
-use alter_zero::mcp::McpServerStatus;
-use alter_zero::stream::StreamEvent;
-use alter_zero::term::InlineViewport;
+use zeroth::mcp::McpServerStatus;
+use zeroth::stream::StreamEvent;
+use zeroth::term::InlineViewport;
 
 use super::startup::{Halt, Startup, StartupSession};
 use super::{Session, config};
@@ -359,7 +359,7 @@ struct StartInfo {
     model: String,
     cwd: String,
     cwd_display: String,
-    permission_mode: Option<alter_zero::permission::PermissionMode>,
+    permission_mode: Option<zeroth::permission::PermissionMode>,
     resumed: bool,
 }
 
@@ -403,8 +403,8 @@ impl Session<'_> {
                 .map(|section| section.items.len())
                 .sum();
             match page.kind {
-                alter_zero::app::ReviewKind::Hooks => hooks += items,
-                alter_zero::app::ReviewKind::McpServers => servers += items,
+                zeroth::app::ReviewKind::Hooks => hooks += items,
+                zeroth::app::ReviewKind::McpServers => servers += items,
             }
         }
         let mut waiting = Vec::new();
@@ -419,7 +419,7 @@ impl Session<'_> {
         }
         if !waiting.is_empty() {
             write(&[core::warning(&format!(
-                "{} not trusted yet, so off for this run — run alter-zero here interactively \
+                "{} not trusted yet, so off for this run — run zeroth here interactively \
                  to review them",
                 waiting.join(" and ")
             ))]);
@@ -487,15 +487,15 @@ impl Session<'_> {
     /// request, which nobody here can answer: the unattended gate refuses
     /// before raising one, so one that arrived anyway is refused, never shown,
     /// or the agent's thread would wait on it for the rest of the run.
-    fn on_headless_agent_message(&mut self, message: alter_zero::agents::AgentEvent) {
-        if let alter_zero::agents::AgentEvent::Stream {
+    fn on_headless_agent_message(&mut self, message: zeroth::agents::AgentEvent) {
+        if let zeroth::agents::AgentEvent::Stream {
             event: StreamEvent::Permission(request),
             ..
         } = &message
         {
             self.permissions.resolve(
                 &request.id,
-                alter_zero::permission::PermissionDecision::Deny(None),
+                zeroth::permission::PermissionDecision::Deny(None),
             );
             return;
         }
@@ -518,13 +518,13 @@ impl Session<'_> {
             StreamEvent::Permission(request) => {
                 self.permissions.resolve(
                     &request.id,
-                    alter_zero::permission::PermissionDecision::Deny(None),
+                    zeroth::permission::PermissionDecision::Deny(None),
                 );
                 return;
             }
             StreamEvent::AskUser(request) => {
                 self.ask
-                    .resolve(&request.id, alter_zero::ask::AskDecision::Declined);
+                    .resolve(&request.id, zeroth::ask::AskDecision::Declined);
                 return;
             }
             _ => {}
@@ -559,7 +559,7 @@ impl Session<'_> {
 
     /// Hand the reporter whatever history has settled since the last call —
     /// never what a retried reply attempt could still take back
-    /// ([`alter_zero::app::App::settled_history_len`]).
+    /// ([`zeroth::app::App::settled_history_len`]).
     fn emit_settled(&self, reporter: &mut Reporter, run_start: usize, emitted: &mut usize) {
         let settled = self.app.settled_history_len().max(run_start);
         if settled < *emitted {
@@ -572,7 +572,7 @@ impl Session<'_> {
     }
 
     /// Whether the run has nothing left to wait for: no turn in flight,
-    /// nothing queued, no subagent working (`alter_zero::herdr::agent_busy`:
+    /// nothing queued, no subagent working (`zeroth::herdr::agent_busy`:
     /// a subagent always finishes, and its result starts the next turn).
     /// Background shells do not count — a server started with `&` never ends.
     fn headless_idle(&self) -> bool {
@@ -583,7 +583,7 @@ impl Session<'_> {
     }
 
     fn waiting_on_agents(&self) -> bool {
-        self.app.agents().iter().any(alter_zero::herdr::agent_busy)
+        self.app.agents().iter().any(zeroth::herdr::agent_busy)
             || self.app.has_pending_agent_notices()
     }
 
@@ -593,7 +593,7 @@ impl Session<'_> {
         self.inflight.is_none()
             && !self.app.turn_active()
             && self.app.queued.is_empty()
-            && self.app.agents().iter().any(alter_zero::herdr::agent_busy)
+            && self.app.agents().iter().any(zeroth::herdr::agent_busy)
     }
 
     /// The subagents still at work, by their descriptions.
@@ -601,7 +601,7 @@ impl Session<'_> {
         self.app
             .agents()
             .iter()
-            .filter(|run| alter_zero::herdr::agent_busy(run))
+            .filter(|run| zeroth::herdr::agent_busy(run))
             .map(|run| run.description.clone())
             .collect()
     }
@@ -672,7 +672,7 @@ impl Session<'_> {
         let denials: Vec<Denial> = self
             .permissions
             .gate()
-            .map(alter_zero::permission::PermissionGate::take_unattended_refusals)
+            .map(zeroth::permission::PermissionGate::take_unattended_refusals)
             .unwrap_or_default()
             .iter()
             .map(Denial::from)

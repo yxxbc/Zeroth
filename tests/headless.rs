@@ -1,4 +1,4 @@
-//! `alter-zero -p` against the **real built binary** with no terminal
+//! `zeroth -p` against the **real built binary** with no terminal
 //! anywhere (`docs/cli/headless.md`): every stream a pipe, the way a cron job, a
 //! CI step or an n8n node runs it — the reported failure was the binary
 //! dying on exactly that (`Device not configured`) before it read a prompt.
@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 /// The binary this test run built.
 fn bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_alter-zero"))
+    PathBuf::from(env!("CARGO_BIN_EXE_zeroth"))
 }
 
 /// A run's private world: config home, sessions, `HOME`, working directory.
@@ -76,7 +76,7 @@ impl World {
         self.dir("work")
     }
 
-    /// `alter-zero …` in this world, its environment scrubbed of anything
+    /// `zeroth …` in this world, its environment scrubbed of anything
     /// that would reach the developer's own config, a real provider, or a
     /// proxy that cannot see the loopback.
     fn command(&self, args: &[&str]) -> Command {
@@ -156,7 +156,7 @@ fn verbose_logs_the_run_to_stderr_and_leaves_stdout_alone() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), stdout(&quiet));
     let log = stderr(&out);
-    assert!(log.starts_with("alter-zero "), "{log}");
+    assert!(log.starts_with("zeroth "), "{log}");
     assert!(log.contains("● Read(about.py)"), "{log}");
     assert!(log.contains("● Bash(python3 about.py)"), "{log}");
     assert!(log.contains("\nDone in "), "{log}");
@@ -273,7 +273,7 @@ fn an_open_socket_that_says_nothing_is_left_alone() {
 
 #[test]
 fn a_slow_pipe_is_waited_for_and_what_it_sends_is_used() {
-    // `slow-command | alter-zero -p "summarize"`: a shell pipe ends when
+    // `slow-command | zeroth -p "summarize"`: a shell pipe ends when
     // its writer does, so the run waits for it rather than lose its data.
     let world = World::new("slowpipe");
     let mut child = world

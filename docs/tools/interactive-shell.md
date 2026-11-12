@@ -1050,7 +1050,7 @@ detaching does it (`subprocess::tty_tiers`):
 
 1. **`setsid -c bash -c {command}`** — util-linux's (and BusyBox's) `-c`/
    `--ctty` makes stdin the controlling terminal after the `setsid`;
-2. **the helper re-exec** — `{exe} __alter-zero-detached-tty-exec {command}
+2. **the helper re-exec** — `{exe} __zeroth-detached-tty-exec {command}
    [bash]`: `main()`'s first statement calls `rustix::process::setsid()` and
    `ioctl_tiocsctty(stdin)` and `exec`s the shell it is named in place (macOS
    and minimal images, where there is no `setsid` binary);

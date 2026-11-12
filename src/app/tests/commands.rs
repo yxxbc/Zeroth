@@ -61,14 +61,14 @@ fn the_command_registry_is_non_empty_with_unique_lowercase_names() {
 #[test]
 fn palette_descriptions_are_concise_and_product_name_free() {
     // The palette's descriptions never carry the product name — "Exit
-    // alter-zero" said nothing "Exit the app" doesn't — and stay inside the
+    // zeroth" said nothing "Exit the app" doesn't — and stay inside the
     // 53 columns a standard 80-column terminal leaves past the description
     // column (the `→` marker's two and the name column's 25 come first), so
     // the default view shows each command on one row (narrower terminals
     // wrap instead of clipping — `ui::command_menu_lines`).
     for cmd in COMMANDS {
         assert!(
-            !cmd.description.to_lowercase().contains("alter-zero"),
+            !cmd.description.to_lowercase().contains("zeroth"),
             "/{} mentions the product name: {:?}",
             cmd.name,
             cmd.description
@@ -197,7 +197,7 @@ fn leaving_and_re_entering_command_mode_reopens_the_palette() {
 #[test]
 fn the_palette_lists_init_with_a_concise_description() {
     // Codex's description carried the product name ("…instructions for
-    // alter-zero"); the palette keeps its descriptions concise and
+    // zeroth"); the palette keeps its descriptions concise and
     // product-name-free.
     let init = COMMANDS
         .iter()

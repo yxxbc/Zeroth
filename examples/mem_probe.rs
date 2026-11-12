@@ -3,13 +3,13 @@
 //!
 //! Contrasts the OLD parse shape (the whole response materialized as a
 //! `serde_json::Value` tree — one `Value` record per model, held all at once)
-//! against the NEW per-record parse in [`alter_zero::llm::models::parse_models`]
+//! against the NEW per-record parse in [`zeroth::llm::models::parse_models`]
 //! (one record's tree alive at a time). The tree is what made `/model` grow
 //! resident memory by megabytes: an aggregator list is hundreds of records of
 //! ~1.7 KB JSON each, and a `Value` costs several times its JSON text in small
 //! heap blocks — blocks glibc keeps in the arena after the parse drops them,
 //! so the spike *stays* in RSS. What the picker actually keeps
-//! ([`alter_zero::llm::ModelEntry`]) is a few hundred bytes per model.
+//! ([`zeroth::llm::ModelEntry`]) is a few hundred bytes per model.
 //!
 //! Part B drives a real OpenRouter fetch when `OPENROUTER_API_KEY` is set.
 //!
@@ -26,7 +26,7 @@
 
 use std::fmt::Write as _;
 
-use alter_zero::llm::models::parse_models;
+use zeroth::llm::models::parse_models;
 
 /// A `/proc/self/status` field in KiB (`VmRSS` = resident now, `VmHWM` = the
 /// resident high-water mark — what a transient spike leaves behind).
@@ -117,9 +117,9 @@ fn part_a(body: &str) {
 }
 
 fn part_b() {
-    use alter_zero::llm::ModelConfig;
-    use alter_zero::llm::models::fetch_models;
-    use alter_zero::stream::CancelToken;
+    use zeroth::llm::ModelConfig;
+    use zeroth::llm::models::fetch_models;
+    use zeroth::stream::CancelToken;
 
     let Ok(key) = std::env::var("OPENROUTER_API_KEY") else {
         println!("\n=== Part B skipped (set OPENROUTER_API_KEY to run the live fetch) ===");

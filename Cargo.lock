@@ -24,39 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
-name = "alter-zero"
-version = "0.18.0"
-dependencies = [
- "arboard",
- "chrono",
- "crossterm",
- "getrandom 0.3.4",
- "image",
- "png",
- "ratatui",
- "ratatui-image",
- "regex",
- "reqwest",
- "rustix 1.1.4",
- "serde",
- "serde_json",
- "sha2",
- "syntect",
- "tempfile",
- "tokio",
- "tokio-stream",
- "toml",
- "two-face",
- "unicode-segmentation",
- "unicode-width",
- "url",
- "vt100",
- "vte",
- "wl-clipboard-rs",
- "x11rb",
-]
-
-[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3943,6 +3910,39 @@ name = "zeroize"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+
+[[package]]
+name = "zeroth"
+version = "0.18.0"
+dependencies = [
+ "arboard",
+ "chrono",
+ "crossterm",
+ "getrandom 0.3.4",
+ "image",
+ "png",
+ "ratatui",
+ "ratatui-image",
+ "regex",
+ "reqwest",
+ "rustix 1.1.4",
+ "serde",
+ "serde_json",
+ "sha2",
+ "syntect",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "toml",
+ "two-face",
+ "unicode-segmentation",
+ "unicode-width",
+ "url",
+ "vt100",
+ "vte",
+ "wl-clipboard-rs",
+ "x11rb",
+]
 
 [[package]]
 name = "zerotrie"

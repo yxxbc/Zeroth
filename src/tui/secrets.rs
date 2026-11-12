@@ -11,12 +11,12 @@
 //! overwritten), and only a change the file took reaches the shared store —
 //! so the executor, the reminder and the list never disagree with the disk.
 //!
-//! [`Action::SaveSecret`]: alter_zero::app::Action::SaveSecret
+//! [`Action::SaveSecret`]: zeroth::app::Action::SaveSecret
 
-use alter_zero::app::ToastKind;
-use alter_zero::clipboard;
-use alter_zero::llm::keystore::{load_secrets_file, update_secrets_file};
-use alter_zero::secrets::{SecretDraft, SecretStore, masked_notice, placeholder};
+use zeroth::app::ToastKind;
+use zeroth::clipboard;
+use zeroth::llm::keystore::{load_secrets_file, update_secrets_file};
+use zeroth::secrets::{SecretDraft, SecretStore, masked_notice, placeholder};
 
 use super::{Session, config};
 

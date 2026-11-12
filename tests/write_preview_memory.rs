@@ -12,10 +12,10 @@
 //! reading is process-wide, and a lone `#[test]` in its own binary has
 //! nothing running beside it to pollute it.
 
-use alter_zero::app::App;
-use alter_zero::stream::ToolCallFragment;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use zeroth::app::App;
+use zeroth::stream::ToolCallFragment;
 
 /// The process's resident set in bytes — `None` where `/proc` isn't available
 /// (the probe then skips rather than asserting on noise).
@@ -58,11 +58,11 @@ fn stream_write(app: &mut App, arguments: &str, area: Rect, buf: &mut Buffer) {
         });
         if k % 8 == 0 {
             buf.reset();
-            alter_zero::ui::render_live(area, buf, app);
+            zeroth::ui::render_live(area, buf, app);
         }
     }
     buf.reset();
-    alter_zero::ui::render_live(area, buf, app);
+    zeroth::ui::render_live(area, buf, app);
 }
 
 /// Everything the buffer shows, row by row.

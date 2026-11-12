@@ -27,15 +27,15 @@
 //! self-clearing line above the box for confirmations and soft rejections the
 //! user should see but never keep (`docs/ui/toast.md`). It never enters history.
 //!
-//! [`App::flush_streaming_segment`]: alter_zero::app::App::flush_streaming_segment
+//! [`App::flush_streaming_segment`]: zeroth::app::App::flush_streaming_segment
 
 use std::time::{Duration, Instant};
 
 use ratatui::text::Line;
 
-use alter_zero::app::{AgentGroup, App, Role, ToastKind, ToolCall, ToolPlacement, TurnSummary};
-use alter_zero::hooks::HookReport;
-use alter_zero::ui;
+use zeroth::app::{AgentGroup, App, Role, ToastKind, ToolCall, ToolPlacement, TurnSummary};
+use zeroth::hooks::HookReport;
+use zeroth::ui;
 
 use super::Session;
 
@@ -68,7 +68,7 @@ impl Session<'_> {
         // log's (`--verbose`, docs/cli/headless.md).
         if self.headless {
             let error = kind == ToastKind::Error;
-            let line = alter_zero::headless::toast_line(&text.into(), error, self.headless_verbose);
+            let line = zeroth::headless::toast_line(&text.into(), error, self.headless_verbose);
             super::headless::write(line.as_slice());
             return;
         }
@@ -235,8 +235,8 @@ impl Session<'_> {
     /// req 2). A backend error always passes `Some` (the error text is its
     /// terminal notice).
     ///
-    /// [`App::interrupt_turn`]: alter_zero::app::App::interrupt_turn
-    /// [`App::fail_stream`]: alter_zero::app::App::fail_stream
+    /// [`App::interrupt_turn`]: zeroth::app::App::interrupt_turn
+    /// [`App::fail_stream`]: zeroth::app::App::fail_stream
     pub(crate) fn commit_turn_failure(
         &mut self,
         partial: Option<String>,

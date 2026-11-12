@@ -26,7 +26,7 @@
 //!
 //! A session starts in **auto** unless this project saved another mode or
 //! `ALTER_ZERO_PERMISSION_MODE` seeds one for the run
-//! ([`PermissionsFile::starting_mode`](alter_zero::permission::PermissionsFile::starting_mode)).
+//! ([`PermissionsFile::starting_mode`](zeroth::permission::PermissionsFile::starting_mode)).
 //! The seed rides the gate's live rules but never reaches the file: a mode
 //! change saves only the mode, a new rule only the allowlist.
 //!
@@ -36,11 +36,11 @@
 
 use std::path::{Path, PathBuf};
 
-use alter_zero::app::{App, ToastKind};
-use alter_zero::permission::{
+use zeroth::app::{App, ToastKind};
+use zeroth::permission::{
     PermissionDecision, PermissionGate, PermissionKind, PermissionMode, PermissionRequest,
 };
-use alter_zero::ui;
+use zeroth::ui;
 
 use super::{Session, config};
 

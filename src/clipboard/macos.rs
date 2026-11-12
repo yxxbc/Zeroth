@@ -184,7 +184,7 @@ mod tests {
 /// because it works everywhere.
 pub(super) const NO_GUI_SESSION_REASON: &str = "no desktop clipboard in this session (it is \
      not a GUI login, so `NSPasteboard` has nothing to read). Save the image file where this \
-     session can reach it, then ask Alter Zero to read its path";
+     session can reach it, then ask Zeroth to read its path";
 
 /// Why a macOS paste is refused when the automation permission is missing:
 /// macOS gates one app reading another's clipboard behind **TCC**, and the
@@ -192,7 +192,7 @@ pub(super) const NO_GUI_SESSION_REASON: &str = "no desktop clipboard in this ses
 /// "automation" is a sub-page most people never open.
 pub(super) const AUTOMATION_DENIED_REASON: &str = "macOS has not allowed this terminal to read \
      the clipboard. Allow it in System Settings → Privacy & Security → Automation, then try \
-     again — or save the image file where this session can reach it and ask Alter Zero to read \
+     again — or save the image file where this session can reach it and ask Zeroth to read \
      its path";
 
 /// The `launchctl managername` value of a **window-server** session. `Aqua` is

@@ -27,12 +27,12 @@ use std::io;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use alter_zero::background::BackgroundRegistry;
-use alter_zero::stream::{CancelToken, StreamEvent};
+use zeroth::background::BackgroundRegistry;
+use zeroth::stream::{CancelToken, StreamEvent};
 
 /// Run `command` under `sh -c` on a background thread, streaming the result back
 /// on the reply channel as a `ToolEnd`/`StreamDone` pair (the command was
-/// already shown as the running tool by [`App::begin_shell`](alter_zero::app::App::begin_shell)). Reader threads
+/// already shown as the running tool by [`App::begin_shell`](zeroth::app::App::begin_shell)). Reader threads
 /// drain stdout/stderr so a chatty command can't deadlock on a full pipe,
 /// forwarding raw chunks the wait loop merges **in arrival order** into a
 /// capped buffer (`read_capped`'s memory bound, the `llm::exec` merge shape);
@@ -76,9 +76,7 @@ pub(crate) fn spawn_shell_command(
                     truncated: false,
                     // Nothing ran: the command named a secret that is not
                     // stored (docs/state/rollout-records.md).
-                    run: alter_zero::stream::ToolRun::refused(
-                        alter_zero::stream::ToolErrorKind::ToolError,
-                    ),
+                    run: zeroth::stream::ToolRun::refused(zeroth::stream::ToolErrorKind::ToolError),
                 });
                 let _ = tx.send(StreamEvent::StreamDone);
                 return;
@@ -86,7 +84,7 @@ pub(crate) fn spawn_shell_command(
             Some(Ok(expanded)) => Some(expanded),
             None => None,
         };
-        let mut child = match alter_zero::subprocess::spawn_detached_shell(
+        let mut child = match zeroth::subprocess::spawn_detached_shell(
             registry.detach_helper().as_deref(),
             expanded.as_deref().unwrap_or(&command),
         ) {
@@ -96,9 +94,7 @@ pub(crate) fn spawn_shell_command(
                     output: format!("failed to run command: {err}"),
                     ok: false,
                     truncated: false,
-                    run: alter_zero::stream::ToolRun::refused(
-                        alter_zero::stream::ToolErrorKind::ToolError,
-                    ),
+                    run: zeroth::stream::ToolRun::refused(zeroth::stream::ToolErrorKind::ToolError),
                 });
                 let _ = tx.send(StreamEvent::StreamDone);
                 return;
@@ -124,7 +120,7 @@ pub(crate) fn spawn_shell_command(
         // The command's runtime, from its spawn to its exit — what the
         // rollout's `tool` line records (docs/state/rollout-records.md).
         let started = std::time::Instant::now();
-        let ran_for = || Some(alter_zero::stream::ToolRun::millis(started.elapsed()));
+        let ran_for = || Some(zeroth::stream::ToolRun::millis(started.elapsed()));
         let mut combined: Vec<u8> = Vec::new();
         let mut truncated = false;
         // Wait for the child, polling so an Esc interrupt (cancel) or a Ctrl+B
@@ -153,9 +149,9 @@ pub(crate) fn spawn_shell_command(
                     id: task.id.clone(),
                     output: "[moved to background; the final output will follow when it completes]"
                         .to_string(),
-                    run: alter_zero::stream::ToolRun {
+                    run: zeroth::stream::ToolRun {
                         duration_ms: ran_for(),
-                        ..alter_zero::stream::ToolRun::default()
+                        ..zeroth::stream::ToolRun::default()
                     },
                 });
                 let _ = tx.send(StreamEvent::StreamDone);
@@ -176,10 +172,10 @@ pub(crate) fn spawn_shell_command(
                         output: format!("error waiting on command: {err}"),
                         ok: false,
                         truncated: false,
-                        run: alter_zero::stream::ToolRun {
+                        run: zeroth::stream::ToolRun {
                             duration_ms: ran_for(),
-                            ..alter_zero::stream::ToolRun::refused(
-                                alter_zero::stream::ToolErrorKind::ToolError,
+                            ..zeroth::stream::ToolRun::refused(
+                                zeroth::stream::ToolErrorKind::ToolError,
                             )
                         },
                     });
@@ -202,7 +198,7 @@ pub(crate) fn spawn_shell_command(
         // context read the text, not the frames that drew it
         // (docs/input/shell-command.md). Lossy UTF-8: a command may emit non-UTF-8
         // bytes; the cap may also cut a multi-byte char (→ one U+FFFD).
-        let mut fold = alter_zero::pty::fold::Fold::with_line_cap(cap);
+        let mut fold = zeroth::pty::fold::Fold::with_line_cap(cap);
         fold.feed(&combined);
         truncated |= fold.overflowed();
         let mut output = fold.finish();
@@ -230,10 +226,10 @@ pub(crate) fn spawn_shell_command(
             output,
             ok,
             truncated,
-            run: alter_zero::stream::ToolRun {
+            run: zeroth::stream::ToolRun {
                 exit_code: status.code(),
                 duration_ms: ran_for(),
-                error_kind: (!ok).then_some(alter_zero::stream::ToolErrorKind::ToolError),
+                error_kind: (!ok).then_some(zeroth::stream::ToolErrorKind::ToolError),
             },
         });
         let _ = tx.send(StreamEvent::StreamDone);

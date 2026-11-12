@@ -1,0 +1,12 @@
+Zeroth
+Copyright 2026 the Zeroth contributors
+
+This product is a derivative work of Alter Zero
+(https://github.com/linuztx/alter-zero), Copyright 2026 linuztx,
+licensed under the Apache License, Version 2.0.
+
+Portions of the interaction design and implementation are ported from
+OpenAI Codex (https://github.com/openai/codex), Copyright OpenAI,
+licensed under the Apache License, Version 2.0.
+
+The full license text is in LICENSE.

@@ -19,10 +19,10 @@
 
 use std::path::{Path, PathBuf};
 
-use alter_zero::app::{CHECKPOINT_RESTORED_NOTICE, ToastKind};
-use alter_zero::checkpoint;
-use alter_zero::cli;
-use alter_zero::session::{self, SessionSummary};
+use zeroth::app::{CHECKPOINT_RESTORED_NOTICE, ToastKind};
+use zeroth::checkpoint;
+use zeroth::cli;
+use zeroth::session::{self, SessionSummary};
 
 use super::Session;
 

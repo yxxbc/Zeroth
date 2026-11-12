@@ -26,11 +26,11 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use alter_zero::context::{ContextMessage, ContextRole};
-use alter_zero::images::attachment_data_url;
-use alter_zero::llm::ModelConfig;
-use alter_zero::llm::backend::build_messages_for;
-use alter_zero::llm::openai::OpenAiClient;
+use zeroth::context::{ContextMessage, ContextRole};
+use zeroth::images::attachment_data_url;
+use zeroth::llm::ModelConfig;
+use zeroth::llm::backend::build_messages_for;
+use zeroth::llm::openai::OpenAiClient;
 
 /// A `/proc/self/status` field in KiB.
 fn vm_kb(field: &str) -> Option<u64> {

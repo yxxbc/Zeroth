@@ -9,13 +9,13 @@ use std::process::Command;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use alter_zero::background::{BackgroundRegistry, BgEvent};
-use alter_zero::llm::exec::{RealToolExecutor, ToolExecutor, ToolProgress};
-use alter_zero::llm::tools::{ToolCallRequest, ToolOutcome};
-use alter_zero::pty::report::{Frame, Waiting, parse_frame};
-use alter_zero::stream::CancelToken;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use zeroth::background::{BackgroundRegistry, BgEvent};
+use zeroth::llm::exec::{RealToolExecutor, ToolExecutor, ToolProgress};
+use zeroth::llm::tools::{ToolCallRequest, ToolOutcome};
+use zeroth::pty::report::{Frame, Waiting, parse_frame};
+use zeroth::stream::CancelToken;
 
 struct Relay {
     root: tempfile::TempDir,

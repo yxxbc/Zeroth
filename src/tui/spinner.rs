@@ -1,13 +1,13 @@
 //! The `/spinner` picker at the boundary: applying a selection
 //! (`docs/ui/spinner.md`).
 //!
-//! The pure side ([`alter_zero::app::App::spinner`]) already holds the new
+//! The pure side ([`zeroth::app::App::spinner`]) already holds the new
 //! style when the picker's Enter lands here; what has to *happen* — the
 //! `spinner.json` write (keyed by this working directory,
 //! `docs/state/per-directory-state.md`) and the confirming toast — lives at the
 //! boundary, the `tui::mascot::Session::select_mascot` pattern.
 
-use alter_zero::app::{Spinner, ToastKind};
+use zeroth::app::{Spinner, ToastKind};
 
 use super::{Session, config};
 

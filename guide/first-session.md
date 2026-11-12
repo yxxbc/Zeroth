@@ -1,12 +1,12 @@
 # Your first session
 
-You installed Alter Zero and started it. This page covers the first screen and
+You installed Zeroth and started it. This page covers the first screen and
 the three commands that take you from the offline demo to a real model.
 
 ## The first screen
 
 ```
- ▙▄▙▄▟▄▟   Alter Zero (vX.Y.Z)
+ ▙▄▙▄▟▄▟   Zeroth (vX.Y.Z)
 ▝▜▄███▄▛▘  ~/projects/site
   ▘▘ ▝▝    /login   /model   /resume
 ```
@@ -77,11 +77,11 @@ directly.
 Every conversation is recorded. On exit the app prints:
 
 ```
-Resume this session with: alter-zero --resume {id}
+Resume this session with: zeroth --resume {id}
 ```
 
-- `alter-zero --continue` reopens the newest conversation in this directory.
-- `alter-zero --resume <id>` reopens one by id; bare `--resume` opens the
+- `zeroth --continue` reopens the newest conversation in this directory.
+- `zeroth --resume <id>` reopens one by id; bare `--resume` opens the
   picker.
 - `/resume` does the same from inside a session.
 

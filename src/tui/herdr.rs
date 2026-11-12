@@ -11,7 +11,7 @@
 
 use std::path::PathBuf;
 
-use alter_zero::herdr::{self, Reporter, Tracker};
+use zeroth::herdr::{self, Reporter, Tracker};
 
 use super::Session;
 
@@ -76,11 +76,11 @@ impl Session<'_> {
 /// when it is needed (and herdr replays no history for a pane that has one).
 fn resume_bin() -> Option<String> {
     let arg0 = std::env::args().next();
-    let bin = alter_zero::cli::bin_name(arg0.as_deref());
-    alter_zero::subprocess::find_on_path(
+    let bin = zeroth::cli::bin_name(arg0.as_deref());
+    zeroth::subprocess::find_on_path(
         &bin,
         std::env::var_os("PATH").as_deref(),
-        alter_zero::subprocess::is_executable_file,
+        zeroth::subprocess::is_executable_file,
     )
     .map(|_: PathBuf| bin)
 }

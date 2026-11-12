@@ -10,9 +10,9 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use alter_zero::llm::agent::RoundBudget;
-use alter_zero::llm::{LlmBackend, ModelConfig};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
+use zeroth::llm::agent::RoundBudget;
+use zeroth::llm::{LlmBackend, ModelConfig};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// A round in which the model reads a file that is not there — one call, so
 /// the turn needs a second request to finish.

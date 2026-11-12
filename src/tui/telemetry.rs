@@ -32,15 +32,15 @@
 //!   toggle can never race it. Every write is
 //!   `config::update_telemetry_file`'s read-modify-write, so a day recorded
 //!   while the user was turning telemetry off cannot resurrect their `true`.
-//!   The version is what makes the first launch after `alter-zero update`
+//!   The version is what makes the first launch after `zeroth update`
 //!   ping once more that day (`telemetry::should_ping`): the ping reports
 //!   which version the install is on, and keyed on the day alone the update
 //!   went unreported until midnight UTC.
 
 use ratatui::text::Line;
 
-use alter_zero::telemetry::{self, Delivery, Ping, TelemetryFile};
-use alter_zero::ui;
+use zeroth::telemetry::{self, Delivery, Ping, TelemetryFile};
+use zeroth::ui;
 
 use super::workers::spawn_telemetry_ping;
 use super::{Session, config, host};

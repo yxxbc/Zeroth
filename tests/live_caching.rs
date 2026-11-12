@@ -55,10 +55,10 @@
 //! `ALTER_ZERO_LIVE_COPILOT_MODEL` override each provider's default model
 //! (their catalogs churn).
 
-use alter_zero::context::{ContextMessage, ContextRole, ContextToolCall};
-use alter_zero::llm::models::fetch_models;
-use alter_zero::llm::{LlmBackend, ModelConfig, ProvidersFile, Selection};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent, TokenUsage};
+use zeroth::context::{ContextMessage, ContextRole, ContextToolCall};
+use zeroth::llm::models::fetch_models;
+use zeroth::llm::{LlmBackend, ModelConfig, ProvidersFile, Selection};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent, TokenUsage};
 
 /// A per-run salt: the system prompt and the cache-affinity key both carry
 /// it, so a rerun can never hit a previous run's still-warm cache and read a
@@ -372,7 +372,7 @@ fn live_chatgpt_growing_conversation_keeps_cache() {
     // `codex-auto-review`, four of five warm rounds read 5,888 tokens — the
     // 128-token-aligned prefix, flat because each round adds fewer tokens
     // than one block — and one round read nothing at all.
-    alter_zero::llm::chatgpt::set_store_path(token_store());
+    zeroth::llm::chatgpt::set_store_path(token_store());
     let salt = salt();
     let model = std::env::var("ALTER_ZERO_LIVE_CHATGPT_MODEL")
         .expect("set ALTER_ZERO_LIVE_CHATGPT_MODEL to a model available to your account");
@@ -463,7 +463,7 @@ fn live_venice_claude_caches_without_our_own_breakpoints() {
         salt,
     );
     assert!(
-        !alter_zero::llm::cache::needs_cache_breakpoints(&cfg.model),
+        !zeroth::llm::cache::needs_cache_breakpoints(&cfg.model),
         "a bare Venice claude id is left to Venice's own markers"
     );
     let backend = LlmBackend::configure(cfg, Some(big_system_prompt(salt)), false);
@@ -532,7 +532,7 @@ fn live_openrouter_latest_alias_id_gets_breakpoints_and_caches() {
     cfg.extra_body
         .insert("max_tokens".to_string(), serde_json::json!(32));
     assert!(
-        alter_zero::llm::cache::needs_cache_breakpoints(&cfg.model),
+        zeroth::llm::cache::needs_cache_breakpoints(&cfg.model),
         "{model} is an explicit-caching id"
     );
     let backend = LlmBackend::configure(cfg, Some(big_system_prompt(salt)), false);
@@ -592,7 +592,7 @@ fn live_anthropic_api_key_writes_then_reads_the_prefix() {
 #[test]
 #[ignore = "hits the network; needs ANTHROPIC_CONSOLE_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE; costs about a cent"]
 fn live_anthropic_console_writes_then_reads_the_prefix() {
-    alter_zero::llm::claude::set_store_path(token_store());
+    zeroth::llm::claude::set_store_path(token_store());
     anthropic_writes_then_reads(
         "anthropic_console",
         credential("ANTHROPIC_CONSOLE_REFRESH_TOKEN"),
@@ -621,11 +621,11 @@ fn print_raw_anthropic_usage_frames(cfg: &ModelConfig, system: &str) {
         .header("anthropic-version", "2023-06-01")
         .header("accept", "text/event-stream");
     req = match cfg.auth {
-        alter_zero::llm::AuthScheme::AnthropicConsole => {
+        zeroth::llm::AuthScheme::AnthropicConsole => {
             let access =
-                alter_zero::llm::claude::authorize(credential).expect("the mint the backend used");
+                zeroth::llm::claude::authorize(credential).expect("the mint the backend used");
             req.bearer_auth(access.bearer)
-                .header("anthropic-beta", alter_zero::llm::claude::OAUTH_BETA)
+                .header("anthropic-beta", zeroth::llm::claude::OAUTH_BETA)
         }
         _ => req.header("x-api-key", credential),
     };
@@ -661,7 +661,7 @@ fn live_chatgpt_responses_second_turn_reads_the_prefix_from_cache() {
     // `instructions`, `prompt_cache_key` riding every request, the usage
     // frame's `input_tokens_details.cached_tokens` parsed. OpenAI caches an
     // identical prefix automatically past 1024 tokens.
-    alter_zero::llm::chatgpt::set_store_path(token_store());
+    zeroth::llm::chatgpt::set_store_path(token_store());
     let salt = salt();
     let refresh = credential("CHATGPT_CODEX_REFRESH_TOKEN");
     let probe = config("chatgpt_codex", "probe", Some(refresh.clone()), salt);
@@ -696,7 +696,7 @@ fn live_chatgpt_cache_diagnostics() {
     // (`session_id` / `conversation_id` / `OpenAI-Beta`), which is what
     // the reference client sends beside `prompt_cache_key`. Whichever
     // reports cache reads tells what the backend's routing keys on.
-    alter_zero::llm::chatgpt::set_store_path(token_store());
+    zeroth::llm::chatgpt::set_store_path(token_store());
     let refresh = credential("CHATGPT_CODEX_REFRESH_TOKEN");
     let model = model_or("ALTER_ZERO_LIVE_CHATGPT_MODEL", "gpt-5.4-mini");
     let pause = std::time::Duration::from_secs(12);
@@ -802,8 +802,8 @@ fn live_chatgpt_fast_mode_is_listed_and_a_priority_request_is_served() {
     // prompt runs at standard and at fast — one sample each, timed for the
     // record only: what this proves is that the field and the header are
     // accepted, not how much faster the answer came.
-    use alter_zero::llm::ServiceTier;
-    alter_zero::llm::chatgpt::set_store_path(token_store());
+    use zeroth::llm::ServiceTier;
+    zeroth::llm::chatgpt::set_store_path(token_store());
     let salt = salt();
     let refresh = credential("CHATGPT_CODEX_REFRESH_TOKEN");
     let probe = config("chatgpt_codex", "probe", Some(refresh.clone()), salt);
@@ -816,7 +816,7 @@ fn live_chatgpt_fast_mode_is_listed_and_a_priority_request_is_served() {
             .collect();
         println!("{}: {tiers:?}", m.id);
     }
-    let fast: Vec<&alter_zero::llm::ModelEntry> = listed
+    let fast: Vec<&zeroth::llm::ModelEntry> = listed
         .iter()
         .filter(|m| m.service_tiers.iter().any(ServiceTier::is_fast))
         .collect();

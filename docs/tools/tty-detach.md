@@ -72,7 +72,7 @@ is real and surfaces):
    `setsid(2)` and `exec`s `sh` into the new session. Simple, the everyday
    tier on Linux, and independent of our own binary (a `cargo build` replacing
    the running TUI's file mid-session can't break it).
-2. **The helper re-exec** — `{current_exe} __alter-zero-detached-exec
+2. **The helper re-exec** — `{current_exe} __zeroth-detached-exec
    "<command>"`: our own binary, whose `main()` runs
    `subprocess::run_detached_exec_if_requested()` as its **first statement**.
    In helper mode that calls the safe `rustix::process::setsid()` wrapper and
@@ -101,7 +101,7 @@ still with no `pre_exec`, so the same chain grows a TTY form
 ([`subprocess::tty_tiers`](../../src/subprocess.rs) and `tty_command_for`):
 `setsid -c bash -c "<command>"` (util-linux's `--ctty` makes stdin — the
 pty's slave — the controlling terminal after the `setsid`), then the helper
-under its own sentinel, `__alter-zero-detached-tty-exec`, whose branch in
+under its own sentinel, `__zeroth-detached-tty-exec`, whose branch in
 `run_detached_exec_if_requested` adds the safe `ioctl_tiocsctty(stdin)` after
 the `setsid()` before `exec`ing the shell — named by an optional third
 argument when it is not `sh` (`subprocess::tool_shell`: `bash` where one is
@@ -151,7 +151,7 @@ a terminal?" saw non-tty fds before and after. The new session only removes
 
 - **Pure** — `subprocess::tiers` orders the chain (`SetsidBinary` →
   `HelperReexec` when installed → `Attached`); `command_for`'s argv per tier,
-  including the helper's `{exe} __alter-zero-detached-exec {command}`
+  including the helper's `{exe} __zeroth-detached-exec {command}`
   protocol the `main()` hook parses.
 - **Boundary (real `sh`)** — a spawned command reports itself a **session
   leader** (`/proc`'s session field == `$$`, which only holds detached — the

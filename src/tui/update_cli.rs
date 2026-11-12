@@ -1,4 +1,4 @@
-//! The `update` subcommand boundary (`docs/ops/update.md`): `alter-zero update`
+//! The `update` subcommand boundary (`docs/ops/update.md`): `zeroth update`
 //! asks the repository for its newest release and, when it is newer than
 //! this binary, fetches the one-line installer and runs it over this
 //! binary's own directory. Run by [`super::startup::resolve_cli`] in cooked
@@ -16,12 +16,12 @@
 //! loudly, and `sh` reading an empty pipe exits 0.
 //!
 //! `ALTER_ZERO_UPDATE_CHECK=0` silences the *automatic* check; an explicit
-//! `alter-zero update` is the user's own request and runs regardless.
+//! `zeroth update` is the user's own request and runs regardless.
 
 use std::io::Write;
 use std::process::Command;
 
-use alter_zero::update;
+use zeroth::update;
 
 use super::config;
 

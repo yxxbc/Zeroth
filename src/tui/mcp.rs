@@ -6,9 +6,9 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use alter_zero::app::{McpOp, ToastKind};
-use alter_zero::llm::mcp::{McpEvent, McpHold, McpSources};
-use alter_zero::mcp;
+use zeroth::app::{McpOp, ToastKind};
+use zeroth::llm::mcp::{McpEvent, McpHold, McpSources};
+use zeroth::mcp;
 
 use super::Session;
 use super::config;
@@ -35,7 +35,7 @@ pub(crate) fn load_mcp_sources(cwd: &Path, trust: &super::trust::TrustState) -> 
     let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
     let user_display = user_path
         .as_deref()
-        .map(|path| alter_zero::ui::display_cwd(path, home.as_deref()))
+        .map(|path| zeroth::ui::display_cwd(path, home.as_deref()))
         .unwrap_or_else(|| "~/.alter-zero/mcp.json".to_string());
     // Where each project server stands with the review, and so which of
     // each file's servers may run.
@@ -54,7 +54,7 @@ pub(crate) fn load_mcp_sources(cwd: &Path, trust: &super::trust::TrustState) -> 
     let scoped = |file: Option<&super::trust::ProjectFile<mcp::McpFile>>,
                   errors: &mut Vec<String>| {
         let file = file?;
-        let display = alter_zero::ui::display_cwd(&file.path, home.as_deref());
+        let display = zeroth::ui::display_cwd(&file.path, home.as_deref());
         match &file.parsed {
             Ok(parsed) => {
                 errors.extend(
@@ -199,7 +199,7 @@ impl Session<'_> {
             McpOp::CopyAuthUrl { url } => {
                 // The `/copy` seam: arboard with the OSC 52 fallback
                 // (`docs/ui/copy.md`), so the copy works over SSH too.
-                match alter_zero::clipboard::copy_to_clipboard(&url) {
+                match zeroth::clipboard::copy_to_clipboard(&url) {
                     Ok(lease) => {
                         if let Some(lease) = lease {
                             self.clipboard_lease = Some(lease);

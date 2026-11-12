@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Alter Zero are recorded here. The format follows
+All notable changes to Zeroth are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -30,7 +30,7 @@ release heading when a version is cut.
   they don't know, and the per-turn `summary` keeps its totals
   (`docs/state/rollout-records.md`).
 
-- **Headless mode: `alter-zero -p "prompt"` runs with no terminal at all.**
+- **Headless mode: `zeroth -p "prompt"` runs with no terminal at all.**
   The app used to need a terminal that answered its cursor query before it
   read a prompt, so a cron job, a CI step or an n8n node could not run it
   (`Device not configured`). With `-p` the same session runs with no screen:
@@ -39,7 +39,7 @@ release heading when a version is cut.
   interrupted). `--output-format json` prints one result object with the
   session id, usage and any refused tool calls; `stream-json` prints one
   event per line as the run happens. The prompt can come from stdin as well,
-  as in `git diff | alter-zero -p "Review this diff"`. Nothing waits for a
+  as in `git diff | zeroth -p "Review this diff"`. Nothing waits for a
   reply: a call that would ask for approval is refused and the model is
   told, `--permission-mode` decides how much runs unasked, and the question
   tool is not offered. `--max-turns` caps the model replies, `-C` sets the
@@ -374,12 +374,12 @@ release heading when a version is cut.
   the provider's console, and signing in to them ended in an error. A
   server's entry in `mcp.json` can now name that client in an `oauth` block
   (`clientId`, and `callbackPort` and `scopes` if its setup asks for them),
-  or `alter-zero mcp add <name> --url <url> --client-id <id>
+  or `zeroth mcp add <name> --url <url> --client-id <id>
   --client-secret` sets it up: the secret is asked for, or read from
   `MCP_CLIENT_SECRET`, and kept with your MCP logins rather than in the
   file. `/mcp` shows such a server as needing authentication straight
   away, Google logins renew themselves instead of lapsing within the hour,
-  and `alter-zero mcp get` shows the client but never its secret. This is
+  and `zeroth mcp get` shows the client but never its secret. This is
   experimental: signing in to Google's servers this way has not been tried
   end to end yet (`docs/tools/mcp.md`, `docs/cli/mcp-cli.md`).
 - **An MCP server's new tools are offered as soon as it has them.** A
@@ -676,7 +676,7 @@ release heading when a version is cut.
   server in it included, with a few lines of its own; it now leaves such a
   file alone, keeps the server off for the session and says why. A toggle
   also no longer undoes one made in another session in the same project.
-  Every write of the file, from `/mcp` and from `alter-zero mcp add` and
+  Every write of the file, from `/mcp` and from `zeroth mcp add` and
   `remove`, now replaces it in one step, so a full disk or a crash can't
   leave it empty, keeps its permissions (a new file is readable by you
   alone, since it can hold tokens) and writes through a symlink instead of
@@ -687,7 +687,7 @@ release heading when a version is cut.
   filled in wherever a server's command, arguments, environment, URL or
   headers use them, as in Claude Code. A server naming a variable that
   isn't set and has no default doesn't start, and `/mcp` names the
-  variable; `/mcp` and `alter-zero mcp get` still show the reference, never
+  variable; `/mcp` and `zeroth mcp get` still show the reference, never
   the value. A project's file can't have the API keys of the providers you
   use sent to a remote server this way; a server asking for them doesn't
   start. An empty config file is no longer an error at every start,
@@ -1221,12 +1221,12 @@ release heading when a version is cut.
   System Settings → Privacy & Security → Automation. Ctrl+V now says which of
   those it is and names the pane to switch on, rather than reporting a
   clipboard that cannot be opened. Either refusal keeps the way around it:
-  save the picture and ask Alter Zero to read its path
+  save the picture and ask Zeroth to read its path
   (`docs/input/image-paste.md`).
 - **A paste that finds no picture says why.** `no image on the clipboard` now
   names the two shapes that look like an image and are not — a *file* copy,
   and a web page's selection — and the way around it: save the picture and ask
-  Alter Zero to read its path (`docs/input/image-paste.md`).
+  Zeroth to read its path (`docs/input/image-paste.md`).
 - **`/skills` no longer says skills are off when none are installed.** With
   no skills found, the page told you to turn them on in `/settings`, where
   that row can't be switched on until a skill exists. It now shows only where
@@ -1305,7 +1305,7 @@ release heading when a version is cut.
 
 ### Added
 
-- **herdr shows what alter-zero is doing.** Run inside a
+- **herdr shows what zeroth is doing.** Run inside a
   [herdr](https://herdr.dev) pane, the app now reports its own state to
   herdr. The sidebar shows it working while a turn or a subagent runs,
   blocked the moment a permission prompt or a question waits on you, and done
@@ -1313,9 +1313,9 @@ release heading when a version is cut.
   fire at those moments. A turn that fails on an API error shows as needing
   attention, with the error, until you retry or clear it, rather than as
   finished. There is nothing to install or configure. herdr also learns the
-  command that resumes the conversation (`alter-zero --resume {id}`, or a
-  fresh `alter-zero` after `/clear`), so a restarted herdr brings the session
-  back, and only when `alter-zero` is on your `PATH`. A background worker
+  command that resumes the conversation (`zeroth --resume {id}`, or a
+  fresh `zeroth` after `/clear`), so a restarted herdr brings the session
+  back, and only when `zeroth` is on your `PATH`. A background worker
   sends the reports with short timeouts, retries any that get lost, and never
   slows the app down. Nothing the agent starts sees `HERDR_PANE_ID` (its
   commands, your `!` commands, hooks, MCP servers), so another agent run
@@ -1332,10 +1332,10 @@ release heading when a version is cut.
   and macOS (Intel, Apple silicon). npm downloads only the package built for
   your machine and runs nothing at install time, so it works with
   `--ignore-scripts`, pnpm and Bun too; on Node.js 22.15 or newer the binary
-  takes over the `alter-zero` command's process as it starts, so no Node.js
+  takes over the `zeroth` command's process as it starts, so no Node.js
   stays running beside it. On such an install the update notice names
   `npm install -g @linuztx/alter-zero@latest` (or pnpm's, Bun's or Yarn's
-  command), and `alter-zero update` points there instead of replacing files
+  command), and `zeroth update` points there instead of replacing files
   npm manages (`docs/ops/npm.md`).
 - **Hooks gain three of Claude Code's events: `PostToolUseFailure`,
   `StopFailure` and `Notification`.** A tool call that runs and fails now
@@ -1357,7 +1357,7 @@ release heading when a version is cut.
 - **A hook's `session_id` is the conversation you can resume.** It used to
   be the id of the running process, which neither `/clear` nor `/resume`
   changed and which `--resume` could not take. It is now the conversation's
-  own id, the one `alter-zero --resume` takes, so a hook that logs it can
+  own id, the one `zeroth --resume` takes, so a hook that logs it can
   bring the conversation back. `/clear` moves it on, `/resume` adopts the
   resumed conversation's id, and `transcript_path` follows. Payloads also
   carry Claude Code's `scratchpad_dir`, which is how a hook finds the
@@ -1400,13 +1400,13 @@ release heading when a version is cut.
 - **Pictures in a herdr pane are drawn as real images.** herdr's panes say
   `xterm-256color` and nothing about graphics, so every picture there fell
   back to coarse half-block characters, though herdr's terminal draws kitty
-  graphics. Where the environment names no graphics protocol, Alter Zero now
+  graphics. Where the environment names no graphics protocol, Zeroth now
   asks the terminal at startup, in the same read that already finds the
   cursor, and uses the kitty protocol when the terminal says yes. A terminal
   that says nothing keeps half-blocks, and WezTerm and Konsole, which say
   yes but cannot show these pictures, are recognised by the name they give.
   Nothing is asked under tmux, screen or zellij, or when
-  `ALTER_ZERO_IMAGE_PROTOCOL` is set, and anything typed while Alter Zero
+  `ALTER_ZERO_IMAGE_PROTOCOL` is set, and anything typed while Zeroth
   starts still reaches the prompt. GNU screen and zellij are now recognised
   as multiplexers the way tmux is, so an outer terminal's variables no
   longer choose the protocol inside them (`docs/ui/images.md`).
@@ -1543,10 +1543,10 @@ release heading when a version is cut.
 
 - **Arch Linux packages on the AUR.** `alter-zero-bin` installs the prebuilt
   release binary in seconds, verified against the release's checksums, and
-  `alter-zero` builds the tagged release from source with Arch's own Rust and
+  `zeroth` builds the tagged release from source with Arch's own Rust and
   runs the test suite. Both cover x86_64 and aarch64, and each replaces the
   other, so only one is installed at a time. Update them through your AUR
-  helper (`yay -Syu`, `paru -Syu`) rather than `alter-zero update`, which
+  helper (`yay -Syu`, `paru -Syu`) rather than `zeroth update`, which
   reinstalls over the running binary's own directory (`docs/ops/aur.md`).
 
 ### Changed
@@ -1954,7 +1954,7 @@ release heading when a version is cut.
   blockquote, two fenced code blocks, a table, a rule — in one long reply
   streamed in token-sized pieces that split markers one character at a time,
   the way a real model's tokens arrive. `ALTER_ZERO_CHUNK_DELAY_MS=400
-  alter-zero` then `stream some markdown` watches the pipeline hold still at
+  zeroth` then `stream some markdown` watches the pipeline hold still at
   a struggling model's pace; `scripts/smoke.sh` Phase 121 proves it does.
 
 ### Fixed
@@ -2073,7 +2073,7 @@ release heading when a version is cut.
   few more, about 280 MB over the Kali base with no desktop, metapackage or
   compiler — and `--with "PKG …"` bakes in your own. Opening it with
   `docker exec -it -e TERM -e COLORTERM -e TERM_PROGRAM -e KITTY_WINDOW_ID
-  -e TMUX alter-zero-kali alter-zero` forwards your terminal's identity, which
+  -e TMUX alter-zero-kali zeroth` forwards your terminal's identity, which
   is what draws real pictures in kitty, Ghostty, iTerm2 and WezTerm instead of
   half-blocks; `docker/run.sh --clipboard` forwards the desktop's Wayland
   and/or X11 socket so Ctrl+V can paste a copied image. Telemetry is left
@@ -2108,7 +2108,7 @@ release heading when a version is cut.
   an X server ran into, sometimes after a pause. It now answers at once:
   `no desktop clipboard in this session (neither DISPLAY nor WAYLAND_DISPLAY
   is set)`, followed by what works instead — save the image where the session
-  can reach it and ask Alter Zero to read its path. A display that is named
+  can reach it and ask Zeroth to read its path. A display that is named
   but unreachable keeps its original cause and gains the same advice.
 
 - **The running `Bash` cell shows its own clock and its timeout, whatever
@@ -2251,7 +2251,7 @@ release heading when a version is cut.
   records the model it runs on — with the file, and again on each `/model`
   pick, Ctrl+T cycle and capability probe — and `/resume`, `--resume` and
   `--continue` bring that model back instead of the directory's current
-  entry. Two alter-zero instances in the same directory can each run their
+  entry. Two zeroth instances in the same directory can each run their
   own model: a `/model` pick in one still sets what a *new* session there
   starts on, but the other instance keeps the model it has, and resuming
   either conversation later reopens it on the model it was on. An
@@ -2286,7 +2286,7 @@ release heading when a version is cut.
 
 - Telemetry now reports an update the day it happens. The daily ping names
   the app version, but its once-a-day throttle was keyed on the day alone, so
-  the first launch after `alter-zero update` sent nothing until midnight UTC
+  the first launch after `zeroth update` sent nothing until midnight UTC
   — and the collector's `INSERT OR IGNORE` dropped a same-day ping outright
   (answering `204`), so even a forced one left the day's row, and the
   dashboard's Versions panel, on the old version. `telemetry.json` now records
@@ -2322,7 +2322,7 @@ release heading when a version is cut.
 
 ## [0.1.0] - 2026-09-13
 
-**Alter Zero Initial Release**
+**Zeroth Initial Release**
 
 ### Added
 
@@ -2347,7 +2347,7 @@ release heading when a version is cut.
   tool allowlist, and an inline session view to chat with a running one;
   skills as `SKILL.md` folders with a `$` mention picker, the `/skills`
   browser, and a built-in `skill-creator`; MCP servers over stdio, HTTP,
-  and SSE (OAuth included) managed with `/mcp` and `alter-zero mcp`;
+  and SSE (OAuth included) managed with `/mcp` and `zeroth mcp`;
   Claude Code-compatible lifecycle hooks in `hooks.json`; `AGENTS.md`
   project instructions with `/init` to write one; structured task lists
   with a live checklist; mid-turn questions to the user; a per-session
@@ -2388,10 +2388,10 @@ release heading when a version is cut.
   `ALTER_ZERO_TELEMETRY=0`, or `DO_NOT_TRACK=1`.
 - **One-line install.** `curl -fsSL https://raw.githubusercontent.com/linuztx/alter-zero/main/install.sh | sh`
   picks the build for the machine, verifies its SHA-256 against the
-  published checksum, and installs `alter-zero` into `~/.local/bin`.
+  published checksum, and installs `zeroth` into `~/.local/bin`.
 - **Update notice.** Once a day the app asks the repository's releases page
   whether a newer version is out — one request, carrying nothing about you
-  — and says so under the banner, naming the release and `alter-zero
+  — and says so under the banner, naming the release and `zeroth
   update`, which installs it over the running binary through the same
   checksum-verified installer. Off with the **Update check** setting or
   `ALTER_ZERO_UPDATE_CHECK=0`; `TELEMETRY.md` states the request in full.

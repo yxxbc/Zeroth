@@ -6,7 +6,7 @@
 //! decisions ([`should_check`], [`notice_due`]), the URLs built off the
 //! repository ([`latest_url`], [`release_page_url`], [`installer_url`]), the
 //! environment predicate ([`enabled_by_env`]), the card's text ([`notice`]),
-//! the two guards `alter-zero update` needs ([`is_cargo_build_dir`], and
+//! the two guards `zeroth update` needs ([`is_cargo_build_dir`], and
 //! [`package_manager`] for an install npm or its kin own — whose own command,
 //! [`update_command`], the card names instead; `docs/ops/npm.md`). No
 //! clock, no filesystem, no network: the boundary (`tui::update`) reads the
@@ -49,7 +49,7 @@ pub const NPM_PACKAGE: &str = "@linuztx/alter-zero";
 
 /// A JavaScript package manager that can install [`NPM_PACKAGE`] — and then
 /// owns the binary it unpacked, so its own command updates it, never
-/// `alter-zero update`: a file replaced behind the manager's back is put
+/// `zeroth update`: a file replaced behind the manager's back is put
 /// back by its next install.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageManager {
@@ -109,7 +109,7 @@ pub fn package_manager(exe: &Path) -> Option<PackageManager> {
     Some(PackageManager::Npm)
 }
 
-/// The command that updates this install: `alter-zero update`, or — for an
+/// The command that updates this install: `zeroth update`, or — for an
 /// install a package manager owns — that manager's own, installing the
 /// newest [`NPM_PACKAGE`].
 #[must_use]
@@ -404,7 +404,7 @@ pub fn notice(current: &str, latest: &str, repo: &str, command: &str) -> String 
 /// `target/{profile}/` or `target/{triple}/{profile}/`, for each profile this
 /// crate builds in: `debug`, `release` and `dist`, the one a release ships
 /// (`docs/ops/binary-size.md`) — which is a checkout, not an install:
-/// `alter-zero update` refuses to overwrite one with a release binary and
+/// `zeroth update` refuses to overwrite one with a release binary and
 /// points at `git pull && cargo build`.
 #[must_use]
 pub fn is_cargo_build_dir(exe: &Path) -> bool {
@@ -423,7 +423,7 @@ pub fn is_cargo_build_dir(exe: &Path) -> bool {
 
 /// Whether a fetched body is the one-line installer rather than whatever a
 /// captive portal or an error page served with a `200`: the shebang, the
-/// closing `main "$@"` call, and the variable `alter-zero update` hands it.
+/// closing `main "$@"` call, and the variable `zeroth update` hands it.
 #[must_use]
 pub fn looks_like_installer(text: &str) -> bool {
     text.starts_with("#!/bin/sh")
@@ -432,7 +432,7 @@ pub fn looks_like_installer(text: &str) -> bool {
 }
 
 /// Fetch the one-line installer's text from [`installer_url`] — the
-/// boundary function `alter-zero update` calls before running it from a
+/// boundary function `zeroth update` calls before running it from a
 /// file. A body that does not [`looks_like_installer`] is refused: `sh`
 /// would run an HTML page as a script and exit 0.
 ///
@@ -460,7 +460,7 @@ pub fn fetch_installer(repo: &str, current_version: &str) -> Result<String, Stri
 }
 
 /// Ask the repository for its newest release — the boundary function the
-/// worker thread (and `alter-zero update`) calls. One `HEAD` request to
+/// worker thread (and `zeroth update`) calls. One `HEAD` request to
 /// [`latest_url`], following GitHub's redirect to the release's page and
 /// reading the tag off where it landed: no API (so no rate limit), no body,
 /// no identifier beyond the `alter-zero/{version}` user agent every request
@@ -729,7 +729,7 @@ mod tests {
             text.contains("https://github.com/linuztx/alter-zero/releases/tag/v0.2.0"),
             "{text}"
         );
-        assert!(text.contains("`alter-zero update`"), "{text}");
+        assert!(text.contains("`zeroth update`"), "{text}");
         assert!(text.contains("`/settings → Update check`"), "{text}");
         assert!(text.contains(&format!("`{UPDATE_ENV}=0`")), "{text}");
         assert_eq!(
@@ -833,7 +833,7 @@ mod tests {
 
     #[test]
     fn each_package_manager_updates_its_own_install() {
-        assert_eq!(update_command(None), "alter-zero update");
+        assert_eq!(update_command(None), "zeroth update");
         for (manager, name, command) in [
             (
                 PackageManager::Npm,
@@ -872,7 +872,7 @@ mod tests {
             "{text}"
         );
         assert!(
-            !text.contains("`alter-zero update`"),
+            !text.contains("`zeroth update`"),
             "never the command that would reinstall under node_modules: {text}"
         );
     }

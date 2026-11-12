@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline, real-CLI code-generation RAM stress probe. Run in an activated shell.
 
-python3 scripts/codegen_mem.py target/release/alter-zero --lines 800 --turns 4
+python3 scripts/codegen_mem.py target/release/zeroth --lines 800 --turns 4
 A loopback Chat Completions stand-in streams TSX/CSS/JSON write calls; no API
 keys are used and no generated code is executed. The CLI writes a throwaway
 project, retains its transcript, opens both overlays, resizes, then clears.

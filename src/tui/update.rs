@@ -25,8 +25,8 @@
 
 use ratatui::text::Line;
 
-use alter_zero::ui;
-use alter_zero::update;
+use zeroth::ui;
+use zeroth::update;
 
 use super::workers::spawn_update_check;
 use super::{Session, config, host};
@@ -141,7 +141,7 @@ impl Session<'_> {
     /// terminal (`ui::update_notice_lines`) over a blank spacer, through the
     /// same queue the banner rides. Chrome, never `history`; a purge rebuild
     /// does not re-emit it. Its command is the one that updates this install
-    /// — `alter-zero update`, or the package manager's that unpacked this
+    /// — `zeroth update`, or the package manager's that unpacked this
     /// binary under `node_modules` (`docs/ops/npm.md`).
     fn commit_update_notice(&mut self, latest: &str) {
         let width = self.term.screen().width;

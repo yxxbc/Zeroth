@@ -21,7 +21,7 @@ prints one line per required tool (the pinned toolchain, rustfmt/clippy, `mbx`,
 | `src/app/<area>.rs` (pure state) | `cargo test --lib app::tests::<area>` |
 | `src/ui/<area>.rs` (renderers, theme) | `cargo test --lib ui::` + one smoke phase if visible |
 | `src/llm/<provider or wire>` | `cargo test --lib llm::` (live tests only when the user asks — they spend tokens) |
-| `src/tui/`, `src/main.rs` | `cargo build && scripts/smoke.sh <id>` + `cargo test --bin alter-zero` |
+| `src/tui/`, `src/main.rs` | `cargo build && scripts/smoke.sh <id>` + `cargo test --bin zeroth` |
 | `src/term.rs` | `cargo test --lib term::` + the smoke phases that paint it |
 | public item moved/renamed, `mod.rs` re-export | `cargo test --test api_surface` + `cargo doc --no-deps --lib` |
 | `src/cli.rs`, `--help`, arg parsing | `cargo test --lib cli::` + `cargo test --test cli_help` |
@@ -70,7 +70,7 @@ CI runs the gate and smoke on Ubuntu, and the gate (no fmt) plus the clipboard
 tests and smoke readers on macOS. Linux is the reference; both should be green.
 
 - **macOS has no `setsid`.** Terminal tests start their sessions through the
-  built `alter-zero` helper. `cargo test` builds it; `cargo test --lib` does
+  built `zeroth` helper. `cargo test` builds it; `cargo test --lib` does
   not, so run `cargo build` first — otherwise ~46 terminal tests fail with
   "no way to give the command a terminal of its own here". Rebuild after
   changing the helper.
@@ -89,7 +89,7 @@ tests and smoke readers on macOS. Linux is the reference; both should be green.
   fail with an empty string, which turns an assertion into a false pass
   instead of a red run.
 - **A stale incremental link** (`Undefined symbols: … .llvm.…`) after a branch
-  switch is codegen: `cargo clean -p alter-zero`, never `rm -rf target/`.
+  switch is codegen: `cargo clean -p zeroth`, never `rm -rf target/`.
 - **Network/clipboard/X11 tests are `#[ignore]`d.** Never add `--ignored` to a
   routine run — they need keys, spend real tokens and overwrite the pasteboard.
 
@@ -127,7 +127,7 @@ edit a released changelog section. Intent in `docs/`, user-visible changes in
 
 - Don't run the whole `cargo test` or smoke suite "to check" a small edit.
 - Don't `rm -rf target/`, change `incremental`, `[profile.*]` or
-  `rust-toolchain.toml`; `cargo clean -p alter-zero` fixes a stale link.
+  `rust-toolchain.toml`; `cargo clean -p zeroth` fixes a stale link.
 - Don't run release/publish/build-image commands (`scripts/release.sh`
   prepare/build/npm/download, `docker/build.sh`, `makepkg`, pushes) — those are
   the user's calls. `scripts/release.sh selftest`/`check` are fine when

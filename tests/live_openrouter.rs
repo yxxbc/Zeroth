@@ -23,15 +23,15 @@
 
 use std::path::PathBuf;
 
-use alter_zero::app::{HistoryItem, Role, ToolCall, ToolStatus};
-use alter_zero::context::{ContextMessage, ContextRole, ContextToolCall, context_messages};
-use alter_zero::llm::classifier::ClassifierContext;
-use alter_zero::llm::{LlmBackend, ModelConfig, ThinkingMode};
-use alter_zero::permission::{PermissionKind, PermissionRequest, denial_result, denied_display};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
-use alter_zero::ui::{StreamRender, message_lines};
 use ratatui::style::{Color, Modifier};
 use ratatui::text::Line;
+use zeroth::app::{HistoryItem, Role, ToolCall, ToolStatus};
+use zeroth::context::{ContextMessage, ContextRole, ContextToolCall, context_messages};
+use zeroth::llm::classifier::ClassifierContext;
+use zeroth::llm::{LlmBackend, ModelConfig, ThinkingMode};
+use zeroth::permission::{PermissionKind, PermissionRequest, denial_result, denied_display};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
+use zeroth::ui::{StreamRender, message_lines};
 
 /// A backend configured for OpenRouter from the environment, for `model` with
 /// the given thinking mode and known image-input support. Panics with a clear
@@ -47,8 +47,8 @@ fn backend_with(model: String, thinking: Option<ThinkingMode>, vision: Option<bo
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking,
         vision,
@@ -58,7 +58,7 @@ fn backend_with(model: String, thinking: Option<ThinkingMode>, vision: Option<bo
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     LlmBackend::with_system_prompt(
         cfg,
@@ -139,10 +139,7 @@ fn live_usage_frame_reaches_the_app() {
     handle.join().expect("backend thread joins");
     println!("usage frames: {usages:?}");
     assert!(!usages.is_empty(), "the round reported real usage");
-    let total: u64 = usages
-        .iter()
-        .map(alter_zero::stream::TokenUsage::total)
-        .sum();
+    let total: u64 = usages.iter().map(zeroth::stream::TokenUsage::total).sum();
     assert!(
         total > 100,
         "the report counts the whole request (system prompt included), got {total}"
@@ -154,7 +151,7 @@ fn live_usage_frame_reaches_the_app() {
 fn complete_with_usage(
     backend: &LlmBackend,
     prompt: &str,
-) -> (String, Vec<alter_zero::stream::TokenUsage>) {
+) -> (String, Vec<zeroth::stream::TokenUsage>) {
     let context = vec![ContextMessage::new(ContextRole::User, prompt)];
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let handle = backend.spawn(prompt.to_string(), vec![], context, tx, CancelToken::new());
@@ -203,8 +200,8 @@ fn live_anthropic_prompt_cache_writes_then_reads() {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -214,7 +211,7 @@ fn live_anthropic_prompt_cache_writes_then_reads() {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     cfg.temperature = Some(0.0);
     // Tools off: a deterministic single round per turn, so each turn is
@@ -296,11 +293,11 @@ fn live_venice_reports_usage_and_hits_its_cache() {
         .expect("set A0_VENICE_API_KEY to run the Venice live tests");
     let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
-    let providers = alter_zero::llm::ProvidersFile::builtin();
+    let providers = zeroth::llm::ProvidersFile::builtin();
     let salt = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
-    let sel = alter_zero::llm::Selection {
+    let sel = zeroth::llm::Selection {
         provider_id: "a0_venice".to_string(),
         model,
         api_key: Some(key),
@@ -407,7 +404,7 @@ fn recorded_turn_with(
 ) -> Vec<HistoryItem> {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let handle = backend.spawn(prompt.to_string(), vec![], context, tx, CancelToken::new());
-    let mut app = alter_zero::app::App::new();
+    let mut app = zeroth::app::App::new();
     while let Some(event) = rx.blocking_recv() {
         match event {
             StreamEvent::ToolBatch(items) => app.start_tool_batch(&items),
@@ -498,7 +495,7 @@ fn live_a_real_write_then_edit_resolves_with_the_short_ack() {
             "the model reads one line: {read_by_model:?}"
         );
         assert!(
-            read_by_model.ends_with(alter_zero::llm::tools::FILE_STATE_NOTE),
+            read_by_model.ends_with(zeroth::llm::tools::FILE_STATE_NOTE),
             "…closing on the in-context claim: {read_by_model:?}"
         );
         assert!(
@@ -531,8 +528,8 @@ fn live_a_written_file_is_still_in_context_a_turn_later() {
     let arguments =
         serde_json::json!({ "path": "/tmp/settings.py", "content": content }).to_string();
     let history = vec![
-        HistoryItem::Message(alter_zero::app::Message {
-            role: alter_zero::app::Role::User,
+        HistoryItem::Message(zeroth::app::Message {
+            role: zeroth::app::Role::User,
             text: "Write the settings file.".to_string(),
             timestamp: String::new(),
             images: Vec::new(),
@@ -543,9 +540,9 @@ fn live_a_written_file_is_still_in_context_a_turn_later() {
             arguments: Some(arguments.clone()),
             status: ToolStatus::Ok,
             // The cell's numbered body — never what the model reads.
-            output: alter_zero::llm::tools::write_report("/tmp/settings.py", content),
+            output: zeroth::llm::tools::write_report("/tmp/settings.py", content),
             // …which is this one line.
-            context_output: Some(alter_zero::llm::tools::write_ack("/tmp/settings.py", true)),
+            context_output: Some(zeroth::llm::tools::write_ack("/tmp/settings.py", true)),
             timestamp: String::new(),
             shell: false,
             truncated: false,
@@ -553,7 +550,7 @@ fn live_a_written_file_is_still_in_context_a_turn_later() {
             batch: None,
             call_id: None,
             position: None,
-            run: alter_zero::stream::ToolRun::default(),
+            run: zeroth::stream::ToolRun::default(),
         }),
     ];
     let mut context = context_messages(&history);
@@ -629,7 +626,7 @@ fn live_amended_rejection_still_steers_the_model_a_turn_later() {
         batch: None,
         call_id: None,
         position: None,
-        run: alter_zero::stream::ToolRun::default(),
+        run: zeroth::stream::ToolRun::default(),
     })];
     let mut context = vec![ContextMessage::new(
         ContextRole::User,
@@ -656,7 +653,7 @@ fn live_environment_context_reaches_the_model() {
     // and the user back out of that block. Proves the block rides the
     // request and is legible to the model. Tools off so the model answers
     // from the prompt instead of shelling out for the path or `whoami`.
-    use alter_zero::llm::backend::augment_with_environment;
+    use zeroth::llm::backend::augment_with_environment;
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
@@ -667,7 +664,7 @@ fn live_environment_context_reaches_the_model() {
     let os = "linux (Ubuntu 24.04.4 LTS)";
     let user = "sentinel-user-42";
     let system = augment_with_environment(
-        "You are Alter Zero an autonomous AI agent running in terminal UI",
+        "You are Zeroth an autonomous AI agent running in terminal UI",
         "Sunday 2026-07-19",
         os,
         user,
@@ -680,8 +677,8 @@ fn live_environment_context_reaches_the_model() {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -691,7 +688,7 @@ fn live_environment_context_reaches_the_model() {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     let backend = LlmBackend::configure(cfg, Some(system), false);
 
@@ -734,7 +731,7 @@ fn live_scratchpad_context_reaches_the_model() {
     // `augment_with_scratchpad`, after the environment block. A real model must
     // read that path back out and name it as where temporary files go — the
     // whole point of the block. Tools off, so the answer comes from the prompt.
-    use alter_zero::llm::backend::{augment_with_environment, augment_with_scratchpad};
+    use zeroth::llm::backend::{augment_with_environment, augment_with_scratchpad};
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
@@ -742,7 +739,7 @@ fn live_scratchpad_context_reaches_the_model() {
     let scratchpad = "/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad";
     let system = augment_with_scratchpad(
         &augment_with_environment(
-            "You are Alter Zero an autonomous AI agent running in terminal UI",
+            "You are Zeroth an autonomous AI agent running in terminal UI",
             "Sunday 2026-07-19",
             "linux (Ubuntu 24.04.4 LTS)",
             "user",
@@ -757,8 +754,8 @@ fn live_scratchpad_context_reaches_the_model() {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -768,7 +765,7 @@ fn live_scratchpad_context_reaches_the_model() {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     let backend = LlmBackend::configure(cfg, Some(system), false);
 
@@ -801,7 +798,7 @@ fn live_scratchpad_context_reaches_the_model() {
 /// prompt that names no path at all.
 #[cfg(test)]
 fn scratchpad_targets(scratchpad: &std::path::Path, cwd: &str, task: &str) -> Vec<String> {
-    use alter_zero::llm::backend::{augment_with_environment, augment_with_scratchpad};
+    use zeroth::llm::backend::{augment_with_environment, augment_with_scratchpad};
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
@@ -813,8 +810,8 @@ fn scratchpad_targets(scratchpad: &std::path::Path, cwd: &str, task: &str) -> Ve
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -824,12 +821,12 @@ fn scratchpad_targets(scratchpad: &std::path::Path, cwd: &str, task: &str) -> Ve
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     // The production prompt, assembled exactly as the boundary assembles it.
     let system = augment_with_scratchpad(
         &augment_with_environment(
-            alter_zero::llm::backend::DEFAULT_SYSTEM_PROMPT,
+            zeroth::llm::backend::DEFAULT_SYSTEM_PROMPT,
             "Monday 2026-08-24",
             "linux (Ubuntu 24.04.4 LTS)",
             "user",
@@ -900,8 +897,8 @@ fn live_scratchpad_write_runs_without_a_permission_prompt() {
     // the model aims INSIDE the session scratchpad resolves before any prompt
     // is raised — the file lands, no `StreamEvent::Permission` is emitted, and
     // the cell wears the note that records no human approved it.
-    use alter_zero::llm::backend::augment_with_scratchpad;
-    use alter_zero::permission::{PermissionGate, PermissionMode, SCRATCHPAD_ALLOWED_NOTE};
+    use zeroth::llm::backend::augment_with_scratchpad;
+    use zeroth::permission::{PermissionGate, PermissionMode, SCRATCHPAD_ALLOWED_NOTE};
 
     let dir = std::env::temp_dir().join(format!("alter-zero-live-pad-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("scratchpad dir");
@@ -922,8 +919,8 @@ fn live_scratchpad_write_runs_without_a_permission_prompt() {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -933,10 +930,10 @@ fn live_scratchpad_write_runs_without_a_permission_prompt() {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     let system = augment_with_scratchpad(
-        "You are Alter Zero an autonomous AI agent running in terminal UI",
+        "You are Zeroth an autonomous AI agent running in terminal UI",
         &dir.display().to_string(),
     );
     let backend = LlmBackend::configure(cfg, Some(system), true).with_permissions(gate);
@@ -991,9 +988,9 @@ fn live_agents_md_instructions_reach_the_model() {
     // fragment) → `context_messages_with` (the leading user entry) → the real
     // wire — and the model can read a sentinel fact back out of it. Tools
     // off; the fact exists nowhere but the instructions.
-    use alter_zero::app::{HistoryItem, Message, Role};
-    use alter_zero::context::context_messages_with;
-    use alter_zero::project_doc;
+    use zeroth::app::{HistoryItem, Message, Role};
+    use zeroth::context::context_messages_with;
+    use zeroth::project_doc;
 
     let tmp = tempfile::tempdir().expect("tempdir");
     let repo = tmp.path().join("repo");
@@ -1115,7 +1112,7 @@ fn live_reasoning_effort_streams_thinking() {
     // `Thinking for Ns` status. gpt-oss-120b is cheap and always reasons.
     let (reply, thinking_chunks) = complete_with_thinking(
         "openai/gpt-oss-120b",
-        Some(ThinkingMode::Effort(alter_zero::llm::ReasoningEffort::Low)),
+        Some(ThinkingMode::Effort(zeroth::llm::ReasoningEffort::Low)),
     );
     println!("reply: {reply:?}, thinking chunks: {thinking_chunks}");
     assert!(reply.contains("391"), "the answer arrived: {reply:?}");
@@ -1138,7 +1135,7 @@ fn live_usage_reports_the_reasoning_token_count() {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let handle = backend_for(
         "openai/gpt-oss-120b".to_string(),
-        Some(ThinkingMode::Effort(alter_zero::llm::ReasoningEffort::Low)),
+        Some(ThinkingMode::Effort(zeroth::llm::ReasoningEffort::Low)),
     )
     .spawn(
         prompt.to_string(),
@@ -1180,9 +1177,7 @@ fn live_thought_cell_snaps_to_the_providers_reasoning_tokens() {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let handle = backend_for(
         "openai/gpt-oss-120b".to_string(),
-        Some(ThinkingMode::Effort(
-            alter_zero::llm::ReasoningEffort::Medium,
-        )),
+        Some(ThinkingMode::Effort(zeroth::llm::ReasoningEffort::Medium)),
     )
     .spawn(
         prompt.to_string(),
@@ -1192,7 +1187,7 @@ fn live_thought_cell_snaps_to_the_providers_reasoning_tokens() {
         CancelToken::new(),
     );
 
-    let mut app = alter_zero::app::App::new();
+    let mut app = zeroth::app::App::new();
     app.record_user_message(prompt);
     app.begin_stream();
     let mut estimate = None;
@@ -1344,11 +1339,11 @@ fn live_openrouter_models_report_vision_support() {
     // degradation below keys on.
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
-    let mut cfg = alter_zero::llm::ModelConfig::fallback();
+    let mut cfg = zeroth::llm::ModelConfig::fallback();
     cfg.provider_id = "openrouter".to_string();
     cfg.api_model_base = "https://openrouter.ai/api/v1".to_string();
     cfg.api_key = Some(key);
-    let models = alter_zero::llm::models::fetch_models(&cfg, &CancelToken::new())
+    let models = zeroth::llm::models::fetch_models(&cfg, &CancelToken::new())
         .expect("the model list fetches");
     let vision_of = |id: &str| {
         models
@@ -1369,13 +1364,13 @@ fn live_venice_models_report_vision_support() {
     // assert the field parses both ways rather than pinning names.
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the Venice live tests");
-    let providers = alter_zero::llm::ProvidersFile::builtin();
+    let providers = zeroth::llm::ProvidersFile::builtin();
     let venice = providers.get("a0_venice").expect("a0_venice is built in");
-    let mut cfg = alter_zero::llm::ModelConfig::fallback();
+    let mut cfg = zeroth::llm::ModelConfig::fallback();
     cfg.provider_id = "a0_venice".to_string();
     cfg.api_model_base = venice.models_base();
     cfg.api_key = Some(key);
-    let models = alter_zero::llm::models::fetch_models(&cfg, &CancelToken::new())
+    let models = zeroth::llm::models::fetch_models(&cfg, &CancelToken::new())
         .expect("the model list fetches");
     let sighted = models.iter().filter(|m| m.vision == Some(true)).count();
     let blind = models.iter().filter(|m| m.vision == Some(false)).count();
@@ -1496,7 +1491,7 @@ fn live_replayed_image_read_is_visible_on_the_next_turn() {
     // attachment note — must still be *visible* to the model in a later
     // turn. Blue (vs the in-turn test's red) so a leaked context can't
     // false-positive.
-    use alter_zero::app::{HistoryItem, Message, Role, ToolCall, ToolStatus};
+    use zeroth::app::{HistoryItem, Message, Role, ToolCall, ToolStatus};
     let path = std::env::temp_dir().join("alter-zero-live-replay-image-blue.png");
     let img = image::RgbaImage::from_pixel(64, 64, image::Rgba([20, 20, 220, 255]));
     img.save(&path).expect("write the test PNG");
@@ -1515,7 +1510,7 @@ fn live_replayed_image_read_is_visible_on_the_next_turn() {
             name: "Read".to_string(),
             args: path_str.clone(),
             arguments: None,
-            output: alter_zero::llm::tools::format_read_image("PNG", 64, 64, 200),
+            output: zeroth::llm::tools::format_read_image("PNG", 64, 64, 200),
             status: ToolStatus::Ok,
             timestamp: String::new(),
             shell: false,
@@ -1525,7 +1520,7 @@ fn live_replayed_image_read_is_visible_on_the_next_turn() {
             batch: None,
             call_id: None,
             position: None,
-            run: alter_zero::stream::ToolRun::default(),
+            run: zeroth::stream::ToolRun::default(),
         }),
         HistoryItem::Message(Message {
             role: Role::Assistant,
@@ -1540,7 +1535,7 @@ fn live_replayed_image_read_is_visible_on_the_next_turn() {
             images: Vec::new(),
         }),
     ];
-    let context = alter_zero::context::context_messages(&history);
+    let context = zeroth::context::context_messages(&history);
     // The derivation reconstructed the attachment: a user entry carrying the
     // image path right after the tool result.
     assert!(
@@ -1622,7 +1617,7 @@ fn live_ctrl_b_handoff_tells_the_model_the_user_moved_it() {
     // and does not re-run the command or poll for it.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-ctrlb-{}", std::process::id()));
-    let registry = alter_zero::background::BackgroundRegistry::new(bg_tx, dir);
+    let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let backend = backend().with_background(registry.clone());
 
     let prompt = "Use the bash tool exactly once to run this command in the foreground \
@@ -1676,15 +1671,15 @@ fn live_ctrl_b_handoff_tells_the_model_the_user_moved_it() {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     while std::time::Instant::now() < deadline {
         match bg_rx.try_recv() {
-            Ok(alter_zero::background::BgEvent::Started { id: started, .. }) => {
+            Ok(zeroth::background::BgEvent::Started { id: started, .. }) => {
                 assert_eq!(started, id);
             }
-            Ok(alter_zero::background::BgEvent::Output { chunk, .. }) => streamed.push_str(&chunk),
+            Ok(zeroth::background::BgEvent::Output { chunk, .. }) => streamed.push_str(&chunk),
             // A command runs in a terminal (docs/tools/bash-tools.md): its output
             // arrives as the screen, whole each time.
-            Ok(alter_zero::background::BgEvent::Screen { text, .. }) => streamed.push_str(&text),
-            Ok(alter_zero::background::BgEvent::Waiting { .. }) => {}
-            Ok(alter_zero::background::BgEvent::Exited { code, killed, .. }) => {
+            Ok(zeroth::background::BgEvent::Screen { text, .. }) => streamed.push_str(&text),
+            Ok(zeroth::background::BgEvent::Waiting { .. }) => {}
+            Ok(zeroth::background::BgEvent::Exited { code, killed, .. }) => {
                 assert_eq!(code, Some(0));
                 assert!(!killed);
                 exited = true;
@@ -1717,7 +1712,7 @@ fn live_killed_background_task_is_known_to_the_model_within_the_turn() {
     // follow-up turn.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-kill-{}", std::process::id()));
-    let registry = alter_zero::background::BackgroundRegistry::new(bg_tx, dir);
+    let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let backend = backend().with_background(registry.clone());
 
     // The boundary simulator: apply the registry's events to the pure App
@@ -1725,23 +1720,23 @@ fn live_killed_background_task_is_known_to_the_model_within_the_turn() {
     // Exited-arm dance (docs/tools/background.md).
     let post_registry = registry.clone();
     let boundary = std::thread::spawn(move || {
-        let mut app = alter_zero::app::App::new();
+        let mut app = zeroth::app::App::new();
         let mut posted = None;
         while let Some(event) = bg_rx.blocking_recv() {
             match event {
-                alter_zero::background::BgEvent::Started {
+                zeroth::background::BgEvent::Started {
                     id,
                     command,
                     description,
                     from_model,
                     origin,
                 } => app.bg_started(&id, &command, description, from_model, origin),
-                alter_zero::background::BgEvent::Output { id, chunk } => {
+                zeroth::background::BgEvent::Output { id, chunk } => {
                     app.bg_output(&id, &chunk);
                 }
-                alter_zero::background::BgEvent::Screen { id, text } => app.bg_screen(&id, &text),
-                alter_zero::background::BgEvent::Waiting { .. } => {}
-                alter_zero::background::BgEvent::Exited {
+                zeroth::background::BgEvent::Screen { id, text } => app.bg_screen(&id, &text),
+                zeroth::background::BgEvent::Waiting { .. } => {}
+                zeroth::background::BgEvent::Exited {
                     id, code, killed, ..
                 } => {
                     let completion = app.bg_exited(&id, code, killed).expect("a known shell");
@@ -1815,8 +1810,8 @@ fn live_sudo_style_tty_prompt_fails_fast() {
     // `Running…`-forever hijack this fix removes).
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-notty-{}", std::process::id()));
-    let registry = alter_zero::background::BackgroundRegistry::new(bg_tx, dir)
-        .with_detach_helper(Some(PathBuf::from(env!("CARGO_BIN_EXE_alter-zero"))));
+    let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir)
+        .with_detach_helper(Some(PathBuf::from(env!("CARGO_BIN_EXE_zeroth"))));
     let backend = backend().with_background(registry);
 
     let prompt = "Use the bash tool exactly once to run exactly this command, verbatim, \
@@ -1875,7 +1870,7 @@ fn live_background_launch_resolves_and_completes() {
     // Started → Screen → Exited on its own channel.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-bg-{}", std::process::id()));
-    let registry = alter_zero::background::BackgroundRegistry::new(bg_tx, dir);
+    let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let backend = backend().with_background(registry);
 
     let prompt = "Use the bash tool exactly once to run this command in the background \
@@ -1911,15 +1906,15 @@ fn live_background_launch_resolves_and_completes() {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     while std::time::Instant::now() < deadline {
         match bg_rx.try_recv() {
-            Ok(alter_zero::background::BgEvent::Started { id: started, .. }) => {
+            Ok(zeroth::background::BgEvent::Started { id: started, .. }) => {
                 assert_eq!(started, id);
             }
-            Ok(alter_zero::background::BgEvent::Output { chunk, .. }) => streamed.push_str(&chunk),
+            Ok(zeroth::background::BgEvent::Output { chunk, .. }) => streamed.push_str(&chunk),
             // A command runs in a terminal (docs/tools/bash-tools.md): its output
             // arrives as the screen, whole each time.
-            Ok(alter_zero::background::BgEvent::Screen { text, .. }) => streamed.push_str(&text),
-            Ok(alter_zero::background::BgEvent::Waiting { .. }) => {}
-            Ok(alter_zero::background::BgEvent::Exited { code, killed, .. }) => {
+            Ok(zeroth::background::BgEvent::Screen { text, .. }) => streamed.push_str(&text),
+            Ok(zeroth::background::BgEvent::Waiting { .. }) => {}
+            Ok(zeroth::background::BgEvent::Exited { code, killed, .. }) => {
                 assert_eq!(code, Some(0));
                 assert!(!killed);
                 exited = true;
@@ -1947,9 +1942,9 @@ fn live_subagent_is_sent_the_subagent_note_and_ctrl_d_matches_it() {
     // actually sent.
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-agnote-{}", std::process::id()));
-    let registry = alter_zero::background::BackgroundRegistry::new(bg_tx, dir);
+    let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, _agent_rx) = tokio::sync::mpsc::unbounded_channel();
-    let agent_registry = alter_zero::agents::AgentRegistry::new(agent_tx);
+    let agent_registry = zeroth::agents::AgentRegistry::new(agent_tx);
     let backend = backend()
         .with_background(registry)
         .with_agents(agent_registry);
@@ -1957,7 +1952,7 @@ fn live_subagent_is_sent_the_subagent_note_and_ctrl_d_matches_it() {
     // The sentinel phrase lives in prompts/subagent.md alone — not in the
     // terse main prompt, and (deliberately) not in either prompt below.
     let sentinel = "launched by the main agent";
-    let surfaced = ReplySource::agent_system_prompt(&backend, alter_zero::agents::GENERAL_PURPOSE)
+    let surfaced = ReplySource::agent_system_prompt(&backend, zeroth::agents::GENERAL_PURPOSE)
         .expect("the backend surfaces its subagent prompt");
     assert!(
         surfaced.contains(sentinel),
@@ -2031,9 +2026,9 @@ fn live_a_subagents_classifier_context_is_its_own_not_the_leads() {
     // agent runs a command the lead is told not to run.
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-agclass-{}", std::process::id()));
-    let bg = alter_zero::background::BackgroundRegistry::new(bg_tx, dir);
+    let bg = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, mut agent_rx) = tokio::sync::mpsc::unbounded_channel();
-    let agents = alter_zero::agents::AgentRegistry::new(agent_tx);
+    let agents = zeroth::agents::AgentRegistry::new(agent_tx);
     let backend = backend().with_background(bg).with_agents(agents.clone());
 
     // ORCHESTRATOR-ONLY appears in the lead's request and nowhere in the
@@ -2059,7 +2054,7 @@ fn live_a_subagents_classifier_context_is_its_own_not_the_leads() {
     // Every id the agent channel reported — the turn is over, so they are all
     // queued and `try_recv` drains without blocking.
     let mut ids: Vec<String> = Vec::new();
-    while let Ok(alter_zero::agents::AgentEvent::Stream { id, .. }) = agent_rx.try_recv() {
+    while let Ok(zeroth::agents::AgentEvent::Stream { id, .. }) = agent_rx.try_recv() {
         if !ids.contains(&id) {
             ids.push(id);
         }
@@ -2114,9 +2109,9 @@ fn live_subagent_background_bash_stacks_into_the_shared_registry() {
     // completing on the registry's own channel.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-agbg-{}", std::process::id()));
-    let registry = alter_zero::background::BackgroundRegistry::new(bg_tx, dir);
+    let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, mut agent_rx) = tokio::sync::mpsc::unbounded_channel();
-    let agent_registry = alter_zero::agents::AgentRegistry::new(agent_tx);
+    let agent_registry = zeroth::agents::AgentRegistry::new(agent_tx);
     let backend = backend()
         .with_background(registry)
         .with_agents(agent_registry);
@@ -2150,7 +2145,7 @@ fn live_subagent_background_bash_stacks_into_the_shared_registry() {
 
     // The subagent's own stream resolved its bash call as backgrounded.
     let mut subagent_backgrounded = false;
-    while let Ok(alter_zero::agents::AgentEvent::Stream { id, event }) = agent_rx.try_recv() {
+    while let Ok(zeroth::agents::AgentEvent::Stream { id, event }) = agent_rx.try_recv() {
         if id == agent_id && matches!(event, StreamEvent::ToolBackgrounded { .. }) {
             subagent_backgrounded = true;
         }
@@ -2168,18 +2163,18 @@ fn live_subagent_background_bash_stacks_into_the_shared_registry() {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     while std::time::Instant::now() < deadline {
         match bg_rx.try_recv() {
-            Ok(alter_zero::background::BgEvent::Started { origin, .. }) => {
+            Ok(zeroth::background::BgEvent::Started { origin, .. }) => {
                 let origin = origin.expect("a subagent launch carries its origin");
                 assert_eq!(origin.agent_id, agent_id, "attributed to the launcher");
                 assert_eq!(origin.agent_type, "general-purpose");
                 origin_seen = true;
             }
-            Ok(alter_zero::background::BgEvent::Output { chunk, .. }) => streamed.push_str(&chunk),
+            Ok(zeroth::background::BgEvent::Output { chunk, .. }) => streamed.push_str(&chunk),
             // A command runs in a terminal (docs/tools/bash-tools.md): its output
             // arrives as the screen, whole each time.
-            Ok(alter_zero::background::BgEvent::Screen { text, .. }) => streamed.push_str(&text),
-            Ok(alter_zero::background::BgEvent::Waiting { .. }) => {}
-            Ok(alter_zero::background::BgEvent::Exited { code, killed, .. }) => {
+            Ok(zeroth::background::BgEvent::Screen { text, .. }) => streamed.push_str(&text),
+            Ok(zeroth::background::BgEvent::Waiting { .. }) => {}
+            Ok(zeroth::background::BgEvent::Exited { code, killed, .. }) => {
                 assert_eq!(code, Some(0));
                 assert!(!killed);
                 exited = true;
@@ -2210,9 +2205,9 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
 
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let dir = std::env::temp_dir().join(format!("alter-zero-live-agdim-{}", std::process::id()));
-    let registry = alter_zero::background::BackgroundRegistry::new(bg_tx, dir);
+    let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, mut agent_rx) = tokio::sync::mpsc::unbounded_channel();
-    let agent_registry = alter_zero::agents::AgentRegistry::new(agent_tx);
+    let agent_registry = zeroth::agents::AgentRegistry::new(agent_tx);
     let backend = backend()
         .with_background(registry)
         .with_agents(agent_registry);
@@ -2232,7 +2227,7 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
 
     // The app the live region renders from — seeded by the round's own
     // announcement, exactly as the loop seeds it.
-    let mut app = alter_zero::app::App::new();
+    let mut app = zeroth::app::App::new();
     app.begin_stream();
     let mut agent_id = String::new();
     while let Some(event) = rx.blocking_recv() {
@@ -2257,7 +2252,7 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
     // call ran. Rendering is a pure function of that state, so a replay is
     // what the live loop showed.
     let mut frames: Vec<(Option<String>, Vec<ratatui::text::Line<'static>>)> = Vec::new();
-    while let Ok(alter_zero::agents::AgentEvent::Stream { id, event }) = agent_rx.try_recv() {
+    while let Ok(zeroth::agents::AgentEvent::Stream { id, event }) = agent_rx.try_recv() {
         if id != agent_id {
             continue;
         }
@@ -2268,7 +2263,7 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
         app.apply_agent_event(&id, &event);
         if let Some((name, detail)) = started {
             assert_eq!(name.to_lowercase(), "bash", "the agent ran the bash tool");
-            frames.push((detail, alter_zero::ui::live_agent_group_lines(&app, WIDTH)));
+            frames.push((detail, zeroth::ui::live_agent_group_lines(&app, WIDTH)));
         }
     }
     assert!(
@@ -2333,7 +2328,7 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
         .expect("the settled entry stays on the roster for its linger");
     assert_eq!(
         run.status,
-        alter_zero::agents::AgentStatus::Done,
+        zeroth::agents::AgentStatus::Done,
         "the subagent settled cleanly"
     );
     let Some(HistoryItem::Summary(summary)) = run.history.last() else {
@@ -2374,7 +2369,7 @@ fn bash_request(command: &str, description: Option<&str>) -> PermissionRequest {
 
 /// The classifier under test, on the live-model config (or
 /// `ALTER_ZERO_CLASSIFIER_MODEL`, which `SafetyClassifier::new` honours).
-fn live_classifier() -> alter_zero::llm::classifier::SafetyClassifier {
+fn live_classifier() -> zeroth::llm::classifier::SafetyClassifier {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
@@ -2386,8 +2381,8 @@ fn live_classifier() -> alter_zero::llm::classifier::SafetyClassifier {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -2397,9 +2392,9 @@ fn live_classifier() -> alter_zero::llm::classifier::SafetyClassifier {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
-    alter_zero::llm::classifier::SafetyClassifier::new(&cfg)
+    zeroth::llm::classifier::SafetyClassifier::new(&cfg)
 }
 
 /// A realistic mid-task [`ClassifierContext`], rendered — the shape the
@@ -2577,7 +2572,7 @@ fn live_auto_mode_turn_runs_a_safe_command_with_the_note() {
     // the backend; the model's bash call is reviewed by the classifier — the
     // events must show ToolStart → ToolNote → ToolEnd with NO Permission
     // prompt, and the turn completes.
-    use alter_zero::permission::{PermissionGate, PermissionMode};
+    use zeroth::permission::{PermissionGate, PermissionMode};
     let gate = PermissionGate::new();
     gate.set_mode(PermissionMode::Auto);
     let backend = backend().with_permissions(gate);
@@ -2636,8 +2631,8 @@ fn live_tools_setting_decides_whether_the_model_is_offered_any() {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -2647,7 +2642,7 @@ fn live_tools_setting_decides_whether_the_model_is_offered_any() {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     let prompt = "Use the bash tool exactly once to run exactly: echo tools_marker \
                   Then reply with just the marker it printed.";
@@ -2705,8 +2700,8 @@ fn live_error_retry_setting_bounds_the_attempts() {
         api_base: "https://127.0.0.1:9/v1".to_string(),
         api_model_base: "https://127.0.0.1:9/v1".to_string(),
         api_key: Some("sk-does-not-matter".to_string()),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: None,
         thinking: None,
         vision: None,
@@ -2716,7 +2711,7 @@ fn live_error_retry_setting_bounds_the_attempts() {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     let retries_for = |max: u32| {
         let backend = LlmBackend::configure(unreachable.clone(), None, false).with_max_retries(max);
@@ -2772,8 +2767,8 @@ fn live_temperature_setting_rides_the_request() {
             api_base: "https://openrouter.ai/api/v1".to_string(),
             api_model_base: "https://openrouter.ai/api/v1".to_string(),
             api_key: Some(key.clone()),
-            auth: alter_zero::llm::AuthScheme::ApiKey,
-            wire_api: alter_zero::llm::WireApi::Chat,
+            auth: zeroth::llm::AuthScheme::ApiKey,
+            wire_api: zeroth::llm::WireApi::Chat,
             temperature,
             thinking: None,
             vision: None,
@@ -2783,7 +2778,7 @@ fn live_temperature_setting_rides_the_request() {
             extra_headers: Vec::new(),
             extra_body: serde_json::Map::new(),
             drop_params: Vec::new(),
-            reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+            reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
         };
         let backend = LlmBackend::configure(cfg, None, false);
         let prompt = "Reply with exactly: OK";
@@ -2827,8 +2822,8 @@ fn live_max_tool_calls_bounds_a_parallel_batch() {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -2838,7 +2833,7 @@ fn live_max_tool_calls_bounds_a_parallel_batch() {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     const CAP: usize = 3;
     let backend = LlmBackend::configure(cfg, None, true).with_max_tool_calls(CAP);
@@ -2901,7 +2896,7 @@ fn live_ask_user_question_round_trip() {
     // would, and the resolution comes back as ToolAnswered — the green cell's
     // display + the answers JSON — before the model's closing reply uses the
     // answer.
-    let gate = alter_zero::ask::AskGate::new();
+    let gate = zeroth::ask::AskGate::new();
     let backend = backend().with_ask(gate.clone());
     let context = vec![ContextMessage::new(
         ContextRole::User,
@@ -2928,7 +2923,7 @@ fn live_ask_user_question_round_trip() {
                 assert!(!request.questions.is_empty());
                 gate.resolve(
                     &request.id,
-                    alter_zero::ask::AskDecision::Submitted(vec![alter_zero::ask::AskAnswer {
+                    zeroth::ask::AskDecision::Submitted(vec![zeroth::ask::AskAnswer {
                         question: request.questions[0].question.clone(),
                         labels: vec!["Casual".to_string()],
                         notes: None,
@@ -2952,7 +2947,7 @@ fn live_ask_user_question_round_trip() {
     assert!(asked_questions >= 1, "the model used the ask tool");
     let (display, result) = answered.expect("the submission resolved the call");
     println!("display:\n{display}\nresult: {result}\nreply: {reply}");
-    assert!(display.starts_with("User answered Alter Zero's questions:"));
+    assert!(display.starts_with("User answered Zeroth's questions:"));
     assert!(display.contains("→ Casual"));
     let value: serde_json::Value = serde_json::from_str(&result).expect("the answers JSON");
     assert!(value["answers"].is_object());
@@ -2967,7 +2962,7 @@ fn live_ask_user_question_round_trip() {
 fn live_ask_user_question_decline_stops_the_model() {
     // A decline resolves the call red with the stop-and-wait result — the
     // model must not re-ask in the same turn; it acknowledges and ends.
-    let gate = alter_zero::ask::AskGate::new();
+    let gate = zeroth::ask::AskGate::new();
     let backend = backend().with_ask(gate.clone());
     let context = vec![ContextMessage::new(
         ContextRole::User,
@@ -2988,7 +2983,7 @@ fn live_ask_user_question_decline_stops_the_model() {
         match event {
             StreamEvent::AskUser(request) => {
                 asks += 1;
-                gate.resolve(&request.id, alter_zero::ask::AskDecision::Declined);
+                gate.resolve(&request.id, zeroth::ask::AskDecision::Declined);
             }
             StreamEvent::ToolRejected {
                 display, result, ..
@@ -3017,7 +3012,7 @@ fn live_model_plans_through_the_task_tools() {
     // resolves each call as a `TaskCall` (never the visible ToolStart/ToolEnd
     // pair), the shared store ends up holding the plan the model made, and
     // every snapshot rides its own event so the strip's checklist can follow.
-    let registry = alter_zero::tasks::TaskRegistry::new();
+    let registry = zeroth::tasks::TaskRegistry::new();
     let backend = backend().with_tasks(registry.clone());
     let prompt = "Plan a three-step release checklist with the task tools: \
                   create three tasks, then mark the first one in_progress. \
@@ -3092,8 +3087,8 @@ fn live_model_plans_through_the_task_tools() {
 
 /// A backend with a real `hooks.json` attached, running handlers in `dir`.
 fn backend_with_hooks(hooks_json: &str, dir: &std::path::Path) -> LlmBackend {
-    let file = alter_zero::hooks::HooksFile::parse(hooks_json).expect("the fixture parses");
-    let context = alter_zero::hooks::HookContext {
+    let file = zeroth::hooks::HooksFile::parse(hooks_json).expect("the fixture parses");
+    let context = zeroth::hooks::HookContext {
         session_id: "live-test".to_string(),
         transcript_path: None,
         cwd: dir.display().to_string(),
@@ -3103,12 +3098,12 @@ fn backend_with_hooks(hooks_json: &str, dir: &std::path::Path) -> LlmBackend {
         agent_type: None,
         scratchpad_dir: None,
     };
-    let sink = alter_zero::llm::hooks::CommandHooks::new(
+    let sink = zeroth::llm::hooks::CommandHooks::new(
         std::sync::Arc::new(file),
         context,
         None,
         dir.to_path_buf(),
-        alter_zero::llm::hooks::HookHandles::default(),
+        zeroth::llm::hooks::HookHandles::default(),
     )
     .expect("the fixture has a runnable handler");
     let model =
@@ -3356,7 +3351,7 @@ fn skill_registry_at(
     name: &str,
     description: &str,
     body: &str,
-) -> alter_zero::skills::SkillRegistry {
+) -> zeroth::skills::SkillRegistry {
     let dir = root.join(name);
     std::fs::create_dir_all(&dir).expect("skill dir");
     std::fs::write(
@@ -3364,16 +3359,16 @@ fn skill_registry_at(
         format!("---\nname: {name}\ndescription: {description}\n---\n\n{body}\n"),
     )
     .expect("SKILL.md");
-    let (skills, errors) = alter_zero::llm::skill::discover_skills(&[root.to_path_buf()]);
+    let (skills, errors) = zeroth::llm::skill::discover_skills(&[root.to_path_buf()]);
     assert!(errors.is_empty(), "the fixture parses: {errors:?}");
-    alter_zero::skills::SkillRegistry::new(skills)
+    zeroth::skills::SkillRegistry::new(skills)
 }
 
 /// A tools-enabled backend carrying `registry`, plus the `<system-reminder>`
 /// listing the model picks a skill name out of — the two halves that have to
 /// agree, assembled the way `tui::models` assembles them.
 fn skill_backend_and_context(
-    registry: &alter_zero::skills::SkillRegistry,
+    registry: &zeroth::skills::SkillRegistry,
     prompt: &str,
 ) -> (LlmBackend, Vec<ContextMessage>) {
     // Either credential runs this section: the skills contract is about the
@@ -3398,8 +3393,8 @@ fn skill_backend_and_context(
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -3409,7 +3404,7 @@ fn skill_backend_and_context(
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     let backend = LlmBackend::configure(
         cfg,
@@ -3423,13 +3418,9 @@ fn skill_backend_and_context(
 /// The context a skills live test opens on: the budgeted `<system-reminder>`
 /// listing the model picks a name out of, then the prompt — assembled the way
 /// `tui::models` assembles them.
-fn skill_context(
-    registry: &alter_zero::skills::SkillRegistry,
-    prompt: &str,
-) -> Vec<ContextMessage> {
-    let listing = alter_zero::skills::listing_message(
-        &registry.listing(alter_zero::skills::listing_budget(None)),
-    );
+fn skill_context(registry: &zeroth::skills::SkillRegistry, prompt: &str) -> Vec<ContextMessage> {
+    let listing =
+        zeroth::skills::listing_message(&registry.listing(zeroth::skills::listing_budget(None)));
     assert!(!listing.is_empty(), "the reminder names the skill");
     vec![
         ContextMessage::new(ContextRole::User, &listing),
@@ -3496,7 +3487,7 @@ fn live_skill_tool_loads_a_skill_and_the_model_reads_its_body() {
         events
             .iter()
             .any(|e| matches!(e, StreamEvent::ToolStart { name, .. }
-            if name.eq_ignore_ascii_case(alter_zero::skills::SKILL_TOOL_NAME))),
+            if name.eq_ignore_ascii_case(zeroth::skills::SKILL_TOOL_NAME))),
         "the model called the skill tool: {events:?}"
     );
     // The cell's side of the split is the one green line — never the body.
@@ -3507,7 +3498,7 @@ fn live_skill_tool_loads_a_skill_and_the_model_reads_its_body() {
             _ => None,
         })
         .expect("the call resolves green through ToolAnswered");
-    assert_eq!(display, alter_zero::skills::SKILL_LOADED_DISPLAY);
+    assert_eq!(display, zeroth::skills::SKILL_LOADED_DISPLAY);
 
     let reply = reply_text(&events);
     println!("model replied: {reply:?}");
@@ -3543,7 +3534,7 @@ fn live_dollar_mention_loads_the_mentioned_skill() {
         .iter()
         .find_map(|e| match e {
             StreamEvent::ToolStart { name, args, .. }
-                if name.eq_ignore_ascii_case(alter_zero::skills::SKILL_TOOL_NAME) =>
+                if name.eq_ignore_ascii_case(zeroth::skills::SKILL_TOOL_NAME) =>
             {
                 Some(args.clone())
             }
@@ -3591,7 +3582,7 @@ fn live_an_embedded_mention_still_loads_the_skill() {
         events
             .iter()
             .any(|e| matches!(e, StreamEvent::ToolStart { name, .. }
-            if name.eq_ignore_ascii_case(alter_zero::skills::SKILL_TOOL_NAME))),
+            if name.eq_ignore_ascii_case(zeroth::skills::SKILL_TOOL_NAME))),
         "an embedded mention still loads the skill: {events:?}"
     );
     let reply = reply_text(&events);
@@ -3629,7 +3620,7 @@ fn live_a_skill_body_reaches_the_model_verbatim() {
         .find_map(|e| match e {
             StreamEvent::ToolStart {
                 name, arguments, ..
-            } if name.eq_ignore_ascii_case(alter_zero::skills::SKILL_TOOL_NAME) => {
+            } if name.eq_ignore_ascii_case(zeroth::skills::SKILL_TOOL_NAME) => {
                 Some(arguments.clone().unwrap_or_default())
             }
             _ => None,
@@ -3676,8 +3667,8 @@ fn live_a_skill_body_reaches_the_model_verbatim() {
 #[test]
 #[ignore]
 fn live_mcp_deepwiki_tool_call_round_trips() {
-    use alter_zero::llm::mcp::{McpManager, McpSources};
-    use alter_zero::mcp::{McpScope, McpServerConfig, McpServerEntry, McpServerStatus};
+    use zeroth::llm::mcp::{McpManager, McpSources};
+    use zeroth::mcp::{McpScope, McpServerConfig, McpServerEntry, McpServerStatus};
 
     let (mcp_tx, _mcp_rx) = tokio::sync::mpsc::unbounded_channel();
     let manager = McpManager::new(
@@ -3791,8 +3782,8 @@ fn live_streamed_reply_render_is_prefix_stable_at_real_chunk_boundaries() {
     // this over synthetic chunkings; this proves nothing about the real
     // wire's framing (multi-byte splits, blank keep-alives, provider
     // batching) breaks it.
-    use alter_zero::app::Role;
-    use alter_zero::ui::{StreamRender, message_lines};
+    use zeroth::app::Role;
+    use zeroth::ui::{StreamRender, message_lines};
 
     let prompt = "Produce one markdown reply containing, in order: a level-2 \
                   heading; a 40+ word paragraph with one **bold** phrase, one \
@@ -3962,11 +3953,11 @@ fn live_streaming_never_loses_or_repeats_a_row() {
         println!("[{name}] {} chunks, {} bytes", chunks.len(), full.len());
         for width in [20u16, 40, 60, 80, 120] {
             let expected: Vec<Vec<(String, Option<ratatui::style::Color>)>> =
-                alter_zero::ui::message_lines(alter_zero::app::Role::Assistant, &full, width)
+                zeroth::ui::message_lines(zeroth::app::Role::Assistant, &full, width)
                     .iter()
                     .map(styled)
                     .collect();
-            let mut render = alter_zero::ui::StreamRender::new();
+            let mut render = zeroth::ui::StreamRender::new();
             let mut committed: Vec<Vec<(String, Option<ratatui::style::Color>)>> = Vec::new();
             let mut acc = String::new();
             for chunk in &chunks {
@@ -3995,7 +3986,7 @@ fn live_streaming_never_loses_or_repeats_a_row() {
                         .map(|l| plain(l)),
                 );
                 let want: Vec<String> =
-                    alter_zero::ui::message_lines(alter_zero::app::Role::Assistant, &acc, width)
+                    zeroth::ui::message_lines(zeroth::app::Role::Assistant, &acc, width)
                         .iter()
                         .map(plain)
                         .collect();
@@ -4037,8 +4028,8 @@ fn venice_backend(system: Option<String>) -> LlmBackend {
         .expect("set A0_VENICE_API_KEY to run the Venice live tests");
     let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
-    let providers = alter_zero::llm::ProvidersFile::builtin();
-    let sel = alter_zero::llm::Selection {
+    let providers = zeroth::llm::ProvidersFile::builtin();
+    let sel = zeroth::llm::Selection {
         provider_id: "a0_venice".to_string(),
         model,
         api_key: Some(key),
@@ -4240,7 +4231,7 @@ fn live_streamed_wide_glyphs_upholds_the_one_frontier_contract() {
 /// frontier rendered once under the budget's cap, its height injected, the
 /// region sized from the fit — and return the painted rows.
 fn painted_live_rows(
-    app: &mut alter_zero::app::App,
+    app: &mut zeroth::app::App,
     render: &mut StreamRender,
     text: &str,
     width: u16,
@@ -4249,22 +4240,22 @@ fn painted_live_rows(
     let preview = render.preview(
         text,
         width,
-        alter_zero::ui::stream_preview_max_rows(app, width, term_height),
+        zeroth::ui::stream_preview_max_rows(app, width, term_height),
     );
     app.set_stream_preview_rows(u16::try_from(preview.len()).unwrap());
-    let band = alter_zero::ui::band_rows(app, width);
-    let height = alter_zero::ui::live_height(
+    let band = zeroth::ui::band_rows(app, width);
+    let height = zeroth::ui::live_height(
         &app.input,
         width,
         term_height,
-        alter_zero::ui::strip_has_status(app),
-        alter_zero::ui::fitted_preview_rows(app, width, term_height),
-        alter_zero::ui::task_rows(app, width),
-        alter_zero::ui::queued_rows(app, width),
-        alter_zero::ui::toast_rows(app),
+        zeroth::ui::strip_has_status(app),
+        zeroth::ui::fitted_preview_rows(app, width, term_height),
+        zeroth::ui::task_rows(app, width),
+        zeroth::ui::queued_rows(app, width),
+        zeroth::ui::toast_rows(app),
         band,
-        alter_zero::ui::footer_rows(app, band),
-        alter_zero::ui::agent_list_rows(app),
+        zeroth::ui::footer_rows(app, band),
+        zeroth::ui::agent_list_rows(app),
     );
     assert!(
         height <= term_height,
@@ -4272,7 +4263,7 @@ fn painted_live_rows(
     );
     let area = ratatui::layout::Rect::new(0, 0, width, height);
     let mut buf = ratatui::buffer::Buffer::empty(area);
-    alter_zero::ui::render_live_with_preview(area, &mut buf, app, Some(&preview));
+    zeroth::ui::render_live_with_preview(area, &mut buf, app, Some(&preview));
     (0..height)
         .map(|y| {
             (0..width)
@@ -4308,12 +4299,12 @@ fn live_streamed_table_never_squeezes_the_composer() {
 
     for (band_key, marker) in [("/", "/clear"), ("?", "for commands"), ("", "")] {
         for (width, term_height) in [(51u16, 24u16), (80, 24), (60, 18), (100, 30)] {
-            let mut app = alter_zero::app::App::new();
+            let mut app = zeroth::app::App::new();
             app.begin_stream();
             app.set_status_times(std::time::Duration::from_secs(9), None);
-            app.input = alter_zero::textarea::TextArea::from_text(band_key);
+            app.input = zeroth::textarea::TextArea::from_text(band_key);
             match band_key {
-                "/" => app.command_menu = Some(alter_zero::app::CommandMenu { selected: 0 }),
+                "/" => app.command_menu = Some(zeroth::app::CommandMenu { selected: 0 }),
                 "?" => app.shortcuts_open = true,
                 _ => {}
             }
@@ -4356,13 +4347,13 @@ fn live_streamed_table_never_squeezes_the_composer() {
 /// A tools-enabled backend on the `a0_venice` provider carrying `registry` —
 /// [`skill_backend_and_context`]'s Venice twin, for the skill tests run
 /// against that key (`A0_VENICE_API_KEY`, `ALTER_ZERO_LIVE_VENICE_MODEL`).
-fn venice_skill_backend(registry: &alter_zero::skills::SkillRegistry) -> LlmBackend {
+fn venice_skill_backend(registry: &zeroth::skills::SkillRegistry) -> LlmBackend {
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the Venice live tests");
     let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "zai-org-glm-4.7-flash".to_string());
-    let providers = alter_zero::llm::ProvidersFile::builtin();
-    let sel = alter_zero::llm::Selection {
+    let providers = zeroth::llm::ProvidersFile::builtin();
+    let sel = zeroth::llm::Selection {
         provider_id: "a0_venice".to_string(),
         model,
         api_key: Some(key),
@@ -4403,12 +4394,12 @@ fn live_the_built_in_skill_creator_writes_a_skill_this_crate_can_load() {
     let _ = std::fs::remove_dir_all(&work);
     let root = work.join("skills");
     assert!(
-        alter_zero::llm::skill::seed_builtin_skills(&root).is_empty(),
+        zeroth::llm::skill::seed_builtin_skills(&root).is_empty(),
         "the built-in seeds"
     );
-    let (seeded, errors) = alter_zero::llm::skill::discover_skills(std::slice::from_ref(&root));
+    let (seeded, errors) = zeroth::llm::skill::discover_skills(std::slice::from_ref(&root));
     assert!(errors.is_empty(), "the seeded skill parses: {errors:?}");
-    let registry = alter_zero::skills::SkillRegistry::new(seeded);
+    let registry = zeroth::skills::SkillRegistry::new(seeded);
 
     let prompt = format!(
         "Create a skill called `commit-style` that tells you how to write this \
@@ -4416,9 +4407,8 @@ fn live_the_built_in_skill_creator_writes_a_skill_this_crate_can_load() {
          emoji. Put it under {}. Then reply with just: done",
         root.display()
     );
-    let listing = alter_zero::skills::listing_message(
-        &registry.listing(alter_zero::skills::listing_budget(None)),
-    );
+    let listing =
+        zeroth::skills::listing_message(&registry.listing(zeroth::skills::listing_budget(None)));
     assert!(
         listing.contains("skill-creator"),
         "the reminder offers the built-in: {listing}"
@@ -4430,7 +4420,7 @@ fn live_the_built_in_skill_creator_writes_a_skill_this_crate_can_load() {
     let history = recorded_turn_with(&venice_skill_backend(&registry), &prompt, context);
 
     // The description alone earned the load — nothing in the prompt named it.
-    let loaded = recorded_call(&history, alter_zero::skills::SKILL_TOOL_DISPLAY);
+    let loaded = recorded_call(&history, zeroth::skills::SKILL_TOOL_DISPLAY);
     assert!(
         loaded.context_text().contains("Writing a skill"),
         "the model read the built-in's body: {:?}",
@@ -4438,7 +4428,7 @@ fn live_the_built_in_skill_creator_writes_a_skill_this_crate_can_load() {
     );
 
     // And what it wrote is a skill this session could load next turn.
-    let (found, errors) = alter_zero::llm::skill::discover_skills(std::slice::from_ref(&root));
+    let (found, errors) = zeroth::llm::skill::discover_skills(std::slice::from_ref(&root));
     let _ = std::fs::remove_dir_all(&work);
     assert!(
         errors.is_empty(),
@@ -4471,10 +4461,10 @@ fn live_the_skill_creator_sends_the_model_to_its_reference_file() {
     ));
     let _ = std::fs::remove_dir_all(&work);
     let root = work.join("skills");
-    assert!(alter_zero::llm::skill::seed_builtin_skills(&root).is_empty());
-    let (seeded, errors) = alter_zero::llm::skill::discover_skills(std::slice::from_ref(&root));
+    assert!(zeroth::llm::skill::seed_builtin_skills(&root).is_empty());
+    let (seeded, errors) = zeroth::llm::skill::discover_skills(std::slice::from_ref(&root));
     assert!(errors.is_empty(), "{errors:?}");
-    let registry = alter_zero::skills::SkillRegistry::new(seeded);
+    let registry = zeroth::skills::SkillRegistry::new(seeded);
 
     let prompt = format!(
         "Write a new skill `haiku` under {} whose body tells the reader to run \
@@ -4484,9 +4474,8 @@ fn live_the_skill_creator_sends_the_model_to_its_reference_file() {
          with just: done",
         root.display()
     );
-    let listing = alter_zero::skills::listing_message(
-        &registry.listing(alter_zero::skills::listing_budget(None)),
-    );
+    let listing =
+        zeroth::skills::listing_message(&registry.listing(zeroth::skills::listing_budget(None)));
     let context = vec![
         ContextMessage::new(ContextRole::User, &listing),
         ContextMessage::new(ContextRole::User, &prompt),

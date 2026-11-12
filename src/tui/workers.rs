@@ -31,11 +31,11 @@ use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
 
-use alter_zero::app::{App, ServerTest, SigninKind, ToastKind};
-use alter_zero::clipboard;
-use alter_zero::file_search::{FileMatch, rank_files, sibling_order};
-use alter_zero::llm::{self, AuthScheme, ModelConfig, ModelEntry};
-use alter_zero::stream::CancelToken;
+use zeroth::app::{App, ServerTest, SigninKind, ToastKind};
+use zeroth::clipboard;
+use zeroth::file_search::{FileMatch, rank_files, sibling_order};
+use zeroth::llm::{self, AuthScheme, ModelConfig, ModelEntry};
+use zeroth::stream::CancelToken;
 
 use super::Session;
 
@@ -405,13 +405,13 @@ fn spawn_copilot_login(cancel: CancelToken, tx: tokio::sync::mpsc::UnboundedSend
 /// *sends* — never a stdin reader (invariant 1).
 pub(crate) fn spawn_telemetry_ping(
     endpoint: String,
-    ping: alter_zero::telemetry::Ping,
+    ping: zeroth::telemetry::Ping,
     day: String,
-    tx: tokio::sync::mpsc::UnboundedSender<alter_zero::telemetry::Delivery>,
+    tx: tokio::sync::mpsc::UnboundedSender<zeroth::telemetry::Delivery>,
 ) {
     std::thread::spawn(move || {
-        if alter_zero::telemetry::send_ping(&endpoint, &ping).is_ok() {
-            let _ = tx.send(alter_zero::telemetry::Delivery {
+        if zeroth::telemetry::send_ping(&endpoint, &ping).is_ok() {
+            let _ = tx.send(zeroth::telemetry::Delivery {
                 day,
                 version: ping.version,
             });
@@ -432,7 +432,7 @@ pub(crate) fn spawn_update_check(
     tx: tokio::sync::mpsc::UnboundedSender<String>,
 ) {
     std::thread::spawn(move || {
-        if let Ok(latest) = alter_zero::update::fetch_latest(&repo, &version) {
+        if let Ok(latest) = zeroth::update::fetch_latest(&repo, &version) {
             let _ = tx.send(latest);
         }
     });
@@ -709,7 +709,7 @@ impl Session<'_> {
                 if let Some(name) = path.to_str()
                     && let Some(px) = image_dimensions(&path)
                 {
-                    alter_zero::images::remember_size(name, px);
+                    zeroth::images::remember_size(name, px);
                 }
                 self.app.attach_image(path);
                 // A known non-vision model can't see the paste: warn at once with
@@ -831,7 +831,7 @@ mod tests {
                 "B/", "c/", "Z/", "a.md", "A.txt", "b.txt", "B/q", "c/X/", "c/y.txt", "c/X/w",
             ]
         );
-        let listed: Vec<String> = alter_zero::file_search::rank_files("", walk.paths.clone())
+        let listed: Vec<String> = zeroth::file_search::rank_files("", walk.paths.clone())
             .into_iter()
             .map(|m| m.path)
             .collect();

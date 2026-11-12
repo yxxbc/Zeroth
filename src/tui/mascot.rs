@@ -1,7 +1,7 @@
 //! The `/mascot` picker at the boundary: applying a selection
 //! (`docs/ui/mascot.md`).
 //!
-//! The pure side ([`alter_zero::app::App::mascot`]) already holds the new
+//! The pure side ([`zeroth::app::App::mascot`]) already holds the new
 //! mascot when the picker's Enter lands here; what has to *happen* — the
 //! `mascot.json` write (keyed by this working directory,
 //! `docs/state/per-directory-state.md`), the banner redraw, the confirming toast —
@@ -10,7 +10,7 @@
 
 use std::io;
 
-use alter_zero::app::{Mascot, ToastKind};
+use zeroth::app::{Mascot, ToastKind};
 
 use super::{Session, config};
 

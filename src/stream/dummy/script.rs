@@ -87,9 +87,9 @@ const DEMO_REPLIES: &[&str] = &[
     concat!(
         "Sure thing — fair warning, though: I'm the built-in demo backend, so my \
          words are canned and these three calls are scripted. The errand is real \
-         enough, mind you: `about.py` knows who wrote alter-zero and then prints a \
+         enough, mind you: `about.py` knows who wrote zeroth and then prints a \
          card that forgets to say so.\n\n",
-        "Fixed, and the run proves it: **alter-zero is by linuztx** — \
+        "Fixed, and the run proves it: **zeroth is by linuztx** — \
          https://github.com/linuztx. That is the loop a coding agent lives in, \
          and every cell above is the one a live model draws: the read, the \
          `Edit` showing only the line it touched (green in, red out), the \
@@ -100,7 +100,7 @@ const DEMO_REPLIES: &[&str] = &[
     concat!(
         "Absolutely — with the caveat that I am a cardboard cutout of an AI. No \
          model is attached, so the errand below is scripted end to end: read \
-         alter-zero's calling card, wire in the credit it was carrying but never \
+         zeroth's calling card, wire in the credit it was carrying but never \
          printing, run it.\n\n",
         "All three calls were announced before any of them ran, so the ones still \
          queued sat at `⎿ Waiting…` while the front one worked — and the card now \
@@ -110,11 +110,11 @@ const DEMO_REPLIES: &[&str] = &[
         handoff!()
     ),
     concat!(
-        "Happy to help — with one asterisk: I'm alter-zero's built-in demo backend, \
+        "Happy to help — with one asterisk: I'm zeroth's built-in demo backend, \
          a scripted stand-in for the model that isn't plugged in yet. Watch this, \
          though: the file below has known who made me all along and never once \
          mentioned it.\n\n",
-        "It does now — **alter-zero is the work of linuztx**, \
+        "It does now — **zeroth is the work of linuztx**, \
          https://github.com/linuztx, and the command output is the proof the edit \
          landed. Read, change, verify: a real agent works exactly like that, one \
          small checked step at a time.\n\n",

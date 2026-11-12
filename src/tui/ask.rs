@@ -10,12 +10,12 @@
 //! working. Every rule of the clock itself lives in [`AskTimer`] and is
 //! unit-tested there; only `Instant::now()` and the frame booking are here.
 //!
-//! [`AskTimer`]: alter_zero::ask::AskTimer
-//! [`App::expire_asks`]: alter_zero::app::App::expire_asks
+//! [`AskTimer`]: zeroth::ask::AskTimer
+//! [`App::expire_asks`]: zeroth::app::App::expire_asks
 
 use std::time::{Duration, Instant};
 
-use alter_zero::ask::AskClock;
+use zeroth::ask::AskClock;
 
 use super::Session;
 

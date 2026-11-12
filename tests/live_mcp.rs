@@ -22,12 +22,12 @@
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
-use alter_zero::app::{App, ToolStatus};
-use alter_zero::llm::mcp::{McpManager, McpSources};
-use alter_zero::llm::{LlmBackend, ModelConfig};
-use alter_zero::permission::{PermissionKind, PermissionRequest, options, title};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent, ToolCallSummary};
-use alter_zero::{mcp, ui};
+use zeroth::app::{App, ToolStatus};
+use zeroth::llm::mcp::{McpManager, McpSources};
+use zeroth::llm::{LlmBackend, ModelConfig};
+use zeroth::permission::{PermissionKind, PermissionRequest, options, title};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent, ToolCallSummary};
+use zeroth::{mcp, ui};
 
 /// The public DeepWiki MCP server — streamable HTTP, no authentication.
 /// A **legacy** (handshake) server: it settles at `2025-11-25`.
@@ -170,8 +170,8 @@ fn backend_with_deepwiki(manager: McpManager) -> LlmBackend {
         api_base: "https://openrouter.ai/api/v1".to_string(),
         api_model_base: "https://openrouter.ai/api/v1".to_string(),
         api_key: Some(key),
-        auth: alter_zero::llm::AuthScheme::ApiKey,
-        wire_api: alter_zero::llm::WireApi::Chat,
+        auth: zeroth::llm::AuthScheme::ApiKey,
+        wire_api: zeroth::llm::WireApi::Chat,
         temperature: Some(0.0),
         thinking: None,
         vision: None,
@@ -181,7 +181,7 @@ fn backend_with_deepwiki(manager: McpManager) -> LlmBackend {
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
         drop_params: Vec::new(),
-        reasoning_param: alter_zero::llm::ReasoningParam::Reasoning,
+        reasoning_param: zeroth::llm::ReasoningParam::Reasoning,
     };
     LlmBackend::with_system_prompt(cfg, Some("You are a terse assistant.".to_string()))
         .with_mcp(manager)
@@ -399,7 +399,7 @@ fn live_a_parallel_deepwiki_batch_renders_as_one_cell() {
         .history
         .iter()
         .filter_map(|item| match item {
-            alter_zero::app::HistoryItem::Tool(tool) => Some(tool.name.as_str()),
+            zeroth::app::HistoryItem::Tool(tool) => Some(tool.name.as_str()),
             _ => None,
         })
         .collect();
@@ -436,7 +436,7 @@ fn live_a_parallel_deepwiki_batch_renders_as_one_cell() {
     // …and every resolved call is green, not a failure.
     assert!(
         app.history.iter().all(|item| match item {
-            alter_zero::app::HistoryItem::Tool(tool) => tool.status == ToolStatus::Ok,
+            zeroth::app::HistoryItem::Tool(tool) => tool.status == ToolStatus::Ok,
             _ => true,
         }),
         "a failed call would have rendered loudly instead"
@@ -451,7 +451,7 @@ fn live_auto_mode_classifies_an_mcp_call_instead_of_prompting() {
     // raise the permission prompt anyway. It must ride the classifier like a
     // command — no `Permission` event, the `ToolNote` provenance row on the
     // allowed call, and a green resolution.
-    use alter_zero::permission::{PermissionGate, PermissionMode};
+    use zeroth::permission::{PermissionGate, PermissionMode};
     let manager = connected_deepwiki();
     let gate = PermissionGate::new();
     gate.set_mode(PermissionMode::Auto);

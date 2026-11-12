@@ -19,10 +19,10 @@
 //! - telemetry (`docs/ops/telemetry.md`): [`utc_day`] (the once-a-day key) and
 //!   [`random_bytes`] (the install id's entropy).
 
-use alter_zero::llm;
+use zeroth::llm;
 
 /// Local wall-clock stamp for recorded items: 12-hour time, no seconds, e.g.
-/// `03:20 AM`. Injected via [`App::set_clock`](alter_zero::app::App::set_clock) and shown **only** under the
+/// `03:20 AM`. Injected via [`App::set_clock`](zeroth::app::App::set_clock) and shown **only** under the
 /// user's message in the Ctrl+O transcript — the one impurity kept out of the
 /// pure library.
 pub(crate) fn local_timestamp() -> String {
@@ -34,7 +34,7 @@ pub(crate) fn local_timestamp() -> String {
 /// system prompt by [`augment_with_environment`] so the agent knows the day
 /// (see `docs/architecture/environment.md`).
 ///
-/// [`augment_with_environment`]: alter_zero::llm::backend::augment_with_environment
+/// [`augment_with_environment`]: zeroth::llm::backend::augment_with_environment
 pub(crate) fn local_date() -> String {
     chrono::Local::now().format("%A %Y-%m-%d").to_string()
 }

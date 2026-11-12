@@ -34,14 +34,14 @@ use std::time::Instant;
 
 use ratatui::text::Line;
 
-use alter_zero::app::{QueuedTurn, Role};
-use alter_zero::background::PendingNotice;
-use alter_zero::checkpoint;
-use alter_zero::context;
-use alter_zero::paste;
-use alter_zero::project_doc;
-use alter_zero::stream::{CancelToken, ReplySource};
-use alter_zero::ui;
+use zeroth::app::{QueuedTurn, Role};
+use zeroth::background::PendingNotice;
+use zeroth::checkpoint;
+use zeroth::context;
+use zeroth::paste;
+use zeroth::project_doc;
+use zeroth::stream::{CancelToken, ReplySource};
+use zeroth::ui;
 
 use super::Session;
 use super::shell::spawn_shell_command;

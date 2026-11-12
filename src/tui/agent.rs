@@ -30,13 +30,13 @@ use std::time::{Duration, Instant};
 
 use ratatui::text::Line;
 
-use alter_zero::agents::{AGENT_LINGER, AgentEvent};
-use alter_zero::app::{
+use zeroth::agents::{AGENT_LINGER, AgentEvent};
+use zeroth::app::{
     AgentNotice, AgentStop, CONNECTION_LOST_NOTICE, HistoryItem, Role, ToastKind, ToolStatus, View,
 };
-use alter_zero::session::RequestUsage;
-use alter_zero::stream::{AgentChatDelivery, StreamEvent};
-use alter_zero::ui;
+use zeroth::session::RequestUsage;
+use zeroth::stream::{AgentChatDelivery, StreamEvent};
+use zeroth::ui;
 
 use super::Session;
 
@@ -281,8 +281,8 @@ impl Session<'_> {
                 .agent_registry
                 .post_notice(id, run, &self.registry, context)
             {
-                alter_zero::agents::NoticePost::Posted(posted) => seq = posted,
-                alter_zero::agents::NoticePost::Covered => {
+                zeroth::agents::NoticePost::Posted(posted) => seq = posted,
+                zeroth::agents::NoticePost::Covered => {
                     if let Some(notice) = settled.take() {
                         self.app.settle_agent_completion(&notice);
                     }
@@ -641,7 +641,7 @@ impl Session<'_> {
     ///
     /// The **first** `x` cancels the subagent thread and settles the entry as
     /// interrupted; the row stays, red, for `AGENT_STOPPED_LINGER` (the
-    /// entry's own [`linger`](alter_zero::agents::AgentRun::linger)) so the
+    /// entry's own [`linger`](zeroth::agents::AgentRun::linger)) so the
     /// user sees what they stopped. A background agent's stopped notice
     /// settles like a completion (a foreground one resolves with its group
     /// when the backend's wait loop sees the kill), and with nothing in flight

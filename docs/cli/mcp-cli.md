@@ -236,7 +236,7 @@ a failed write — one plain stderr line), **0** for success and help.
 - `mcp::names`: `validate_server_name` accepts the wire-safe class,
   rejects and names anything else.
 - `tests/mcp_cli.rs` (the `detached_exec.rs` pattern — the real binary
-  via `CARGO_BIN_EXE_alter-zero`, `ALTER_ZERO_MCP_FILE` into a temp dir):
+  via `CARGO_BIN_EXE_zeroth`, `ALTER_ZERO_MCP_FILE` into a temp dir):
   add stdio + http + sse + add-json, the file's exact JSON, list order,
   get's masking, remove keeping order, duplicate/missing/invalid-file
   exit codes, help, and the invalid file left byte-identical.

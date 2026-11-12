@@ -47,7 +47,7 @@ pub struct SessionMeta {
     ///
     /// [`ReplySource::model_name`]: crate::stream::ReplySource::model_name
     pub model: String,
-    /// Who wrote the file (`"alter-zero"`) — codex records an `originator`.
+    /// Who wrote the file (`"zeroth"`) — codex records an `originator`.
     pub originator: String,
     /// The recording crate version (`CARGO_PKG_VERSION`).
     pub version: String,
@@ -1345,7 +1345,7 @@ mod tests {
             timestamp: "2026-07-06T10:00:00.000Z".into(),
             cwd: "/home/user/repo".into(),
             model: "dummy_model_name".into(),
-            originator: "alter-zero".into(),
+            originator: "zeroth".into(),
             version: "0.1.0".into(),
         }
     }

@@ -12,12 +12,12 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 
-use alter_zero::app::{App, HistoryItem};
-use alter_zero::context::{ContextMessage, ContextRole, context_messages};
-use alter_zero::llm::agent::{CUT_OFF_LABEL, CUT_OFF_NOTE, EMPTY_REPLY_LABEL, EMPTY_REPLY_NOTE};
-use alter_zero::llm::hooks::{HookSink, PromptVerdict};
-use alter_zero::llm::{LlmBackend, ModelConfig, WireApi};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
+use zeroth::app::{App, HistoryItem};
+use zeroth::context::{ContextMessage, ContextRole, context_messages};
+use zeroth::llm::agent::{CUT_OFF_LABEL, CUT_OFF_NOTE, EMPTY_REPLY_LABEL, EMPTY_REPLY_NOTE};
+use zeroth::llm::hooks::{HookSink, PromptVerdict};
+use zeroth::llm::{LlmBackend, ModelConfig, WireApi};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// The one call every round below makes, and the arguments it records.
 const ARGUMENTS: &str = r#"{"path":"/nonexistent/alter-zero-wire-history"}"#;
@@ -574,7 +574,7 @@ fn live_openrouter_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
     // result back instead of re-reading it from the call on
     // (docs/providers/prompt-caching.md). Both backends share the session's affinity
     // key, as two backends of one process do.
-    use alter_zero::llm::{ProvidersFile, Selection};
+    use zeroth::llm::{ProvidersFile, Selection};
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run this live test");
     let model = std::env::var("ALTER_ZERO_LIVE_OPENROUTER_MODEL")
@@ -608,7 +608,7 @@ fn live_openrouter_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
             .insert("max_tokens".into(), serde_json::json!(64));
         LlmBackend::configure(cfg, Some(system.clone()), true)
     };
-    let usages = |events: &[StreamEvent]| -> Vec<alter_zero::stream::TokenUsage> {
+    let usages = |events: &[StreamEvent]| -> Vec<zeroth::stream::TokenUsage> {
         events
             .iter()
             .filter_map(|event| match event {
@@ -681,8 +681,8 @@ fn live_chatgpt_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
     // tool round; a read through the tool result is the record replaying
     // what the provider cached (docs/providers/prompt-caching.md). OpenAI's cache is
     // best-effort, so the assertion is the floor and the ratio is printed.
-    use alter_zero::llm::{ProvidersFile, Selection};
-    alter_zero::llm::chatgpt::set_store_path(
+    use zeroth::llm::{ProvidersFile, Selection};
+    zeroth::llm::chatgpt::set_store_path(
         std::env::var_os("ALTER_ZERO_LIVE_TOKEN_STORE")
             .map(std::path::PathBuf::from)
             .expect("set ALTER_ZERO_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to"),
@@ -716,7 +716,7 @@ fn live_chatgpt_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
             .expect("chatgpt_codex is a built-in provider");
         LlmBackend::configure(cfg, Some(system.clone()), true)
     };
-    let usages = |events: &[StreamEvent]| -> Vec<alter_zero::stream::TokenUsage> {
+    let usages = |events: &[StreamEvent]| -> Vec<zeroth::stream::TokenUsage> {
         events
             .iter()
             .filter_map(|event| match event {

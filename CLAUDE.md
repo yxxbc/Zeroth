@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 first edit: it maps a change to the smallest check that can fail, so the loop is
 `cargo test --lib <module>::` (sub-second warm) rather than `cargo test` or the
 whole smoke suite after every edit. It also says what a Mac needs for the
-lib suite (the `alter-zero` binary built: with no `setsid` there, the tests
+lib suite (the `zeroth` binary built: with no `setsid` there, the tests
 start their terminal sessions through its helper, and without it every such
 test fails, which is not a regression) and what else differs between the two
 platforms CI tests on. `scripts/preflight.sh --smoke` checks the machine
@@ -37,7 +37,7 @@ mbx clean                                   # clear the workspace's build via mb
 scripts/release.sh check [vX.Y.Z]           # Cargo.toml, Cargo.lock, the README badge and CHANGELOG.md agree (docs/ops/release.md)
 scripts/release.sh build [TARGET]           # one platform's release archive + .sha256 into dist/
 cargo build --profile dist                  # the shipped binary alone: fat LTO, one codegen unit, ~4½ min cold (docs/ops/binary-size.md)
-scripts/release.sh verify dist              # the archives: checksums, layout, CPU, `alter-zero --version`
+scripts/release.sh verify dist              # the archives: checksums, layout, CPU, `zeroth --version`
 scripts/release.sh notes X.Y.Z              # the release notes the workflow publishes: CHANGELOG.md's section, nothing else
 scripts/release.sh selftest                 # the release tooling's own fixture-driven tests
 scripts/release.sh download X.Y.Z [DIST]   # a published release back into an empty dist/, each archive beside its .sha256, verified (curl or wget, no gh)
@@ -179,7 +179,7 @@ release (`docs/ops/aur.md`), one directory per AUR repository, each the
 hand-edited) and an allowlist `.gitignore`. **`aur/alter-zero-bin`**
 repackages the release's own Linux archives (`source_x86_64`/
 `source_aarch64` pinned to `SHA256SUMS`, `provides`/`conflicts`
-`alter-zero`, `!strip` so the release's symbol table survives, and no
+`zeroth`, `!strip` so the release's symbol table survives, and no
 `oniguruma` dependency since the release links its bundled copy).
 **`aur/alter-zero`** is built from source by the user's own `makepkg`. It
 builds with **Arch's** `rust`, not the pinned toolchain, so it answers what
@@ -210,11 +210,11 @@ stays resident beside the TUI. A failed `execve` **aborts** Node rather than
 throwing, so `locate` proves first everything it could fail on (package
 resolved, file executable, its ELF `PT_INTERP` loader present), and Node's
 ignored `SIGPIPE`/`SIGXFSZ` are caught before the exec so the binary does not
-inherit them. `argv[0]` is `alter-zero` (the resume hint prints it), while
+inherit them. `argv[0]` is `zeroth` (the resume hint prints it), while
 `current_exe()` stays the real binary under `node_modules` — which is how
 `update::package_manager` knows a package manager owns the install
 (`.pnpm`/`.bun`/`yarn/global` around `node_modules` say which), so the update
-card names that manager's command and `alter-zero update` refuses. Its
+card names that manager's command and `zeroth update` refuses. Its
 `package.json` is a fifth place the version is written: `check` rule 7 and
 `prepare` keep the version and the four pins in step, and its
 `prepublishOnly` refuses a publish made from `npm/` itself — the staged copy
@@ -365,7 +365,7 @@ startup, so ↑/↓ recall *and* Ctrl+R span sessions) in
 running turn** at the next round boundary, main session and subagent session
 alike — in `docs/input/queue.md`; the
 session-context footer in `docs/ui/footer.md`; the **startup banner** (the
-gradient mascot beside the bold `Alter Zero (v…)` title, the cwd in the
+gradient mascot beside the bold `Zeroth (v…)` title, the cwd in the
 footer's path green, and the cyan `/login /model /resume` hint — chrome outside `history`, re-emitted atop
 every purge rebuild) in `docs/ui/header.md`, and the **`/mascot` picker** that
 switches it (the `/theme` picker's layout over the six-mascot catalog — a
@@ -508,7 +508,7 @@ theme exist) in `docs/ui/theme.md`; the **`/donate` page** (`docs/ui/donate.md`:
 project's crypto donation addresses, one command away — the `/hooks`
 browser's sibling, a read-only composer-replacing page with no text entry
 and the hidden cursor seated on its `❯`: a red heart over the
-banner-gradient `Support Alter Zero` title, a dim two-row blurb, each
+banner-gradient `Support Zeroth` title, a dim two-row blurb, each
 address as a numbered `❯ 1. BTC  Bitcoin` row (the ticker and the coin,
 never a network — the row stays one glance wide) over its rounded box (the
 `/login` device page's), the
@@ -539,7 +539,7 @@ the clipboard row says where the text goes, the file row names
 `conversation-YYYY-MM-DD-HHMMSS.txt` and the cwd it lands in), a pick
 **closing** the page since the choice is its whole point; what is exported
 is `ui::export_text` — the Ctrl+O page's own rows top to bottom, the
-startup banner it opens with (mascot, `Alter Zero (v…)`, cwd, the
+startup banner it opens with (mascot, `Zeroth (v…)`, cwd, the
 `/login   /model   /resume` hint) included, every tool call's full output
 and the live tail mid-turn, the viewed agent's transcript inside its
 session view, at
@@ -1273,8 +1273,8 @@ loads it back and appends the turns that follow to the same file — and its
 resolved to a rollout path in `main()` *after* the detached-exec hook and
 *before* the terminal boots (fail-fast on stderr, the pure parse in `cli`,
 the id lookup via `session::rollout_file_id`/`latest_for_cwd`) — plus the
-**`[PROMPT]` shortcut**: one quoted positional (`alter-zero "fix the failing
-test"`, `alter-zero --resume {id} "and now the docs"`, `-c "…"`) submitted
+**`[PROMPT]` shortcut**: one quoted positional (`zeroth "fix the failing
+test"`, `zeroth --resume {id} "and now the docs"`, `-c "…"`) submitted
 as the first turn of whichever session those open, through
 `Session::submit_startup_prompt` — the Enter path minus the composer, so it
 records into ↑ recall and `start_turn`s like a typed message; strict (a
@@ -1282,7 +1282,7 @@ second positional is a usage error carrying a quote hint, never a join that
 would read a stray `-c` as `--continue`; a blank prompt and a prompt behind
 the bare picker are refused; `--` ends the flags; `--resume` still takes the
 next token as its id greedily, Claude Code's rule) — and the **`--help`
-page**: `Alter Zero` (`APP_NAME`) on the first line in the app's bold-cyan
+page**: `Zeroth` (`APP_NAME`) on the first line in the app's bold-cyan
 heading style over a one-line description, then clap's shape — an inline
 `Usage:` with continuation lines, `Commands:` / `Arguments:` / `Options:`
 rows aligned on one page-wide column, literals bold, placeholders bare —
@@ -1296,7 +1296,7 @@ transcript committed under the banner through `insert_before` — never a
 startup Purge, the user's terminal scrollback survives — and a quit that
 recorded anything printing `Resume this session with: {bin} --resume {id}`
 after `term.restore()`, `docs/cli/cli.md` — and the **`mcp` subcommand family**,
-`docs/cli/mcp-cli.md`: `alter-zero mcp add {name} --url {url}` / `mcp add {name}
+`docs/cli/mcp-cli.md`: `zeroth mcp add {name} --url {url}` / `mcp add {name}
 [--] {command} [args…]` (plus `add-json`/`remove`/`get`/`list`) edits the
 *user* MCP config file at that same pre-TUI boundary — codex's explicit
 url-or-command grammar with Claude Code's `--transport sse`/`--header`/
@@ -1332,7 +1332,7 @@ Ctrl+C is an unread key event, and hashing is O(bytes): a 235 MB cwd measured
 **9.7 s** to first frame and a 260 MB store. Two guards decide, both pure with
 the paths injected at the boundary. The **categorical**
 `checkpoint::cwd_scope` refuses a filesystem root, the home dir or an ancestor
-of it (the original "hangs in `~`" bug), **alter-zero's own state dir and
+of it (the original "hangs in `~`" bug), **zeroth's own state dir and
 everything under it** (it holds the rollouts, the input history and every
 project's store, so a restore's `git clean -fd` there deletes other sessions'
 records), every `SYSTEM_TREES` entry **and its subtree** (`/proc`, `/sys`,
@@ -1367,7 +1367,7 @@ the row unavailable). Running out of *time* is its own verdict
 (`ProbeOutcome::OutOfTime` → `TooSlow`), never folded into "too big": a probe
 that timed out learned nothing about the size. Every refusal raises a one-row `Checkpoints off —
 {reason}` toast, suppressed only when the user had already turned checkpoints
-off: going quiet is what made "alter-zero takes seconds to boot in `/tmp`" and
+off: going quiet is what made "zeroth takes seconds to boot in `/tmp`" and
 "checkpoints do nothing here" read as two unrelated bugs — and a session-start
 snapshot that *does* run announces itself the same way: the probe's bound
 `SnapshotCost` becomes the pure `checkpoint::snapshot_notice` row
@@ -1749,7 +1749,7 @@ the detach on purpose — **every** `bash` call runs `bash -c` (the first
 none is installed — dash broke `[[ … ]]`, `source`, `{1..3}`) in a
 **pseudo-terminal of its own** as its controlling terminal (rustix's safe
 `openpt`/`TIOCGPTPEER`, the detach chain's TTY form — `setsid -c`, then the
-helper under `__alter-zero-detached-tty-exec` adding `TIOCSCTTY` and
+helper under `__zeroth-detached-tty-exec` adding `TIOCSCTTY` and
 `exec`ing the shell its optional third argument names, and **no attached
 tier**, whose `/dev/tty` would be the user's: where neither tier works the
 command runs on a pipe instead, `TtyLaunchError::NoTerminal`) and returns once
@@ -2816,13 +2816,13 @@ without an answer, `5m`/**`10m`**/`20m`/`30m`/`1h`/`never`, `docs/tools/ask.md`;
 position rather than in `settings.json`; **Update check** — the once-a-day
 newer-release check, `docs/ops/update.md`: one `HEAD` of the repository's
 `/releases/latest` per UTC day, the tag read off the redirect it lands on (no
-API, no body, no install id — the `alter-zero/{version}` user agent and
+API, no body, no install id — the `zeroth/{version}` user agent and
 nothing else), the attempt's day recorded **at the spawn** so a dead network
 costs one request a day and nothing the user sees, the answer kept in the
 per-**user** `update.json` beside `telemetry.json` (`enabled`,
 `last_check_day`, `latest`, `notice_day`), and a newer release announced
 **once a day** through the `ui::update_notice_lines` card — the telemetry
-card's own frame, `ui::notice_card_lines`, naming the release page, `alter-zero
+card's own frame, `ui::notice_card_lines`, naming the release page, `zeroth
 update` — or, for a binary a package manager unpacked under `node_modules`,
 that manager's own command (`update::package_manager` over `current_exe()`,
 `docs/ops/npm.md`) — and the off switch — committed after the first frame and **never
@@ -2831,7 +2831,7 @@ inside a reply** (a result landing mid-turn waits in
 with the row or `ALTER_ZERO_UPDATE_CHECK=0` (which withdraws the row, the
 Telemetry rule), `ALTER_ZERO_UPDATE_URL` pointing a fork or `smoke.sh`
 Phase 116's stand-in `release_server.py` at another repository root; and the
-**`alter-zero update` subcommand** (`cli::Cli::Update` → `tui::update_cli`,
+**`zeroth update` subcommand** (`cli::Cli::Update` → `tui::update_cli`,
 routed at the pre-TUI boundary like `mcp`) doing the install: the same
 `HEAD`, then `install.sh` fetched **to a temp file**, never piped (`sh` on an
 empty pipe exits 0) and shape-checked before it runs, with
@@ -2975,8 +2975,8 @@ follow-up queued — deliberately unlike herdr's newest Grok/agy rule; a
 subagent always finishes and its result starts the next turn — while
 background shells never count), `idle` otherwise — and answers a report only
 when the state, its message or the session changed. Every
-`pane.report_agent` line carries the state and `resume_argv`: `alter-zero
---resume {id}` once the conversation has a file, `alter-zero` alone before
+`pane.report_agent` line carries the state and `resume_argv`: `zeroth
+--resume {id}` once the conversation has a file, `zeroth` alone before
 and after a `/clear` (nothing short of a release clears a command herdr
 holds, so the bare one is what keeps a herdr restart from reopening a cleared
 conversation), offered only when `argv[0]`'s basename is on `PATH` and
@@ -2996,7 +2996,7 @@ session starts gets `HERDR_PANE_ID`** — the pty sessions
 (`pty::spawn::FOREIGN_TERMINAL_VARS`), every pipe-run child
 (`subprocess::command_in`: `!`, hooks, the `bash` pipe fallback) and MCP
 stdio servers — because a nested official integration's session report makes
-it the pane's owner and herdr then drops every alter-zero report for the
+it the pane's owner and herdr then drops every zeroth report for the
 pane's life; `HERDR_ENV` stays, since herdr's agent skill stops without it
 (herdr's popups get the same environment). A pane's **pictures** owe nothing
 to the reports: herdr's environment names no graphics protocol, so the
@@ -3308,7 +3308,7 @@ of bug:
    handler ahead of the loop's first `select!` (`InlineViewport::take_typeahead`). **Relatedly, the detached-exec hook
    (`subprocess::run_detached_exec_if_requested`) must stay the *first statement*
    of `main()`** — before the tokio runtime and any terminal I/O: in a helper
-   re-exec (`{exe} __alter-zero-detached-exec {cmd}`) the process must `setsid`
+   re-exec (`{exe} __zeroth-detached-exec {cmd}`) the process must `setsid`
    away and `exec` `sh` before it ever touches stdin/stdout or spawns a thread, or
    it would boot a TUI into the caller's pipes and the tty detach would silently
    break (`docs/tools/tty-detach.md`). Never move it, and never let anything run above it.
@@ -3940,7 +3940,7 @@ but bug fixes still get a failing test first (TDD applies to fixes too).
   message. `render_live` and `cursor_position` share the `input_box` helper, which
   reserves the band and footer so the cursor stays put when they open; `tool_lines`
   and `tool_view_lines` share `tool_header`). Retheme or re-size there, not inline.
-- **The agent's own name is one constant** — `alter_zero::APP_NAME`. Every
+- **The agent's own name is one constant** — `zeroth::APP_NAME`. Every
   string in which the app speaks its name reads it: the startup banner's title
   (`ui::theme::HEADER_NAME`) and the `AskUserQuestion` cell's headline
   (`ask::ANSWERED_HEADLINE`, pinned to it by a test). Wording ported from a
@@ -4253,7 +4253,7 @@ paste (`images::remember_attachment`, `docs/architecture/memory.md`); and a mode
   and **old rollouts light up too**; both body builders share the pass, so the
   Ctrl+O expansion and the **permission prompt's preview** — where "what
   exactly am I approving?" is load-bearing — get it as well. The backend's **system prompt** is assembled from two
-  `include_str!`d markdown files — the persona (`prompts/alter_zero.md`) and the
+  `include_str!`d markdown files — the persona (`prompts/zeroth.md`) and the
   runtime **environment context** of date/os/user/cwd (`prompts/environment.md`,
   folded in at the boundary via `backend::augment_with_environment` so the agent
   has context awareness — the `User` line decided by the effective uid, so it

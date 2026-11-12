@@ -1,9 +1,9 @@
 //! The warmed Ctrl+O transcript must retain compact rows even after many
 //! code-generation turns. Run alone: the resident-set reading is process-wide.
 
-use alter_zero::app::App;
-use alter_zero::llm::tools::{DIFF_MAX_LINES, write_report};
-use alter_zero::ui::TranscriptCache;
+use zeroth::app::App;
+use zeroth::llm::tools::{DIFF_MAX_LINES, write_report};
+use zeroth::ui::TranscriptCache;
 
 fn rss_bytes() -> Option<usize> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;

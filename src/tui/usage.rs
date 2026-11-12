@@ -9,17 +9,17 @@
 //! clock the countdowns run on, the minute refresh, and the clipboard `c`
 //! copies a usage page to.
 //!
-//! [`App::open_usage_page`]: alter_zero::app::App::open_usage_page
-//! [`App::begin_usage_round`]: alter_zero::app::App::begin_usage_round
-//! [`App::finish_usage_fetch`]: alter_zero::app::App::finish_usage_fetch
+//! [`App::open_usage_page`]: zeroth::app::App::open_usage_page
+//! [`App::begin_usage_round`]: zeroth::app::App::begin_usage_round
+//! [`App::finish_usage_fetch`]: zeroth::app::App::finish_usage_fetch
 
 use std::time::Duration;
 
-use alter_zero::app::{ToastKind, USAGE_EMPTY_NOTICE, UsageTarget};
-use alter_zero::clipboard;
-use alter_zero::llm::ModelConfig;
-use alter_zero::llm::usage::UsageReport;
-use alter_zero::stream::CancelToken;
+use zeroth::app::{ToastKind, USAGE_EMPTY_NOTICE, UsageTarget};
+use zeroth::clipboard;
+use zeroth::llm::ModelConfig;
+use zeroth::llm::usage::UsageReport;
+use zeroth::stream::CancelToken;
 
 use super::Session;
 use super::host;

@@ -35,10 +35,10 @@ use std::time::Instant;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::text::Line;
 
-use alter_zero::app::{App, DebugPage, HistoryItem, View};
-use alter_zero::images;
-use alter_zero::paste;
-use alter_zero::ui;
+use zeroth::app::{App, DebugPage, HistoryItem, View};
+use zeroth::images;
+use zeroth::paste;
+use zeroth::ui;
 
 use super::Session;
 
@@ -115,7 +115,7 @@ impl Session<'_> {
     /// paints at once. The scheduler keeps the soonest pending deadline and its
     /// rate limiter caps everything at 120 fps — that floor, not the burst
     /// branch, is what coalesces a paste run into a few paints (see
-    /// `alter_zero::paste`).
+    /// `zeroth::paste`).
     pub(crate) fn schedule_for_key(&mut self, key: &KeyEvent) {
         let plain_char =
             matches!(key.code, KeyCode::Char(_)) && !key.modifiers.contains(KeyModifiers::CONTROL);

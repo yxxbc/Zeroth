@@ -22,12 +22,12 @@
 
 use std::time::{Duration, Instant};
 
-use alter_zero::app::App;
-use alter_zero::background::{BackgroundRegistry, BgEvent};
-use alter_zero::context::{ContextMessage, context_messages_full};
-use alter_zero::llm::LlmBackend;
-use alter_zero::secrets::{SecretDraft, SecretRegistry, SecretStore, SecretValue, secret_section};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
+use zeroth::app::App;
+use zeroth::background::{BackgroundRegistry, BgEvent};
+use zeroth::context::{ContextMessage, context_messages_full};
+use zeroth::llm::LlmBackend;
+use zeroth::secrets::{SecretDraft, SecretRegistry, SecretStore, SecretValue, secret_section};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// The persona the tests run under: short, and silent about secrets — the
 /// reminder alone must teach the placeholder.
@@ -53,8 +53,8 @@ struct Harness {
 fn backend(secrets: &SecretRegistry) -> Harness {
     let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "zai-org-glm-4.7".to_string());
-    let providers = alter_zero::llm::ProvidersFile::builtin();
-    let sel = alter_zero::llm::Selection {
+    let providers = zeroth::llm::ProvidersFile::builtin();
+    let sel = zeroth::llm::Selection {
         provider_id: "a0_venice".to_string(),
         model,
         api_key: Some(key()),

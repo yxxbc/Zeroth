@@ -27,18 +27,18 @@ use std::io;
 use ratatui::crossterm::event::EventStream;
 use ratatui::text::Line;
 
-use alter_zero::agents::AgentRegistry;
-use alter_zero::app::{App, CHECKPOINT_RESTORED_NOTICE, Mascot, Spinner, ToastKind};
-use alter_zero::background::{BackgroundRegistry, BgEvent};
-use alter_zero::checkpoint::{self, CheckpointRefusal, CheckpointStore};
-use alter_zero::frame;
-use alter_zero::paste::PasteBurst;
-use alter_zero::project_doc;
-use alter_zero::scratchpad;
-use alter_zero::session;
-use alter_zero::stream::StreamEvent;
-use alter_zero::term::InlineViewport;
-use alter_zero::ui;
+use zeroth::agents::AgentRegistry;
+use zeroth::app::{App, CHECKPOINT_RESTORED_NOTICE, Mascot, Spinner, ToastKind};
+use zeroth::background::{BackgroundRegistry, BgEvent};
+use zeroth::checkpoint::{self, CheckpointRefusal, CheckpointStore};
+use zeroth::frame;
+use zeroth::paste::PasteBurst;
+use zeroth::project_doc;
+use zeroth::scratchpad;
+use zeroth::session;
+use zeroth::stream::StreamEvent;
+use zeroth::term::InlineViewport;
+use zeroth::ui;
 
 use super::history_store::InputHistoryStore;
 use super::models::{HookSetup, ModelSession};
@@ -72,7 +72,7 @@ impl<'t> Session<'t> {
         let headless = print.is_some();
         let headless_verbose = print.is_some_and(|options| options.verbose);
         let round_budget =
-            print.map(|options| alter_zero::llm::agent::RoundBudget::new(options.max_turns));
+            print.map(|options| zeroth::llm::agent::RoundBudget::new(options.max_turns));
         // Backend → loop (the streamed reply). A tokio channel so the loop can
         // `select!` on it; the backend thread sends without touching the runtime.
         let (tx, reply_rx) = tokio::sync::mpsc::unbounded_channel::<StreamEvent>();
@@ -134,7 +134,7 @@ impl<'t> Session<'t> {
         if let Some(theme) = config::load_theme(config::theme_json_path().as_deref()) {
             app.set_theme(theme);
         }
-        alter_zero::ui::activate_theme(app.theme());
+        zeroth::ui::activate_theme(app.theme());
 
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
 
@@ -159,7 +159,7 @@ impl<'t> Session<'t> {
         // scratchpad too, so a `write`/`edit` there folds into the collapsed
         // group as a scratchpad edit (docs/ui/tool-groups.md).
         app.set_path_display(
-            alter_zero::app::PathDisplay::new(cwd.clone(), home.clone())
+            zeroth::app::PathDisplay::new(cwd.clone(), home.clone())
                 .with_scratchpad(scratchpad_dir.clone()),
         );
         // Where Ctrl+V pastes land (docs/input/image-paste.md): the config home,
@@ -172,7 +172,7 @@ impl<'t> Session<'t> {
         // every attached picture on every later turn, so the shrunk copy it
         // builds is kept here and read back instead of being decoded from the
         // original each time.
-        alter_zero::images::set_payload_cache_dir(config::prepare_image_cache(&session_tmp));
+        zeroth::images::set_payload_cache_dir(config::prepare_image_cache(&session_tmp));
 
         // The background-shell registry (docs/tools/background.md): processes launched
         // by the model's `run_in_background` bash calls (or moved back with
@@ -202,13 +202,13 @@ impl<'t> Session<'t> {
         // redacted from the first call. A file that won't parse is a red
         // toast below and an empty store — never a silent one.
         let (secrets, secrets_error) = match config::secrets_json_path()
-            .map(|path| alter_zero::llm::keystore::load_secrets_file(&path))
+            .map(|path| zeroth::llm::keystore::load_secrets_file(&path))
         {
             Some(Ok(store)) => (store, None),
-            Some(Err(error)) => (alter_zero::secrets::SecretStore::new(), Some(error)),
-            None => (alter_zero::secrets::SecretStore::new(), None),
+            Some(Err(error)) => (zeroth::secrets::SecretStore::new(), Some(error)),
+            None => (zeroth::secrets::SecretStore::new(), None),
         };
-        let secrets = alter_zero::secrets::SecretRegistry::new(secrets);
+        let secrets = zeroth::secrets::SecretRegistry::new(secrets);
 
         // The subagent registry (docs/agents/agent-tool.md): the model's `agent` tool
         // launches run their own loops on their own threads, reporting on a
@@ -245,11 +245,11 @@ impl<'t> Session<'t> {
         // The ask gate (docs/tools/ask.md): the `AskUserQuestion` modal's answers
         // post here, waking the blocked tool thread. Always built — asking is
         // not a permission, so it doesn't follow ALTER_ZERO_PERMISSIONS.
-        let ask = alter_zero::ask::AskGate::new();
+        let ask = zeroth::ask::AskGate::new();
 
         // The shared task list (docs/tools/task-tools.md): the executor mutates it
         // on the tool thread, the loop reads and — on a rewind — replaces it.
-        let task_registry = alter_zero::tasks::TaskRegistry::new();
+        let task_registry = zeroth::tasks::TaskRegistry::new();
 
         // The skills on disk (docs/tools/skills.md): a `<root>/<name>/SKILL.md` walk
         // over the project's and the user's roots, done once here so the
@@ -262,16 +262,16 @@ impl<'t> Session<'t> {
         // *second* launch would be missing from exactly the session that just
         // installed the app. Never clobbers an edited copy, and skipped
         // entirely when ALTER_ZERO_SKILLS_DIR replaced the roots.
-        let mut skill_errors = match alter_zero::llm::skill::resolved_builtin_skills_dir(
-            config::config_home().as_deref(),
-        ) {
-            Some(root) => alter_zero::llm::skill::seed_builtin_skills(&root),
-            None => Vec::new(),
-        };
+        let mut skill_errors =
+            match zeroth::llm::skill::resolved_builtin_skills_dir(config::config_home().as_deref())
+            {
+                Some(root) => zeroth::llm::skill::seed_builtin_skills(&root),
+                None => Vec::new(),
+            };
         let (found_skills, walk_errors) =
-            alter_zero::llm::skill::load_skills(&cwd, config::config_home().as_deref());
+            zeroth::llm::skill::load_skills(&cwd, config::config_home().as_deref());
         skill_errors.extend(walk_errors);
-        let skill_registry = alter_zero::skills::SkillRegistry::new(found_skills);
+        let skill_registry = zeroth::skills::SkillRegistry::new(found_skills);
         // …and this project's saved on/off choices from `skills.json`, applied
         // BEFORE the backend is built so a session that starts with its last
         // skill turned off is never offered the tool (`docs/tools/skills.md`).
@@ -288,14 +288,14 @@ impl<'t> Session<'t> {
         // reminder>` listing agree from the first turn. A file that will not
         // parse is collected, not thrown, and becomes the startup toast.
         let mut agent_errors =
-            match alter_zero::llm::subagent::user_agents_dir(config::config_home().as_deref()) {
-                Some(dir) => alter_zero::llm::subagent::seed_default_agents(&dir),
+            match zeroth::llm::subagent::user_agents_dir(config::config_home().as_deref()) {
+                Some(dir) => zeroth::llm::subagent::seed_default_agents(&dir),
                 None => Vec::new(),
             };
         let (found_agents, walk_errors) =
-            alter_zero::llm::subagent::load_agents(&cwd, config::config_home().as_deref());
+            zeroth::llm::subagent::load_agents(&cwd, config::config_home().as_deref());
         agent_errors.extend(walk_errors);
-        let subagents = alter_zero::subagents::SubagentRegistry::new(found_agents);
+        let subagents = zeroth::subagents::SubagentRegistry::new(found_agents);
 
         // What the startup review decides over (docs/state/config-review.md): the
         // user's lifecycle hooks (`~/.alter-zero/hooks.json`, or
@@ -316,7 +316,7 @@ impl<'t> Session<'t> {
         // `select!` source, because the worker outlives nothing but must
         // never write the file itself.
         let (telemetry_tx, telemetry_rx) =
-            tokio::sync::mpsc::unbounded_channel::<alter_zero::telemetry::Delivery>();
+            tokio::sync::mpsc::unbounded_channel::<zeroth::telemetry::Delivery>();
         // The update check's report channel (docs/ops/update.md), the same shape.
         let (update_tx, update_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
@@ -354,10 +354,8 @@ impl<'t> Session<'t> {
         // the run), nothing connects at all. The event channel is a select!
         // source like the background shells'.
         let (mcp_tx, mcp_rx) = tokio::sync::mpsc::unbounded_channel();
-        let mcp_manager = alter_zero::llm::mcp::McpManager::new(
-            mcp_tx,
-            super::mcp::load_mcp_sources(&cwd, &trust),
-        );
+        let mcp_manager =
+            zeroth::llm::mcp::McpManager::new(mcp_tx, super::mcp::load_mcp_sources(&cwd, &trust));
         if settings.mcp {
             mcp_manager.start_connections();
         } else {
@@ -371,9 +369,9 @@ impl<'t> Session<'t> {
         // reaches the very next payload), the SessionStart source queue —
         // seeded with `startup`, drained codex-style at the first turn's top
         // so nothing blocks the first paint — and the synthetic-turn mark.
-        let hook_handles = alter_zero::llm::hooks::HookHandles {
+        let hook_handles = zeroth::llm::hooks::HookHandles {
             gate: permissions.gate().cloned(),
-            ..alter_zero::llm::hooks::HookHandles::default()
+            ..zeroth::llm::hooks::HookHandles::default()
         };
         if let Ok(mut sources) = hook_handles.sources.lock() {
             sources.push("startup".to_string());
@@ -392,9 +390,9 @@ impl<'t> Session<'t> {
             // `$ALTER_ZERO_PROJECT_DIR`: the root the project layer reads
             // `.alter-zero/` from, so a project hook reaching its own
             // scripts finds them from any subdirectory (docs/tools/hooks.md).
-            project_dir: alter_zero::trust::hooks_project_dir(
+            project_dir: zeroth::trust::hooks_project_dir(
                 &cwd,
-                alter_zero::project_doc::find_project_root(&cwd).as_deref(),
+                zeroth::project_doc::find_project_root(&cwd).as_deref(),
                 std::env::var_os("HOME")
                     .map(std::path::PathBuf::from)
                     .as_deref(),
@@ -418,7 +416,7 @@ impl<'t> Session<'t> {
         // while a turn is running. The loop pushes onto it and every backend
         // build re-attaches the same handle, so a `/model` switch keeps the
         // queue the running turn's successor will drain.
-        let steer = alter_zero::steer::SteerQueue::new();
+        let steer = zeroth::steer::SteerQueue::new();
 
         // The reply backend and everything that selects it (docs/providers/llm.md).
         let models = ModelSession::resolve(
@@ -488,7 +486,7 @@ impl<'t> Session<'t> {
         // the transcript. Whether this host *can* snapshot at all is a `git`
         // binary being present and the cwd being a project in the first place
         // (`cwd_scope` — never a filesystem root, the home dir or an ancestor of
-        // it, alter-zero's own state dir, a pseudo-filesystem, or a shared
+        // it, zeroth's own state dir, a pseudo-filesystem, or a shared
         // scratch parent like `/tmp`): the session-start snapshot below runs before the
         // first frame paints, and `git add -A` is O(bytes), so an oversized cwd
         // blocks the raw-mode terminal for seconds while duplicating itself into
@@ -529,7 +527,7 @@ impl<'t> Session<'t> {
             burst: PasteBurst::new(),
             clocks: StatusClocks::started_now(),
             toast_deadline: None,
-            ask_timer: alter_zero::ask::AskTimer::new(),
+            ask_timer: zeroth::ask::AskTimer::new(),
             bg_clocks: HashMap::new(),
             agent_clocks: HashMap::new(),
             agent_thinking_clocks: HashMap::new(),
@@ -701,7 +699,7 @@ impl<'t> Session<'t> {
     /// frame: the footer's session context and permission mode, the context-window
     /// gauge, the system prompts the Ctrl+D view shows, and the project's
     /// AGENTS.md instructions.
-    fn seed_app(&mut self, settings: alter_zero::settings::SessionSettings) {
+    fn seed_app(&mut self, settings: zeroth::settings::SessionSettings) {
         // The `/settings` knobs (docs/state/settings.md), plus what this host can
         // actually run — so an unavailable row says so from the first frame.
         *self.app.settings_mut() = settings;
@@ -840,7 +838,7 @@ impl<'t> Session<'t> {
     ///
     /// Shared with the per-turn rescan (`Session::rescan_skills`), which hands
     /// it only the files it has not already reported.
-    pub(crate) fn report_skill_errors(&mut self, errors: &[alter_zero::skills::SkillError]) {
+    pub(crate) fn report_skill_errors(&mut self, errors: &[zeroth::skills::SkillError]) {
         let Some(first) = errors.first() else {
             return;
         };
@@ -864,7 +862,7 @@ impl<'t> Session<'t> {
     ///
     /// Shared with the per-turn rescan ([`Session::rescan_agents`]), which
     /// hands it only the failures it hasn't already raised.
-    pub(crate) fn report_agent_errors(&mut self, errors: &[alter_zero::subagents::AgentFileError]) {
+    pub(crate) fn report_agent_errors(&mut self, errors: &[zeroth::subagents::AgentFileError]) {
         let Some(first) = errors.first() else {
             return;
         };
@@ -1124,8 +1122,7 @@ impl<'t> Session<'t> {
         // the blocked thread wakes with the stop-and-wait result rather than
         // parking forever (docs/tools/ask.md).
         for id in self.app.take_abandoned_asks() {
-            self.ask
-                .resolve(&id, alter_zero::ask::AskDecision::Declined);
+            self.ask.resolve(&id, zeroth::ask::AskDecision::Declined);
         }
         // Mirror the finished history to the session file (docs/state/resume.md):
         // append what this iteration added, rewrite on a backtrack truncation,

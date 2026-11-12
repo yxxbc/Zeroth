@@ -12,7 +12,7 @@
 #   cargo build && cargo build --example clipboard_owner
 #   scripts/paste_mem.sh [bin] [WxH] [pastes] [protocol] [send]
 #
-#   bin       target/debug/alter-zero
+#   bin       target/debug/zeroth
 #   WxH       1920x1080 (the served picture)
 #   pastes    3
 #   protocol  halfblocks | kitty | sixel | iterm2 (ALTER_ZERO_IMAGE_PROTOCOL)
@@ -22,7 +22,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="${1:-$ROOT/target/debug/alter-zero}"
+BIN="${1:-$ROOT/target/debug/zeroth}"
 SIZE="${2:-1920x1080}"
 N="${3:-3}"
 PROTO="${4:-halfblocks}"

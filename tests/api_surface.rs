@@ -1,4 +1,4 @@
-//! The public API surface of [`alter_zero::app`] and [`alter_zero::ui`].
+//! The public API surface of [`zeroth::app`] and [`zeroth::ui`].
 //!
 //! Both were single files once; they are now module trees whose `mod.rs`
 //! re-exports each area by name (see `docs/architecture/module-layout.md`). An explicit
@@ -14,7 +14,7 @@
 // --- `app` — conversation state ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::app::{
+use zeroth::app::{
     Action,
     AgentGroup,
     AgentGroupEntry,
@@ -178,7 +178,7 @@ use alter_zero::app::{
 // exported before that split is named here.
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::stream::{
+use zeroth::stream::{
     AgentCallDone,
     AgentSpec,
     CancelToken,
@@ -209,7 +209,7 @@ use alter_zero::stream::{
 // --- `skills` — the `Skill` tool's pure model (docs/tools/skills.md) ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::skills::{
+use zeroth::skills::{
     MentionToken,
     ParsedSkill,
     ProjectSkills,
@@ -248,7 +248,7 @@ use alter_zero::skills::{
 // --- `subagents` — the agent definitions' pure model (docs/agents/subagents.md) ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::subagents::{
+use zeroth::subagents::{
     AGENTS_DIR_NAME,
     AGENT_FILE_EXT,
     AGENT_LISTING_HEADER,
@@ -276,7 +276,7 @@ use alter_zero::subagents::{
 // --- `secrets` — credentials the agent uses by placeholder (docs/state/secrets.md) ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::secrets::{
+use zeroth::secrets::{
     MAX_SECRET_CONTEXT_CHARS,
     MAX_SECRET_NAME_LEN,
     MIN_SECRET_VALUE_CHARS,
@@ -312,7 +312,7 @@ use alter_zero::secrets::{
 // --- `reminder` — the `<system-reminder>` the context leads with (docs/architecture/context.md) ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::reminder::{
+use zeroth::reminder::{
     REMINDER_CLOSE,
     REMINDER_OPEN,
     REMINDER_PREAMBLE,
@@ -323,7 +323,7 @@ use alter_zero::reminder::{
 // --- `project_doc` — the AGENTS.md instructions section (docs/state/project-doc.md) ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::project_doc::{
+use zeroth::project_doc::{
     DOC_CHECKED_IN_NOTE,
     DOC_OVERRIDE_NOTE,
     INSTRUCTIONS_PREAMBLE,
@@ -345,7 +345,7 @@ use alter_zero::project_doc::{
 // --- `frontmatter` — the `---` block parse both authored formats share ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::frontmatter::{
+use zeroth::frontmatter::{
     FileError,
     field,
     scalars,
@@ -357,7 +357,7 @@ use alter_zero::frontmatter::{
 // --- `tasks` — the task tools' pure model (docs/tools/task-tools.md) ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::tasks::{
+use zeroth::tasks::{
     CreateArgs,
     GetArgs,
     Task,
@@ -378,7 +378,7 @@ use alter_zero::tasks::{
 // --- `ui` — rendering ---
 #[rustfmt::skip]
 #[allow(unused_imports)]
-use alter_zero::ui::{
+use zeroth::ui::{
     Repin,
     StreamRender,
     TranscriptCache,

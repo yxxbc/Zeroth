@@ -3,7 +3,7 @@
 //! revision the server itself settled on. NOT run by `cargo test` (it needs a
 //! server on the network or on disk).
 //!
-//! Usage — a URL, or a command line, exactly like `alter-zero mcp add`:
+//! Usage — a URL, or a command line, exactly like `zeroth mcp add`:
 //! ```bash
 //! cargo run --example mcp_probe -- https://docs.mcp.cloudflare.com/mcp
 //! cargo run --example mcp_probe -- npx -y @modelcontextprotocol/server-everything
@@ -13,9 +13,9 @@
 
 use std::time::Duration;
 
-use alter_zero::llm::mcp::{ConnectError, connect};
-use alter_zero::mcp::McpServerConfig;
-use alter_zero::stream::CancelToken;
+use zeroth::llm::mcp::{ConnectError, connect};
+use zeroth::mcp::McpServerConfig;
+use zeroth::stream::CancelToken;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

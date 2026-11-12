@@ -42,7 +42,7 @@ park until the user decides.
     away, `TimedOut { answers, after }` (*The timeout*, below);
   - the two texts of every resolution: the **cell display**
     (`answered_display` — `User answered Alter Zero's questions:`, the
-    headline naming *this* agent through the single `alter_zero::APP_NAME`,
+    headline naming *this* agent through the single `zeroth::APP_NAME`,
     over `· Q → A`
     rows; `declined_display`/`chat_display` — the headline over
     `· Q (opt / opt / …)` rows) and the **model-facing result**

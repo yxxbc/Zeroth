@@ -39,7 +39,7 @@ The full system prompt the real backend sends is three blocks, in order —
 four in a headless run:
 
 ```
-persona        prompts/alter_zero.md   (who you are)
+persona        prompts/zeroth.md   (who you are)
 environment    prompts/environment.md  (where/when you are, as which user)   ← this doc
 scratchpad     prompts/scratchpad.md   (where your scratch goes, docs/tools/scratchpad.md)
 headless       prompts/headless.md     (nobody is watching — alter-zero -p only, docs/cli/headless.md)

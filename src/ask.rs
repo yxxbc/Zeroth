@@ -168,7 +168,7 @@ pub enum AskDecision {
 /// reference tool's wording was ported with its own product name in it, so
 /// the cell used to credit a different agent for the questions the user had
 /// just answered.
-pub const ANSWERED_HEADLINE: &str = "User answered Alter Zero's questions:";
+pub const ANSWERED_HEADLINE: &str = "User answered Zeroth's questions:";
 
 /// The headline for a decline.
 pub const DECLINED_HEADLINE: &str = "User declined to answer questions";
@@ -631,7 +631,7 @@ mod tests {
         ]);
         assert_eq!(
             display,
-            "User answered Alter Zero's questions:\n\
+            "User answered Zeroth's questions:\n\
              · What's your favorite way to drink coffee? → Black\n\
              · Which of these tool features would you like to see demoed next? (pick any \
              number) → Preview panel, Custom 'Other' input"

@@ -24,9 +24,9 @@
 //! to a store path. After such a run, the value under that file's
 //! `*_REFRESH_TOKEN` key is the one to keep.
 
-use alter_zero::llm::usage::{MeterValue, UsageReport, fetch_usage};
-use alter_zero::llm::{ModelConfig, ProvidersFile, Selection};
-use alter_zero::stream::CancelToken;
+use zeroth::llm::usage::{MeterValue, UsageReport, fetch_usage};
+use zeroth::llm::{ModelConfig, ProvidersFile, Selection};
+use zeroth::stream::CancelToken;
 
 /// The provider's config resolved the way `tui::config::model_config_for`
 /// resolves it, through the built-in `providers.toml`.
@@ -111,7 +111,7 @@ fn live_copilot_reports_its_quota_snapshots() {
 #[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE"]
 fn live_chatgpt_reports_its_plan_and_windows() {
     seed_store("CHATGPT_CODEX_REFRESH_TOKEN");
-    alter_zero::llm::chatgpt::set_store_path(token_store());
+    zeroth::llm::chatgpt::set_store_path(token_store());
     let report = fetch("chatgpt_codex", "CHATGPT_CODEX_REFRESH_TOKEN");
     assert!(report.plan.is_some(), "the answer names the plan");
     assert!(
@@ -127,7 +127,7 @@ fn live_chatgpt_reports_its_plan_and_windows() {
 #[ignore = "hits the network; needs CLINE_ACCOUNT_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE"]
 fn live_clinepass_reports_its_windows() {
     seed_store("CLINE_ACCOUNT_REFRESH_TOKEN");
-    alter_zero::llm::cline::set_store_path(token_store());
+    zeroth::llm::cline::set_store_path(token_store());
     let report = fetch("cline_pass", "CLINE_ACCOUNT_REFRESH_TOKEN");
     let labels: Vec<&str> = report.meters.iter().map(|m| m.label.as_str()).collect();
     assert!(

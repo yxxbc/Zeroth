@@ -840,7 +840,7 @@ fn tool_cell_lines(
 }
 
 /// A resolved `AskUserQuestion` cell (`docs/tools/ask.md`): the output's first line
-/// **is** the headline (`User answered Alter Zero's questions:` /
+/// **is** the headline (`User answered Zeroth's questions:` /
 /// `User declined…` / `User wants to chat…` / `User did not answer within
 /// 10m`), promoted to the `●` header — green or red by outcome — with the
 /// `· Q → A` rows in the `⎿` gutter.

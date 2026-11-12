@@ -66,14 +66,14 @@ fn parsing_a_model_list_does_not_retain_the_fields_it_ignores() {
     // Warm the parse path (and the allocator's arena) so the measurement below
     // sees this body's cost rather than one-time first-touch page faults.
     let warmup = aggregator_body(20);
-    drop(alter_zero::llm::models::parse_models(&warmup, "openrouter").expect("parses"));
+    drop(zeroth::llm::models::parse_models(&warmup, "openrouter").expect("parses"));
     drop(warmup);
 
     let body = aggregator_body(417);
     let body_len = body.len();
     let before = rss_bytes().expect("rss");
 
-    let models = alter_zero::llm::models::parse_models(&body, "openrouter").expect("parses");
+    let models = zeroth::llm::models::parse_models(&body, "openrouter").expect("parses");
     let after = rss_bytes().expect("rss");
 
     assert_eq!(models.len(), 417, "every record is listed");

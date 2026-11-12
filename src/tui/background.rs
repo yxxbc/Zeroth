@@ -37,9 +37,9 @@ use std::time::Instant;
 
 use ratatui::text::Line;
 
-use alter_zero::app::BgCompletion;
-use alter_zero::background::BgEvent;
-use alter_zero::ui;
+use zeroth::app::BgCompletion;
+use zeroth::background::BgEvent;
+use zeroth::ui;
 
 use super::Session;
 
@@ -127,9 +127,9 @@ impl Session<'_> {
                 completion.waiting,
                 &self.registry,
             ) {
-                alter_zero::agents::Route::Covered => return,
-                alter_zero::agents::Route::Routed(seq) => Some(seq),
-                alter_zero::agents::Route::Unheard => None,
+                zeroth::agents::Route::Covered => return,
+                zeroth::agents::Route::Routed(seq) => Some(seq),
+                zeroth::agents::Route::Unheard => None,
             },
             None => None,
         };
@@ -244,7 +244,7 @@ impl Session<'_> {
     /// Record + commit one background agent's notice cell, updating its
     /// recorded group entry first so the Ctrl+O cell shows the final response
     /// (docs/agents/agent-tool.md).
-    fn settle_agent_notice(&mut self, notice: &alter_zero::app::AgentNotice) {
+    fn settle_agent_notice(&mut self, notice: &zeroth::app::AgentNotice) {
         let committing = self.commits_allowed();
         self.close_tool_group(committing, self.term.screen().width);
         self.app.settle_agent_completion(notice);

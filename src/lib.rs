@@ -48,7 +48,7 @@
 //! - [`llm`]         — the real OpenAI-compatible backend: provider config, the
 //!   streaming client, the `/v1/models` listing, and the `ReplySource` bridge
 //!   (the I/O boundary for a real model; pure cores unit-tested).
-//! - [`headless`]    — `alter-zero -p`'s pure core: the output formats, the
+//! - [`headless`]    — `zeroth -p`'s pure core: the output formats, the
 //!   prompt a pipe and an argument make together, the run's answer, the
 //!   JSON events and result object, and the exit status (the process is
 //!   `tui::headless`'s; see `docs/cli/headless.md`).
@@ -150,7 +150,7 @@
 /// lives in several literals is a name that ends up disagreeing with itself —
 /// the ported reference's `User answered Claude's questions:` being exactly
 /// that bug.
-pub const APP_NAME: &str = "Alter Zero";
+pub const APP_NAME: &str = "Zeroth";
 
 pub mod agents;
 pub mod app;

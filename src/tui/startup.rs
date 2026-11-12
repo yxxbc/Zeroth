@@ -18,10 +18,10 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use alter_zero::app::HistoryItem;
-use alter_zero::cli::{self, Cli, HelpPage, HelpStyle, SessionArgs, SessionStart};
-use alter_zero::headless;
-use alter_zero::session::{self, SessionMeta};
+use zeroth::app::HistoryItem;
+use zeroth::cli::{self, Cli, HelpPage, HelpStyle, SessionArgs, SessionStart};
+use zeroth::headless;
+use zeroth::session::{self, SessionMeta};
 
 use super::resume::{find_session_by_id, list_sessions, sessions_root};
 
@@ -32,10 +32,10 @@ pub(crate) struct Startup {
     pub(crate) session: Option<StartupSession>,
     pub(crate) prompt: Option<String>,
     /// `--permission-mode`: the run's permission seed, in either kind of run.
-    pub(crate) permission_mode: Option<alter_zero::permission::PermissionMode>,
+    pub(crate) permission_mode: Option<zeroth::permission::PermissionMode>,
     /// `-p`: run headless, reporting this way (`docs/cli/headless.md`) — the
     /// prompt above then already holds what stdin added. `None` is the TUI.
-    pub(crate) print: Option<alter_zero::cli::PrintOptions>,
+    pub(crate) print: Option<zeroth::cli::PrintOptions>,
 }
 
 /// The `--continue`/`--resume` directive — the session to install before the
@@ -86,7 +86,7 @@ pub(crate) fn resolve_cli() -> Result<Startup, i32> {
         // The mcp subcommand family (docs/cli/mcp-cli.md): does its file work
         // and exits — success rides the same Err(0) channel --help uses.
         Cli::Mcp(cmd) => Err(super::mcp_cli::run(&cmd)),
-        // `alter-zero update` (docs/ops/update.md): the same print-and-exit path.
+        // `zeroth update` (docs/ops/update.md): the same print-and-exit path.
         Cli::Update => Err(super::update_cli::run()),
         Cli::Version => {
             println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));

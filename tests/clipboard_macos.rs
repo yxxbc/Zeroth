@@ -30,7 +30,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use alter_zero::clipboard::{NO_IMAGE_ON_CLIPBOARD, read_clipboard_image};
+use zeroth::clipboard::{NO_IMAGE_ON_CLIPBOARD, read_clipboard_image};
 
 /// A scratch paste folder, removed on drop.
 struct Store(PathBuf);

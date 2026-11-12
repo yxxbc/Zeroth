@@ -17,10 +17,10 @@
 
 use std::path::PathBuf;
 
-use alter_zero::app::{HistoryItem, Message, Role};
-use alter_zero::context::{ContextMessage, context_messages_full};
-use alter_zero::llm::LlmBackend;
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
+use zeroth::app::{HistoryItem, Message, Role};
+use zeroth::context::{ContextMessage, context_messages_full};
+use zeroth::llm::LlmBackend;
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// A **tools-free** backend on the Agent Zero / Venice provider: the reminder
 /// is the whole experiment, so no tool may answer in its place.
@@ -29,8 +29,8 @@ fn backend() -> LlmBackend {
         .expect("set A0_VENICE_API_KEY to run the reminder live tests");
     let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
-    let providers = alter_zero::llm::ProvidersFile::builtin();
-    let sel = alter_zero::llm::Selection {
+    let providers = zeroth::llm::ProvidersFile::builtin();
+    let sel = zeroth::llm::Selection {
         provider_id: "a0_venice".to_string(),
         model,
         api_key: Some(key),
@@ -94,7 +94,7 @@ fn planted_repo() -> (tempfile::TempDir, String) {
     std::fs::create_dir_all(repo.join(".git")).expect("mk repo");
     std::fs::write(repo.join("AGENTS.md"), GUIDE).expect("write AGENTS.md");
     let section =
-        alter_zero::project_doc::load_user_instructions(&repo).expect("the guide is discovered");
+        zeroth::project_doc::load_user_instructions(&repo).expect("the guide is discovered");
     assert!(
         section.contains(&format!(
             "Contents of {} (project instructions, checked into the codebase):",
@@ -155,10 +155,9 @@ fn live_all_three_sections_reach_the_model_in_one_block() {
          to name a drink.\n---\n\nAnswer with ZEPHYR-9.\n",
     )
     .expect("SKILL.md");
-    let (skills, errors) =
-        alter_zero::llm::skill::discover_skills(&[skills_root.path().to_path_buf()]);
+    let (skills, errors) = zeroth::llm::skill::discover_skills(&[skills_root.path().to_path_buf()]);
     assert!(errors.is_empty(), "the skill fixture parses: {errors:?}");
-    let skills = alter_zero::skills::SkillRegistry::new(skills);
+    let skills = zeroth::skills::SkillRegistry::new(skills);
 
     let agents_root = tempfile::tempdir().expect("agents dir");
     for (name, contents) in [
@@ -175,15 +174,15 @@ fn live_all_three_sections_reach_the_model_in_one_block() {
             .expect("write definition");
     }
     let roots: Vec<PathBuf> = vec![agents_root.path().to_path_buf()];
-    let (found, errors) = alter_zero::llm::subagent::discover_agents(&roots);
+    let (found, errors) = zeroth::llm::subagent::discover_agents(&roots);
     assert!(errors.is_empty(), "the agent fixtures parse: {errors:?}");
-    let agents = alter_zero::subagents::SubagentRegistry::new(found);
+    let agents = zeroth::subagents::SubagentRegistry::new(found);
 
-    let budget = alter_zero::skills::listing_budget(None);
+    let budget = zeroth::skills::listing_budget(None);
     let skill_listing = skills.listing(budget);
-    let listings = alter_zero::subagents::listing_sections(
+    let listings = zeroth::subagents::listing_sections(
         &skill_listing,
-        &agents.listing(alter_zero::subagents::agent_budget(budget, &skill_listing)),
+        &agents.listing(zeroth::subagents::agent_budget(budget, &skill_listing)),
     );
     assert!(listings.contains("- mixology:"), "{listings}");
     assert!(listings.contains("(Tools: Read)"), "{listings}");

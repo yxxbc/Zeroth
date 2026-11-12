@@ -1,6 +1,6 @@
 # Telemetry
 
-Alter Zero sends **one anonymous ping a day** so the project can answer two
+Zeroth sends **one anonymous ping a day** so the project can answer two
 questions: how many people use it, and roughly where they are. That is the
 whole purpose. It is on by default, it is disclosed in the app on the first
 launch that would send one, and it goes away with a single setting, a single
@@ -124,7 +124,7 @@ it. Either way it is one ping per day: launch the app fifty times, or leave it
 open and send a hundred messages, and the day still produces exactly one.
 
 The one exception is the day you update. The ping names the app version, so
-the first launch after `alter-zero update` sends the day's ping again with the
+the first launch after `zeroth update` sends the day's ping again with the
 new one — under the same install id, so it is still one user, now on the new
 version; the collector replaces that day's row rather than adding one.
 
@@ -149,7 +149,7 @@ app can quietly opt you back in. Turning it *off* from the row always works,
 whatever the environment says.
 
 ```bash
-ALTER_ZERO_TELEMETRY=0 alter-zero        # this run
+ALTER_ZERO_TELEMETRY=0 zeroth        # this run
 export DO_NOT_TRACK=1                    # every tool that honours it, including this one
 ```
 
@@ -176,7 +176,7 @@ once, under the banner:
 
 ```
   ╭─ Telemetry ──────────────────────────────────────────────────────────────╮
-  │  Alter Zero sends one anonymous ping a day to count active users.        │
+  │  Zeroth sends one anonymous ping a day to count active users.        │
   │  Shares App version, OS and connection country.                          │
   │  Never Your prompts, files, keys or IP address.                          │
   │                                                                          │
@@ -245,7 +245,7 @@ HTTPServer(('127.0.0.1', 8787), H).serve_forever()"
 
 # In another — a fresh config home, so this is a 'first install':
 ALTER_ZERO_TELEMETRY_URL=http://127.0.0.1:8787/v1/ping \
-ALTER_ZERO_CONFIG_DIR=/tmp/az-telemetry-check alter-zero
+ALTER_ZERO_CONFIG_DIR=/tmp/az-telemetry-check zeroth
 ```
 
 The first terminal prints the one line the app sends, and nothing else, for as
@@ -266,7 +266,7 @@ commands. Point your build at it with that variable, or change
 
 One other request leaves your machine on its own: **once a day**, after the
 first frame, the app asks whether a newer release is out, so it can say so
-under the banner and point you at `alter-zero update` (or, for an npm
+under the banner and point you at `zeroth update` (or, for an npm
 install, at `npm install -g @linuztx/alter-zero@latest`). It is a separate
 feature with a separate switch, described in [`docs/ops/update.md`](docs/ops/update.md),
 and it belongs in this document because the document promises to be the
@@ -283,7 +283,7 @@ User-Agent: alter-zero/0.1.0
 version. **No body, no install id, no query string**: nothing identifies the
 install, and nothing is recorded by this project. GitHub sees the connection
 the way it sees you opening that page in a browser, no more. It is not the
-GitHub API and it downloads nothing; only `alter-zero update`, when you run
+GitHub API and it downloads nothing; only `zeroth update`, when you run
 it, fetches the installer and a release archive — and that command is your
 own request, so it runs whatever the switches below say.
 

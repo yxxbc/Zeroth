@@ -11,14 +11,14 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use alter_zero::app::{Action, App};
-use alter_zero::background::{BackgroundRegistry, BgEvent};
-use alter_zero::context::context_messages_full;
-use alter_zero::llm::{LlmBackend, ModelConfig, WireApi};
-use alter_zero::permission::PermissionGate;
-use alter_zero::secrets::{SecretDraft, SecretRegistry, SecretStore, SecretValue, secret_section};
-use alter_zero::stream::{CancelToken, ReplySource, StreamEvent};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use zeroth::app::{Action, App};
+use zeroth::background::{BackgroundRegistry, BgEvent};
+use zeroth::context::context_messages_full;
+use zeroth::llm::{LlmBackend, ModelConfig, WireApi};
+use zeroth::permission::PermissionGate;
+use zeroth::secrets::{SecretDraft, SecretRegistry, SecretStore, SecretValue, secret_section};
+use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// The value the stand-in's model never learns.
 const VALUE: &str = "s3cr3t-demo-value-9";
@@ -131,7 +131,7 @@ fn read_body(stream: &mut TcpStream) -> String {
 fn first_turn_context(
     secrets: &SecretRegistry,
     prompt: &str,
-) -> Vec<alter_zero::context::ContextMessage> {
+) -> Vec<zeroth::context::ContextMessage> {
     let mut app = App::new();
     app.record_user_message(prompt);
     let listings = secret_section(&secrets.listing());
@@ -562,8 +562,8 @@ fn session_named_in(request: &str) -> String {
         .expect("a tool result")
         .to_string();
     let first = result.lines().next().unwrap_or_default();
-    match alter_zero::pty::report::parse_frame(first) {
-        Some(alter_zero::pty::report::Frame::Running { session, .. }) => session.to_string(),
+    match zeroth::pty::report::parse_frame(first) {
+        Some(zeroth::pty::report::Frame::Running { session, .. }) => session.to_string(),
         other => panic!("not a running frame ({other:?}): {result}"),
     }
 }

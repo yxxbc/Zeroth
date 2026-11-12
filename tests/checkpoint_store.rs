@@ -1,4 +1,4 @@
-//! Integration proof of the checkpoint store (`alter_zero::checkpoint`,
+//! Integration proof of the checkpoint store (`zeroth::checkpoint`,
 //! docs/state/checkpoint.md) against **real git** in temp directories — the boundary
 //! the pure `checkpoint` unit tests can't cover.
 //!
@@ -12,7 +12,7 @@ use std::path::Path;
 
 use std::time::Duration;
 
-use alter_zero::checkpoint::{
+use zeroth::checkpoint::{
     CheckpointRefusal, CheckpointStore, ProbeOutcome, SnapshotBudget, git_available, store_git_dir,
 };
 
@@ -299,7 +299,7 @@ fn a_disabled_stores_probe_is_inert() {
     let work = tempfile::tempdir().unwrap();
     let store = CheckpointStore::new(None, work.path(), true);
     let cost = store.probe(&SnapshotBudget::default());
-    assert_eq!(cost, alter_zero::checkpoint::SnapshotCost::default());
+    assert_eq!(cost, zeroth::checkpoint::SnapshotCost::default());
     assert_eq!(cost.refusal(), None);
 }
 

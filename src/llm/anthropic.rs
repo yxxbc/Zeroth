@@ -1031,7 +1031,7 @@ mod tests {
             tool_call_id: None,
         };
         let round = [
-            text("system", "You are Alter Zero."),
+            text("system", "You are Zeroth."),
             text("user", "read both files"),
             assistant,
             tool_result("toolu_1", "fn a() {}"),
@@ -1040,7 +1040,7 @@ mod tests {
         ];
         let payload = build_payload(&cfg(), &[], &round);
 
-        assert_eq!(payload["system"][0]["text"], "You are Alter Zero.");
+        assert_eq!(payload["system"][0]["text"], "You are Zeroth.");
         let wire = payload["messages"].as_array().unwrap();
         // user → assistant(text + 2 tool_use) → user(2 tool_result) → user,
         // with the two adjacent user messages at the end merged.

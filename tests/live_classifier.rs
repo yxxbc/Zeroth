@@ -7,14 +7,14 @@
 //! synthetic command text sent only to `SafetyClassifier::classify`; no agent
 //! turn, shell command, or tool execution is started.
 
-use alter_zero::app::App;
-use alter_zero::llm::classifier::{
+use zeroth::app::App;
+use zeroth::llm::classifier::{
     ACTION_TO_REVIEW_HEADER, CLASSIFIER_SYSTEM_PROMPT, ClassifierContext, SafetyClassifier,
 };
-use alter_zero::llm::{LlmBackend, ProvidersFile, Selection};
-use alter_zero::permission::{PermissionKind, PermissionMode, PermissionRequest};
-use alter_zero::stream::{CancelToken, ReplySource};
-use alter_zero::ui::classifier_lines;
+use zeroth::llm::{LlmBackend, ProvidersFile, Selection};
+use zeroth::permission::{PermissionKind, PermissionMode, PermissionRequest};
+use zeroth::stream::{CancelToken, ReplySource};
+use zeroth::ui::classifier_lines;
 
 #[test]
 #[ignore = "hits the network; needs A0_VENICE_API_KEY"]

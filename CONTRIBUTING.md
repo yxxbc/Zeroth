@@ -1,6 +1,6 @@
-# Contributing to Alter Zero
+# Contributing to Zeroth
 
-Thanks for looking. Alter Zero is a terminal coding agent written in Rust, and
+Thanks for looking. Zeroth is a terminal coding agent written in Rust, and
 this page is what you need in order to change it: how to get a build running,
 the gate every change passes, the two practices the codebase was built with,
 and where the rest is written down.
@@ -15,7 +15,7 @@ paid for.
 
 | | |
 | --- | --- |
-| **Report a bug** | Open an issue with your terminal, OS, `alter-zero --version`, and the steps that reproduce it. A screenshot or a `tmux capture-pane` dump is worth a paragraph for anything visual. |
+| **Report a bug** | Open an issue with your terminal, OS, `zeroth --version`, and the steps that reproduce it. A screenshot or a `tmux capture-pane` dump is worth a paragraph for anything visual. |
 | **Fix a bug** | Start with the failing test that reproduces it, then the fix. Small, obvious fixes need no discussion first. |
 | **Add a feature** | Open an issue and agree a design before you write it — see [Design before implementing](#design-before-implementing). |
 | **Improve the docs** | A `docs/` page that no longer matches the code is a bug. So is a `CHANGELOG.md` entry that does not say what a user will notice. |
@@ -29,7 +29,7 @@ floating `stable` is exactly what the pin exists to prevent.
 
 ```bash
 git clone https://github.com/linuztx/alter-zero.git
-cd alter-zero
+cd zeroth
 cargo run
 ```
 
@@ -305,7 +305,7 @@ The ones that come up in review:
   freed tree's pages to the OS, so a parse that spikes is a parse that *stays*.
   [`docs/architecture/memory.md`](docs/architecture/memory.md) has the measurements and the shapes that fix
   it; the `tests/*_memory.rs` gates keep them fixed.
-- **The app's name is one constant**, `alter_zero::APP_NAME`. Wording ported from
+- **The app's name is one constant**, `zeroth::APP_NAME`. Wording ported from
   another tool arrives carrying *that* tool's product name — re-read a ported
   sentence for whose name it says.
 - **A tool schema's prose is short, concrete and direct.** Every word rides in
@@ -385,6 +385,6 @@ it is exploitable.
 
 ## License
 
-Alter Zero is released under the [Apache License 2.0](LICENSE). By contributing,
+Zeroth is released under the [Apache License 2.0](LICENSE). By contributing,
 you agree that your contribution is licensed under it (Apache-2.0 §5) and that
 you have the right to submit it.

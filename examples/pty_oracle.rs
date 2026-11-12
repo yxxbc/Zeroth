@@ -20,10 +20,10 @@ use std::io::{BufRead, Read, Write};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use alter_zero::pty::keys::{ESC_PAUSE, KEY_PAUSE, Pace, encode, parse_input};
-use alter_zero::pty::screen::Screen;
-use alter_zero::pty::spawn::spawn;
 use serde_json::Value;
+use zeroth::pty::keys::{ESC_PAUSE, KEY_PAUSE, Pace, encode, parse_input};
+use zeroth::pty::screen::Screen;
+use zeroth::pty::spawn::spawn;
 
 fn main() {
     let mut args = std::env::args().skip(1);

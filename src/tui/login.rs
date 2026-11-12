@@ -4,10 +4,10 @@
 //! persisting what it mints or what passed. See `docs/providers/copilot.md`,
 //! `docs/providers/llm.md` and `docs/providers/local-models.md`.
 
-use alter_zero::app::{ServerTest, SigninKind, ToastKind};
-use alter_zero::clipboard;
-use alter_zero::llm;
-use alter_zero::stream::CancelToken;
+use zeroth::app::{ServerTest, SigninKind, ToastKind};
+use zeroth::clipboard;
+use zeroth::llm;
+use zeroth::stream::CancelToken;
 
 use super::Session;
 use super::workers::{DeviceEvent, spawn_server_test, spawn_signin};

@@ -339,7 +339,7 @@ fn export_text_is_the_transcript_as_plain_text_in_order() {
     // title shares depends on how many metadata rows the banner has — two
     // without session info, over a three-row mascot — so it is "before the
     // conversation", not "row 0".)
-    let title = pos("Alter Zero (v");
+    let title = pos("Zeroth (v");
     let first_blank = lines
         .iter()
         .position(String::is_empty)
@@ -354,7 +354,7 @@ fn export_text_is_the_transcript_as_plain_text_in_order() {
 fn export_text_opens_with_the_startup_banner() {
     // The export is the Ctrl+O page as text, top to bottom — and that page
     // opens with the startup banner the terminal did: the mascot beside
-    // `Alter Zero (v…)`, the cwd, the `/ commands   @ files   ? shortcuts` hint, one
+    // `Zeroth (v…)`, the cwd, the `/ commands   @ files   ? shortcuts` hint, one
     // blank, then the conversation.
     let mut app = with_session();
     app.record_user_message("hello");
@@ -369,7 +369,7 @@ fn export_text_opens_with_the_startup_banner() {
         !lines[0].trim().is_empty(),
         "the export opens on the banner's first row: {lines:?}"
     );
-    assert!(pos("Alter Zero (v") < pos("~/alter-zero"), "{lines:?}");
+    assert!(pos("Zeroth (v") < pos("~/alter-zero"), "{lines:?}");
     assert!(pos("~/alter-zero") < pos("/ commands   @ files   ? shortcuts"));
     let hello = pos("❯ hello");
     assert!(pos("/ commands   @ files   ? shortcuts") < hello);
@@ -468,7 +468,7 @@ fn export_text_inside_an_agent_view_is_that_agents_transcript() {
         "never the lead's conversation: {text:?}"
     );
     assert!(
-        text.contains("Alter Zero (v") && text.find("Alter Zero (v") < text.find("warsaw?"),
+        text.contains("Zeroth (v") && text.find("Zeroth (v") < text.find("warsaw?"),
         "the agent's page opens with the banner too: {text:?}"
     );
     let _ = ExportTarget::File;

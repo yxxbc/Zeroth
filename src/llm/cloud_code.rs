@@ -1643,13 +1643,13 @@ mod tests {
                 &cfg(model),
                 &[read_tool()],
                 &[
-                    ChatMessage::system("You are Alter Zero."),
+                    ChatMessage::system("You are Zeroth."),
                     ChatMessage::user("hi"),
                 ],
             );
             assert_eq!(
                 with["request"]["systemInstruction"]["parts"],
-                serde_json::json!([{"text": "You are Alter Zero."}]),
+                serde_json::json!([{"text": "You are Zeroth."}]),
                 "{model}"
             );
             let without = payload(&cfg(model), &[read_tool()], &[ChatMessage::user("hi")]);

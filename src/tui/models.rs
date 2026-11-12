@@ -39,19 +39,19 @@
 use std::path::Path;
 use std::time::Duration;
 
-use alter_zero::agents::AgentRegistry;
-use alter_zero::app::{
+use zeroth::agents::AgentRegistry;
+use zeroth::app::{
     LocalChoice, ProviderChoice, ServerTest, SubscriptionChoice, ToastKind, UsageTarget,
 };
-use alter_zero::background::BackgroundRegistry;
-use alter_zero::llm::{
+use zeroth::background::BackgroundRegistry;
+use zeroth::llm::{
     self, AuthScheme, EnvFile, LlmBackend, ModelConfig, ModelEntry, ModelSelection, ProvidersFile,
     ReasoningSupport, STANDARD_LABEL, ServiceTier, SpeedSettings, SpeedState, ThinkingMode,
 };
-use alter_zero::permission::PermissionGate;
-use alter_zero::settings::SessionSettings;
-use alter_zero::stream::{self, CancelToken, DummyAi, ReplySource};
-use alter_zero::ui;
+use zeroth::permission::PermissionGate;
+use zeroth::settings::SessionSettings;
+use zeroth::stream::{self, CancelToken, DummyAi, ReplySource};
+use zeroth::ui;
 
 use super::workers::{ModelFetch, spawn_model_fetch};
 use super::{Session, config};
@@ -169,25 +169,25 @@ pub(crate) struct ModelSession {
     /// on every rebuild like the registries, so a `/model` switch or a
     /// `/settings` change never leaves the loop pushing into a queue no
     /// backend is draining.
-    steer: alter_zero::steer::SteerQueue,
+    steer: zeroth::steer::SteerQueue,
     permissions: Option<PermissionGate>,
     /// The `AskUserQuestion` gate — `None` in a headless run, where nobody
     /// could answer, so the tool is never offered (`docs/cli/headless.md`).
-    ask: Option<alter_zero::ask::AskGate>,
+    ask: Option<zeroth::ask::AskGate>,
     /// A headless run's reply budget (`--max-turns`, `docs/cli/headless.md`),
     /// re-attached on every rebuild like the registries; `None` in the TUI.
-    round_budget: Option<alter_zero::llm::agent::RoundBudget>,
+    round_budget: Option<zeroth::llm::agent::RoundBudget>,
     /// The shared task list (docs/tools/task-tools.md) — enables the four task
     /// tools on every rebuild.
-    tasks: alter_zero::tasks::TaskRegistry,
+    tasks: zeroth::tasks::TaskRegistry,
     /// The subagent definitions (`docs/agents/subagents.md`) — the shared handle
     /// every rebuild re-attaches, so a type the per-turn rescan found is
     /// launchable without one.
-    subagents: alter_zero::subagents::SubagentRegistry,
+    subagents: zeroth::subagents::SubagentRegistry,
     /// The discovered skills (`docs/tools/skills.md`) — enables the `skill` tool on
     /// every rebuild, held even when the `/settings` **Skills** row is off so
     /// turning it back on needs no rescan. `skills_enabled` is the knob.
-    skills: alter_zero::skills::SkillRegistry,
+    skills: zeroth::skills::SkillRegistry,
     /// Whether the `skill` tool is offered at all — the `/settings` **Skills**
     /// knob, read by every rebuild so a mid-session switch sticks.
     skills_enabled: bool,
@@ -204,7 +204,7 @@ pub(crate) struct ModelSession {
     /// tracked `mcp_fingerprint` is the *last build's* offered wire-name set,
     /// so [`Self::refresh_mcp`] rebuilds only when a connection change
     /// actually flipped what the request carries.
-    mcp: Option<alter_zero::llm::mcp::McpManager>,
+    mcp: Option<zeroth::llm::mcp::McpManager>,
     mcp_fingerprint: Vec<String>,
     /// The user's lifecycle hooks (`docs/tools/hooks.md`), re-attached on every
     /// rebuild like the registries above. Held as the *setup* rather than a
@@ -244,16 +244,16 @@ impl ModelSession {
         scratchpad: Option<&Path>,
         registry: &BackgroundRegistry,
         agents: &AgentRegistry,
-        steer: &alter_zero::steer::SteerQueue,
+        steer: &zeroth::steer::SteerQueue,
         permissions: Option<&PermissionGate>,
-        ask: Option<&alter_zero::ask::AskGate>,
-        tasks: &alter_zero::tasks::TaskRegistry,
-        skills: &alter_zero::skills::SkillRegistry,
-        subagents: &alter_zero::subagents::SubagentRegistry,
-        mcp: Option<&alter_zero::llm::mcp::McpManager>,
+        ask: Option<&zeroth::ask::AskGate>,
+        tasks: &zeroth::tasks::TaskRegistry,
+        skills: &zeroth::skills::SkillRegistry,
+        subagents: &zeroth::subagents::SubagentRegistry,
+        mcp: Option<&zeroth::llm::mcp::McpManager>,
         settings: &SessionSettings,
         hooks: Option<HookSetup>,
-        round_budget: Option<&alter_zero::llm::agent::RoundBudget>,
+        round_budget: Option<&zeroth::llm::agent::RoundBudget>,
     ) -> Self {
         let (providers, provider_issues) = config::startup_providers(home);
         // The persistent API-key store: `.env` in the config home (or
@@ -575,7 +575,7 @@ impl ModelSession {
             skills,
             skills_enabled,
             mcp_fingerprint: mcp
-                .map(alter_zero::llm::mcp::McpManager::fingerprint)
+                .map(zeroth::llm::mcp::McpManager::fingerprint)
                 .unwrap_or_default(),
             mcp: mcp.cloned(),
             hooks,
@@ -890,7 +890,7 @@ impl ModelSession {
         self.mcp_fingerprint = self
             .mcp
             .as_ref()
-            .map(alter_zero::llm::mcp::McpManager::fingerprint)
+            .map(zeroth::llm::mcp::McpManager::fingerprint)
             .unwrap_or_default();
         self.backend = Box::new(session_backend(
             cfg,
@@ -957,7 +957,7 @@ impl ModelSession {
     /// setup exists even over an empty file so this can swap one in. The
     /// rebuild carries it into the next backend build; the live handles
     /// (gate, transcript, SessionStart sources) ride along untouched.
-    pub(crate) fn set_hooks_file(&mut self, file: alter_zero::hooks::HooksFile) {
+    pub(crate) fn set_hooks_file(&mut self, file: zeroth::hooks::HooksFile) {
         if let Some(setup) = self.hooks.as_mut() {
             setup.file = std::sync::Arc::new(file);
         }
@@ -979,7 +979,7 @@ impl ModelSession {
     /// The sink the **boundary's** events fire on (`docs/tools/hooks.md`): `None`
     /// without a real backend — the offline demo runs no hooks, so it fires
     /// no boundary events either — or without hooks to run.
-    fn boundary_hooks(&self) -> Option<alter_zero::llm::hooks::CommandHooks> {
+    fn boundary_hooks(&self) -> Option<zeroth::llm::hooks::CommandHooks> {
         if !self.real_backend {
             return None;
         }
@@ -1024,7 +1024,7 @@ impl ModelSession {
     /// announced either, and its pending source goes with it. Bounded inside
     /// the sink (2 s for the whole event), so no path can hang on a hook.
     pub(crate) fn end_conversation(&self, reason: &str) {
-        use alter_zero::llm::hooks::HookSink;
+        use zeroth::llm::hooks::HookSink;
         let Some(setup) = &self.hooks else {
             return;
         };
@@ -1530,7 +1530,7 @@ impl ModelSession {
                     .and_then(|setup| setup.command_hooks(&model))
                 {
                     backend = backend.with_hooks(std::sync::Arc::new(
-                        alter_zero::llm::hooks::CompactHooks::new(inner, auto),
+                        zeroth::llm::hooks::CompactHooks::new(inner, auto),
                     ));
                 }
                 backend
@@ -1675,7 +1675,7 @@ pub(crate) struct ModelRestore {
 #[derive(Debug, Clone)]
 pub(crate) struct HookSetup {
     /// The parsed `hooks.json`.
-    pub(crate) file: std::sync::Arc<alter_zero::hooks::HooksFile>,
+    pub(crate) file: std::sync::Arc<zeroth::hooks::HooksFile>,
     /// The session's startup id — the payload's `session_id` until the
     /// recorder publishes the conversation's (which is this same id for a
     /// fresh session's first conversation, `docs/tools/hooks.md`).
@@ -1695,7 +1695,7 @@ pub(crate) struct HookSetup {
     /// payload), the conversation the recorder publishes, the queued and the
     /// background SessionStart, and the synthetic-turn mark — shared into
     /// every sink built, surviving each rebuild (`docs/tools/hooks.md`).
-    pub(crate) handles: alter_zero::llm::hooks::HookHandles,
+    pub(crate) handles: zeroth::llm::hooks::HookHandles,
     /// The session's scratchpad, for the payloads' `scratchpad_dir` — `None`
     /// when the session has none (`docs/tools/scratchpad.md`).
     pub(crate) scratchpad_dir: Option<std::path::PathBuf>,
@@ -1708,9 +1708,9 @@ pub(crate) struct HookSetup {
 impl HookSetup {
     /// The sink for a backend answering as `model`, or `None` when hooks are
     /// switched off (or the file had nothing runnable).
-    fn sink(&self, model: &str) -> Option<std::sync::Arc<dyn alter_zero::llm::hooks::HookSink>> {
+    fn sink(&self, model: &str) -> Option<std::sync::Arc<dyn zeroth::llm::hooks::HookSink>> {
         self.command_hooks(model).map(|hooks| {
-            std::sync::Arc::new(hooks) as std::sync::Arc<dyn alter_zero::llm::hooks::HookSink>
+            std::sync::Arc::new(hooks) as std::sync::Arc<dyn zeroth::llm::hooks::HookSink>
         })
     }
 
@@ -1718,14 +1718,11 @@ impl HookSetup {
     /// wraps in its own `CompactHooks` instead and the boundary fires its
     /// session events on (`docs/tools/hooks.md`) — so they can never build
     /// different payloads.
-    pub(crate) fn command_hooks(
-        &self,
-        model: &str,
-    ) -> Option<alter_zero::llm::hooks::CommandHooks> {
+    pub(crate) fn command_hooks(&self, model: &str) -> Option<zeroth::llm::hooks::CommandHooks> {
         if !self.enabled {
             return None;
         }
-        let context = alter_zero::hooks::HookContext {
+        let context = zeroth::hooks::HookContext {
             session_id: self.session_id.clone(),
             // Resolved live per payload from the shared cell / the gate —
             // these are only the fall-backs when neither handle answers.
@@ -1740,7 +1737,7 @@ impl HookSetup {
                 .as_ref()
                 .map(|dir| dir.display().to_string()),
         };
-        alter_zero::llm::hooks::CommandHooks::new(
+        zeroth::llm::hooks::CommandHooks::new(
             std::sync::Arc::clone(&self.file),
             context,
             self.detach_helper.clone(),
@@ -1771,15 +1768,15 @@ fn session_backend(
     max_tool_calls: usize,
     registry: &BackgroundRegistry,
     agents: &AgentRegistry,
-    steer: &alter_zero::steer::SteerQueue,
+    steer: &zeroth::steer::SteerQueue,
     permissions: Option<&PermissionGate>,
-    ask: Option<&alter_zero::ask::AskGate>,
-    tasks: &alter_zero::tasks::TaskRegistry,
-    skills: Option<&alter_zero::skills::SkillRegistry>,
-    subagents: &alter_zero::subagents::SubagentRegistry,
-    mcp: Option<&alter_zero::llm::mcp::McpManager>,
+    ask: Option<&zeroth::ask::AskGate>,
+    tasks: &zeroth::tasks::TaskRegistry,
+    skills: Option<&zeroth::skills::SkillRegistry>,
+    subagents: &zeroth::subagents::SubagentRegistry,
+    mcp: Option<&zeroth::llm::mcp::McpManager>,
     hooks: Option<&HookSetup>,
-    round_budget: Option<&alter_zero::llm::agent::RoundBudget>,
+    round_budget: Option<&zeroth::llm::agent::RoundBudget>,
 ) -> LlmBackend {
     // Captured before `configure` consumes the config: the hooks payload
     // names the model that is about to answer (docs/tools/hooks.md).
@@ -1910,7 +1907,7 @@ impl Session<'_> {
     /// other type.
     pub(crate) fn sync_agent_view_context(&mut self) {
         let agent_type = self.app.viewed_agent().map_or_else(
-            || alter_zero::agents::GENERAL_PURPOSE.to_string(),
+            || zeroth::agents::GENERAL_PURPOSE.to_string(),
             |agent| agent.agent_type.clone(),
         );
         let prompt = self.models.backend().agent_system_prompt(&agent_type);
@@ -1962,7 +1959,7 @@ impl Session<'_> {
             .models
             .context_window()
             .and_then(|w| usize::try_from(w).ok());
-        let budget = alter_zero::skills::listing_budget(window);
+        let budget = zeroth::skills::listing_budget(window);
         let skills_offered = self.app.settings().skills_offered();
         let skills = if skills_offered {
             self.skill_registry.listing(budget)
@@ -1971,7 +1968,7 @@ impl Session<'_> {
         };
         let agents = if self.models.agents_offered() {
             self.subagents
-                .listing(alter_zero::subagents::agent_budget(budget, &skills))
+                .listing(zeroth::subagents::agent_budget(budget, &skills))
         } else {
             String::new()
         };
@@ -1989,13 +1986,13 @@ impl Session<'_> {
         // go, and only what follows a changed section re-renders into the
         // prompt cache. Gated on Tools, as their tools are.
         let mcp_instructions = if self.app.settings().tools {
-            alter_zero::mcp::instructions_section(&self.mcp.instructions(&|_| true))
+            zeroth::mcp::instructions_section(&self.mcp.instructions(&|_| true))
         } else {
             String::new()
         };
-        let listings = alter_zero::reminder::join_sections(&[
-            &alter_zero::subagents::listing_sections(&skills, &agents),
-            &alter_zero::secrets::secret_section(&secrets),
+        let listings = zeroth::reminder::join_sections(&[
+            &zeroth::subagents::listing_sections(&skills, &agents),
+            &zeroth::secrets::secret_section(&secrets),
             &mcp_instructions,
         ]);
         self.app

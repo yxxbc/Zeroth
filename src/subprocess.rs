@@ -83,7 +83,7 @@ use std::process::{Child, Command, Stdio};
 
 /// The sentinel first argument that selects the detached-exec helper mode —
 /// obscure enough that no real TUI invocation collides with it.
-pub const DETACH_ARG: &str = "__alter-zero-detached-exec";
+pub const DETACH_ARG: &str = "__zeroth-detached-exec";
 
 /// The shell a command runs under unless its caller names another: the `!`
 /// shell's and the hooks runner's, whose commands were always `sh -c`.
@@ -140,7 +140,7 @@ pub fn is_executable_file(path: &Path) -> bool {
     }
 }
 
-/// The detach helper the tests spawn through: the `alter-zero` binary cargo
+/// The detach helper the tests spawn through: the `zeroth` binary cargo
 /// built beside the running test binary ([`built_binary_beside`]) — the
 /// helper `main()` installs, so a test reaches the tier a machine with no
 /// `setsid` binary (macOS) runs on. A test binary cannot be the helper
@@ -159,9 +159,9 @@ pub(crate) fn test_detach_helper() -> Option<&'static Path> {
         .as_deref()
 }
 
-/// Where cargo leaves the `alter-zero` binary for the test binary at
+/// Where cargo leaves the `zeroth` binary for the test binary at
 /// `test_exe`: beside the `deps/` directory the test binary sits in
-/// (`target/debug/deps/alter_zero-…` → `target/debug/alter-zero`), else
+/// (`target/debug/deps/zeroth-…` → `target/debug/alter-zero`), else
 /// beside the test binary itself.
 #[cfg(test)]
 fn built_binary_beside(test_exe: &Path) -> Option<PathBuf> {
@@ -171,7 +171,7 @@ fn built_binary_beside(test_exe: &Path) -> Option<PathBuf> {
     if dir.ends_with("deps") {
         dir = dir.parent()?;
     }
-    Some(dir.join(format!("alter-zero{}", std::env::consts::EXE_SUFFIX)))
+    Some(dir.join(format!("zeroth{}", std::env::consts::EXE_SUFFIX)))
 }
 
 /// One way to spawn the shell child, in [`tiers`]' preference order. See the
@@ -268,7 +268,7 @@ pub fn command_in(tier: &DetachTier<'_>, shell: &Path, command: &str) -> Command
 /// `setsid`, stdin — the pseudo-terminal the spawner handed the child — is
 /// made the new session's controlling terminal, so a `/dev/tty` prompt
 /// reaches the session instead of failing.
-pub const DETACH_TTY_ARG: &str = "__alter-zero-detached-tty-exec";
+pub const DETACH_TTY_ARG: &str = "__zeroth-detached-tty-exec";
 
 /// The spawn order for a **TTY session**: the `setsid` binary, then the
 /// helper when one is installed — and nothing after them. [`tiers`]' last
@@ -544,7 +544,7 @@ pub fn run_detached_exec_if_requested() {
     let Some(command) = args.next() else {
         // A malformed helper invocation must never fall through and boot a
         // TUI into the caller's pipes — fail the spawn instead.
-        eprintln!("alter-zero: {DETACH_ARG} requires a command");
+        eprintln!("zeroth: {DETACH_ARG} requires a command");
         std::process::exit(2);
     };
     let shell = args.next().unwrap_or_else(|| OsString::from(DEFAULT_SHELL));
@@ -571,10 +571,7 @@ pub fn run_detached_exec_if_requested() {
         // the group-kill helpers target.
         let err = Command::new(&shell).arg("-c").arg(&command).exec();
         // exec only returns on failure.
-        eprintln!(
-            "alter-zero: failed to exec {}: {err}",
-            shell.to_string_lossy()
-        );
+        eprintln!("zeroth: failed to exec {}: {err}", shell.to_string_lossy());
         std::process::exit(127);
     }
     #[cfg(not(unix))]
@@ -586,10 +583,7 @@ pub fn run_detached_exec_if_requested() {
         match Command::new(&shell).arg("-c").arg(&command).status() {
             Ok(status) => std::process::exit(status.code().unwrap_or(1)),
             Err(err) => {
-                eprintln!(
-                    "alter-zero: failed to run {}: {err}",
-                    shell.to_string_lossy()
-                );
+                eprintln!("zeroth: failed to run {}: {err}", shell.to_string_lossy());
                 std::process::exit(127);
             }
         }
@@ -697,23 +691,23 @@ mod tests {
     #[test]
     fn a_tests_helper_is_the_binary_cargo_built_beside_it() {
         // `main()` installs its own binary as the helper; a test binary has
-        // libtest's `main`, so the tests use the `alter-zero` binary cargo
+        // libtest's `main`, so the tests use the `zeroth` binary cargo
         // builds next to the `deps/` directory they run from.
-        let bin = format!("alter-zero{}", std::env::consts::EXE_SUFFIX);
+        let bin = format!("zeroth{}", std::env::consts::EXE_SUFFIX);
         assert_eq!(
-            built_binary_beside(Path::new("/w/target/debug/deps/alter_zero-0123abcd")),
+            built_binary_beside(Path::new("/w/target/debug/deps/zeroth-0123abcd")),
             Some(PathBuf::from("/w/target/debug").join(&bin))
         );
         assert_eq!(
-            built_binary_beside(Path::new("/w/target/x/release/deps/alter_zero-0123abcd")),
+            built_binary_beside(Path::new("/w/target/x/release/deps/zeroth-0123abcd")),
             Some(PathBuf::from("/w/target/x/release").join(&bin))
         );
         // A test binary copied out of `deps/` looks beside itself.
         assert_eq!(
-            built_binary_beside(Path::new("/w/bin/alter_zero-0123abcd")),
+            built_binary_beside(Path::new("/w/bin/zeroth-0123abcd")),
             Some(PathBuf::from("/w/bin").join(&bin))
         );
-        assert_eq!(built_binary_beside(Path::new("alter_zero")), None);
+        assert_eq!(built_binary_beside(Path::new("zeroth")), None);
     }
 
     #[test]
@@ -736,7 +730,7 @@ mod tests {
     #[test]
     fn a_shell_child_never_inherits_the_herdr_pane() {
         // The pane is the TUI's: a nested agent reporting into it would take
-        // it over, and herdr then drops every report alter-zero sends
+        // it over, and herdr then drops every report zeroth sends
         // (`docs/architecture/herdr.md`). herdr's own marker and socket stay — the
         // environment herdr gives its popups — so its CLI and agent skill
         // still work.

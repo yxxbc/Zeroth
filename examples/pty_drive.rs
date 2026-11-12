@@ -19,13 +19,13 @@
 use std::io::BufRead;
 use std::time::{Duration, Instant};
 
-use alter_zero::background::{BackgroundRegistry, BgEvent};
-use alter_zero::llm::exec::{RealToolExecutor, ToolExecutor, ToolProgress};
-use alter_zero::llm::tools::ToolCallRequest;
-use alter_zero::pty::report::{Frame, parse_frame};
-use alter_zero::stream::CancelToken;
 use serde_json::Value;
 use tokio::sync::mpsc::unbounded_channel;
+use zeroth::background::{BackgroundRegistry, BgEvent};
+use zeroth::llm::exec::{RealToolExecutor, ToolExecutor, ToolProgress};
+use zeroth::llm::tools::ToolCallRequest;
+use zeroth::pty::report::{Frame, parse_frame};
+use zeroth::stream::CancelToken;
 
 fn main() {
     let path = std::env::args()

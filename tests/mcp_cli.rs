@@ -1,6 +1,6 @@
 //! Integration proof of the `mcp` CLI subcommand family (`docs/cli/mcp-cli.md`)
 //! against the **real built binary** (the `detached_exec.rs` pattern —
-//! cargo hands the path as `CARGO_BIN_EXE_alter-zero`), with
+//! cargo hands the path as `CARGO_BIN_EXE_zeroth`), with
 //! `ALTER_ZERO_MCP_FILE` pointed into a per-test temp dir. Offline and
 //! deterministic: nothing connects; the commands are file surgery + print.
 
@@ -9,7 +9,7 @@ use std::process::{Command, Output};
 
 /// The TUI binary this test run just built.
 fn bin() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_alter-zero"))
+    PathBuf::from(env!("CARGO_BIN_EXE_zeroth"))
 }
 
 /// A per-test scratch dir (unique per test name, wiped at entry) and the
@@ -24,7 +24,7 @@ fn scratch(test: &str) -> (PathBuf, PathBuf) {
     (dir, file)
 }
 
-/// Run `alter-zero mcp …` with the user file redirected at `file`.
+/// Run `zeroth mcp …` with the user file redirected at `file`.
 fn mcp(file: &PathBuf, args: &[&str]) -> Output {
     Command::new(bin())
         .arg("mcp")
@@ -204,12 +204,10 @@ fn failures_exit_1_and_grammar_errors_exit_2() {
     assert_eq!(out.status.code(), Some(2));
     let text = stderr(&out);
     assert!(
-        text.starts_with(
-            "error: pass a --url or a command, not both\n\nUsage: alter-zero mcp add "
-        ),
+        text.starts_with("error: pass a --url or a command, not both\n\nUsage: zeroth mcp add "),
         "{text}"
     );
-    assert!(text.contains("\n       alter-zero mcp list\n"), "{text}");
+    assert!(text.contains("\n       zeroth mcp list\n"), "{text}");
     assert!(
         text.ends_with("For more information, try '--help'.\n"),
         "{text}"
@@ -217,9 +215,9 @@ fn failures_exit_1_and_grammar_errors_exit_2() {
     // Help: exit 0 on stdout, the page titled by its command.
     let out = mcp(&file, &["--help"]);
     assert!(out.status.success());
-    assert_eq!(stdout(&out).lines().next(), Some("alter-zero mcp"));
+    assert_eq!(stdout(&out).lines().next(), Some("zeroth mcp"));
     assert!(
-        stdout(&out).contains("Usage: alter-zero mcp add"),
+        stdout(&out).contains("Usage: zeroth mcp add"),
         "{}",
         stdout(&out)
     );

@@ -19,11 +19,11 @@
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
 
-use alter_zero::context::{ContextMessage, ContextRole};
-use alter_zero::images::attachment_data_url;
-use alter_zero::llm::ModelConfig;
-use alter_zero::llm::backend::build_messages_for;
-use alter_zero::llm::openai::OpenAiClient;
+use zeroth::context::{ContextMessage, ContextRole};
+use zeroth::images::attachment_data_url;
+use zeroth::llm::ModelConfig;
+use zeroth::llm::backend::build_messages_for;
+use zeroth::llm::openai::OpenAiClient;
 
 fn vm_kb(field: &str) -> Option<usize> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;

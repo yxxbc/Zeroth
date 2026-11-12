@@ -100,7 +100,7 @@ pub struct TelemetryFile {
     /// launch that day rather than lost.
     pub last_ping_day: Option<String>,
     /// The app version that ping carried. The day's ping says which version
-    /// the install is on and `alter-zero update` changes the answer mid-day,
+    /// the install is on and `zeroth update` changes the answer mid-day,
     /// so the throttle is keyed on both ([`should_ping`]): the first launch
     /// after an update pings once more, whatever the day. `None` in a file
     /// written by a build that recorded only the day — an update by
@@ -372,7 +372,7 @@ impl Ping {
 /// UTC date, `YYYY-MM-DD`) **from this `version`**.
 ///
 /// One a day is the rule, and the day the app is updated is its one
-/// exception: the ping names the version, `alter-zero update` changes it,
+/// exception: the ping names the version, `zeroth update` changes it,
 /// and a throttle keyed on the day alone kept the next launch silent until
 /// midnight UTC — so the dashboard showed an install still on the old
 /// release for the rest of the day it had updated. A version that differs
@@ -438,10 +438,10 @@ pub fn notice() -> String {
     )
 }
 
-/// The `User-Agent` a ping carries: `alter-zero/{version}`.
+/// The `User-Agent` a ping carries: `zeroth/{version}`.
 #[must_use]
 pub fn user_agent(version: &str) -> String {
-    format!("alter-zero/{version}")
+    format!("zeroth/{version}")
 }
 
 /// Deliver one ping — the boundary function the worker thread calls. `Ok`
@@ -810,7 +810,7 @@ mod tests {
     #[test]
     fn the_first_launch_after_an_update_pings_again_that_day() {
         // The version is one of the ping's seven fields, so the day's ping
-        // says which version the install is on — and `alter-zero update`
+        // says which version the install is on — and `zeroth update`
         // changes the answer mid-day. Keying the throttle on the day alone
         // meant the next launch stayed silent until midnight UTC, and the
         // dashboard kept the install on the old version for the whole day
@@ -883,7 +883,7 @@ mod tests {
 
     #[test]
     fn the_user_agent_names_the_app_and_version() {
-        assert_eq!(user_agent("0.1.0"), "alter-zero/0.1.0");
+        assert_eq!(user_agent("0.1.0"), "zeroth/0.1.0");
     }
 
     #[test]

@@ -214,7 +214,7 @@ impl SettingKey {
                 "Ask GitHub once a day whether a newer release is out and say so under the banner — one request that carries nothing about you"
             }
             Self::Telemetry => {
-                "Send one anonymous ping a day (app version, OS, country) so Alter Zero's users can be counted — never your prompts, files or keys"
+                "Send one anonymous ping a day (app version, OS, country) so Zeroth's users can be counted — never your prompts, files or keys"
             }
         }
     }

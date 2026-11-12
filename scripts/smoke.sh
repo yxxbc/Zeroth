@@ -24,7 +24,7 @@
 #   scripts/smoke.sh --sweep-leaked       # list (then --yes: delete) rollouts old runs leaked into ~/.alter-zero
 #   scripts/smoke.sh --list               # the phases, their tags, last timings
 #   scripts/smoke.sh -v                   # print every phase's log, not just failures
-#   scripts/smoke.sh target/release/alter-zero   # another binary (default: target/debug)
+#   scripts/smoke.sh target/release/zeroth   # another binary (default: target/debug)
 set -uo pipefail
 
 SMOKE_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,7 +35,7 @@ usage() {
 	cat <<'EOF'
 usage: scripts/smoke.sh [BIN] [options] [SELECTOR…]
 
-  BIN                 the binary to drive (default: target/debug/alter-zero)
+  BIN                 the binary to drive (default: target/debug/zeroth)
   SELECTOR            a phase id (55, 107b), a range (50-60) or a name
                       substring (permission); several may be given
   -j, --jobs N        parallel workers (default: 2× the CPU count, at most 8; SMOKE_JOBS)
@@ -291,7 +291,7 @@ if [ "$LIST" -eq 1 ]; then
 fi
 
 # --- the binary ---------------------------------------------------------------
-BIN="${BIN_ARG:-${SMOKE_BIN:-$SMOKE_ROOT/target/debug/alter-zero}}"
+BIN="${BIN_ARG:-${SMOKE_BIN:-$SMOKE_ROOT/target/debug/zeroth}}"
 if [ ! -x "$BIN" ]; then
 	echo "FAIL: binary not found at $BIN (run: cargo build)" >&2
 	exit 1

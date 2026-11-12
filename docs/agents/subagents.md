@@ -36,7 +36,7 @@ You are Alter Zero's explore subagent. …
 | `description` | **required** | the one-line pitch the model chooses from — it is the whole basis for picking a type, so a file without one is refused |
 | `model` | optional | a provider model id (`kimi-k3`) run this type on, or `inherit` for the session's own model. The seeded files say `inherit` rather than omitting it: the key is then *there* to edit |
 | `tools` | optional | comma-separated allowlist. **Omit for every tool.** Built-ins are Capitalized (`Bash`, `Read`, `Write`, `Edit`, `Skill`); MCP tools keep their wire spelling (`mcp__deepwiki__ask_question`), and a trailing `*` globs (`mcp__deepwiki__*`, `mcp__*`) |
-| body | optional | **the subagent's system prompt**, replacing the `prompts/alter_zero.md` persona for this type. Omit it and the type runs the session's own persona |
+| body | optional | **the subagent's system prompt**, replacing the `prompts/zeroth.md` persona for this type. Omit it and the type runs the session's own persona |
 
 Unknown keys are ignored, not rejected (the `SKILL.md` rule): an agent file
 written for another tool — `color:`, `allowed-tools:`, `version:` — loads

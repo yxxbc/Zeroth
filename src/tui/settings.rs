@@ -1,7 +1,7 @@
 //! The `/settings` menu at the boundary: opening it, and **applying** each
 //! knob the pure core moved (`docs/state/settings.md`).
 //!
-//! The pure side ([`alter_zero::app::App::settings`]) only ever holds the
+//! The pure side ([`zeroth::app::App::settings`]) only ever holds the
 //! value; everything that has to *happen* when one changes lives here — the
 //! backend rebuild, the checkpoint store's flip, the project-doc reload, the
 //! file write, the confirming toast. `App` stays free of I/O, and every knob
@@ -14,10 +14,10 @@
 
 use std::io;
 
-use alter_zero::app::ToastKind;
-use alter_zero::images::{self, DEFAULT_FONT_SIZE, ImagePolicy};
-use alter_zero::project_doc;
-use alter_zero::settings::{SettingAvailability, SettingKey};
+use zeroth::app::ToastKind;
+use zeroth::images::{self, DEFAULT_FONT_SIZE, ImagePolicy};
+use zeroth::project_doc;
+use zeroth::settings::{SettingAvailability, SettingKey};
 
 use super::{Session, config};
 
@@ -38,12 +38,12 @@ impl Session<'_> {
     /// the session runs hooks at all — and hands all three to `App`, the
     /// `/resume` picker's injection seam.
     pub(crate) fn open_hooks_menu(&mut self) {
-        let overview = alter_zero::hooks::HooksOverview::from_file(&self.trust.configured_hooks())
+        let overview = zeroth::hooks::HooksOverview::from_file(&self.trust.configured_hooks())
             .with_trust(&|source, identity| self.trust.is_hook_trusted(source, identity));
         let enabled = self.models.hooks_enabled();
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
-        let mut source = alter_zero::llm::hooks::hooks_file_path(config::config_home().as_deref())
-            .map(|path| alter_zero::ui::display_cwd(&path, home.as_deref()));
+        let mut source = zeroth::llm::hooks::hooks_file_path(config::config_home().as_deref())
+            .map(|path| zeroth::ui::display_cwd(&path, home.as_deref()));
         // A project's file is part of what the browser shows, so the
         // `Source:` row names it too (`docs/state/project-config.md`).
         if let Some(file) = self
@@ -53,7 +53,7 @@ impl Session<'_> {
             .and_then(|project| project.hooks.as_ref())
             .filter(|file| file.parsed.is_ok())
         {
-            let project = alter_zero::ui::display_cwd(&file.path, home.as_deref());
+            let project = zeroth::ui::display_cwd(&file.path, home.as_deref());
             source = Some(match source {
                 Some(user) => format!("{user} + {project}"),
                 None => project,
@@ -77,13 +77,11 @@ impl Session<'_> {
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
         // The same resolver the startup walk used, so the menu can only ever
         // name directories that were actually read.
-        let roots = alter_zero::llm::skill::resolved_skill_roots(
-            &self.cwd,
-            config::config_home().as_deref(),
-        )
-        .iter()
-        .map(|root| alter_zero::ui::display_cwd(root, home.as_deref()))
-        .collect();
+        let roots =
+            zeroth::llm::skill::resolved_skill_roots(&self.cwd, config::config_home().as_deref())
+                .iter()
+                .map(|root| zeroth::ui::display_cwd(root, home.as_deref()))
+                .collect();
         self.app.open_skills_menu(
             self.skill_registry.snapshot(),
             self.skill_registry.disabled(),
@@ -116,7 +114,7 @@ impl Session<'_> {
     /// arrived a turn late, which reads exactly like the rescan not working.
     pub(crate) fn rescan_skills(&mut self) {
         let (skills, errors) =
-            alter_zero::llm::skill::load_skills(&self.cwd, config::config_home().as_deref());
+            zeroth::llm::skill::load_skills(&self.cwd, config::config_home().as_deref());
         self.skill_registry.replace(skills);
         self.sync_setting_availability();
         self.sync_listings();
@@ -124,7 +122,7 @@ impl Session<'_> {
         // A `SKILL.md` that stopped parsing says so — once. Silence here is
         // what makes "the model ignores my skill" and "I typo'd the
         // frontmatter" read as two unrelated problems.
-        let fresh = alter_zero::skills::unreported_errors(&self.reported_skill_errors, &errors);
+        let fresh = zeroth::skills::unreported_errors(&self.reported_skill_errors, &errors);
         self.reported_skill_errors = errors.iter().map(|error| error.path.clone()).collect();
         self.report_skill_errors(&fresh);
     }
@@ -143,10 +141,10 @@ impl Session<'_> {
     /// reminder does).
     pub(crate) fn rescan_agents(&mut self) {
         let (agents, errors) =
-            alter_zero::llm::subagent::load_agents(&self.cwd, config::config_home().as_deref());
+            zeroth::llm::subagent::load_agents(&self.cwd, config::config_home().as_deref());
         self.subagents.replace(agents);
         self.sync_listings();
-        let fresh = alter_zero::subagents::unreported_errors(&self.reported_agent_errors, &errors);
+        let fresh = zeroth::subagents::unreported_errors(&self.reported_agent_errors, &errors);
         self.reported_agent_errors = errors.iter().map(|error| error.path.clone()).collect();
         self.report_agent_errors(&fresh);
     }
