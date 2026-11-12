@@ -564,7 +564,7 @@ mod tests {
     #[test]
     fn the_release_tag_is_read_off_the_redirects_final_url() {
         assert_eq!(
-            version_from_release_url("https://github.com/linuztx/alter-zero/releases/tag/v0.2.0"),
+            version_from_release_url("https://github.com/yxxbc/zeroth/releases/tag/v0.2.0"),
             Some("0.2.0".to_string())
         );
         assert_eq!(
@@ -573,16 +573,14 @@ mod tests {
             "a query string is not part of the tag"
         );
         assert_eq!(
-            version_from_release_url(
-                "https://github.com/linuztx/alter-zero/releases/tag/v0.2.0-rc.1"
-            ),
+            version_from_release_url("https://github.com/yxxbc/zeroth/releases/tag/v0.2.0-rc.1"),
             Some("0.2.0-rc.1".to_string())
         );
         for url in [
-            "https://github.com/linuztx/alter-zero/releases",
-            "https://github.com/linuztx/alter-zero/releases/latest",
-            "https://github.com/linuztx/alter-zero/releases/tag/nightly",
-            "https://github.com/linuztx/alter-zero/releases/tag/",
+            "https://github.com/yxxbc/zeroth/releases",
+            "https://github.com/yxxbc/zeroth/releases/latest",
+            "https://github.com/yxxbc/zeroth/releases/tag/nightly",
+            "https://github.com/yxxbc/zeroth/releases/tag/",
             "",
         ] {
             assert_eq!(version_from_release_url(url), None, "{url:?}");
@@ -674,23 +672,23 @@ mod tests {
 
     #[test]
     fn urls_are_built_off_the_repository() {
-        let repo = "https://github.com/linuztx/alter-zero";
+        let repo = "https://github.com/yxxbc/zeroth";
         assert_eq!(
             latest_url(repo),
-            "https://github.com/linuztx/alter-zero/releases/latest"
+            "https://github.com/yxxbc/zeroth/releases/latest"
         );
         assert_eq!(
             release_page_url(repo, "0.2.0"),
-            "https://github.com/linuztx/alter-zero/releases/tag/v0.2.0"
+            "https://github.com/yxxbc/zeroth/releases/tag/v0.2.0"
         );
         assert_eq!(
             installer_url(repo),
-            "https://raw.githubusercontent.com/linuztx/alter-zero/main/install.sh",
+            "https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh",
             "GitHub serves raw files from another host"
         );
         assert_eq!(
-            installer_url("https://github.com/linuztx/alter-zero/"),
-            "https://raw.githubusercontent.com/linuztx/alter-zero/main/install.sh",
+            installer_url("https://github.com/yxxbc/zeroth/"),
+            "https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh",
             "a trailing slash is tolerated"
         );
         assert_eq!(
@@ -726,7 +724,7 @@ mod tests {
         assert!(text.contains("**v0.2.0**"), "{text}");
         assert!(text.contains("v0.1.0"), "{text}");
         assert!(
-            text.contains("https://github.com/linuztx/alter-zero/releases/tag/v0.2.0"),
+            text.contains("https://github.com/yxxbc/zeroth/releases/tag/v0.2.0"),
             "{text}"
         );
         assert!(text.contains("`zeroth update`"), "{text}");

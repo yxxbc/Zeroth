@@ -111,6 +111,21 @@ release heading when a version is cut.
 
 ### Changed
 
+- **The one-line installer is Zeroth's, and its mascot moves.**
+  `install.sh` now resolves releases from `yxxbc/zeroth` and installs the
+  `zeroth` binary, named after the repository slug the way a release
+  archive is named after Cargo.toml's `name`; `ALTER_ZERO_REPO` overrides
+  the slug for a fixture release. Its banner is the app's default `crest`
+  mascot, drawn in the banner gradient, and on a terminal it animates —
+  the tint walking down the rows, the crest swinging, the eyes blinking —
+  for about a second and a half and then as the spinner of the Download
+  row, reporting the bytes landed so far. `--preview` (also `--proview`)
+  plays the mascot alone, ten seconds by default and any whole number
+  with `--preview 20` or `--preview=20`, doing no platform check, no
+  network and no install. Piped, under `NO_COLOR` or in a non-UTF-8
+  locale, the art is drawn once and still, as before
+  (`docs/ops/release.md`).
+
 - **The startup banner's hint is state-aware.** A configured session teaches
   the three entry points beyond typing a message — `/ commands`, `@ files`,
   `? shortcuts` — with the sigils in the accent and their names dim, instead

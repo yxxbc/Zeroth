@@ -143,10 +143,15 @@ and still refuses to install anything it cannot verify.
 ## The installer
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/linuztx/alter-zero/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh
 ```
 
 `install.sh` at the repository root is the one line the README leads with.
+`REPO` at the top is `yxxbc/zeroth`, and the binary it installs is named
+after that slug — `zeroth` — because a release archive is named after
+Cargo.toml's `name`. `ALTER_ZERO_REPO` overrides the slug (the selftest's
+fixture release is `example/alter-zero`, and the hashes it checks are that
+release's).
 It maps `uname` to a target triple (refusing Windows, musl, and a glibc
 older than the 2.35 floor with a message that points at building from
 source), reads the latest tag off github.com's `/releases/latest` redirect
@@ -158,7 +163,7 @@ nothing of `ALTER_ZERO_INSTALL_BASE_URL` (`ALTER_ZERO_VERSION=vX.Y.Z` or
 does not list a matching value, extracts,
 copies the binary into `~/.local/bin` (`ALTER_ZERO_INSTALL_DIR` or `--dir`
 for elsewhere) beside any old one and moves it into place so a running
-`alter-zero` keeps its mapped file and the new one appears whole, runs the
+`zeroth` keeps its mapped file and the new one appears whole, runs the
 installed binary's `--version` as the last check, and ends with what to do
 next — the PATH line for the user's own shell when the directory is not on
 it, and how to uninstall. It never prompts: under `curl | sh` its stdin
@@ -174,6 +179,29 @@ output wears the app's own look: the `crest` mascot in the banner gradient
 (truecolor when `COLORTERM` says so, the terminal's cyan otherwise), the
 `→`/`✔`/`✘` step glyphs, and none of it — no colour, ASCII glyphs — in a
 pipe, under `NO_COLOR`, or outside a UTF-8 locale.
+
+## The mascot and `--preview`
+
+The banner is the app's default mascot, `crest`
+(`src/app/mascot.rs`), drawn as three rows of single-width block glyphs
+beside the name. On a terminal it moves: the tint walks down the rows
+along the banner's cyan → blue gradient, the crest swings, and the eyes
+blink every second. It plays for about a second and a half before the
+steps, then becomes the one-row spinner of the **Download** row while the
+archive lands, reporting the bytes so far. A pipe, `TERM=dumb`, `NO_COLOR`
+or a non-UTF-8 locale gets the app's name and the art once, still, and the
+plain fetch instead of the spinner — the same rule the rest of the output
+follows.
+
+`--preview` (also spelled `--proview`) plays the mascot alone for ten
+seconds — `--preview N` and `--preview=N` take any whole number of seconds
+— and then exits: no platform check, no network, and nothing installed, so
+it is safe to run from a checkout, over SSH, or to see what the banner
+looks like in a theme. The frames are counted, not timed, so a slow
+terminal runs long rather than dropping frames; where `sleep` takes no
+fraction (a strict POSIX shell), a frame lasts a second rather than a
+tenth. Piped, the art is drawn once and the run says it needs a terminal
+to animate on.
 
 The script is served from `main` rather than attached to each release
 because the URL then never changes: an asset's name carries the version,

@@ -5,7 +5,7 @@
 smoke_begin
 
 # update — the once-a-day update check, its card under the banner, the
-# /settings row, and `alter-zero update` (docs/ops/update.md). The release
+# /settings row, and `zeroth update` (docs/ops/update.md). The release
 # tooling's stand-in github.com (scripts/release/release_server.py) serves a
 # fake release — the binary under test, packaged as v9.9.9 for this machine
 # by the release tooling's own package_dist, so the archive's layout and
@@ -84,8 +84,8 @@ fi
 if ! printf '%s' "$up_first" | grep -qF "v$UP_VERSION"; then
 	fail "the card does not name the running version v$UP_VERSION"
 fi
-if ! printf '%s' "$up_first" | grep -qF "alter-zero update"; then
-	fail "the card does not name alter-zero update"
+if ! printf '%s' "$up_first" | grep -qF "zeroth update"; then
+	fail "the card does not name zeroth update"
 fi
 if ! printf '%s' "$up_first" | grep -qF "ALTER_ZERO_UPDATE_CHECK=0"; then
 	fail "the card lost its opt-out — clamped instead of wrapped?"
@@ -197,27 +197,27 @@ if [ "$(up_field "$UP_TMP/current/update.json" notice_day)" != "null" ]; then
 fi
 up_quit
 
-# (e) `alter-zero update` against the same up-to-date repository: says so
+# (e) `zeroth update` against the same up-to-date repository: says so
 # and exits 0. Run from a COPY in its own bin dir — the checkout's own
 # target/debug binary is refused below, as a cargo build directory.
 UP_BIN="$UP_TMP/bin"
 mkdir -p "$UP_BIN"
-cp "$BIN_ABS" "$UP_BIN/alter-zero"
-up_out="$(env $UP_BASE NO_PROXY=127.0.0.1 ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" ALTER_ZERO_CONFIG_DIR="$UP_TMP/current" "$UP_BIN/alter-zero" update 2>&1)"
+cp "$BIN_ABS" "$UP_BIN/zeroth"
+up_out="$(env $UP_BASE NO_PROXY=127.0.0.1 ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" ALTER_ZERO_CONFIG_DIR="$UP_TMP/current" "$UP_BIN/zeroth" update 2>&1)"
 up_rc=$?
-note "alter-zero update when already newest (exit $up_rc)"
+note "zeroth update when already newest (exit $up_rc)"
 printf '%s\n' "$up_out"
 if [ "$up_rc" != "0" ] || ! printf '%s' "$up_out" | grep -qF "is the newest release"; then
-	fail "alter-zero update did not report the current version as newest (exit $up_rc)"
+	fail "zeroth update did not report the current version as newest (exit $up_rc)"
 fi
 up_stop
 
-# (f) `alter-zero update` from a cargo build directory is refused with the
+# (f) `zeroth update` from a cargo build directory is refused with the
 # checkout's own advice, whatever the repository says.
 up_start v9.9.9
 up_dev="$(env $UP_BASE ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" "$BIN_ABS" update 2>&1)"
 up_dev_rc=$?
-note "alter-zero update from target/debug (exit $up_dev_rc)"
+note "zeroth update from target/debug (exit $up_dev_rc)"
 printf '%s\n' "$up_dev"
 if [ "$up_dev_rc" = "0" ] || ! printf '%s' "$up_dev" | grep -qF "cargo build directory"; then
 	fail "a cargo build directory was not refused (exit $up_dev_rc)"
@@ -250,16 +250,16 @@ fi
 up_npm_inode="$(ls -i "$UP_PLATFORM/bin/alter-zero" | awk '{ print $1 }')"
 up_npm="$(env $UP_BASE ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" "$UP_NPM_CMD" update 2>&1)"
 up_npm_rc=$?
-note "alter-zero update from an npm install (exit $up_npm_rc)"
+note "zeroth update from an npm install (exit $up_npm_rc)"
 printf '%s\n' "$up_npm"
 if [ "$up_npm_rc" != "1" ] || ! printf '%s' "$up_npm" | grep -qF "npm install -g @linuztx/alter-zero@latest"; then
 	fail "an npm install was not refused with npm's command (exit $up_npm_rc)"
 fi
 if [ "$(ls -i "$UP_PLATFORM/bin/alter-zero" | awk '{ print $1 }')" != "$up_npm_inode" ]; then
-	fail "alter-zero update wrote over the npm install's binary"
+	fail "zeroth update wrote over the npm install's binary"
 fi
 
-# (f3) That install's card names npm's command too, never `alter-zero
+# (f3) That install's card names npm's command too, never `zeroth
 # update`. Where Node has process.execve the launcher BECAME the binary, so
 # the pane runs alter-zero itself, with no Node process beside it.
 tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ALTER_ZERO_UPDATE_URL=http://127.0.0.1:$UP_PORT ALTER_ZERO_CONFIG_DIR=$UP_TMP/npm-home $UP_NPM_CMD"
@@ -268,8 +268,8 @@ dump "the card of an npm install" "$up_npm_card"
 if ! printf '%s' "$up_npm_card" | grep -qF "@linuztx/alter-zero@latest"; then
 	fail "the npm install's card does not name npm's command"
 fi
-if printf '%s' "$up_npm_card" | grep -qF "alter-zero update"; then
-	fail "the npm install's card still says alter-zero update"
+if printf '%s' "$up_npm_card" | grep -qF "zeroth update"; then
+	fail "the npm install's card still says zeroth update"
 fi
 if [ "$UP_NPM_CMD" = "$UP_NPM/bin/alter-zero" ] && node -e 'process.exit(typeof process.execve === "function" ? 0 : 1)'; then
 	up_npm_pane="$(tmux display-message -p -t "$S116" '#{pane_current_command}')"
@@ -279,20 +279,20 @@ if [ "$UP_NPM_CMD" = "$UP_NPM/bin/alter-zero" ] && node -e 'process.exit(typeof 
 fi
 up_quit
 
-# (g) `alter-zero update` from the copy, against v9.9.9: the installer runs
+# (g) `zeroth update` from the copy, against v9.9.9: the installer runs
 # over the copy's own directory, checksum verified, and the binary there is
 # a new file that still runs. The fake release IS this binary, so the
 # installer notes the version it reports rather than failing.
-up_inode_before="$(ls -i "$UP_BIN/alter-zero" | awk '{ print $1 }')"
-up_upd="$(env $UP_BASE NO_PROXY=127.0.0.1 ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" ALTER_ZERO_CONFIG_DIR="$UP_TMP/home" "$UP_BIN/alter-zero" update 2>&1)"
+up_inode_before="$(ls -i "$UP_BIN/zeroth" | awk '{ print $1 }')"
+up_upd="$(env $UP_BASE NO_PROXY=127.0.0.1 ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" ALTER_ZERO_CONFIG_DIR="$UP_TMP/home" "$UP_BIN/zeroth" update 2>&1)"
 up_upd_rc=$?
-note "alter-zero update to v9.9.9 (exit $up_upd_rc)"
+note "zeroth update to v9.9.9 (exit $up_upd_rc)"
 printf '%s\n' "$up_upd"
 if [ "$up_upd_rc" != "0" ]; then
-	fail "alter-zero update exited $up_upd_rc"
+	fail "zeroth update exited $up_upd_rc"
 fi
 if ! printf '%s' "$up_upd" | grep -qF "v9.9.9 is out"; then
-	fail "alter-zero update did not announce v9.9.9"
+	fail "zeroth update did not announce v9.9.9"
 fi
 if ! printf '%s' "$up_upd" | grep -qF "matches the published value"; then
 	fail "the installer did not verify the checksum"
@@ -300,12 +300,12 @@ fi
 if ! printf '%s' "$up_upd" | grep -qF "Installed"; then
 	fail "the installer did not report the install"
 fi
-up_inode_after="$(ls -i "$UP_BIN/alter-zero" | awk '{ print $1 }')"
+up_inode_after="$(ls -i "$UP_BIN/zeroth" | awk '{ print $1 }')"
 if [ "$up_inode_before" = "$up_inode_after" ]; then
 	fail "the binary was not replaced (same inode $up_inode_after)"
 fi
-up_version_after="$("$UP_BIN/alter-zero" --version 2>&1)"
-if [ "$up_version_after" != "alter-zero $UP_VERSION" ]; then
+up_version_after="$("$UP_BIN/zeroth" --version 2>&1)"
+if [ "$up_version_after" != "zeroth $UP_VERSION" ]; then
 	fail "the updated binary does not run: '$up_version_after'"
 fi
 up_stop

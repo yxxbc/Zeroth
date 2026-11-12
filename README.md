@@ -60,20 +60,21 @@ Zeroth is an open-source AI coding agent written in Rust, inspired by Claude Cod
 Zeroth runs on **Linux** (x86_64, arm64) and **macOS** (Intel, Apple silicon) in a modern terminal.
 
 > **Fork note:** Zeroth is a derivative of
-> [Alter Zero](https://github.com/linuztx/alter-zero). The one-line installer,
+> [Alter Zero](https://github.com/linuztx/alter-zero). The one-line installer
+> in this repository installs Zeroth's own releases from
+> [`yxxbc/zeroth`](https://github.com/yxxbc/zeroth) once one is published; the
 > npm package and container image below still belong to the upstream project
-> and install its binary, not this fork's. Until Zeroth publishes releases of
-> its own, use [Build from source](#build-from-source).
+> and install its binary, not this fork's.
 
 ### Install
 
 One line on Linux or macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/linuztx/alter-zero/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh
 ```
 
-It picks the build for your machine, verifies its SHA-256 against the checksum published with the release, installs `alter-zero` into `~/.local/bin`, and tells you if that directory is not on your `PATH`.
+It picks the build for your machine, verifies its SHA-256 against the checksum published with the release, installs `zeroth` into `~/.local/bin`, and tells you if that directory is not on your `PATH`. Its banner is the app's own `crest` mascot, animated while it works; `sh install.sh --preview` plays that mascot alone for ten seconds (or `--preview 20`) without touching the network.
 
 Or install the same build with npm:
 
@@ -88,7 +89,13 @@ Set `ALTER_ZERO_INSTALL_DIR` to install somewhere else, or `ALTER_ZERO_VERSION=v
 
 ```bash
 ALTER_ZERO_INSTALL_DIR="$HOME/bin" ALTER_ZERO_VERSION=v0.1.0 \
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/linuztx/alter-zero/main/install.sh)"
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh)"
+```
+
+To watch the banner without installing anything:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh -s -- --preview 10
 ```
 
 For a manual install, each release's notes list every archive with its SHA-256, so you can download, verify, and extract one by hand.

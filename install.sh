@@ -1,16 +1,18 @@
 #!/bin/sh
-# install.sh — the one-line installer for Alter Zero (docs/ops/release.md).
+# install.sh — the one-line installer for Zeroth (docs/ops/release.md).
 #
-#   curl -fsSL https://raw.githubusercontent.com/linuztx/alter-zero/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh
 #
 # Picks the release archive built for this machine (Linux x86_64 or arm64,
 # macOS Intel or Apple silicon), verifies its SHA-256 against the checksum
 # published beside it, and installs the binary to ~/.local/bin. Nothing is
 # installed unless the checksum matches and the binary runs.
 #
-#   ALTER_ZERO_VERSION=v0.1.0 … | sh              # pin a release (default: the latest)
+#   ALTER_ZERO_VERSION=v0.1.0 … | sh               # pin a release (default: the latest)
 #   ALTER_ZERO_INSTALL_DIR=/usr/local/bin … | sh   # install somewhere else
 #   … | sh -s -- --version v0.1.0 --dir ~/bin      # the same two, as flags
+#   … | sh -s -- --preview                         # the mascot alone, 10 s, installing nothing
+#   … | sh -s -- --preview 20                      # the same, for 20 s (--preview=20 too)
 #   … | sh -s -- --help
 #
 # POSIX sh only — no arrays, no `local`, no `[[` — so `sh` on macOS (bash 3.2
@@ -20,19 +22,24 @@
 # release tooling's selftest uses that to install from a local server.
 set -eu
 
-REPO="linuztx/alter-zero"
-BIN="alter-zero"
+REPO="${ALTER_ZERO_REPO:-yxxbc/zeroth}"
+# The installed binary is named after the repository's slug — Cargo.toml's
+# `name`, which is what a release archive is named after too. One variable,
+# so this repository (`yxxbc/zeroth` → `zeroth`) and a stand-in (the release
+# tooling's fixture is a repository called `example/alter-zero`) both resolve.
+BIN="${REPO##*/}"
 BASE_URL="${ALTER_ZERO_INSTALL_BASE_URL:-https://github.com/$REPO}"
 GLIBC_FLOOR_MINOR=35
 
 # ---------------------------------------------------------------------------
-# Looks: colour on a terminal (truecolor for the banner gradient when the
+# Looks: colour on a terminal (truecolor for the mascot's gradient when the
 # terminal says it has it), the app's own glyphs in a UTF-8 locale, plain
-# ASCII otherwise, and nothing at all under NO_COLOR or in a pipe.
+# ASCII otherwise, and no colour at all under NO_COLOR or in a pipe.
 # ---------------------------------------------------------------------------
 setup_looks() {
 	esc=$(printf '\033')
 	bold='' dim='' reset='' red='' green='' yellow='' cyan='' g1='' g2='' g3=''
+	cursor_hidden=0
 	if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
 		bold="${esc}[1m" dim="${esc}[2m" reset="${esc}[0m"
 		red="${esc}[31m" green="${esc}[32m" yellow="${esc}[33m" cyan="${esc}[36m"
@@ -51,19 +58,140 @@ setup_looks() {
 	esac
 	if [ "$utf8" -eq 1 ]; then
 		arrow='→' tick='✔' cross='✘' bang='!'
+		spin1='▙' spin2='▛' spin3='▜' spin4='▟'
 	else
 		arrow='>' tick='+' cross='x' bang='!'
+		spin1='|' spin2='/' spin3='-' spin4="\\"
 	fi
+	# A frame's pause. `sleep` is not required to take a fraction: where it
+	# does not, a frame lasts a second rather than a tenth, and a preview of
+	# ten seconds steps ten times.
+	if sleep 0.1 2>/dev/null; then
+		fps=10
+	else
+		fps=1
+	fi
+}
+
+# ---------------------------------------------------------------------------
+# The mascot: `crest`, the app's default (src/app/mascot.rs), beside the name.
+# Three rows of single-width block glyphs, tinted from the banner's gradient
+# with the tint walking down the rows, its crest swinging and its eyes
+# blinking on a short cycle. On a terminal it animates — a short intro before
+# the steps, a one-row spinner while the archive downloads, and `--preview N`
+# for as long as you ask. In a pipe, under `TERM=dumb` or with no colour, the
+# art is drawn once and left still.
+# ---------------------------------------------------------------------------
+# Every row is written with its trailing padding already in the string: the
+# captions' column is fixed, and a UTF-8 block glyph is three bytes wide but
+# one column, so no byte count could pad it.
+art_set() { # FRAME -> r1 r2 r3
+	frame=$(($1 % 6))
+	blink=0
+	case "$(($1 % 20))" in
+	15 | 16) blink=1 ;;
+	esac
+	if [ "$utf8" -eq 1 ]; then
+		case "$frame" in
+		3 | 4 | 5) r1='▙▄▙▄▟▄▟    ' ;;
+		*) r1=' ▙▄▙▄▟▄▟   ' ;;
+		esac
+		if [ "$blink" -eq 1 ]; then r2='▝▜▄▀▀▀▄▛▘  '; else r2='▝▜▄███▄▛▘  '; fi
+		case "$frame" in
+		3 | 4 | 5) r3='  ▝▝ ▘▘    ' ;;
+		*) r3='  ▘▘ ▝▝    ' ;;
+		esac
+	else
+		case "$frame" in
+		3 | 4 | 5) r1='.--.       ' ;;
+		*) r1=' .--.      ' ;;
+		esac
+		if [ "$blink" -eq 1 ]; then r2='( -- )     '; else r2='( oo )     '; fi
+		# The ASCII stand-in's feet are backticks, so they are escaped
+		# rather than quoted into a substitution.
+		r3=" \`--\`      "
+	fi
+}
+
+art_tint() { # FRAME ROW -> col
+	case "$((($1 + $2) % 3))" in
+	0) col="$g1" ;;
+	1) col="$g2" ;;
+	*) col="$g3" ;;
+	esac
+}
+
+draw_mascot() { # FRAME CAP1 CAP2 CAP3
+	art_set "$1"
+	art_tint "$1" 0
+	printf '  %s%s%s  %s%s%s\n' "$col" "$r1" "$reset" "$bold" "$2" "$reset"
+	art_tint "$1" 1
+	printf '  %s%s%s  %s%s%s\n' "$col" "$r2" "$reset" "$dim" "$3" "$reset"
+	art_tint "$1" 2
+	printf '  %s%s%s  %s%s%s\n' "$col" "$r3" "$reset" "$dim" "$4" "$reset"
+}
+
+# Whether the art is allowed to move: a terminal, and not one that cannot
+# place a cursor (`TERM=dumb`, so a captured run).
+animate_ok() { [ -t 1 ] && [ "${TERM:-}" != dumb ]; }
+
+hide_cursor() {
+	if [ "$cursor_hidden" -eq 0 ] && animate_ok; then
+		printf '\033[?25l'
+		cursor_hidden=1
+	fi
+}
+
+show_cursor() {
+	if [ "${cursor_hidden:-0}" -eq 1 ]; then
+		printf '\033[?25h'
+		cursor_hidden=0
+	fi
+}
+
+tick() { sleep "0.1" 2>/dev/null || sleep 1; }
+
+# animate FRAMES CAP1 CAP2 CAP3 — the three rows redrawn in place.
+animate() {
+	frames="$1"
+	hide_cursor
+	i=0
+	while [ "$i" -lt "$frames" ]; do
+		if [ "$i" -gt 0 ]; then printf '\033[3A'; fi
+		draw_mascot "$i" "$2" "$3" "$4"
+		tick
+		i=$((i + 1))
+	done
+	show_cursor
+}
+
+# The same art, once, for a pipe or a terminal that cannot hold it still.
+static_banner() {
+	printf '   %s▙▄▙▄▟▄▟%s      %sZeroth%s\n' "$g1" "$reset" "$bold" "$reset"
+	printf '  %s▝▜▄███▄▛▘%s     %sthe one-line installer%s\n' "$g2" "$reset" "$dim" "$reset"
+	printf '    %s▘▘ ▝▝%s\n' "$g3" "$reset"
 }
 
 banner() {
 	printf '\n'
-	if [ "$utf8" -eq 1 ]; then
-		printf '   %s▙▄▙▄▟▄▟%s     %sAlter Zero%s\n' "$g1" "$reset" "$bold" "$reset"
-		printf '  %s▝▜▄███▄▛▘%s    %sthe one-line installer%s\n' "$g2" "$reset" "$dim" "$reset"
-		printf '    %s▘▘ ▝▝%s\n' "$g3" "$reset"
+	if animate_ok; then
+		animate $((fps * 3 / 2)) 'Zeroth' 'the one-line installer' "building $BIN"
 	else
-		printf '  %sAlter Zero%s  %sthe one-line installer%s\n' "$bold" "$reset" "$dim" "$reset"
+		printf '  %sZeroth%s  %sthe one-line installer%s\n' "$bold" "$reset" "$dim" "$reset"
+	fi
+	printf '\n'
+}
+
+# preview SECONDS — the mascot alone: no platform check, no network, and
+# nothing installed. The frames are counted, not timed, so a slow terminal
+# runs long rather than dropping frames.
+preview() {
+	printf '\n'
+	if animate_ok; then
+		animate "$(($1 * fps))" 'Zeroth' 'the one-line installer' "preview · $1 s · nothing is installed"
+	else
+		static_banner
+		printf '\n  %s--preview needs a terminal to animate on.%s\n' "$dim" "$reset"
 	fi
 	printf '\n'
 }
@@ -85,7 +213,7 @@ usage() {
 	if [ -f "$0" ]; then
 		sed -n '2,/^set -eu/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
 	else
-		printf 'usage: curl -fsSL https://raw.githubusercontent.com/%s/main/install.sh | sh -s -- [--version vX.Y.Z] [--dir DIR]\n' "$REPO"
+		printf 'usage: curl -fsSL https://raw.githubusercontent.com/%s/main/install.sh | sh -s -- [--version vX.Y.Z] [--dir DIR] [--preview [SECONDS]]\n' "$REPO"
 	fi
 }
 
@@ -99,7 +227,7 @@ detect_target() {
 	case "$cpu" in
 	x86_64 | amd64) cpu=x86_64 ;;
 	aarch64 | arm64) cpu=aarch64 ;;
-	*) fail "unsupported CPU: $cpu" "Alter Zero ships for x86_64 and arm64." ;;
+	*) fail "unsupported CPU: $cpu" "Zeroth ships for x86_64 and arm64." ;;
 	esac
 	case "$os" in
 	Linux)
@@ -127,9 +255,9 @@ detect_target() {
 		if [ "$cpu" = aarch64 ]; then platform="macOS Apple silicon"; else platform="macOS Intel"; fi
 		;;
 	MINGW* | MSYS* | CYGWIN* | Windows_NT)
-		fail "Windows is not supported" "Alter Zero runs on Linux and macOS; on Windows, use it inside WSL."
+		fail "Windows is not supported" "Zeroth runs on Linux and macOS; on Windows, use it inside WSL."
 		;;
-	*) fail "unsupported operating system: $os" "Alter Zero ships for Linux and macOS." ;;
+	*) fail "unsupported operating system: $os" "Zeroth ships for Linux and macOS." ;;
 	esac
 }
 
@@ -167,6 +295,57 @@ fetch() {
 	else
 		wget -q -O "$2" "$1"
 	fi
+}
+
+# fetch_live URL DEST LABEL — the Download row. On a terminal the fetch runs
+# in the background and its row spins in the mascot's place, reporting the
+# bytes landed so far; the command's own exit status is what this returns.
+# A background job's `kill -0` still answers for a corpse the shell has not
+# reaped, so the job writes its status to a file and the poll watches that.
+fetch_live() {
+	if ! animate_ok; then
+		fetch "$1" "$2" progress
+		return
+	fi
+	rm -f "$tmp/fetch.status"
+	# `set -e` would end the subshell at the failed fetch, before it wrote
+	# anything — and the poll below would spin forever.
+	(
+		if fetch "$1" "$2"; then rc=0; else rc=$?; fi
+		printf '%s\n' "$rc" >"$tmp/fetch.status"
+	) &
+	pid=$!
+	hide_cursor
+	i=0
+	# A cap, so a fetch that is killed rather than failing cannot hang the
+	# install: two minutes of frames is ten times the longest real download.
+	while [ ! -s "$tmp/fetch.status" ] && [ "$i" -lt 1200 ]; do
+		case "$((i % 4))" in
+		0) spin="$spin1" ;;
+		1) spin="$spin2" ;;
+		2) spin="$spin3" ;;
+		*) spin="$spin4" ;;
+		esac
+		size=''
+		if [ -f "$2" ]; then size=$(human_size "$(wc -c <"$2" | tr -d ' ')"); fi
+		printf '\r  %s%s%s  %-9s %s %s%s\033[K' "$cyan" "$spin" "$reset" "Download" "$3" "$dim" "$size"
+		tick
+		i=$((i + 1))
+	done
+	# The cap fired and left no status: the fetch is still running, or died
+	# without a word. Either way this must not answer "installed", and it
+	# must not sit in `wait` until a stalled fetch finishes.
+	if [ ! -s "$tmp/fetch.status" ]; then
+		kill "$pid" 2>/dev/null || true
+		show_cursor
+		printf '\r\033[K'
+		return 1
+	fi
+	wait "$pid" 2>/dev/null || true
+	show_cursor
+	printf '\r\033[K'
+	rc=$(cat "$tmp/fetch.status")
+	[ "$rc" = 0 ]
 }
 
 # The tag the repository's "latest release" redirect points at — read off the
@@ -209,8 +388,12 @@ pretty() {
 
 # ---------------------------------------------------------------------------
 main() {
+	# Before anything can `fail`: the glyphs and colours in its message come
+	# from here, and `set -u` would stop it on an unset one.
+	setup_looks
 	want="${ALTER_ZERO_VERSION:-}"
 	dir="${ALTER_ZERO_INSTALL_DIR:-$HOME/.local/bin}"
+	preview_secs=''
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--version | -v)
@@ -225,6 +408,16 @@ main() {
 			shift 2
 			;;
 		--dir=*) dir="${1#--dir=}"; shift ;;
+		# `--proview` is the spelling this script shipped its first day with;
+		# it stays a synonym so a script quoting it keeps working.
+		--preview | --proview)
+			preview_secs=10
+			case "${2:-}" in
+			'' | *[!0-9]*) shift ;;
+			*) preview_secs="$2"; shift 2 ;;
+			esac
+			;;
+		--preview=* | --proview=*) preview_secs="${1#*=}"; shift ;;
 		-h | --help)
 			usage
 			exit 0
@@ -232,8 +425,21 @@ main() {
 		*) fail "unknown option: $1" "Try --help." ;;
 		esac
 	done
+	if [ -n "$preview_secs" ]; then
+		case "$preview_secs" in
+		'' | *[!0-9]*) fail "--preview needs a whole number of seconds" "Try --preview 10." ;;
+		esac
+		[ "$preview_secs" -gt 0 ] || fail "--preview needs at least one second"
+	fi
 
-	setup_looks
+	if [ -n "$preview_secs" ]; then
+		preview "$preview_secs"
+		exit 0
+	fi
+
+	tmp=$(mktemp -d 2>/dev/null || mktemp -d -t zeroth)
+	trap 'show_cursor; rm -rf "${tmp:-}"' EXIT INT TERM HUP
+
 	banner
 	need_tools
 	detect_target
@@ -251,20 +457,18 @@ main() {
 	step "Release" "$tag ${dim}· $how$reset"
 
 	asset="$BIN-$tag-$target"
-	tmp=$(mktemp -d 2>/dev/null || mktemp -d -t alter-zero)
-	trap 'rm -rf "$tmp"' EXIT INT TERM HUP
 	archive="$tmp/$asset.tar.gz"
 	url="$BASE_URL/releases/download/$tag/$asset.tar.gz"
 
-	step "Download" "$asset.tar.gz"
-	fetch "$url" "$archive" progress || fail "no release asset for $target at $tag" "Looked for $url"
+	fetch_live "$url" "$archive" "$asset.tar.gz" || fail "no release asset for $target at $tag" "Looked for $url"
+	size=$(human_size "$(wc -c <"$archive" | tr -d ' ')")
+	done_ "Download" "$asset.tar.gz $dim($size)$reset"
 	# SHA256SUMS covers every archive in the release — one published file
 	# rather than one beside each asset, which is what the release page
 	# lists and `sha256sum -c` reads.
 	sums="$tmp/SHA256SUMS"
 	sums_url="$BASE_URL/releases/download/$tag/SHA256SUMS"
 	fetch "$sums_url" "$sums" || fail "the checksum file for this release is missing" "Refusing to install an unverified download. Looked for $sums_url"
-	size=$(human_size "$(wc -c <"$archive" | tr -d ' ')")
 
 	expected=$(awk -v name="$asset.tar.gz" '$2 == name { print $1; exit }' "$sums")
 	[ -n "$expected" ] || fail "SHA256SUMS does not list $asset.tar.gz" "Refusing to install an unverified download. It lists: $(awk '{ print $2 }' "$sums" | paste -sd ' ' - | cut -c1-160)"
@@ -292,7 +496,7 @@ main() {
 
 	mkdir -p "$dir" 2>/dev/null || fail "cannot create $(pretty "$dir")" "Pick another place: ALTER_ZERO_INSTALL_DIR=\$HOME/bin"
 	[ -w "$dir" ] || fail "$(pretty "$dir") is not writable" "Pick a directory you own: ALTER_ZERO_INSTALL_DIR=\$HOME/bin"
-	# Land beside the old binary, then move over it: a running alter-zero
+	# Land beside the old binary, then move over it: a running zeroth
 	# keeps its mapped file and the new one appears whole, never half-written.
 	staged="$dir/.$BIN.$$"
 	if ! { cp "$src" "$staged" && chmod 755 "$staged" && mv -f "$staged" "$dir/$BIN"; }; then
@@ -312,7 +516,7 @@ main() {
 	fi
 
 	printf '\n'
-	printf '  %sAlter Zero %s is ready.%s Start it with\n\n' "$bold" "$tag" "$reset"
+	printf '  %sZeroth %s is ready.%s Start it with\n\n' "$bold" "$tag" "$reset"
 	printf '      %s%s%s\n\n' "$cyan" "$BIN" "$reset"
 	printf '  then %s/login%s to connect a provider and %s/model%s to choose a model.\n' "$bold" "$reset" "$bold" "$reset"
 	case ":$PATH:" in

@@ -471,7 +471,7 @@ EOF
 			"$(LC_ALL=C grep -nE '[$]([A-Za-z_][A-Za-z0-9_]*|[0-9]+|[-?@*#!$])[^[:print:][:space:]]' "$CHECKOUT/install.sh" || true)"
 		if command -v python3 >/dev/null 2>&1; then
 			base="http://127.0.0.1:$(serve_release "$T/dist" v0.4.2)"
-			expect_ok "install.sh installs the latest release from the stand-in server" env ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin" sh "$CHECKOUT/install.sh"
+			expect_ok "install.sh installs the latest release from the stand-in server" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin" sh "$CHECKOUT/install.sh"
 			expect_contains "…reading the tag off the /releases/latest redirect" "$OUT" "v0.4.2 · latest"
 			expect_contains "…verifying the checksum" "$OUT" "matches the published value"
 			expect_contains "…and reporting the install" "$OUT" "Installed"
@@ -489,7 +489,7 @@ EOF
 				tool_path=$(command -v "$tool" 2>/dev/null) && ln -s "$tool_path" "$T/nocurl/$tool"
 			done
 			if [ -x "$T/nocurl/wget" ]; then
-				expect_ok "install.sh resolves and downloads with wget where there is no curl" env PATH="$T/nocurl" ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin-wget" sh "$CHECKOUT/install.sh"
+				expect_ok "install.sh resolves and downloads with wget where there is no curl" env PATH="$T/nocurl" ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin-wget" sh "$CHECKOUT/install.sh"
 				expect_contains "…reading the tag off the same redirect" "$OUT" "v0.4.2 · latest"
 				expect_contains "…verifying the checksum" "$OUT" "matches the published value"
 				expect_eq "…and installing a binary that runs" "alter-zero 0.4.2" "$("$T/home/bin-wget/alter-zero" --version 2>&1)"
@@ -502,20 +502,20 @@ EOF
 			write_sha256sums "$T/dist-published" >/dev/null
 			rm -f "$T/dist-published"/*.tar.gz.sha256
 			base="http://127.0.0.1:$(serve_release "$T/dist-published" v0.4.2)"
-			expect_ok "install.sh verifies against SHA256SUMS, with no per-asset file published" env ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin-pub" sh "$CHECKOUT/install.sh"
+			expect_ok "install.sh verifies against SHA256SUMS, with no per-asset file published" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin-pub" sh "$CHECKOUT/install.sh"
 			expect_contains "…reporting the match" "$OUT" "matches the published value"
 			if [ -x "$T/home/bin-pub/alter-zero" ]; then pass "…and installing the binary"; else flunk "no executable at $T/home/bin-pub/alter-zero"; fi
 			stop_release
 			base="http://127.0.0.1:$(serve_release "$T/dist" v0.4.2)"
-			expect_ok "install.sh takes --version and --dir" env ALTER_ZERO_INSTALL_BASE_URL="$base" sh "$CHECKOUT/install.sh" --version 0.4.2 --dir "$T/home/bin2"
+			expect_ok "install.sh takes --version and --dir" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" sh "$CHECKOUT/install.sh" --version 0.4.2 --dir "$T/home/bin2"
 			expect_contains "…as a pinned release" "$OUT" "v0.4.2 · pinned"
-			expect_ok "…installing over itself again" env ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin2" sh "$CHECKOUT/install.sh"
-			expect_fail "install.sh refuses a release with no asset for the machine" env ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_VERSION=v9.9.9 ALTER_ZERO_INSTALL_DIR="$T/home/bin3" sh "$CHECKOUT/install.sh"
+			expect_ok "…installing over itself again" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin2" sh "$CHECKOUT/install.sh"
+			expect_fail "install.sh refuses a release with no asset for the machine" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_VERSION=v9.9.9 ALTER_ZERO_INSTALL_DIR="$T/home/bin3" sh "$CHECKOUT/install.sh"
 			expect_contains "…saying so" "$OUT" "no release asset"
 			if [ ! -e "$T/home/bin3/alter-zero" ]; then pass "…and installing nothing"; else flunk "…but left a binary behind"; fi
 			stop_release
 			base="http://127.0.0.1:$(serve_release "$T/dist-badsum" v0.4.2)"
-			expect_fail "install.sh refuses a download whose checksum does not match" env ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin4" sh "$CHECKOUT/install.sh"
+			expect_fail "install.sh refuses a download whose checksum does not match" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin4" sh "$CHECKOUT/install.sh"
 			expect_contains "…naming the mismatch" "$OUT" "checksum mismatch"
 			expect_contains "…and that nothing was installed" "$OUT" "Nothing was installed"
 			if [ ! -e "$T/home/bin4/alter-zero" ]; then pass "…truly"; else flunk "…but left a binary behind"; fi
@@ -572,6 +572,19 @@ EOF
 			expect_ok "install.sh --help prints the usage" sh "$CHECKOUT/install.sh" --help
 			expect_contains "…naming the one-liner" "$OUT" "curl -fsSL"
 			expect_fail "install.sh refuses an unknown option" sh "$CHECKOUT/install.sh" --bogus
+			# --preview: the mascot alone. It is not a terminal here, so the
+			# art is drawn once, still — the run must still exit 0, install
+			# nothing, and touch no network (no ALTER_ZERO_INSTALL_BASE_URL).
+			expect_ok "install.sh --preview draws the mascot and exits" sh "$CHECKOUT/install.sh" --preview 1
+			expect_contains "…drawing the mascot" "$OUT" "Zeroth"
+			expect_lacks "…and never prompting for a release" "$OUT" "Release"
+			expect_ok "…with a count, as --preview N and --preview=N" sh "$CHECKOUT/install.sh" --preview=1
+			expect_ok "…and the --proview spelling" sh "$CHECKOUT/install.sh" --proview 1
+			expect_fail "install.sh refuses --preview with no seconds left" sh "$CHECKOUT/install.sh" --preview 0
+			expect_contains "…saying so" "$OUT" "at least one second"
+			expect_fail "install.sh refuses a negative preview" sh "$CHECKOUT/install.sh" --preview=abc
+			expect_contains "…naming what it wants" "$OUT" "whole number of seconds"
+			expect_contains "…and the usage names --preview" "$(sh "$CHECKOUT/install.sh" --help)" "--preview"
 			expect_ok "release_server.py parses" python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read(), sys.argv[1])' "$STEPS/release_server.py"
 		else
 			warn "no python3 — skipping the install.sh cases"
