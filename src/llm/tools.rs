@@ -1525,6 +1525,15 @@ pub fn parse_args<T: for<'de> Deserialize<'de>>(arguments: &str) -> Result<T, St
     serde_json::from_str(text).map_err(|e| format!("invalid tool arguments: {e}"))
 }
 
+/// The tools whose call is a self-contained process or file operation — safe
+/// to run on a worker ahead of the model's order. The rest — the ask tool,
+/// subagent launches, MCP, skills, task calls — keep the serial loop: their
+/// executors own state a worker must not race (`docs/tools/parallel-tools.md`).
+#[must_use]
+pub fn is_parallel_safe(name: &str) -> bool {
+    matches!(name, "bash" | "read" | "write" | "edit")
+}
+
 /// The display name shown in the `● name(args)` cell header for a model tool
 /// (title-cased), falling back to the raw name for anything unrecognised.
 #[must_use]

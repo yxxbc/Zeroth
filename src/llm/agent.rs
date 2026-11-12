@@ -402,8 +402,90 @@ pub enum PendingInput {
 /// turn: the loop keeps what it said and asks for the rest in a new user
 /// message, up to [`MAX_CONTINUATIONS`] rounds in a row, and only then ends
 /// the turn on an error saying so (`docs/architecture/unfinished-replies.md`).
+/// The parallel tool seam: a **`Sync`** executor for the ordinary
+/// file/command tools, and how many workers may run it. The serial
+/// [`run_agent`] passes `None`; the real backend passes the executor behind
+/// its secret/logging wrappers, whose `Fn` shape is shareable across threads.
+/// Tools outside [`is_parallel_safe`] (subagents, ask, MCP, skills, tasks)
+/// keep the serial path: their executors own state a worker must not race.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)] // one executor reference and a worker count
+pub struct ParallelTools<'a> {
+    /// Run one ordinary tool call. `Sync`: called from every worker.
+    pub execute:
+        &'a (dyn Fn(&ToolCallRequest, &mut dyn FnMut(ToolProgress<'_>)) -> ToolOutcome + Sync),
+    /// How many calls may run at once (the caller clamps it to the machine).
+    pub workers: usize,
+}
+
 #[allow(clippy::too_many_arguments)] // the loop's full seam set (docs/agents/agent-tool.md)
 pub fn run_agent(
+    tx: &UnboundedSender<StreamEvent>,
+    cancel: &CancelToken,
+    max_tool_calls: usize,
+    messages: &mut Vec<ChatMessage>,
+    round: impl FnMut(&[ChatMessage]) -> RoundOutcome,
+    execute: impl FnMut(&ToolCallRequest, &mut dyn FnMut(ToolProgress<'_>)) -> ToolOutcome,
+    pending_inputs: impl FnMut() -> Vec<PendingInput>,
+    run_agents: impl FnMut(&[ToolCallRequest]) -> Vec<(String, String)>,
+    approve: impl FnMut(&ToolCallRequest, bool) -> Approval,
+    hooks: &dyn HookSink,
+    session_command: &dyn Fn(&str) -> Option<String>,
+) {
+    run_agent_inner(
+        tx,
+        cancel,
+        max_tool_calls,
+        messages,
+        round,
+        execute,
+        pending_inputs,
+        run_agents,
+        approve,
+        hooks,
+        session_command,
+        None,
+    );
+}
+
+/// [`run_agent`] with the ordinary tool batch allowed to execute concurrently
+/// — a homogeneous batch of [`is_parallel_safe`] calls runs on `tools.workers`
+/// workers; every other round shape keeps the serial loop. The cells still
+/// resolve in the model's order: the batch's first call shows its live output,
+/// and the rest start and finish as the order reaches them.
+#[allow(clippy::too_many_arguments)] // the loop's full seam set
+pub fn run_agent_parallel(
+    tx: &UnboundedSender<StreamEvent>,
+    cancel: &CancelToken,
+    max_tool_calls: usize,
+    messages: &mut Vec<ChatMessage>,
+    round: impl FnMut(&[ChatMessage]) -> RoundOutcome,
+    execute: impl FnMut(&ToolCallRequest, &mut dyn FnMut(ToolProgress<'_>)) -> ToolOutcome,
+    pending_inputs: impl FnMut() -> Vec<PendingInput>,
+    run_agents: impl FnMut(&[ToolCallRequest]) -> Vec<(String, String)>,
+    approve: impl FnMut(&ToolCallRequest, bool) -> Approval,
+    hooks: &dyn HookSink,
+    session_command: &dyn Fn(&str) -> Option<String>,
+    tools: ParallelTools<'_>,
+) {
+    run_agent_inner(
+        tx,
+        cancel,
+        max_tool_calls,
+        messages,
+        round,
+        execute,
+        pending_inputs,
+        run_agents,
+        approve,
+        hooks,
+        session_command,
+        Some(tools),
+    );
+}
+
+#[allow(clippy::too_many_arguments)] // the loop's full seam set
+fn run_agent_inner(
     tx: &UnboundedSender<StreamEvent>,
     cancel: &CancelToken,
     max_tool_calls: usize,
@@ -415,6 +497,7 @@ pub fn run_agent(
     mut approve: impl FnMut(&ToolCallRequest, bool) -> Approval,
     hooks: &dyn HookSink,
     session_command: &dyn Fn(&str) -> Option<String>,
+    parallel: Option<ParallelTools<'_>>,
 ) {
     let mut used_calls = 0usize;
     // True from the first Stop/SubagentStop-forced continuation on — the
@@ -722,242 +805,277 @@ pub fn run_agent(
                 // `docs/tools/tools.md`.
                 let mut attachments: Vec<ChatMessage> = Vec::new();
                 let mut cancelled_mid_tools = false;
-                for call in &rest {
-                    if cancel.is_cancelled() {
+                // A homogeneous batch of parallel-safe calls runs on the shared
+                // pool (`docs/tools/parallel-tools.md`); every other shape keeps
+                // the serial loop below.
+                let parallel_batch = parallel.filter(|tools| {
+                    tools.workers >= 2
+                        && rest.len() >= 2
+                        && rest
+                            .iter()
+                            .all(|call| super::tools::is_parallel_safe(&call.name))
+                });
+                if let Some(tools) = parallel_batch {
+                    if run_parallel_batch(
+                        &rest,
+                        tx,
+                        cancel,
+                        &mut approve,
+                        hooks,
+                        session_command,
+                        tools,
+                        &mut results,
+                        &mut attachments,
+                    ) {
                         cancelled_mid_tools = true;
-                        break;
                     }
-                    // A task tool call (docs/tools/task-tools.md): permission-free,
-                    // instant, and cell-less — resolved through the single
-                    // TaskCall event instead of the announce/Start/End trio,
-                    // the post-call snapshot riding the outcome so the live
-                    // checklist updates exactly when the op ran, between the
-                    // round's visible calls, in the model's own order. The
-                    // result still feeds back like any tool's.
-                    if crate::tasks::is_task_tool(&call.name) {
-                        let mut sink = |_: ToolProgress<'_>| {};
-                        let outcome = execute(call, &mut sink);
-                        let _ = tx.send(StreamEvent::TaskCall {
-                            name: display_name(&call.name),
-                            args: summarize_call(&call.name, &call.arguments),
-                            arguments: call.arguments.clone(),
-                            output: outcome.output.clone(),
-                            ok: outcome.ok,
-                            tasks: outcome.tasks.clone().unwrap_or_default(),
-                        });
-                        results.push((call.id.clone(), outcome.context_text().to_string()));
-                        continue;
-                    }
-                    // `PreToolUse` (docs/tools/hooks.md), ahead of the gate for the
-                    // same reason the gate is ahead of the ToolStart: nothing
-                    // has run and nothing shows as running while the user's
-                    // own command decides. A hook may refuse the call, rewrite
-                    // its arguments, or answer the gate's question itself.
-                    let hook = hooks.pre_tool_use(call, cancel);
-                    if let Some(block) = &hook.blocked {
-                        let result =
-                            refuse_by_hook(tx, call, session_command, block, &hook, hooks.home());
-                        results.push((call.id.clone(), result));
-                        continue;
-                    }
-                    // A hook's `updatedInput` replaces the arguments for
-                    // everything downstream — the gate's prompt, the executor,
-                    // and the recorded cell all see what will actually run.
-                    let rewritten = hook
-                        .updated_input
-                        .as_ref()
-                        .map(|arguments| ToolCallRequest {
-                            id: call.id.clone(),
-                            name: call.name.clone(),
-                            arguments: arguments.clone(),
-                        });
-                    let call = rewritten.as_ref().unwrap_or(call);
-                    // The permission gate (docs/state/permissions.md), asked BEFORE
-                    // the ToolStart so nothing has run — and nothing has been
-                    // announced as running — while the user (or auto mode's
-                    // classifier) decides. A rejection still emits the
-                    // Start/End pair, so the call lands in history and the
-                    // transcript as a red cell, while the *model* reads the
-                    // longer instruction.
-                    let approval = if hook.pre_approved {
-                        // `permissionDecision: "allow"` skips the gate wholesale
-                        // — and with it the `PermissionRequest` hook, which asks
-                        // "may this run without the user?" and has been answered.
-                        // The classifier's provenance row, with the hook's
-                        // event on it.
-                        let allowed = allowed_note(HookEvent::PreToolUse.name(), None);
-                        Approval::AllowNoted {
-                            note: match &hook.note {
-                                // Both facts are true and the user wants both:
-                                // *why it ran without them*, and what else the
-                                // hook did.
-                                Some(note) => format!("{allowed} · {note}"),
-                                None => allowed,
-                            },
+                } else {
+                    for call in &rest {
+                        if cancel.is_cancelled() {
+                            cancelled_mid_tools = true;
+                            break;
                         }
-                    } else {
-                        approve(call, hook.force_ask)
-                    };
-                    if let Approval::Reject {
-                        display,
-                        result,
-                        kind,
-                    } = approval
-                    {
-                        let _ = tx.send(tool_start_event(call, session_command));
-                        // ToolRejected, not ToolEnd: it carries BOTH texts, so
-                        // the recorded call keeps the model-facing `result`
-                        // beside the short cell line and later turns replay
-                        // what this round actually sent (docs/state/permissions.md).
-                        let _ = tx.send(StreamEvent::ToolRejected {
-                            display,
-                            result: result.clone(),
-                            // A refusal: nothing ran, so no capped output.
-                            truncated: false,
-                            // …and no duration: only who refused it
-                            // (docs/state/rollout-records.md).
-                            run: crate::stream::ToolRun::refused(kind),
-                        });
-                        results.push((call.id.clone(), result));
-                        continue;
-                    }
-                    let _ = tx.send(tool_start_event(call, session_command));
-                    // A noted approval (the auto mode classifier's allow)
-                    // rides its own event so the resolved cell can append the
-                    // provenance row (docs/state/permissions.md).
-                    if let Approval::AllowNoted { note } = approval {
-                        let _ = tx.send(StreamEvent::ToolNote(note));
-                        // A pre-approving hook folded its own note into the
-                        // AllowNoted text above; any *other* noted approval
-                        // (the classifier, a PermissionRequest hook) must not
-                        // swallow the PreToolUse hook's provenance row.
-                        if !hook.pre_approved
-                            && let Some(note) = &hook.note
-                        {
-                            let _ = tx.send(StreamEvent::ToolNote(note.clone()));
-                        }
-                    } else if let Some(note) = &hook.note {
-                        // A hook that added context, warned, or spoke to the
-                        // user without deciding the call still leaves its dim
-                        // `⎿` row — the same provenance channel, so the
-                        // record and the `/resume` come for free.
-                        let _ = tx.send(StreamEvent::ToolNote(note.clone()));
-                    }
-                    // Forward the tool's live output to the UI as it is produced,
-                    // so the running cell tails it (docs/ui/tool-streaming.md). The
-                    // sink targets the front running call app-side; a tool that
-                    // does not stream (read/write/edit) simply never calls it.
-                    let mut on_output = |progress: ToolProgress<'_>| {
-                        let event = match progress {
-                            // Settled text appends, live rows replace the
-                            // last ones (docs/tools/interactive-shell.md).
-                            ToolProgress::Screen { settled, live } => StreamEvent::ToolScreen {
-                                settled: settled.to_string(),
-                                live: live.to_string(),
-                            },
-                            ToolProgress::Title(title) => StreamEvent::ToolTitle(title.to_string()),
-                        };
-                        let _ = tx.send(event);
-                    };
-                    // Timed around the executor alone, as codex times the spawn
-                    // and the wait: the permission prompt and the hooks are not
-                    // the call's runtime (docs/state/rollout-records.md).
-                    let started = std::time::Instant::now();
-                    let mut outcome = execute(call, &mut on_output);
-                    let ran = outcome.run(started.elapsed());
-                    // `PostToolUse` (docs/tools/hooks.md): the call ran, so there is
-                    // nothing left to refuse — only things to say. Whatever a
-                    // hook adds goes onto the **model-facing** text via the
-                    // outcome's existing two-text split, so the cell keeps
-                    // showing the tool's own output while `context_output`
-                    // carries what the model actually read (and a `/resume`
-                    // replays it). It fires **only for a call that succeeded**
-                    // — both references do (Claude Code routes failures to its
-                    // separate `PostToolUseFailure` event, codex builds no
-                    // payload at all), so a format-after-write hook written
-                    // for either never runs here after a failed write. A
-                    // backgrounded call has produced no output yet, so it too
-                    // is left alone. A call that ran and failed takes the
-                    // reference's separate `PostToolUseFailure`, with the
-                    // same answers.
-                    let post = match (&outcome.background, outcome.ok) {
-                        (Some(_), _) => super::hooks::PostToolVerdict::default(),
-                        (None, true) => hooks.post_tool_use(call, &outcome, cancel),
-                        (None, false) => hooks.post_tool_use_failure(call, &outcome, cancel),
-                    };
-                    if let Some(note) = post.note {
-                        let _ = tx.send(StreamEvent::ToolNote(note));
-                    }
-                    // The PreToolUse hook's context was promised before the
-                    // call ran, so it folds whatever happened — a failure and
-                    // a background launch included.
-                    let added: Vec<String> = hook.context.into_iter().chain(post.context).collect();
-                    if !added.is_empty() {
-                        outcome.context = Some(format!(
-                            "{}\n\n{}",
-                            outcome.context_text(),
-                            added.join("\n\n")
-                        ));
-                    }
-                    // A backgrounded call resolves via its own event — the
-                    // cell shows the fixed backgrounded row while the launch
-                    // text still becomes the tool result the model reads
-                    // (docs/tools/background.md). An outcome whose model-facing
-                    // `context` differs from the displayed text (the ask
-                    // tool's resolutions, `docs/tools/ask.md`) rides the two-text
-                    // events instead — `ToolAnswered` green, `ToolRejected`
-                    // red — so the recorded call keeps both.
-                    match (&outcome.background, &outcome.context) {
-                        (Some(id), _) => {
-                            let _ = tx.send(StreamEvent::ToolBackgrounded {
-                                id: id.clone(),
-                                // What the model read — a hook's context
-                                // included — since the record keeps this and
-                                // the cell shows its fixed row either way.
-                                output: outcome.context_text().to_string(),
-                                run: ran,
-                            });
-                        }
-                        (None, Some(context)) if outcome.ok => {
-                            let _ = tx.send(StreamEvent::ToolAnswered {
-                                display: outcome.output.clone(),
-                                result: context.clone(),
-                                // The call ran: a hook-amended `bash` whose
-                                // output hit the byte cap still needs its `…`
-                                // marker (docs/tools/hooks.md).
-                                truncated: outcome.truncated,
-                                run: ran,
-                            });
-                        }
-                        (None, Some(context)) => {
-                            let _ = tx.send(StreamEvent::ToolRejected {
-                                display: outcome.output.clone(),
-                                result: context.clone(),
-                                truncated: outcome.truncated,
-                                run: ran,
-                            });
-                        }
-                        (None, None) => {
-                            let _ = tx.send(StreamEvent::ToolEnd {
+                        // A task tool call (docs/tools/task-tools.md): permission-free,
+                        // instant, and cell-less — resolved through the single
+                        // TaskCall event instead of the announce/Start/End trio,
+                        // the post-call snapshot riding the outcome so the live
+                        // checklist updates exactly when the op ran, between the
+                        // round's visible calls, in the model's own order. The
+                        // result still feeds back like any tool's.
+                        if crate::tasks::is_task_tool(&call.name) {
+                            let mut sink = |_: ToolProgress<'_>| {};
+                            let outcome = execute(call, &mut sink);
+                            let _ = tx.send(StreamEvent::TaskCall {
+                                name: display_name(&call.name),
+                                args: summarize_call(&call.name, &call.arguments),
+                                arguments: call.arguments.clone(),
                                 output: outcome.output.clone(),
                                 ok: outcome.ok,
-                                truncated: outcome.truncated,
-                                run: ran,
+                                tasks: outcome.tasks.clone().unwrap_or_default(),
                             });
+                            results.push((call.id.clone(), outcome.context_text().to_string()));
+                            continue;
                         }
-                    }
-                    // The model reads the context text when the outcome split
-                    // the two (it equals the display for every ordinary call).
-                    results.push((call.id.clone(), outcome.context_text().to_string()));
-                    if let Some(url) = outcome.image {
-                        let path = summarize_call(&call.name, &call.arguments);
-                        attachments.push(ChatMessage::with_parts(
-                            "user",
-                            vec![
-                                ContentPart::text(image_attachment_note(&path)),
-                                ContentPart::image(url),
-                            ],
-                        ));
+                        // `PreToolUse` (docs/tools/hooks.md), ahead of the gate for the
+                        // same reason the gate is ahead of the ToolStart: nothing
+                        // has run and nothing shows as running while the user's
+                        // own command decides. A hook may refuse the call, rewrite
+                        // its arguments, or answer the gate's question itself.
+                        let hook = hooks.pre_tool_use(call, cancel);
+                        if let Some(block) = &hook.blocked {
+                            let result = refuse_by_hook(
+                                tx,
+                                call,
+                                session_command,
+                                block,
+                                &hook,
+                                hooks.home(),
+                            );
+                            results.push((call.id.clone(), result));
+                            continue;
+                        }
+                        // A hook's `updatedInput` replaces the arguments for
+                        // everything downstream — the gate's prompt, the executor,
+                        // and the recorded cell all see what will actually run.
+                        let rewritten =
+                            hook.updated_input
+                                .as_ref()
+                                .map(|arguments| ToolCallRequest {
+                                    id: call.id.clone(),
+                                    name: call.name.clone(),
+                                    arguments: arguments.clone(),
+                                });
+                        let call = rewritten.as_ref().unwrap_or(call);
+                        // The permission gate (docs/state/permissions.md), asked BEFORE
+                        // the ToolStart so nothing has run — and nothing has been
+                        // announced as running — while the user (or auto mode's
+                        // classifier) decides. A rejection still emits the
+                        // Start/End pair, so the call lands in history and the
+                        // transcript as a red cell, while the *model* reads the
+                        // longer instruction.
+                        let approval = if hook.pre_approved {
+                            // `permissionDecision: "allow"` skips the gate wholesale
+                            // — and with it the `PermissionRequest` hook, which asks
+                            // "may this run without the user?" and has been answered.
+                            // The classifier's provenance row, with the hook's
+                            // event on it.
+                            let allowed = allowed_note(HookEvent::PreToolUse.name(), None);
+                            Approval::AllowNoted {
+                                note: match &hook.note {
+                                    // Both facts are true and the user wants both:
+                                    // *why it ran without them*, and what else the
+                                    // hook did.
+                                    Some(note) => format!("{allowed} · {note}"),
+                                    None => allowed,
+                                },
+                            }
+                        } else {
+                            approve(call, hook.force_ask)
+                        };
+                        if let Approval::Reject {
+                            display,
+                            result,
+                            kind,
+                        } = approval
+                        {
+                            let _ = tx.send(tool_start_event(call, session_command));
+                            // ToolRejected, not ToolEnd: it carries BOTH texts, so
+                            // the recorded call keeps the model-facing `result`
+                            // beside the short cell line and later turns replay
+                            // what this round actually sent (docs/state/permissions.md).
+                            let _ = tx.send(StreamEvent::ToolRejected {
+                                display,
+                                result: result.clone(),
+                                // A refusal: nothing ran, so no capped output.
+                                truncated: false,
+                                // …and no duration: only who refused it
+                                // (docs/state/rollout-records.md).
+                                run: crate::stream::ToolRun::refused(kind),
+                            });
+                            results.push((call.id.clone(), result));
+                            continue;
+                        }
+                        let _ = tx.send(tool_start_event(call, session_command));
+                        // A noted approval (the auto mode classifier's allow)
+                        // rides its own event so the resolved cell can append the
+                        // provenance row (docs/state/permissions.md).
+                        if let Approval::AllowNoted { note } = approval {
+                            let _ = tx.send(StreamEvent::ToolNote(note));
+                            // A pre-approving hook folded its own note into the
+                            // AllowNoted text above; any *other* noted approval
+                            // (the classifier, a PermissionRequest hook) must not
+                            // swallow the PreToolUse hook's provenance row.
+                            if !hook.pre_approved
+                                && let Some(note) = &hook.note
+                            {
+                                let _ = tx.send(StreamEvent::ToolNote(note.clone()));
+                            }
+                        } else if let Some(note) = &hook.note {
+                            // A hook that added context, warned, or spoke to the
+                            // user without deciding the call still leaves its dim
+                            // `⎿` row — the same provenance channel, so the
+                            // record and the `/resume` come for free.
+                            let _ = tx.send(StreamEvent::ToolNote(note.clone()));
+                        }
+                        // Forward the tool's live output to the UI as it is produced,
+                        // so the running cell tails it (docs/ui/tool-streaming.md). The
+                        // sink targets the front running call app-side; a tool that
+                        // does not stream (read/write/edit) simply never calls it.
+                        let mut on_output = |progress: ToolProgress<'_>| {
+                            let event = match progress {
+                                // Settled text appends, live rows replace the
+                                // last ones (docs/tools/interactive-shell.md).
+                                ToolProgress::Screen { settled, live } => StreamEvent::ToolScreen {
+                                    settled: settled.to_string(),
+                                    live: live.to_string(),
+                                },
+                                ToolProgress::Title(title) => {
+                                    StreamEvent::ToolTitle(title.to_string())
+                                }
+                            };
+                            let _ = tx.send(event);
+                        };
+                        // Timed around the executor alone, as codex times the spawn
+                        // and the wait: the permission prompt and the hooks are not
+                        // the call's runtime (docs/state/rollout-records.md).
+                        let started = std::time::Instant::now();
+                        let mut outcome = execute(call, &mut on_output);
+                        let ran = outcome.run(started.elapsed());
+                        // `PostToolUse` (docs/tools/hooks.md): the call ran, so there is
+                        // nothing left to refuse — only things to say. Whatever a
+                        // hook adds goes onto the **model-facing** text via the
+                        // outcome's existing two-text split, so the cell keeps
+                        // showing the tool's own output while `context_output`
+                        // carries what the model actually read (and a `/resume`
+                        // replays it). It fires **only for a call that succeeded**
+                        // — both references do (Claude Code routes failures to its
+                        // separate `PostToolUseFailure` event, codex builds no
+                        // payload at all), so a format-after-write hook written
+                        // for either never runs here after a failed write. A
+                        // backgrounded call has produced no output yet, so it too
+                        // is left alone. A call that ran and failed takes the
+                        // reference's separate `PostToolUseFailure`, with the
+                        // same answers.
+                        let post = match (&outcome.background, outcome.ok) {
+                            (Some(_), _) => super::hooks::PostToolVerdict::default(),
+                            (None, true) => hooks.post_tool_use(call, &outcome, cancel),
+                            (None, false) => hooks.post_tool_use_failure(call, &outcome, cancel),
+                        };
+                        if let Some(note) = post.note {
+                            let _ = tx.send(StreamEvent::ToolNote(note));
+                        }
+                        // The PreToolUse hook's context was promised before the
+                        // call ran, so it folds whatever happened — a failure and
+                        // a background launch included.
+                        let added: Vec<String> =
+                            hook.context.into_iter().chain(post.context).collect();
+                        if !added.is_empty() {
+                            outcome.context = Some(format!(
+                                "{}\n\n{}",
+                                outcome.context_text(),
+                                added.join("\n\n")
+                            ));
+                        }
+                        // A backgrounded call resolves via its own event — the
+                        // cell shows the fixed backgrounded row while the launch
+                        // text still becomes the tool result the model reads
+                        // (docs/tools/background.md). An outcome whose model-facing
+                        // `context` differs from the displayed text (the ask
+                        // tool's resolutions, `docs/tools/ask.md`) rides the two-text
+                        // events instead — `ToolAnswered` green, `ToolRejected`
+                        // red — so the recorded call keeps both.
+                        match (&outcome.background, &outcome.context) {
+                            (Some(id), _) => {
+                                let _ = tx.send(StreamEvent::ToolBackgrounded {
+                                    id: id.clone(),
+                                    // What the model read — a hook's context
+                                    // included — since the record keeps this and
+                                    // the cell shows its fixed row either way.
+                                    output: outcome.context_text().to_string(),
+                                    run: ran,
+                                });
+                            }
+                            (None, Some(context)) if outcome.ok => {
+                                let _ = tx.send(StreamEvent::ToolAnswered {
+                                    display: outcome.output.clone(),
+                                    result: context.clone(),
+                                    // The call ran: a hook-amended `bash` whose
+                                    // output hit the byte cap still needs its `…`
+                                    // marker (docs/tools/hooks.md).
+                                    truncated: outcome.truncated,
+                                    run: ran,
+                                });
+                            }
+                            (None, Some(context)) => {
+                                let _ = tx.send(StreamEvent::ToolRejected {
+                                    display: outcome.output.clone(),
+                                    result: context.clone(),
+                                    truncated: outcome.truncated,
+                                    run: ran,
+                                });
+                            }
+                            (None, None) => {
+                                let _ = tx.send(StreamEvent::ToolEnd {
+                                    output: outcome.output.clone(),
+                                    ok: outcome.ok,
+                                    truncated: outcome.truncated,
+                                    run: ran,
+                                });
+                            }
+                        }
+                        // The model reads the context text when the outcome split
+                        // the two (it equals the display for every ordinary call).
+                        results.push((call.id.clone(), outcome.context_text().to_string()));
+                        if let Some(url) = outcome.image {
+                            let path = summarize_call(&call.name, &call.arguments);
+                            attachments.push(ChatMessage::with_parts(
+                                "user",
+                                vec![
+                                    ContentPart::text(image_attachment_note(&path)),
+                                    ContentPart::image(url),
+                                ],
+                            ));
+                        }
                     }
                 }
                 // The calls the ceiling refused: each shows as its own red
@@ -1014,6 +1132,301 @@ pub fn run_agent(
             }
         }
     }
+}
+
+/// One call of a parallel batch: either a job to run, or a call refused
+/// before it could run (a hook block or a permission rejection). The step's
+/// position is the model's order — the cells resolve in that order even when
+/// the jobs finish in another.
+enum ParallelStep {
+    Job {
+        call: ToolCallRequest,
+        notes: Vec<String>,
+        context: Option<String>,
+    },
+    Refused {
+        call: ToolCallRequest,
+        display: String,
+        result: String,
+        run: crate::stream::ToolRun,
+        notes: Vec<String>,
+    },
+}
+
+impl ParallelStep {
+    fn call(&self) -> &ToolCallRequest {
+        match self {
+            Self::Job { call, .. } | Self::Refused { call, .. } => call,
+        }
+    }
+
+    fn notes(&self) -> &[String] {
+        match self {
+            Self::Job { notes, .. } | Self::Refused { notes, .. } => notes,
+        }
+    }
+}
+
+fn send_tool_start(
+    tx: &UnboundedSender<StreamEvent>,
+    call: &ToolCallRequest,
+    session_command: &dyn Fn(&str) -> Option<String>,
+) {
+    let _ = tx.send(tool_start_event(call, session_command));
+}
+
+fn send_tool_notes(tx: &UnboundedSender<StreamEvent>, notes: &[String]) {
+    for note in notes {
+        let _ = tx.send(StreamEvent::ToolNote(note.clone()));
+    }
+}
+
+/// Run a homogeneous batch of parallel-safe calls: hooks and approvals
+/// serially, the executions on `tools.workers` workers, and the cells
+/// resolved in the model's order. The first call is the queue's front, so its
+/// live output reaches the TUI; the rest run silently until the order reaches
+/// them. Returns `true` when the turn was cancelled while the batch ran.
+#[allow(clippy::too_many_arguments)] // the batch's seam set
+#[allow(clippy::type_complexity)] // the per-call outcome slots
+fn run_parallel_batch(
+    calls: &[&ToolCallRequest],
+    tx: &UnboundedSender<StreamEvent>,
+    cancel: &CancelToken,
+    approve: &mut impl FnMut(&ToolCallRequest, bool) -> Approval,
+    hooks: &dyn HookSink,
+    session_command: &dyn Fn(&str) -> Option<String>,
+    tools: ParallelTools<'_>,
+    results: &mut Vec<(String, String)>,
+    attachments: &mut Vec<ChatMessage>,
+) -> bool {
+    let mut steps: Vec<ParallelStep> = Vec::with_capacity(calls.len());
+    for call in calls {
+        if cancel.is_cancelled() {
+            break;
+        }
+        let hook = hooks.pre_tool_use(call, cancel);
+        if let Some(block) = &hook.blocked {
+            let (display, mut result) =
+                hook_block_texts(HookEvent::PreToolUse.name(), block, hooks.home());
+            if let Some(context) = &hook.context {
+                result.push_str("\n\n");
+                result.push_str(context);
+            }
+            steps.push(ParallelStep::Refused {
+                call: (*call).clone(),
+                display,
+                result,
+                run: crate::stream::ToolRun::refused(crate::stream::ToolErrorKind::HookBlocked),
+                notes: hook.note.iter().cloned().collect(),
+            });
+            continue;
+        }
+        let rewritten = hook
+            .updated_input
+            .as_ref()
+            .map(|arguments| ToolCallRequest {
+                id: call.id.clone(),
+                name: call.name.clone(),
+                arguments: arguments.clone(),
+            });
+        let call = rewritten.as_ref().unwrap_or(call);
+        let approval = if hook.pre_approved {
+            let allowed = allowed_note(HookEvent::PreToolUse.name(), None);
+            Approval::AllowNoted {
+                note: match &hook.note {
+                    Some(note) => format!("{allowed} · {note}"),
+                    None => allowed,
+                },
+            }
+        } else {
+            approve(call, hook.force_ask)
+        };
+        if let Approval::Reject {
+            display,
+            result,
+            kind,
+        } = approval
+        {
+            steps.push(ParallelStep::Refused {
+                call: call.clone(),
+                display,
+                result,
+                run: crate::stream::ToolRun::refused(kind),
+                notes: Vec::new(),
+            });
+            continue;
+        }
+        let mut notes = Vec::new();
+        if let Approval::AllowNoted { note } = approval {
+            notes.push(note);
+            if !hook.pre_approved
+                && let Some(note) = &hook.note
+            {
+                notes.push(note.clone());
+            }
+        } else if let Some(note) = &hook.note {
+            notes.push(note.clone());
+        }
+        steps.push(ParallelStep::Job {
+            call: call.clone(),
+            notes,
+            context: hook.context,
+        });
+    }
+    // The first step is the queue's front: announce it and its notes now, and
+    // let its worker stream live output. Every later step waits for its turn.
+    if let Some(first) = steps.first() {
+        send_tool_start(tx, first.call(), session_command);
+        send_tool_notes(tx, first.notes());
+    }
+    let jobs: Vec<(usize, ToolCallRequest)> = steps
+        .iter()
+        .enumerate()
+        .filter_map(|(index, step)| match step {
+            ParallelStep::Job { call, .. } => Some((index, call.clone())),
+            ParallelStep::Refused { .. } => None,
+        })
+        .collect();
+    let outcomes: Vec<std::sync::Mutex<Option<(ToolOutcome, std::time::Duration)>>> = (0..steps
+        .len())
+        .map(|_| std::sync::Mutex::new(None))
+        .collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    if !jobs.is_empty() {
+        let workers = tools.workers.clamp(2, 64).min(jobs.len());
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| {
+                    loop {
+                        let job = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some((index, call)) = jobs.get(job) else {
+                            break;
+                        };
+                        let live = *index == 0;
+                        let started = std::time::Instant::now();
+                        let mut sink = |progress: ToolProgress<'_>| {
+                            if live {
+                                let event = match progress {
+                                    ToolProgress::Screen { settled, live } => {
+                                        StreamEvent::ToolScreen {
+                                            settled: settled.to_string(),
+                                            live: live.to_string(),
+                                        }
+                                    }
+                                    ToolProgress::Title(title) => {
+                                        StreamEvent::ToolTitle(title.to_string())
+                                    }
+                                };
+                                let _ = tx.send(event);
+                            }
+                        };
+                        let outcome = (tools.execute)(call, &mut sink);
+                        let elapsed = started.elapsed();
+                        if let Ok(mut slot) = outcomes[*index].lock() {
+                            *slot = Some((outcome, elapsed));
+                        }
+                    }
+                });
+            }
+        });
+    }
+    for (index, step) in steps.into_iter().enumerate() {
+        if index > 0 {
+            send_tool_start(tx, step.call(), session_command);
+            send_tool_notes(tx, step.notes());
+        }
+        match step {
+            ParallelStep::Refused {
+                call,
+                display,
+                result,
+                run,
+                ..
+            } => {
+                let _ = tx.send(StreamEvent::ToolRejected {
+                    display,
+                    result: result.clone(),
+                    truncated: false,
+                    run,
+                });
+                results.push((call.id.clone(), result));
+            }
+            ParallelStep::Job { call, context, .. } => {
+                let (mut outcome, elapsed) = outcomes[index]
+                    .lock()
+                    .ok()
+                    .and_then(|mut slot| slot.take())
+                    .unwrap_or_else(|| {
+                        (
+                            ToolOutcome::error(crate::app::INTERRUPT_TOOL_OUTPUT),
+                            std::time::Duration::ZERO,
+                        )
+                    });
+                let ran = outcome.run(elapsed);
+                let post = match (&outcome.background, outcome.ok) {
+                    (Some(_), _) => super::hooks::PostToolVerdict::default(),
+                    (None, true) => hooks.post_tool_use(&call, &outcome, cancel),
+                    (None, false) => hooks.post_tool_use_failure(&call, &outcome, cancel),
+                };
+                if let Some(note) = post.note {
+                    let _ = tx.send(StreamEvent::ToolNote(note));
+                }
+                let added: Vec<String> = context.into_iter().chain(post.context).collect();
+                if !added.is_empty() {
+                    outcome.context = Some(format!(
+                        "{}\n\n{}",
+                        outcome.context_text(),
+                        added.join("\n\n")
+                    ));
+                }
+                match (&outcome.background, &outcome.context) {
+                    (Some(id), _) => {
+                        let _ = tx.send(StreamEvent::ToolBackgrounded {
+                            id: id.clone(),
+                            output: outcome.context_text().to_string(),
+                            run: ran,
+                        });
+                    }
+                    (None, Some(context)) if outcome.ok => {
+                        let _ = tx.send(StreamEvent::ToolAnswered {
+                            display: outcome.output.clone(),
+                            result: context.clone(),
+                            truncated: outcome.truncated,
+                            run: ran,
+                        });
+                    }
+                    (None, Some(context)) => {
+                        let _ = tx.send(StreamEvent::ToolRejected {
+                            display: outcome.output.clone(),
+                            result: context.clone(),
+                            truncated: outcome.truncated,
+                            run: ran,
+                        });
+                    }
+                    (None, None) => {
+                        let _ = tx.send(StreamEvent::ToolEnd {
+                            output: outcome.output.clone(),
+                            ok: outcome.ok,
+                            truncated: outcome.truncated,
+                            run: ran,
+                        });
+                    }
+                }
+                results.push((call.id.clone(), outcome.context_text().to_string()));
+                if let Some(url) = outcome.image {
+                    let path = summarize_call(&call.name, &call.arguments);
+                    attachments.push(ChatMessage::with_parts(
+                        "user",
+                        vec![
+                            ContentPart::text(image_attachment_note(&path)),
+                            ContentPart::image(url),
+                        ],
+                    ));
+                }
+            }
+        }
+    }
+    cancel.is_cancelled()
 }
 
 /// Refuse `call` on its `PreToolUse` hook's block, and hand back what the
@@ -2842,7 +3255,7 @@ mod tests {
                     reason: "Use pnpm instead of npm.".into(),
                     hook: Some(crate::hooks::HookOrigin {
                         command: "~/.zeroth/hooks/pnpm-only.sh".into(),
-                        file: Some("/home/u/.alter-zero/hooks.json".into()),
+                        file: Some("/home/u/.zeroth/hooks.json".into()),
                     }),
                 }),
                 ..PreToolVerdict::default()
@@ -2865,7 +3278,7 @@ mod tests {
              Config: ~/.zeroth/hooks.json"
         );
         assert!(
-            result.contains("\nConfig: /home/u/.alter-zero/hooks.json\n"),
+            result.contains("\nConfig: /home/u/.zeroth/hooks.json\n"),
             "the model reads the absolute path: {result}"
         );
         assert!(
@@ -5055,5 +5468,85 @@ mod tests {
                 ("c2".to_string(), "listing".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn a_parallel_batch_overlaps_its_calls_and_resolves_them_in_order() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::Duration;
+
+        let (tx, mut rx) = unbounded_channel();
+        let cancel = CancelToken::new();
+        let calls = [
+            ToolCallRequest {
+                id: "a".to_string(),
+                name: "bash".to_string(),
+                arguments: r#"{"command":"a"}"#.to_string(),
+            },
+            ToolCallRequest {
+                id: "b".to_string(),
+                name: "bash".to_string(),
+                arguments: r#"{"command":"b"}"#.to_string(),
+            },
+        ];
+        let refs: Vec<&ToolCallRequest> = calls.iter().collect();
+        let live = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        let execute = |call: &ToolCallRequest, _sink: &mut dyn FnMut(ToolProgress<'_>)| {
+            let now = live.fetch_add(1, Ordering::SeqCst) + 1;
+            peak.fetch_max(now, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(80));
+            live.fetch_sub(1, Ordering::SeqCst);
+            ToolOutcome::ok(format!("out {}", call.id))
+        };
+        let tools = ParallelTools {
+            execute: &execute,
+            workers: 2,
+        };
+        let mut approve = |_: &ToolCallRequest, _: bool| Approval::Allow;
+        let mut results = Vec::new();
+        let mut attachments = Vec::new();
+        let cancelled = run_parallel_batch(
+            &refs,
+            &tx,
+            &cancel,
+            &mut approve,
+            &NoHooks,
+            &|_: &str| -> Option<String> { None },
+            tools,
+            &mut results,
+            &mut attachments,
+        );
+        assert!(!cancelled);
+        assert_eq!(peak.load(Ordering::SeqCst), 2, "the two calls must overlap");
+        assert_eq!(
+            results,
+            vec![
+                ("a".to_string(), "out a".to_string()),
+                ("b".to_string(), "out b".to_string()),
+            ],
+            "the model's order, not the completion order"
+        );
+        drop(tx);
+        let mut events = Vec::new();
+        while let Ok(event) = rx.try_recv() {
+            events.push(event);
+        }
+        let starts: Vec<&str> = events
+            .iter()
+            .filter_map(|event| match event {
+                StreamEvent::ToolStart { args, .. } => Some(args.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(starts, ["a", "b"], "the cells start in the model's order");
+        let ends: Vec<&str> = events
+            .iter()
+            .filter_map(|event| match event {
+                StreamEvent::ToolEnd { output, .. } => Some(output.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ends, ["out a", "out b"], "and resolve in that order");
     }
 }

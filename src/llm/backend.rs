@@ -902,7 +902,33 @@ impl ReplySource for LlmBackend {
             // request is known to the model within this same turn
             // (docs/tools/background.md). The round's `agent` calls go to the
             // subagent launcher instead (docs/agents/agent-tool.md).
-            agent::run_agent(
+            // The parallel tool seam (`docs/tools/parallel-tools.md`): the
+            // ordinary file/command tools can run on a small worker pool, so a
+            // batch of slow commands overlaps instead of summing. It carries
+            // the same classifier log and secret expansion as the serial
+            // closure below; tools that own state (ask, skills, MCP, agents,
+            // tasks) stay on the serial path.
+            let parallel_execute =
+                |call: &crate::llm::tools::ToolCallRequest,
+                 on_output: &mut dyn FnMut(crate::llm::exec::ToolProgress<'_>)|
+                 -> crate::llm::tools::ToolOutcome {
+                    if let Ok(mut log) = turn_context.lock() {
+                        log.record_call(&call.name, &call.arguments);
+                    }
+                    super::secret_exec::run_with_secrets(
+                        secrets.as_ref(),
+                        call,
+                        on_output,
+                        |call, on_output| executor.execute(call, &cancel, on_output),
+                    )
+                };
+            let parallel_tools = agent::ParallelTools {
+                execute: &parallel_execute,
+                workers: std::thread::available_parallelism()
+                    .map_or(4, |cores| cores.get())
+                    .clamp(2, 8),
+            };
+            agent::run_agent_parallel(
                 &tx,
                 &cancel,
                 max_tool_calls,
@@ -1115,6 +1141,7 @@ impl ReplySource for LlmBackend {
                                 .and_then(|registry| registry.description(id))
                         })
                 },
+                parallel_tools,
             );
         })
     }
