@@ -480,6 +480,44 @@ impl HomeMigration {
 /// source is absent, or it holds none of the files. The source is never
 /// modified, so the previous app keeps a working home. The destination
 /// directory is private to the user and `.env` is tightened to `0600`.
+/// Copy `from` to `to` through a unique temporary in `to`'s directory, then
+/// rename it into place. `mode` is applied to the temporary **before** the
+/// rename, so the migrated `.env` is never visible under the default
+/// permissions even for an instant. Another session in this process may be
+/// migrating the same home at the same time; a reader sees either no file or
+/// the complete one (`docs/architecture/multithread-core.md`).
+fn copy_atomic(from: &Path, to: &Path, mode: Option<u32>) -> io::Result<()> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let parent = to.parent().unwrap_or_else(|| Path::new("."));
+    let name = to
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("file");
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let temporary = parent.join(format!(".{name}.{}.{seq:x}.tmp", std::process::id()));
+    std::fs::copy(from, &temporary)?;
+    #[cfg(unix)]
+    if let Some(mode) = mode {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(err) =
+            std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(mode))
+        {
+            let _ = std::fs::remove_file(&temporary);
+            return Err(err);
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = mode;
+    match std::fs::rename(&temporary, to) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            let _ = std::fs::remove_file(&temporary);
+            Err(err)
+        }
+    }
+}
+
 pub(crate) fn migrate_home(src: &Path, dst: &Path) -> Option<HomeMigration> {
     if dst.exists() || !src.is_dir() {
         return None;
@@ -511,18 +549,14 @@ pub(crate) fn migrate_home(src: &Path, dst: &Path) -> Option<HomeMigration> {
         if !from.is_file() {
             continue;
         }
-        match std::fs::copy(&from, dst.join(name)) {
-            Ok(_) => {
-                #[cfg(unix)]
-                if name == ".env" {
-                    use std::os::unix::fs::PermissionsExt;
-                    let _ = std::fs::set_permissions(
-                        dst.join(name),
-                        std::fs::Permissions::from_mode(0o600),
-                    );
-                }
-                copied.push(name);
-            }
+        // Atomic copy: another session in this process may be running the
+        // same first run, and a reader in between must see the old file or
+        // the complete one — never a half-copied config or `.env`
+        // (`docs/architecture/multithread-core.md`). The mode is applied
+        // before the rename, so `.env` is never briefly world-readable.
+        let mode = (name == ".env").then_some(0o600);
+        match copy_atomic(&from, &dst.join(name), mode) {
+            Ok(()) => copied.push(name),
             Err(err) => failed.push((name, err.to_string())),
         }
     }

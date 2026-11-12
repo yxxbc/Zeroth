@@ -97,6 +97,10 @@ pub(crate) fn run(startup: Startup) -> i32 {
             return 2;
         }
     };
+    // The one-time pre-fork home migration is a shared write. Run it once,
+    // before any session bootstraps; every session's own call then sees the
+    // destination and no-ops. A Host will own this permanently.
+    let _ = super::config::migrate_from_alter_zero();
     let out_dir = match options.out_dir.as_deref().map(ensure_dir) {
         Some(Ok(dir)) => Some(dir),
         Some(Err(err)) => {
