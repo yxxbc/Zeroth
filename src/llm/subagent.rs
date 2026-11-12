@@ -127,7 +127,10 @@ pub fn seed_default_agents(dir: &Path) -> Vec<AgentFileError> {
         if path.exists() {
             continue;
         }
-        if let Err(err) = std::fs::write(&path, contents) {
+        // Atomic for the same reason as the skill seeds: concurrent
+        // bootstraps in one process seed the same directory
+        // (`docs/architecture/multithread-core.md`).
+        if let Err(err) = crate::fsutil::write_atomic(&path, contents) {
             errors.push(AgentFileError {
                 path,
                 message: err.to_string(),

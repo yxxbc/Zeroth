@@ -84,7 +84,7 @@ pub struct SessionArgs {
 
 /// A headless run's own options (`docs/cli/headless.md`) — the flags that mean
 /// nothing with a screen, so the parse refuses them without `-p`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PrintOptions {
     /// `--output-format`: how the run reports.
     pub output_format: OutputFormat,
@@ -94,6 +94,15 @@ pub struct PrintOptions {
     /// `--verbose`: log each step of the run to stderr. Without it stderr
     /// says only what went wrong or needs attention.
     pub verbose: bool,
+    /// `--jobs`: a JSONL file of jobs, each `{"id"?, "prompt": "..."}`, run
+    /// as independent sessions in one process (`docs/cli/batch.md`).
+    pub jobs: Option<PathBuf>,
+    /// `--concurrency`: the most jobs in flight at once. `None` uses the
+    /// batch runner's default.
+    pub concurrency: Option<NonZeroUsize>,
+    /// `--out-dir`: keep each job's full reporter output under this
+    /// directory, one `<id>.log` per job.
+    pub out_dir: Option<PathBuf>,
 }
 
 /// How a session run begins — the session flags, one-to-one.
@@ -343,6 +352,22 @@ const MAIN_DOC: HelpDoc = HelpDoc {
                     placeholder: "",
                     description: "Log each step of the run to stderr",
                 },
+                Row {
+                    literal: "    --jobs",
+                    placeholder: " <FILE>",
+                    description: "Run FILE's JSONL jobs as concurrent sessions,\n\
+                                  one result object per job on stdout",
+                },
+                Row {
+                    literal: "    --concurrency",
+                    placeholder: " <N>",
+                    description: "At most N jobs at once (default 4)",
+                },
+                Row {
+                    literal: "    --out-dir",
+                    placeholder: " <DIR>",
+                    description: "Keep each job's full log in DIR/<id>.log",
+                },
             ],
         },
     ],
@@ -536,6 +561,9 @@ where
     let mut output_format: Option<OutputFormat> = None;
     let mut max_turns: Option<NonZeroUsize> = None;
     let mut verbose: Option<()> = None;
+    let mut jobs: Option<PathBuf> = None;
+    let mut concurrency: Option<NonZeroUsize> = None;
+    let mut out_dir: Option<PathBuf> = None;
     let mut permission_mode: Option<PermissionMode> = None;
     let mut cwd: Option<PathBuf> = None;
     let mut args = args.into_iter().peekable();
@@ -632,6 +660,28 @@ where
                 set_once(&mut max_turns, turns, "--max-turns")?;
                 continue;
             }
+            "--jobs" => {
+                let raw = flag_value(&flag, value, &mut args)?;
+                set_once(&mut jobs, PathBuf::from(raw), "--jobs")?;
+                continue;
+            }
+            "--concurrency" => {
+                let raw = flag_value(&flag, value, &mut args)?;
+                let workers = raw
+                    .parse::<usize>()
+                    .ok()
+                    .and_then(NonZeroUsize::new)
+                    .ok_or_else(|| {
+                        format!("--concurrency needs a number of jobs above 0, not \"{raw}\"")
+                    })?;
+                set_once(&mut concurrency, workers, "--concurrency")?;
+                continue;
+            }
+            "--out-dir" => {
+                let raw = flag_value(&flag, value, &mut args)?;
+                set_once(&mut out_dir, PathBuf::from(raw), "--out-dir")?;
+                continue;
+            }
             "--permission-mode" => {
                 let raw = flag_value(&flag, value, &mut args)?;
                 let mode = PermissionMode::parse(&raw).ok_or_else(|| {
@@ -656,11 +706,32 @@ where
     let start = start.unwrap_or(SessionStart::Fresh);
     // The headless run's own flags mean nothing with a screen
     // (docs/cli/headless.md): refused rather than silently ignored.
+    if concurrency.is_some() && jobs.is_none() {
+        return Err("--concurrency needs --jobs <FILE>".to_string());
+    }
+    if out_dir.is_some() && jobs.is_none() {
+        return Err("--out-dir needs --jobs <FILE>".to_string());
+    }
+    // A batch reads its prompts from the file and starts every job fresh;
+    // a positional prompt or a session to continue has no job to attach to.
+    if jobs.is_some() {
+        if prompt.is_some() {
+            return Err("--jobs takes its prompts from the file, not [PROMPT]".to_string());
+        }
+        if start != SessionStart::Fresh {
+            return Err(
+                "--jobs starts fresh sessions: --continue / --resume can't be used".to_string(),
+            );
+        }
+    }
     let print = match print {
         Some(()) => Some(PrintOptions {
             output_format: output_format.unwrap_or_default(),
             max_turns,
             verbose: verbose.is_some(),
+            jobs,
+            concurrency,
+            out_dir,
         }),
         None => {
             if output_format.is_some() {
@@ -671,6 +742,15 @@ where
             }
             if verbose.is_some() {
                 return Err("--verbose needs --print (-p)".to_string());
+            }
+            if jobs.is_some() {
+                return Err("--jobs needs --print (-p)".to_string());
+            }
+            if concurrency.is_some() {
+                return Err("--concurrency needs --jobs <FILE>".to_string());
+            }
+            if out_dir.is_some() {
+                return Err("--out-dir needs --jobs <FILE>".to_string());
             }
             None
         }
@@ -1369,6 +1449,53 @@ mod tests {
     }
 
     #[test]
+    fn jobs_take_their_prompts_from_a_file_and_a_bounded_pool() {
+        let want = printed(
+            None,
+            PrintOptions {
+                jobs: Some(PathBuf::from("jobs.jsonl")),
+                concurrency: NonZeroUsize::new(8),
+                out_dir: Some(PathBuf::from("logs")),
+                ..PrintOptions::default()
+            },
+        );
+        assert_eq!(
+            parsed(&[
+                "-p",
+                "--jobs",
+                "jobs.jsonl",
+                "--concurrency",
+                "8",
+                "--out-dir",
+                "logs"
+            ]),
+            want
+        );
+        assert_eq!(
+            parsed(&[
+                "-p",
+                "--jobs=jobs.jsonl",
+                "--concurrency=8",
+                "--out-dir=logs"
+            ]),
+            want
+        );
+
+        let err = parsed(&["--jobs", "jobs.jsonl"]).expect_err("needs -p");
+        assert!(err.contains("--jobs needs --print"), "{err}");
+        let err = parsed(&["-p", "--concurrency", "2"]).expect_err("needs jobs");
+        assert!(err.contains("--concurrency needs --jobs"), "{err}");
+        let err = parsed(&["-p", "--out-dir", "logs"]).expect_err("needs jobs");
+        assert!(err.contains("--out-dir needs --jobs"), "{err}");
+        let err = parsed(&["-p", "--jobs", "j", "prompt"]).expect_err("no positional prompt");
+        assert!(err.contains("takes its prompts from the file"), "{err}");
+        let err = parsed(&["-p", "--jobs", "j", "--continue"]).expect_err("no session");
+        assert!(err.contains("fresh sessions"), "{err}");
+        let err = parsed(&["-p", "--jobs", "j", "--concurrency", "0"]).expect_err("zero");
+        assert!(err.contains("above 0"), "{err}");
+    }
+
+    #[test]
     fn output_format_takes_every_format_separate_or_attached() {
         for format in OutputFormat::ALL {
             let want = printed(
@@ -1636,7 +1763,11 @@ Print mode:
       --output-format <FORMAT>   text (the answer), json (one result object) or
                                  stream-json (one event per line)
       --max-turns <N>            Stop after N model replies
-      --verbose                  Log each step of the run to stderr";
+      --verbose                  Log each step of the run to stderr
+      --jobs <FILE>              Run FILE's JSONL jobs as concurrent sessions,
+                                 one result object per job on stdout
+      --concurrency <N>          At most N jobs at once (default 4)
+      --out-dir <DIR>            Keep each job's full log in DIR/<id>.log";
 
     /// Strip every `ESC[…m` sequence.
     fn strip_ansi(text: &str) -> String {

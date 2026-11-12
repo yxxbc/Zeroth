@@ -153,6 +153,7 @@ The pre-TUI command surface: flags, the `[PROMPT]` shortcut, headless mode and t
 
 - [`cli/cli.md`](cli/cli.md): CLI — `--help`, the `[PROMPT]` shortcut, `--continue`, `--resume [id]`, and the exit hint
 - [`cli/headless.md`](cli/headless.md): Headless mode — `alter-zero -p`
+- [`cli/batch.md`](cli/batch.md): Batch mode — several headless sessions in one process
 - [`cli/mcp-cli.md`](cli/mcp-cli.md): CLI MCP install — `alter-zero mcp add/remove/list/get/add-json`
 
 ## Operations

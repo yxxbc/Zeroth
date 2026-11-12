@@ -433,6 +433,14 @@ completed `failed` ahead of it) and exits `128 + signal`. The handlers are
 installed before bootstrap starts any server, and the shutdown is bounded
 (`SessionEnd` has its two seconds), so nothing outlives the run.
 
+## Several jobs at once
+
+`-p --jobs FILE` runs a JSONL file of prompts as independent sessions in one
+process, on a bounded worker pool — the batch client of the multi-threaded core
+(`docs/cli/batch.md`, `docs/architecture/multithread-core.md`). Each job is the
+same headless run described here; the batch adds admission (`--concurrency`),
+per-job output capture (`--out-dir`) and one JSON result line per job on stdout.
+
 ## Not in headless mode, on purpose
 
 - **No telemetry ping and no update check.** The ping's rule is that its

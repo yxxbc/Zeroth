@@ -199,7 +199,10 @@ pub fn seed_builtin_skills(root: &Path) -> Vec<SkillError> {
             });
             continue;
         }
-        if let Err(err) = std::fs::write(&path, contents) {
+        // Atomic: another session may be seeding the same built-ins in this
+        // process, and a reader in between must never see half a `SKILL.md`
+        // (`docs/architecture/multithread-core.md`).
+        if let Err(err) = crate::fsutil::write_atomic(&path, contents) {
             errors.push(SkillError {
                 path,
                 message: err.to_string(),

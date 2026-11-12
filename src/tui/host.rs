@@ -101,14 +101,20 @@ pub(crate) fn utc_stamp() -> String {
         .to_string()
 }
 
-/// A unique-enough session id: nanos since the epoch plus the pid, in hex.
-/// No uuid dependency — the id is never parsed back (resume goes by path);
-/// it only has to keep concurrent instances off each other's files.
+/// A unique-enough session id: nanos since the epoch, the pid, and a
+/// process-local sequence, in hex. No uuid dependency — the id is never parsed
+/// back (resume goes by path); it only has to keep concurrent instances off
+/// each other's files. The sequence matters once several sessions share a
+/// process (`docs/architecture/multithread-core.md`): two threads starting in
+/// the same nanosecond used to land on one rollout path.
 pub(crate) fn session_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_nanos());
-    format!("{nanos:x}-{:x}", std::process::id())
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("{nanos:x}-{:x}-{seq:x}", std::process::id())
 }
 
 /// Today's UTC date, `YYYY-MM-DD` — the key the daily telemetry ping is
@@ -180,4 +186,26 @@ pub(crate) fn process_uid() -> u32 {
 #[cfg(not(unix))]
 pub(crate) fn process_uid() -> u32 {
     0
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn session_ids_from_concurrent_threads_never_collide() {
+        let ids = std::sync::Mutex::new(Vec::new());
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    let mut local = Vec::new();
+                    for _ in 0..64 {
+                        local.push(super::session_id());
+                    }
+                    ids.lock().unwrap().extend(local);
+                });
+            }
+        });
+        let ids = ids.into_inner().unwrap();
+        let unique: std::collections::HashSet<&String> = ids.iter().collect();
+        assert_eq!(unique.len(), ids.len(), "a session id was issued twice");
+    }
 }

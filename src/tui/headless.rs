@@ -173,12 +173,54 @@ fn read_stdin(stdin: &std::io::Stdin, note_after: Option<Duration>) -> Result<St
 
 // ===== the streams =====
 
+/// A per-job reporter sink: receives the same [`Emit`] lines `write` would
+/// send to stdout/stderr.
+pub(crate) type OutputSink = Box<dyn FnMut(&[Emit])>;
+
+thread_local! {
+    /// A batch worker's per-job output sink. `None` outside a batch: `write`
+    /// goes to stdout/stderr as every ordinary `-p` run does. Thread-local
+    /// because a batch runs one session per OS thread (`docs/cli/batch.md`),
+    /// and the headless loop calls `write` on that thread.
+    static OUTPUT: std::cell::RefCell<Option<OutputSink>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Route this thread's headless output into `sink` until the guard drops.
+/// The batch runner installs one per job so concurrent sessions never
+/// interleave on the process's stdout, and keeps the capture for the job's
+/// optional log file.
+pub(crate) struct CapturedOutput;
+
+pub(crate) fn capture_output(sink: OutputSink) -> CapturedOutput {
+    OUTPUT.with(|cell| *cell.borrow_mut() = Some(sink));
+    CapturedOutput
+}
+
+impl Drop for CapturedOutput {
+    fn drop(&mut self) {
+        OUTPUT.with(|cell| *cell.borrow_mut() = None);
+    }
+}
+
 /// Write what the reporter decided, each line to its stream, flushed at
 /// once — a pipeline reading the stream must not wait on a buffer. A write
 /// that fails (a reader that went away) is dropped: the run still finishes
-/// and shuts down what it started.
+/// and shuts down what it started. A batch worker's sink replaces both
+/// streams for the duration of its job.
 pub(crate) fn write(emits: &[Emit]) {
     if emits.is_empty() {
+        return;
+    }
+    let captured = OUTPUT.with(|cell| {
+        if let Some(sink) = cell.borrow_mut().as_mut() {
+            sink(emits);
+            true
+        } else {
+            false
+        }
+    });
+    if captured {
         return;
     }
     let mut stdout = std::io::stdout().lock();
@@ -235,13 +277,53 @@ async fn next_signal(signal: &mut Option<tokio::signal::unix::Signal>) -> Option
 
 // ===== the run =====
 
+/// What one headless run returns to its caller: the exit status plus the
+/// facts a batch client reports without re-parsing the log
+/// (`docs/cli/batch.md`). `--print` ignores everything but `exit_code`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub(crate) struct JobOutcome {
+    pub exit_code: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    pub num_turns: usize,
+    pub usage: RunUsage,
+    pub duration_ms: u64,
+}
+
+impl JobOutcome {
+    /// A run that never got as far as its prompt.
+    pub(crate) fn failed(began: Instant) -> Self {
+        Self {
+            exit_code: 1,
+            session_id: None,
+            result: None,
+            num_turns: 0,
+            usage: RunUsage::default(),
+            duration_ms: duration_ms(began.elapsed()),
+        }
+    }
+}
+
+fn duration_ms(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
 /// Run one headless session to its end and return the process's exit status
 /// (`docs/cli/headless.md`): bootstrap, wait for the MCP servers, submit the
 /// prompt, fold every event until the session is idle with nothing left
 /// running that owes it a turn, then shut down and report.
-pub(crate) async fn run(mut startup: Startup) -> i32 {
+pub(crate) async fn run(startup: Startup) -> i32 {
+    run_job(startup).await.exit_code
+}
+
+/// [`run`] for a caller that wants the run's facts too — the batch runner
+/// (`docs/cli/batch.md`). The thread's output sink, if any, receives every
+/// reporter line instead of stdout/stderr.
+pub(crate) async fn run_job(mut startup: Startup) -> JobOutcome {
     let began = Instant::now();
-    let options = startup.print.unwrap_or_default();
+    let options = startup.print.clone().unwrap_or_default();
     let format = options.output_format;
     // The headless loop submits the prompt itself, once the MCP servers have
     // settled — bootstrap never sees it.
@@ -256,13 +338,13 @@ pub(crate) async fn run(mut startup: Startup) -> i32 {
         Err(err) => {
             let error = format!("could not start the session: {err}");
             write(&core::not_started(format, &error, began.elapsed()));
-            return 1;
+            return JobOutcome::failed(began);
         }
     };
     if !session.models.is_real() && !config::dummy_forced() && config::stall_ms().is_none() {
         let _ = session.shutdown();
         write(&core::not_started(format, NO_MODEL, began.elapsed()));
-        return 1;
+        return JobOutcome::failed(began);
     }
     session.report_held_for_review();
     let mut reporter = Reporter::new(format, options.verbose);
@@ -668,7 +750,7 @@ impl Session<'_> {
         began: Instant,
         interrupted: Option<i32>,
         stopped_agents: &[String],
-    ) -> i32 {
+    ) -> JobOutcome {
         let denials: Vec<Denial> = self
             .permissions
             .gate()
@@ -698,18 +780,26 @@ impl Session<'_> {
         self.recorder
             .sync(&self.app.history, self.app.history_generation());
         let _ = self.shutdown();
+        let duration = began.elapsed();
         write(&reporter.finish(&RunEnd {
             outcome: &outcome,
             answer: answer.as_deref(),
             session_id: recorded.then_some(start.session_id.as_str()),
             model: &start.model,
             num_turns: budget.used(),
-            duration: began.elapsed(),
+            duration,
             usage,
             denials: &denials,
             stopped_shells: &stopped,
             stopped_agents,
         }));
-        outcome.exit_code()
+        JobOutcome {
+            exit_code: outcome.exit_code(),
+            session_id: recorded.then(|| start.session_id.clone()),
+            result: answer,
+            num_turns: budget.used(),
+            usage,
+            duration_ms: duration_ms(duration),
+        }
     }
 }

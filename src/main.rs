@@ -49,6 +49,16 @@ fn main() -> io::Result<()> {
         Ok(startup) => startup,
         Err(code) => std::process::exit(code),
     };
+    // `-p --jobs`: several sessions in one process (docs/cli/batch.md). The
+    // same headless run per job, on a bounded worker pool; it does its own
+    // thread and runtime management, so it never enters the async main.
+    if startup
+        .print
+        .as_ref()
+        .is_some_and(|options| options.jobs.is_some())
+    {
+        std::process::exit(tui::batch::run(startup));
+    }
     // `-p`: the same session with no screen (docs/cli/headless.md) — no viewport,
     // no raw mode, no cursor query, no key reader; its exit status is the
     // run's. Every line it wrote was flushed as it went.

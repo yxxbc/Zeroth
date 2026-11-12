@@ -2,10 +2,10 @@
 
 Date: 2026-11-12
 
-Status: **measurement and recommendation**, following
+Status: **measurement, recommendation, and a first client**. Following
 [`concurrency.md`](concurrency.md). The benchmark harness is
-`src/bin/sessionbench.rs`, behind `--features bench`; nothing in the product
-uses it.
+`src/bin/sessionbench.rs`, behind `--features bench`. The first product client
+is `-p --jobs` (`docs/cli/batch.md`); the remaining Host work is listed below.
 
 ## The question
 
@@ -195,3 +195,49 @@ costs ~7 MB peak footprint (14.5 MB summed RSS) and a full bootstrap per task.
 Acceptance for the first Host/Session milestone: 15 jobs in one process,
 RSS under 100 MB, no bootstrap warnings, default 256-fd limit respected, and
 wall clock within 1.5× the slowest job.
+
+## The first client, implemented
+
+`-p --jobs` (`docs/cli/batch.md`) runs the real headless session per job on a
+fixed worker budget. It takes the **thread-per-session with bounded admission**
+shape, not `spawn_blocking`: each worker owns a current-thread runtime on its
+own OS thread, so `Session`'s `!Send` is irrelevant — it never leaves the
+thread that built it. The shared-state walls were fixed where they were
+smallest: the first-run seeds write through a temporary file and an atomic
+rename, and session ids carry a process-local sequence.
+
+Measured 2026-11-13 with the offline dummy backend and `ALTER_ZERO_STALL_MS=300`
+(the worker's own bootstrap included, unlike the harness above):
+
+| jobs | concurrency | fd soft limit | wall | max RSS | stderr |
+| --- | --- | --- | --- | --- | --- |
+| 8 | 4 | default (1048576 here) | 0.98 s | — | empty |
+| 15 | 8 | default | 0.66 s | 18.6 MB | empty |
+| 15 | 15 | 256 (`ulimit -n`) | 0.35 s | — | empty |
+| 64 | 64 | 4096 (`ulimit -n`) | 0.43 s | 38.5 MB | empty |
+
+The 64-session run used the checked-in `skills/`/`agents/` seeds concurrently —
+the scale at which the harness above saw half-written files and `missing YAML
+frontmatter` — and booted with empty stderr. That is the atomic-seed fix doing
+its job.
+
+A `SIGINT` one second into a two-worker run of five-second jobs exited `130`,
+reported both in-flight jobs as interrupted, started none of the queued jobs,
+and left stderr empty. That is the acceptance shape: no bootstrap warnings,
+well under the RSS bound, and 15 concurrent sessions inside the original
+256-fd soft limit.
+
+Still **not** done, and why this is "a first client" rather than the full Host:
+
+- The config home, provider catalog and MCP **configuration** are still read
+  per session; only the first-run *writes* were made safe. A Host that parses
+  them once and hands them to sessions is the next step, and the place to share
+  an MCP connection pool.
+- Signals are still per session (tokio broadcasts one process handler, and each
+  run installs its own stream). The batch is correct because every in-flight
+  session answers the signal and stops; a process-level shutdown broadcast is
+  still cleaner and is Host work.
+- The TUI is not a client. It is one `current_thread` runtime over one
+  `Session`; N panes need the transport work in #28, not this batch path.
+- Each session still builds its own provider client. Sharing the HTTP client
+  and connection pool is a Host concern and a measurement, not a guess.

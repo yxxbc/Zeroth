@@ -164,6 +164,7 @@ pub mod context_usage;
 pub mod file_search;
 pub mod frame;
 pub mod frontmatter;
+mod fsutil;
 pub mod git_diff;
 pub mod headless;
 pub mod herdr;

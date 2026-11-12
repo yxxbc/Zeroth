@@ -84,6 +84,7 @@ pub(crate) mod actions;
 pub(crate) mod agent;
 pub(crate) mod ask;
 pub(crate) mod background;
+pub(crate) mod batch;
 pub(crate) mod bootstrap;
 pub(crate) mod commit;
 pub(crate) mod config;

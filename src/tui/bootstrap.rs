@@ -70,7 +70,7 @@ impl<'t> Session<'t> {
         // shown and nobody to ask. Its prompt is the headless loop's to
         // submit; what it changes here is what a screen alone needs.
         let headless = print.is_some();
-        let headless_verbose = print.is_some_and(|options| options.verbose);
+        let headless_verbose = print.as_ref().is_some_and(|options| options.verbose);
         let round_budget =
             print.map(|options| zeroth::llm::agent::RoundBudget::new(options.max_turns));
         // The pre-fork home's model config and sign-ins move into `~/.zeroth`

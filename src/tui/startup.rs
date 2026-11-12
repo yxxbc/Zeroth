@@ -100,15 +100,16 @@ pub(crate) fn resolve_cli() -> Result<Startup, i32> {
             print,
         }) => {
             let began = Instant::now();
+            let batch = print.as_ref().is_some_and(|options| options.jobs.is_some());
             let (session, prompt) =
-                prepare(start, prompt, cwd, print.is_some()).map_err(|halt| match halt {
+                prepare(start, prompt, cwd, print.is_some(), batch).map_err(|halt| match halt {
                     Halt::Usage(message) => {
                         let style = help_style(std::io::stderr().is_terminal());
                         eprintln!("{}", cli::usage_error(HelpPage::Main, message, style));
                         2
                     }
                     Halt::Failed(message) => {
-                        match print {
+                        match &print {
                             // A headless run's failure is its result too: a
                             // script reading JSON meets an error object.
                             Some(options) => super::headless::write(&headless::not_started(
@@ -147,6 +148,7 @@ fn prepare(
     prompt: Option<String>,
     cwd: Option<PathBuf>,
     headless: bool,
+    batch: bool,
 ) -> Result<(Option<StartupSession>, Option<String>), Halt> {
     // `-C` first: everything after reads the working directory —
     // `--continue` looks for the newest conversation *there*.
@@ -160,8 +162,10 @@ fn prepare(
     }
     let session = resolve_session(start).map_err(Halt::Failed)?;
     // A headless run reads its prompt now, before anything else starts: an
-    // argument, stdin, or both (docs/cli/headless.md).
-    let prompt = if headless {
+    // argument, stdin, or both (docs/cli/headless.md). A batch reads its
+    // prompts from the jobs file, and must not consume stdin the parent may
+    // be using.
+    let prompt = if headless && !batch {
         Some(super::headless::read_prompt(prompt.as_deref())?)
     } else {
         prompt
