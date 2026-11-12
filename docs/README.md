@@ -22,6 +22,7 @@ How the crate is put together: module layout, the async loop, the context, token
 - [`architecture/herdr.md`](architecture/herdr.md): herdr support — the pane's state, reported by the agent itself
 - [`architecture/memory.md`](architecture/memory.md): Resident memory: what the app holds, and what `/model` used to cost
 - [`architecture/module-layout.md`](architecture/module-layout.md): Module layout: `app/`, `ui/`, `tui/`, and `stream/`
+- [`architecture/multithread-core.md`](architecture/multithread-core.md): The multi-threaded core — N sessions in one process, measured
 - [`architecture/token-estimate.md`](architecture/token-estimate.md): Token estimates, corrected by the provider
 - [`architecture/unfinished-replies.md`](architecture/unfinished-replies.md): A turn never ends on a reply that isn't one
 

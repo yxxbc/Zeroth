@@ -14,6 +14,16 @@ repository = "https://github.com/yxxbc/zeroth"
 name = "zeroth"
 path = "src/main.rs"
 
+[features]
+# The N-sessions-in-one-process benchmark (docs/architecture/multithread-core.md).
+# Off by default: it needs tokio's multi-thread runtime for the spawn_blocking case.
+bench = ["tokio/rt-multi-thread"]
+
+[[bin]]
+name = "sessionbench"
+path = "src/bin/sessionbench.rs"
+required-features = ["bench"]
+
 [dependencies]
 # Default features off: `all-widgets` is only the calendar widget, which
 # drags the whole `time` family into every build, and `macros` is
