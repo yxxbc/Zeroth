@@ -4,6 +4,10 @@ All notable changes to Zeroth are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Entries below `0.0.0` are inherited from
+[Alter Zero](https://github.com/linuztx/alter-zero); `0.0.0` is this fork's
+development baseline.
+
 A release's notes on GitHub are generated from its section below
 (`scripts/release.sh notes`, see `docs/ops/release.md`), so the entry written
 here is the entry users read. Changes land under **Unreleased** as they
@@ -369,6 +373,11 @@ release heading when a version is cut.
   find a session, the stop now finds its processes by the session's
   terminal, and the final kill reaches a shell's own jobs there as well
   (`docs/tools/bash-tools.md`).
+
+## [0.0.0] - 2026-11-12
+
+Zeroth's development baseline. The first tagged release will pick the
+version it starts from; everything below this entry is Alter Zero's history.
 
 ## [0.18.0] - 2026-11-03
 
@@ -2418,7 +2427,8 @@ release heading when a version is cut.
   release whose notes come from this file — driven end to end by
   `scripts/release.sh`, which also rehearses a release locally.
 
-[Unreleased]: https://github.com/linuztx/alter-zero/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/yxxbc/zeroth/commits/main
+[0.0.0]: https://github.com/yxxbc/zeroth
 [0.18.0]: https://github.com/linuztx/alter-zero/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/linuztx/alter-zero/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/linuztx/alter-zero/compare/v0.15.0...v0.16.0
