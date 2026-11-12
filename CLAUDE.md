@@ -9,9 +9,16 @@ whole smoke suite after every edit. It also says what a Mac needs for the
 lib suite (the `alter-zero` binary built: with no `setsid` there, the tests
 start their terminal sessions through its helper, and without it every such
 test fails, which is not a regression) and what else differs between the two
-platforms CI tests on.
+platforms CI tests on. `scripts/preflight.sh --smoke` checks the machine
+itself (toolchain, `mbx`, `tmux`, bash 4+, `setsid`) before you read a red
+run.
 
 ## Commands
+
+Every `cargo` command below runs through **mbx** (the shared build cache):
+`mbx setup` installs the shim, then plain `cargo …` is cached, and
+`mbx clean` clears the workspace's managed target — `target/` is a symlink into
+mbx's store, so never `rm -rf` it. Plain cargo still works, just cold.
 
 ```bash
 cargo run                                   # run the TUI
@@ -25,6 +32,8 @@ cargo build && scripts/smoke.sh             # drive the real binary in tmux (eve
 scripts/smoke.sh 55 permission              # only some phases (an id, a range, a name substring)
 scripts/smoke.sh --list                     # the phases, their tags and last durations
 bash scripts/smoke/phases/055-permission.sh # one phase on its own, output live (docs/smoke.md)
+scripts/preflight.sh --smoke               # is this machine able to run the gate and the phases (macOS: setsid, bash 4+)
+mbx clean                                   # clear the workspace's build via mbx (not rm -rf target/)
 scripts/release.sh check [vX.Y.Z]           # Cargo.toml, Cargo.lock, the README badge and CHANGELOG.md agree (docs/release.md)
 scripts/release.sh build [TARGET]           # one platform's release archive + .sha256 into dist/
 cargo build --profile dist                  # the shipped binary alone: fat LTO, one codegen unit, ~4½ min cold (docs/binary-size.md)

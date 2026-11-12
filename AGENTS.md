@@ -21,6 +21,27 @@ Do **not** run `cargo test` (or `cargo clippy --all-targets`, or
 targeted command for the code you touched, and escalate only when the change
 crosses a boundary.
 
+### Builds and cleanups go through `mbx`
+
+This checkout builds with [mbx](https://github.com/mr-boxington/mbx), a Cargo
+wrapper that shares compiled work across every checkout and prunes its own
+store. Every `cargo …` command below is run as you normally would — with the
+shim `mbx setup` installs first on `PATH`, plain `cargo` already goes through
+it — and `mbx clean` (from the workspace root) is what clears `target/`:
+
+```bash
+mbx check --lib        # any cargo command, cached
+mbx clean              # the workspace's managed target, not a hand rm -rf
+mbx doctor             # shim, cache, toolchain and remote-cache status
+mbx stats              # what the cache has saved, and its size
+```
+
+`target/` here is a **symlink** into mbx's store (usually
+`~/Library/Caches/mbx/targets/…` on macOS), so the "don't `rm -rf target/`"
+rule still holds and `cargo clean -p alter-zero` still works through the shim.
+If mbx is not installed, plain `cargo` is correct but uncached — say so in the
+commit rather than installing it.
+
 ### What each command actually costs here
 
 Measured on an 8-core Apple-silicon Mac, warm `target/` (not a cold checkout):
@@ -121,6 +142,14 @@ BSD).
 | `timeout`, `nproc`, `grep -P` | present | **absent** (`smoke.sh` already falls back to `sysctl -n hw.ncpu`) |
 | a stale incremental link | rare | **`Undefined symbols: … (.llvm.…)`** after a branch switch |
 
+**Check the machine before diagnosing a failure**: `scripts/preflight.sh
+--smoke` prints one line per tool (the pinned rustc, rustfmt/clippy, `mbx`,
+`tmux`, bash 4+, `setsid`) and exits non-zero when something required is
+missing, with the macOS remedy in the line. Run it before the lib suite or the
+smoke phases on a new machine; it is the fast answer to "which of these red
+tests is mine".
+
+**35 tests never run on macOS.** They are not skipped-and-reported; the Linux
 **38 tests never run on macOS.** They are not skipped-and-reported; the Linux
 `cfg` compiles them out, so nothing in the output mentions them. By file:
 `llm/exec.rs` 18, `pty/probe.rs` 8, `clipboard.rs` 4, `subprocess.rs` 4,
@@ -217,6 +246,12 @@ Three failure modes to name, because each looks like something it is not:
   tool — `pkill`, `ps`, `od`, `sed`. Linux's are procps and GNU, a Mac's are
   BSD's, and they take different flags and print different spacing. Read the
   BSD man page, or let CI's macOS job tell you.
+
+The suite's own scripts are ported to both platforms (the `smoke_*` helpers in
+`scripts/smoke/lib.sh`; `docs/smoke.md`, *Portability*), so a phase that calls
+`stat -c`, `sed -i` or `sha256sum` directly is a bug — on macOS those fail with
+an empty string, which turns an assertion into a false pass instead of a red
+run.
 
 ## Working style (standing instructions, not suggestions)
 
