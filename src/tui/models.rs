@@ -254,13 +254,20 @@ impl ModelSession {
         settings: &SessionSettings,
         hooks: Option<HookSetup>,
         round_budget: Option<&zeroth::llm::agent::RoundBudget>,
+        host: Option<&super::host::Host>,
     ) -> Self {
-        let (providers, provider_issues) = config::startup_providers(home);
+        let (providers, provider_issues) = match host {
+            Some(host) => (host.providers.clone(), host.provider_issues.clone()),
+            None => config::startup_providers(home),
+        };
         // The persistent API-key store: `.env` in the config home (or
         // `ZEROTH_ENV_FILE`), written by the `/login` flow and consulted
         // during key resolution (a real process env var still wins).
         let env_file_path = config::env_file_path();
-        let env_file = config::load_env_file(&env_file_path);
+        let env_file = match host {
+            Some(host) => host.env_file.clone(),
+            None => config::load_env_file(&env_file_path),
+        };
         // OpenAI rotates a refresh token as it is used, and the rotation
         // happens deep on a backend thread with no path in hand — so tell the
         // module where the store is, once. Without this the retired token
@@ -312,7 +319,10 @@ impl ModelSession {
         // switch elsewhere never moves it.
         let project = cwd.display().to_string();
         let settings_path = config::settings_file_path();
-        let saved = config::adopt_selection(settings_path.as_deref(), &project);
+        let saved = match host {
+            Some(host) => host.saved_selection.clone(),
+            None => config::adopt_selection(settings_path.as_deref(), &project),
+        };
         let saved_provider = saved.as_ref().map(|s| s.provider.clone());
         // The `/settings` knobs the backend is built around — already merged
         // with their `ALTER_ZERO_*` overrides by the caller

@@ -50,7 +50,7 @@ use super::startup::Startup;
 /// active session's id when the run recorded a conversation — the exit hint
 /// `main` prints after the terminal is restored — else `None`.
 pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Result<Option<String>> {
-    let mut session = Session::bootstrap(term, startup)?;
+    let mut session = Session::bootstrap(term, startup, None)?;
     // Keys typed while `InlineViewport::init`'s startup read waited on the
     // terminal: that read took them in, so they go first — through the same
     // handler, and ahead of anything the EventStream reads (`term::query`).

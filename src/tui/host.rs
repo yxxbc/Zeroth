@@ -19,7 +19,141 @@
 //! - telemetry (`TELEMETRY.md`): [`utc_day`] (the once-a-day key) and
 //!   [`random_bytes`] (the install id's entropy).
 
+use std::collections::BTreeSet;
+use std::path::PathBuf;
+
 use zeroth::llm;
+
+/// What one process resolves once and every session shares
+/// (`docs/architecture/multithread-core.md`): the working directory and config
+/// home, the first-run seed writes, the skill and agent walks, the settings
+/// snapshot, the secrets and lifecycle-hook file, and the pieces the model
+/// resolver needs (providers, `.env`, the saved selection).
+///
+/// A session still owns everything mutable — its `App`, rollout, permission
+/// gate, MCP manager, background shells and subagent registry. The Host is
+/// read-only after [`Host::resolve`], so a batch can hand `&Host` to every
+/// worker; cloning a field out of it is how a session gets its own copy.
+pub(crate) struct Host {
+    pub(crate) cwd: PathBuf,
+    pub(crate) home: Option<PathBuf>,
+    pub(crate) project: String,
+    pub(crate) config_home: Option<PathBuf>,
+    /// The discovered skills, in precedence order, and the errors the startup
+    /// toast reports (a broken `SKILL.md` costs its skill, not the session).
+    pub(crate) skills: Vec<zeroth::skills::SkillMetadata>,
+    pub(crate) skill_errors: Vec<zeroth::skills::SkillError>,
+    /// This project's saved on/off choices from `skills.json`.
+    pub(crate) skills_disabled: BTreeSet<String>,
+    /// The discovered subagent definitions, in precedence order.
+    pub(crate) agents: Vec<zeroth::subagents::AgentDefinition>,
+    pub(crate) agent_errors: Vec<zeroth::subagents::AgentFileError>,
+    /// This directory's `/settings` entry with the `ALTER_ZERO_*` overrides
+    /// already applied, and the tips cursor the session starts on.
+    pub(crate) settings: zeroth::settings::SessionSettings,
+    pub(crate) tips_next: usize,
+    /// The loaded secrets file; each session wraps its own registry around a
+    /// clone, because the registry's masked set is per conversation.
+    pub(crate) secrets: zeroth::secrets::SecretStore,
+    pub(crate) secrets_error: Option<String>,
+    /// The user's `hooks.json` (path + parse) and the error to toast.
+    pub(crate) hooks: Option<(PathBuf, zeroth::hooks::HooksFile)>,
+    pub(crate) hooks_error: Option<String>,
+    /// What `ModelSession::resolve` otherwise re-reads per session.
+    pub(crate) providers: zeroth::llm::config::ProvidersFile,
+    pub(crate) provider_issues: Vec<String>,
+    pub(crate) env_file: zeroth::llm::keystore::EnvFile,
+    pub(crate) saved_selection: Option<zeroth::llm::settings::ModelSelection>,
+}
+
+impl Host {
+    /// Resolve the process-wide facts once, before any session bootstraps.
+    ///
+    /// Best-effort by the same rule as bootstrap: an unreadable file is an
+    /// empty value and (where bootstrap toasts it) an error the session
+    /// reports. The pre-fork home migration runs here first, so no session
+    /// can race it on a fresh home.
+    pub(crate) fn resolve() -> Self {
+        let _ = super::config::migrate_from_alter_zero();
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let project = cwd.display().to_string();
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        let config_home = super::config::config_home();
+
+        let mut skill_errors =
+            match zeroth::llm::skill::resolved_builtin_skills_dir(config_home.as_deref()) {
+                Some(root) => zeroth::llm::skill::seed_builtin_skills(&root),
+                None => Vec::new(),
+            };
+        let (skills, walk_errors) = zeroth::llm::skill::load_skills(&cwd, config_home.as_deref());
+        skill_errors.extend(walk_errors);
+        let skills_disabled =
+            super::config::load_skills_file(super::config::skills_json_path().as_deref())
+                .disabled_for(&project);
+
+        let mut agent_errors = match zeroth::llm::subagent::user_agents_dir(config_home.as_deref())
+        {
+            Some(dir) => zeroth::llm::subagent::seed_default_agents(&dir),
+            None => Vec::new(),
+        };
+        let (agents, walk_errors) =
+            zeroth::llm::subagent::load_agents(&cwd, config_home.as_deref());
+        agent_errors.extend(walk_errors);
+
+        let mut settings =
+            super::config::load_settings_file(super::config::settings_json_path().as_deref())
+                .settings_for(&project);
+        settings.telemetry =
+            super::config::load_telemetry_file(super::config::telemetry_json_path().as_deref())
+                .enabled;
+        settings.update_check =
+            super::config::load_update_file(super::config::update_json_path().as_deref()).enabled;
+        let tips = super::config::load_tips_file(super::config::tips_json_path().as_deref());
+        settings.tips = tips.enabled;
+        let settings = super::config::apply_setting_overrides(settings);
+
+        let (secrets, secrets_error) = match super::config::secrets_json_path()
+            .map(|path| zeroth::llm::keystore::load_secrets_file(&path))
+        {
+            Some(Ok(store)) => (store, None),
+            Some(Err(error)) => (zeroth::secrets::SecretStore::new(), Some(error)),
+            None => (zeroth::secrets::SecretStore::new(), None),
+        };
+
+        let hooks_path = super::config::user_hooks_path();
+        let (hooks_file, hooks_error) = super::config::load_hooks(hooks_path.as_deref());
+        let hooks = hooks_path.map(|path| (path, hooks_file));
+
+        let (providers, provider_issues) = super::config::startup_providers(home.as_deref());
+        let env_file = super::config::load_env_file(&super::config::env_file_path());
+        let saved_selection = super::config::adopt_selection(
+            super::config::settings_file_path().as_deref(),
+            &project,
+        );
+
+        Self {
+            cwd,
+            home,
+            project,
+            config_home,
+            skills,
+            skill_errors,
+            skills_disabled,
+            agents,
+            agent_errors,
+            settings,
+            tips_next: tips.next,
+            secrets,
+            secrets_error,
+            hooks,
+            hooks_error,
+            providers,
+            provider_issues,
+            env_file,
+            saved_selection,
+        }
+    }
+}
 
 /// Local wall-clock stamp for recorded items: 12-hour time, no seconds, e.g.
 /// `03:20 AM`. Injected via [`App::set_clock`](zeroth::app::App::set_clock) and shown **only** under the

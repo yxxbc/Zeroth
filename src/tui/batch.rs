@@ -97,10 +97,11 @@ pub(crate) fn run(startup: Startup) -> i32 {
             return 2;
         }
     };
-    // The one-time pre-fork home migration is a shared write. Run it once,
-    // before any session bootstraps; every session's own call then sees the
-    // destination and no-ops. A Host will own this permanently.
-    let _ = super::config::migrate_from_alter_zero();
+    // The process-wide facts — config home, first-run seeds and migration,
+    // the skill/agent walks, settings, secrets, hooks, and the model inputs —
+    // are resolved once here and shared by every worker
+    // (`docs/architecture/multithread-core.md`).
+    let host = super::host::Host::resolve();
     let out_dir = match options.out_dir.as_deref().map(ensure_dir) {
         Some(Ok(dir)) => Some(dir),
         Some(Err(err)) => {
@@ -124,6 +125,7 @@ pub(crate) fn run(startup: Startup) -> i32 {
             let options = &options;
             let out_dir = out_dir.as_deref();
             let permission_mode = startup.permission_mode;
+            let host = &host;
             scope.spawn(move || {
                 loop {
                     let job = {
@@ -133,7 +135,7 @@ pub(crate) fn run(startup: Startup) -> i32 {
                     let Some(job) = job else {
                         break;
                     };
-                    let report = run_job(job, options, out_dir, permission_mode);
+                    let report = run_job(job, options, out_dir, permission_mode, host);
                     let interrupted = matches!(report.exit_code, 130 | 143);
                     let _ = tx.send(report);
                     // The batch shares one process-level signal with every
@@ -171,6 +173,7 @@ fn run_job(
     options: &PrintOptions,
     out_dir: Option<&Path>,
     permission_mode: Option<PermissionMode>,
+    host: &super::host::Host,
 ) -> JobReport {
     let captured = std::sync::Arc::new(Mutex::new(String::new()));
     let sink_capture = captured.clone();
@@ -202,7 +205,7 @@ fn run_job(
         .enable_all()
         .build()
     {
-        Ok(runtime) => runtime.block_on(headless::run_job(startup)),
+        Ok(runtime) => runtime.block_on(headless::run_job(startup, Some(host))),
         Err(err) => {
             eprintln!("zeroth: could not start a job runtime: {err}");
             JobOutcome::failed(began)

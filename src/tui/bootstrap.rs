@@ -59,7 +59,11 @@ impl<'t> Session<'t> {
     /// the transcript and adopts the file for further recording; a `Picker`
     /// boots straight into the `/resume` overlay — plus the `[PROMPT]`, which
     /// is submitted as the first turn once the frame is scheduled.
-    pub(crate) fn bootstrap(term: &'t mut InlineViewport, startup: Startup) -> io::Result<Self> {
+    pub(crate) fn bootstrap(
+        term: &'t mut InlineViewport,
+        startup: Startup,
+        host: Option<&super::host::Host>,
+    ) -> io::Result<Self> {
         let Startup {
             session: startup,
             prompt,
@@ -77,7 +81,13 @@ impl<'t> Session<'t> {
         // once, before anything reads the config home. The old directory is
         // left untouched, so the previous app keeps working
         // (docs/providers/llm.md).
-        let home_migration = config::migrate_from_alter_zero();
+        // A Host resolved the process-wide files (migration included) once;
+        // without one this session is the only one and does it here.
+        let home_migration = if host.is_some() {
+            None
+        } else {
+            config::migrate_from_alter_zero()
+        };
         // Backend → loop (the streamed reply). A tokio channel so the loop can
         // `select!` on it; the backend thread sends without touching the runtime.
         let (tx, reply_rx) = tokio::sync::mpsc::unbounded_channel::<StreamEvent>();
@@ -108,8 +118,11 @@ impl<'t> Session<'t> {
         // The working directory keys every per-directory file below
         // (docs/state/per-directory-state.md) — the two looks here, the `/model`
         // selection and `/settings` knobs further down, the permission rules.
-        let cwd = std::env::current_dir().unwrap_or_default();
-        let project = cwd.display().to_string();
+        let cwd = host.map_or_else(
+            || std::env::current_dir().unwrap_or_default(),
+            |host| host.cwd.clone(),
+        );
+        let project = host.map_or_else(|| cwd.display().to_string(), |host| host.project.clone());
         // The banner mascot (docs/ui/mascot.md): this directory's saved `/mascot`
         // choice — or, launched in for the first time, the last choice made
         // anywhere, pinned as this directory's own right here — seeded before
@@ -141,7 +154,10 @@ impl<'t> Session<'t> {
         }
         zeroth::ui::activate_theme(app.theme());
 
-        let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+        let home = host
+            .and_then(|host| host.home.clone())
+            .or_else(|| std::env::var_os("HOME").map(std::path::PathBuf::from));
+        let config_home = host.map_or_else(config::config_home, |host| host.config_home.clone());
 
         // The session id, minted ONCE (it is nanos-derived — a second call is a
         // different id) and shared by everything that needs one: the temp tree
@@ -206,12 +222,15 @@ impl<'t> Session<'t> {
         // the `!` runner and every backend build, so a command's output is
         // redacted from the first call. A file that won't parse is a red
         // toast below and an empty store — never a silent one.
-        let (secrets, secrets_error) = match config::secrets_json_path()
-            .map(|path| zeroth::llm::keystore::load_secrets_file(&path))
-        {
-            Some(Ok(store)) => (store, None),
-            Some(Err(error)) => (zeroth::secrets::SecretStore::new(), Some(error)),
-            None => (zeroth::secrets::SecretStore::new(), None),
+        let (secrets, secrets_error) = match host {
+            Some(host) => (host.secrets.clone(), host.secrets_error.clone()),
+            None => match config::secrets_json_path()
+                .map(|path| zeroth::llm::keystore::load_secrets_file(&path))
+            {
+                Some(Ok(store)) => (store, None),
+                Some(Err(error)) => (zeroth::secrets::SecretStore::new(), Some(error)),
+                None => (zeroth::secrets::SecretStore::new(), None),
+            },
         };
         let secrets = zeroth::secrets::SecretRegistry::new(secrets);
 
@@ -267,23 +286,29 @@ impl<'t> Session<'t> {
         // *second* launch would be missing from exactly the session that just
         // installed the app. Never clobbers an edited copy, and skipped
         // entirely when ALTER_ZERO_SKILLS_DIR replaced the roots.
-        let mut skill_errors =
-            match zeroth::llm::skill::resolved_builtin_skills_dir(config::config_home().as_deref())
-            {
-                Some(root) => zeroth::llm::skill::seed_builtin_skills(&root),
-                None => Vec::new(),
-            };
-        let (found_skills, walk_errors) =
-            zeroth::llm::skill::load_skills(&cwd, config::config_home().as_deref());
-        skill_errors.extend(walk_errors);
+        let (found_skills, skill_errors) = match host {
+            Some(host) => (host.skills.clone(), host.skill_errors.clone()),
+            None => {
+                let mut errors =
+                    match zeroth::llm::skill::resolved_builtin_skills_dir(config_home.as_deref()) {
+                        Some(root) => zeroth::llm::skill::seed_builtin_skills(&root),
+                        None => Vec::new(),
+                    };
+                let (found, walk_errors) =
+                    zeroth::llm::skill::load_skills(&cwd, config_home.as_deref());
+                errors.extend(walk_errors);
+                (found, errors)
+            }
+        };
         let skill_registry = zeroth::skills::SkillRegistry::new(found_skills);
         // …and this project's saved on/off choices from `skills.json`, applied
         // BEFORE the backend is built so a session that starts with its last
         // skill turned off is never offered the tool (`docs/tools/skills.md`).
-        skill_registry.set_disabled(
-            config::load_skills_file(config::skills_json_path().as_deref())
+        skill_registry.set_disabled(match host {
+            Some(host) => host.skills_disabled.clone(),
+            None => config::load_skills_file(config::skills_json_path().as_deref())
                 .disabled_for(&cwd.display().to_string()),
-        );
+        });
 
         // The subagent definitions on disk (docs/agents/subagents.md): the built-in
         // `general-purpose`/`explore` seeded into the user root the first
@@ -292,14 +317,20 @@ impl<'t> Session<'t> {
         // Done here, before the backend, so a launch and the `<system-
         // reminder>` listing agree from the first turn. A file that will not
         // parse is collected, not thrown, and becomes the startup toast.
-        let mut agent_errors =
-            match zeroth::llm::subagent::user_agents_dir(config::config_home().as_deref()) {
-                Some(dir) => zeroth::llm::subagent::seed_default_agents(&dir),
-                None => Vec::new(),
-            };
-        let (found_agents, walk_errors) =
-            zeroth::llm::subagent::load_agents(&cwd, config::config_home().as_deref());
-        agent_errors.extend(walk_errors);
+        let (found_agents, agent_errors) = match host {
+            Some(host) => (host.agents.clone(), host.agent_errors.clone()),
+            None => {
+                let mut errors =
+                    match zeroth::llm::subagent::user_agents_dir(config_home.as_deref()) {
+                        Some(dir) => zeroth::llm::subagent::seed_default_agents(&dir),
+                        None => Vec::new(),
+                    };
+                let (found, walk_errors) =
+                    zeroth::llm::subagent::load_agents(&cwd, config_home.as_deref());
+                errors.extend(walk_errors);
+                (found, errors)
+            }
+        };
         let subagents = zeroth::subagents::SubagentRegistry::new(found_agents);
 
         // What the startup review decides over (docs/state/config-review.md): the
@@ -310,12 +341,16 @@ impl<'t> Session<'t> {
         // what the user trusts. A malformed hooks.json is deliberately loud —
         // the startup toast below rather than a silent "no hooks", which is
         // how a user comes to trust a guard that isn't there.
-        let hooks_path = config::user_hooks_path();
-        let (user_hooks_file, hooks_error) = config::load_hooks(hooks_path.as_deref());
-        let (trust, trust_error) = super::trust::TrustState::load(
-            hooks_path.map(|path| (path, user_hooks_file)),
-            super::trust::load_project_layer(&cwd),
-        );
+        let (user_hooks, hooks_error) = match host {
+            Some(host) => (host.hooks.clone(), host.hooks_error.clone()),
+            None => {
+                let hooks_path = config::user_hooks_path();
+                let (file, error) = config::load_hooks(hooks_path.as_deref());
+                (hooks_path.map(|path| (path, file)), error)
+            }
+        };
+        let (trust, trust_error) =
+            super::trust::TrustState::load(user_hooks, super::trust::load_project_layer(&cwd));
 
         // The telemetry ping's report channel (TELEMETRY.md) — its own
         // `select!` source, because the worker outlives nothing but must
@@ -331,24 +366,30 @@ impl<'t> Session<'t> {
         // Resolved BEFORE the backend, which is built around three of them
         // (tools, retries, temperature).
         let settings_path = config::settings_json_path();
-        let mut settings = config::load_settings_file(settings_path.as_deref())
-            .settings_for(&cwd.display().to_string());
-        // The Telemetry row's standing value is `telemetry.json`'s, not this
-        // directory's entry — a user preference, not a project's
-        // (`TELEMETRY.md`); the environment then overrides it for the
-        // run like every other knob.
-        settings.telemetry =
-            config::load_telemetry_file(config::telemetry_json_path().as_deref()).enabled;
-        // Likewise the Update check row's: update.json's (docs/ops/update.md).
-        settings.update_check =
-            config::load_update_file(config::update_json_path().as_deref()).enabled;
-        // …and the Show tips row's, with the walk's position beside it
-        // (docs/ui/tips.md): tips.json's, per user. The cursor seeds `App` here,
-        // so the session's first tip is the one after the last shown anywhere.
-        let tips_file = config::load_tips_file(config::tips_json_path().as_deref());
-        settings.tips = tips_file.enabled;
-        app.seed_tips(tips_file.next);
-        let settings = config::apply_setting_overrides(settings);
+        let (settings, tips_next) = match host {
+            Some(host) => (host.settings, host.tips_next),
+            None => {
+                let mut settings = config::load_settings_file(settings_path.as_deref())
+                    .settings_for(&cwd.display().to_string());
+                // The Telemetry row's standing value is `telemetry.json`'s, not this
+                // directory's entry — a user preference, not a project's
+                // (`TELEMETRY.md`); the environment then overrides it for the
+                // run like every other knob.
+                settings.telemetry =
+                    config::load_telemetry_file(config::telemetry_json_path().as_deref()).enabled;
+                // Likewise the Update check row's: update.json's (docs/ops/update.md).
+                settings.update_check =
+                    config::load_update_file(config::update_json_path().as_deref()).enabled;
+                // …and the Show tips row's, with the walk's position beside it
+                // (docs/ui/tips.md): tips.json's, per user. The cursor seeds `App`
+                // here, so the session's first tip is the one after the last
+                // shown anywhere.
+                let tips_file = config::load_tips_file(config::tips_json_path().as_deref());
+                settings.tips = tips_file.enabled;
+                (config::apply_setting_overrides(settings), tips_file.next)
+            }
+        };
+        app.seed_tips(tips_next);
 
         // The MCP servers (docs/tools/mcp.md): the config files parsed and merged
         // (a project's servers held until the review enables them) and the
@@ -442,6 +483,7 @@ impl<'t> Session<'t> {
             &settings,
             hook_setup,
             round_budget.as_ref(),
+            host,
         );
 
         // The `@` file-search pipeline (docs/input/file-search.md): a background worker
@@ -609,7 +651,7 @@ impl<'t> Session<'t> {
             hist_store,
             checkpoints,
             settings_path,
-            tips_saved: Some(tips_file.next),
+            tips_saved: Some(tips_next),
             inflight: None,
             reaping: Vec::new(),
             clipboard_lease: None,

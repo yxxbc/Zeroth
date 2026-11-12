@@ -227,17 +227,42 @@ and left stderr empty. That is the acceptance shape: no bootstrap warnings,
 well under the RSS bound, and 15 concurrent sessions inside the original
 256-fd soft limit.
 
-Still **not** done, and why this is "a first client" rather than the full Host:
+## The Host
 
-- The config home, provider catalog and MCP **configuration** are still read
-  per session; only the first-run *writes* were made safe. A Host that parses
-  them once and hands them to sessions is the next step, and the place to share
-  an MCP connection pool.
-- Signals are still per session (tokio broadcasts one process handler, and each
-  run installs its own stream). The batch is correct because every in-flight
-  session answers the signal and stops; a process-level shutdown broadcast is
-  still cleaner and is Host work.
-- The TUI is not a client. It is one `current_thread` runtime over one
+The batch now resolves the process-wide facts **once**, in `tui::host::Host`,
+and hands a `&Host` to every session:
+
+- the working directory, home and config home;
+- the pre-fork home migration and the first-run skill/agent seeds (already
+  atomic — the Host is now the one place that runs them before sessions start);
+- the skill and subagent walks, with their parse errors, and this project's
+  `skills.json` disabled set;
+- this directory's `/settings` entry plus the telemetry/update/tips files and
+  the `ALTER_ZERO_*` overrides, and the tips cursor;
+- the secrets file, the user's `hooks.json` (path and parse), and the model
+  resolver's inputs: the provider table, `.env`, and the saved selection
+  (`adopt_selection` now pins a directory once per process, not once per
+  session).
+
+A session still clones what it needs into its own registries and stores; the
+Host itself is read-only after `Host::resolve`. A single `-p` run or the TUI
+passes `None` and resolves the same facts inside bootstrap, so its behavior is
+unchanged.
+
+Still **not** done:
+
+- **MCP configuration and managers** are still per session. The parsed sources
+  depend on this session's trust state, and each manager owns live connections;
+  sharing a connection pool is the next Host step, and needs a measurement
+  before it is a design.
+- **Signals** are still per session (tokio broadcasts one process handler, and
+  each run installs its own stream). The batch is correct because every
+  in-flight session answers the signal and stops; a process-level shutdown
+  broadcast is still cleaner.
+- **The TUI is not a client.** It is one `current_thread` runtime over one
   `Session`; N panes need the transport work in #28, not this batch path.
-- Each session still builds its own provider client. Sharing the HTTP client
-  and connection pool is a Host concern and a measurement, not a guess.
+- **The provider HTTP client** is still built per session. Sharing it is a Host
+  concern and a measurement, not a guess.
+- The Host is a **snapshot**. A config file edited while a batch runs is not
+  re-read by the sessions already started; a fresh process sees it. That was
+  already true of a single headless run for everything resolved at bootstrap.

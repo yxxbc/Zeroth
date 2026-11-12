@@ -62,12 +62,16 @@ for network-bound work, where sessions spend their time waiting.
 
 ## What is shared, and what is not
 
-Shared: the config home (read-mostly), the working directory, the process's
-stdout/stderr, and the kernel's scheduler. The first-run seeds under
-`skills/` and `agents/` are written atomically, so concurrent bootstraps never
-let one session parse another's half-written file, and session ids carry a
-process-local sequence so two sessions started in the same nanosecond cannot
-share a rollout path.
+Shared: the config home, the working directory, the process's stdout/stderr,
+and the kernel's scheduler. Before any session starts, the batch resolves a
+read-only `Host` — the home migration, the first-run seeds under `skills/` and
+`agents/`, the skill and agent walks, this directory's settings, the secrets and
+hooks files, and the model resolver's provider table, `.env` and saved
+selection. Each job clones those values into its own registries; the Host is
+never mutated. The seeds and the migration are published with atomic renames,
+so concurrent bootstraps never let one session parse another's half-written
+file, and session ids carry a process-local sequence so two sessions started in
+the same nanosecond cannot share a rollout path.
 
 Not shared: each session owns its `App`, conversation, rollout, permission
 gate, MCP manager, subagent registry and background shells. A job cannot see

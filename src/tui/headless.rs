@@ -315,13 +315,14 @@ fn duration_ms(duration: Duration) -> u64 {
 /// prompt, fold every event until the session is idle with nothing left
 /// running that owes it a turn, then shut down and report.
 pub(crate) async fn run(startup: Startup) -> i32 {
-    run_job(startup).await.exit_code
+    run_job(startup, None).await.exit_code
 }
 
 /// [`run`] for a caller that wants the run's facts too — the batch runner
 /// (`docs/cli/batch.md`). The thread's output sink, if any, receives every
-/// reporter line instead of stdout/stderr.
-pub(crate) async fn run_job(mut startup: Startup) -> JobOutcome {
+/// reporter line instead of stdout/stderr; a shared [`Host`](super::host::Host)
+/// supplies the process-wide files the batch already resolved.
+pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Host>) -> JobOutcome {
     let began = Instant::now();
     let options = startup.print.clone().unwrap_or_default();
     let format = options.output_format;
@@ -333,7 +334,7 @@ pub(crate) async fn run_job(mut startup: Startup) -> JobOutcome {
     // takes them down with the run rather than orphaning them.
     let mut signals = Signals::install();
     let mut term = InlineViewport::headless();
-    let mut session = match Session::bootstrap(&mut term, startup) {
+    let mut session = match Session::bootstrap(&mut term, startup, host) {
         Ok(session) => session,
         Err(err) => {
             let error = format!("could not start the session: {err}");
