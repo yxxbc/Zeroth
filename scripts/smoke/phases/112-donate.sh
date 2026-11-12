@@ -4,6 +4,7 @@
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 smoke_begin
 
+<<<<<<< HEAD
 # This phase's fixture is the ABSENCE of a native clipboard: the app's
 # OSC 52 fallback is what it reads back, out of tmux's paste buffer. A macOS
 # GUI login HAS a pasteboard — the native path wins, nothing is written as
@@ -18,6 +19,11 @@ if [ "$(uname -s)" = Darwin ] && command -v launchctl >/dev/null 2>&1 &&
 fi
 
 # the `/donate` page (docs/donate.md). The `/hooks` browser's
+||||||| 93da26ed
+# the `/donate` page (docs/donate.md). The `/hooks` browser's
+=======
+# the `/donate` page (docs/ui/donate.md). The `/hooks` browser's
+>>>>>>> docs/reorganize
 # sibling over the project's crypto donation addresses: a gradient
 # `♥ Support Alter Zero` title over a dim blurb, each address as a numbered
 # `❯ 1. BTC  Bitcoin` row (the ticker and the coin — no network clause)
