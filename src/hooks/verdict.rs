@@ -516,7 +516,7 @@ mod tests {
     fn a_block_names_the_file_its_handler_is_configured_in() {
         let run = HookRun {
             command: "./guard.sh".into(),
-            file: Some("/home/u/.alter-zero/hooks.json".into()),
+            file: Some("/home/u/.zeroth/hooks.json".into()),
             exit_code: Some(2),
             stderr: "no destructive deletes".into(),
             ..HookRun::default()
@@ -525,7 +525,7 @@ mod tests {
             parse_run(&run, HookEvent::PreToolUse).blocked_by,
             Some(HookOrigin {
                 command: "./guard.sh".into(),
-                file: Some("/home/u/.alter-zero/hooks.json".into()),
+                file: Some("/home/u/.zeroth/hooks.json".into()),
             })
         );
     }

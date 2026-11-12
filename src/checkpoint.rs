@@ -953,12 +953,12 @@ mod tests {
     #[test]
     fn store_git_dir_dashes_the_cwd_into_one_segment() {
         let dir = store_git_dir(
-            Path::new("/home/user/.alter-zero/checkpoints"),
+            Path::new("/home/user/.zeroth/checkpoints"),
             Path::new("/home/user/my proj"),
         );
         assert_eq!(
             dir,
-            PathBuf::from("/home/user/.alter-zero/checkpoints/-home-user-my-proj")
+            PathBuf::from("/home/user/.zeroth/checkpoints/-home-user-my-proj")
         );
     }
 
@@ -988,7 +988,7 @@ mod tests {
     fn env() -> CheckpointEnv<'static> {
         CheckpointEnv {
             home: Some(Path::new("/home/user")),
-            state_dir: Some(Path::new("/home/user/.alter-zero")),
+            state_dir: Some(Path::new("/home/user/.zeroth")),
             tmp_dir: None,
         }
     }
@@ -1061,15 +1061,15 @@ mod tests {
         // file count doubles per snapshot and the store grows without bound
         // (the reported 2 GB `.alter-zero`).
         assert_eq!(
-            refusal("/home/user/.alter-zero"),
+            refusal("/home/user/.zeroth"),
             CheckpointRefusal::StateDirectory
         );
         assert_eq!(
-            refusal("/home/user/.alter-zero/sessions"),
+            refusal("/home/user/.zeroth/sessions"),
             CheckpointRefusal::StateDirectory
         );
         assert_eq!(
-            refusal("/home/user/.alter-zero/checkpoints/-home-user-proj"),
+            refusal("/home/user/.zeroth/checkpoints/-home-user-proj"),
             CheckpointRefusal::StateDirectory
         );
     }
@@ -1120,7 +1120,7 @@ mod tests {
         assert_eq!(
             store_exclude_line(
                 Path::new("/home/user/proj"),
-                Path::new("/home/user/.alter-zero/checkpoints")
+                Path::new("/home/user/.zeroth/checkpoints")
             ),
             None
         );

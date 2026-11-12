@@ -19,7 +19,7 @@
 //! itself:
 //!
 //! ```json
-//! { "hooks": { "/home/me/.alter-zero/hooks.json": [
+//! { "hooks": { "/home/me/.zeroth/hooks.json": [
 //!       { "event": "PreToolUse", "matcher": "bash", "command": "./guard.sh" } ] },
 //!   "mcp": { "/home/me/repo/.mcp.json": {
 //!       "github": { "enabled": true, "fingerprint": "sha256:…",
@@ -742,7 +742,7 @@ mod tests {
         assert!(!json.contains("oauth"), "{json}");
     }
 
-    const USER: &str = "/home/u/.alter-zero/hooks.json";
+    const USER: &str = "/home/u/.zeroth/hooks.json";
     const PROJECT: &str = "/repo/.alter-zero/hooks.json";
     const MCP: &str = "/repo/.mcp.json";
 

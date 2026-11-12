@@ -3954,7 +3954,7 @@ fn the_header_cuts_at_its_second_row_when_two_rows_cannot_hold_160_columns() {
 
 /// The command from the two-row report: a `web-search` skill one-liner, as
 /// far as its cell showed it and then a plausible end.
-const WEB_SEARCH_ONE_LINER: &str = "cd /home/linuztx/.alter-zero/skills/web-search && PARALLEL_SESSION_ID=$(python3 -c \"import secrets;print(secrets.token_hex(16))\") && python3 scripts/parallel_search.py \"terminal coding agents\"";
+const WEB_SEARCH_ONE_LINER: &str = "cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3 -c \"import secrets;print(secrets.token_hex(16))\") && python3 scripts/parallel_search.py \"terminal coding agents\"";
 
 #[test]
 fn the_collapsed_header_stops_at_two_rows() {
@@ -3962,7 +3962,7 @@ fn the_collapsed_header_stops_at_two_rows() {
     // budget alone gave the header a third row for the fragment the cut
     // left behind:
     //
-    //   ● Bash(cd /home/linuztx/.alter-zero/skills/web-search && PARALLEL_SESSION_ID=$(python3
+    //   ● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
     //         -c "import secrets;print(secrets.token_hex(16))") && python3
     //         scripts/parallel_se…)
     //
@@ -3976,8 +3976,8 @@ fn the_collapsed_header_stops_at_two_rows() {
     assert_eq!(
         header_rows(&lines),
         vec![
-            "● Bash(cd /home/linuztx/.alter-zero/skills/web-search && PARALLEL_SESSION_ID=$(python3",
-            "      -c \"import secrets;print(secrets.token_hex(16))\") && python3…)",
+            "● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3 -c",
+            "      \"import secrets;print(secrets.token_hex(16))\") && python3…)",
         ]
     );
     // The Ctrl+O transcript still shows the whole command.

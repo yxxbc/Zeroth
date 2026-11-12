@@ -951,7 +951,7 @@ mod tests {
             .extra_headers;
         assert_eq!(
             headers.get("HTTP-Referer").map(String::as_str),
-            Some("https://github.com/linuztx/alter-zero")
+            Some("https://github.com/yxxbc/zeroth")
         );
         assert_eq!(
             headers.get("X-OpenRouter-Title").map(String::as_str),

@@ -255,7 +255,7 @@ mod tests {
         let roots = agent_roots(
             std::path::Path::new("/repo/src"),
             Some(std::path::Path::new("/repo")),
-            Some(std::path::Path::new("/home/u/.alter-zero")),
+            Some(std::path::Path::new("/home/u/.zeroth")),
             None,
         );
         assert_eq!(
@@ -263,7 +263,7 @@ mod tests {
             vec![
                 std::path::PathBuf::from("/repo/src/.alter-zero/agents"),
                 std::path::PathBuf::from("/repo/.alter-zero/agents"),
-                std::path::PathBuf::from("/home/u/.alter-zero/agents"),
+                std::path::PathBuf::from("/home/u/.zeroth/agents"),
             ]
         );
     }
@@ -287,7 +287,7 @@ mod tests {
         let roots = agent_roots(
             std::path::Path::new("/repo"),
             None,
-            Some(std::path::Path::new("/home/u/.alter-zero")),
+            Some(std::path::Path::new("/home/u/.zeroth")),
             None,
         );
         assert!(
@@ -303,7 +303,7 @@ mod tests {
         let roots = agent_roots(
             std::path::Path::new("/repo"),
             Some(std::path::Path::new("/repo")),
-            Some(std::path::Path::new("/home/u/.alter-zero")),
+            Some(std::path::Path::new("/home/u/.zeroth")),
             Some(std::path::Path::new("/tmp/agents")),
         );
         assert_eq!(roots, vec![std::path::PathBuf::from("/tmp/agents")]);

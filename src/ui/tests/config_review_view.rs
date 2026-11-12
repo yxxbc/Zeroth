@@ -23,7 +23,7 @@ fn hook(event: &str, matcher: &str, command: &str, previous: Option<&str>) -> Re
         change: previous.map(|command| ItemChange::Was(command.to_string())),
         checked: true,
         key: ReviewKey::Hook {
-            source: "/home/u/.alter-zero/hooks.json".to_string(),
+            source: "/home/u/.zeroth/hooks.json".to_string(),
             identity,
         },
     }

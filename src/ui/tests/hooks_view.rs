@@ -590,7 +590,7 @@ fn render_paints_the_lines_and_the_cursor_hides_seated_on_the_selection() {
 /// The sample read from the user's file, the hooks in `trusted` trusted —
 /// what the loop opens the menu over (`docs/state/config-review.md`).
 fn sourced_app(trusted: &'static [&'static str]) -> App {
-    let source = std::path::Path::new("/home/u/.alter-zero/hooks.json");
+    let source = std::path::Path::new("/home/u/.zeroth/hooks.json");
     let overview = HooksOverview::from_file(
         &HooksFile::parse(SAMPLE)
             .expect("fixture parses")

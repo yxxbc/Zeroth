@@ -325,7 +325,7 @@ fn enter_on_a_hooks_detail_page_toggles_its_trust() {
     // (`docs/state/config-review.md`): Enter on a runnable hook's detail page
     // trusts it, and again stops trusting it — the overview updated at once,
     // the action telling the loop what to record.
-    let source = std::path::Path::new("/home/u/.alter-zero/hooks.json");
+    let source = std::path::Path::new("/home/u/.zeroth/hooks.json");
     let overview = HooksOverview::from_file(
         &HooksFile::parse(SAMPLE)
             .expect("fixture parses")
@@ -346,7 +346,7 @@ fn enter_on_a_hooks_detail_page_toggles_its_trust() {
     else {
         panic!("Enter on the detail page toggles the hook's trust");
     };
-    assert_eq!(path, "/home/u/.alter-zero/hooks.json");
+    assert_eq!(path, "/home/u/.zeroth/hooks.json");
     assert_eq!(identity.command, "./guard.sh");
     assert!(trusted);
     let menu = app.hooks_menu.as_ref().expect("the menu stays open");

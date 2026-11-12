@@ -7,7 +7,7 @@ use crate::trust::HookIdentity;
 fn hook_item(command: &str) -> ReviewItem {
     ReviewItem {
         key: ReviewKey::Hook {
-            source: "/home/u/.alter-zero/hooks.json".to_string(),
+            source: "/home/u/.zeroth/hooks.json".to_string(),
             identity: HookIdentity {
                 event: "Stop".to_string(),
                 matcher: String::new(),

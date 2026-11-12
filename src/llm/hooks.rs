@@ -1919,7 +1919,7 @@ mod tests {
             reason: "no destructive deletes".into(),
             hook: Some(HookOrigin {
                 command: "~/.zeroth/hooks/guard.sh".into(),
-                file: Some("/home/u/.alter-zero/hooks.json".into()),
+                file: Some("/home/u/.zeroth/hooks.json".into()),
             }),
         };
         let (display, result) = block_texts("PreToolUse", &block, Some(Path::new("/home/u")));
@@ -1938,13 +1938,13 @@ mod tests {
             result,
             "Blocked by PreToolUse hook: no destructive deletes\n\
              Hook: ~/.zeroth/hooks/guard.sh\n\
-             Config: /home/u/.alter-zero/hooks.json\n\
+             Config: /home/u/.zeroth/hooks.json\n\
              Do not retry the same call; address the reason or ask the user."
         );
         // No home to name it from: the cell names the file as recorded.
         let (display, _) = block_texts("PreToolUse", &block, None);
         assert!(
-            display.ends_with("\nConfig: /home/u/.alter-zero/hooks.json"),
+            display.ends_with("\nConfig: /home/u/.zeroth/hooks.json"),
             "{display}"
         );
         // No handler known (a fake sink): the event alone, no `Hook:` line to
@@ -1971,10 +1971,10 @@ mod tests {
         // text is recorded, and a `/resume` from another directory replays it.
         let home = Path::new("/home/u");
         for file in [
-            "/home/u/.alter-zero/hooks.json",
+            "/home/u/.zeroth/hooks.json",
             "/home/u/repo/.alter-zero/hooks.json",
             // Containment is component-wise: another user's home is not `~`.
-            "/home/user2/.alter-zero/hooks.json",
+            "/home/user2/.zeroth/hooks.json",
             "/etc/alter-zero/hooks.json",
         ] {
             let file = Path::new(file);
@@ -2005,11 +2005,11 @@ mod tests {
         // `$HOME` set but empty — or relative — names no directory, so the
         // cell shows the path whole: an empty prefix strips from every path,
         // which made `~//home/u/…`.
-        let file = Path::new("/home/u/.alter-zero/hooks.json");
+        let file = Path::new("/home/u/.zeroth/hooks.json");
         for home in ["", "home/u"] {
             assert_eq!(
                 shown_file(file, Some(Path::new(home))),
-                "/home/u/.alter-zero/hooks.json",
+                "/home/u/.zeroth/hooks.json",
                 "HOME={home:?}"
             );
         }
@@ -2025,7 +2025,7 @@ mod tests {
             Some(Path::new("")),
         );
         assert!(
-            display.ends_with("\nConfig: /home/u/.alter-zero/hooks.json"),
+            display.ends_with("\nConfig: /home/u/.zeroth/hooks.json"),
             "{display}"
         );
         // A path already in its short form (the offline demo's stand-in)
@@ -2084,7 +2084,7 @@ mod tests {
     fn run_of(command: &str, exit_code: Option<i32>) -> HookRun {
         HookRun {
             command: command.into(),
-            file: Some("/home/u/.alter-zero/hooks.json".into()),
+            file: Some("/home/u/.zeroth/hooks.json".into()),
             exit_code,
             elapsed: Duration::from_millis(412),
             ..HookRun::default()
@@ -2467,7 +2467,7 @@ mod tests {
 
     #[test]
     fn a_verdict_names_the_hooks_json_its_hook_was_read_from() {
-        let path = PathBuf::from("/home/u/.alter-zero/hooks.json");
+        let path = PathBuf::from("/home/u/.zeroth/hooks.json");
         let file = HooksFile::parse(&pre_hook("echo no >&2; exit 2"))
             .expect("fixture parses")
             .with_source(&path);
@@ -3162,7 +3162,7 @@ mod tests {
         // The boundary hands the sink the user's home, so the red cell names
         // the `hooks.json` the way the review did when the hook was trusted —
         // while the model still reads the absolute path it can open.
-        let path = PathBuf::from("/home/u/.alter-zero/hooks.json");
+        let path = PathBuf::from("/home/u/.zeroth/hooks.json");
         let file = HooksFile::parse(
             r#"{"hooks":{"PermissionRequest":[{"hooks":[{"type":"command",
               "command":"echo 'never in prod' >&2; exit 2"}]}]}}"#,
@@ -3188,7 +3188,7 @@ mod tests {
                      Config: ~/.zeroth/hooks.json"
                 );
                 assert!(
-                    result.contains("\nConfig: /home/u/.alter-zero/hooks.json\n"),
+                    result.contains("\nConfig: /home/u/.zeroth/hooks.json\n"),
                     "{result}"
                 );
             }

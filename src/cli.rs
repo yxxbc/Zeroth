@@ -1569,7 +1569,7 @@ mod tests {
     fn resume_hint_is_the_two_line_command() {
         assert_eq!(
             resume_hint("zeroth", "18a9f2c3-1a2b"),
-            "Resume this session with:\nalter-zero --resume 18a9f2c3-1a2b",
+            "Resume this session with:\nzeroth --resume 18a9f2c3-1a2b",
         );
     }
 
@@ -1589,8 +1589,8 @@ mod tests {
 
     #[test]
     fn bin_name_basenames_argv0_and_falls_back() {
-        assert_eq!(bin_name(Some("target/debug/alter-zero")), "zeroth");
-        assert_eq!(bin_name(Some("/usr/local/bin/alter-zero")), "zeroth");
+        assert_eq!(bin_name(Some("target/debug/zeroth")), "zeroth");
+        assert_eq!(bin_name(Some("/usr/local/bin/zeroth")), "zeroth");
         assert_eq!(bin_name(Some("az")), "az");
         assert_eq!(bin_name(Some("")), "zeroth");
         assert_eq!(bin_name(None), "zeroth");
@@ -1700,11 +1700,11 @@ Print mode:
         }
         // Literals are bold; placeholders wear nothing.
         assert!(
-            styled.contains("\x1b[1malter-zero\x1b[0m [OPTIONS] [PROMPT]"),
+            styled.contains("\x1b[1mzeroth\x1b[0m [OPTIONS] [PROMPT]"),
             "{styled}"
         );
         assert!(
-            styled.contains("\x1b[1malter-zero mcp\x1b[0m <COMMAND>"),
+            styled.contains("\x1b[1mzeroth mcp\x1b[0m <COMMAND>"),
             "{styled}"
         );
         assert!(
@@ -1719,7 +1719,7 @@ Print mode:
         // flag's pad rides inside its literal.
         assert!(styled.contains("\x1b[1;36mPrint mode:\x1b[0m"), "{styled}");
         assert!(
-            styled.contains("\x1b[1malter-zero -p\x1b[0m [OPTIONS] [PROMPT]"),
+            styled.contains("\x1b[1mzeroth -p\x1b[0m [OPTIONS] [PROMPT]"),
             "{styled}"
         );
         assert!(
@@ -1753,11 +1753,11 @@ Print mode:
         assert!(page.contains("ALTER_ZERO_MCP_FILE"), "{page}");
         let styled = help(HelpPage::Mcp, HelpStyle::Ansi);
         assert!(
-            styled.starts_with("\x1b[1;36malter-zero mcp\x1b[0m\n"),
+            styled.starts_with("\x1b[1;36mzeroth mcp\x1b[0m\n"),
             "{styled}"
         );
         assert!(
-            styled.contains("\x1b[1malter-zero mcp add-json\x1b[0m <name>"),
+            styled.contains("\x1b[1mzeroth mcp add-json\x1b[0m <name>"),
             "{styled}"
         );
     }

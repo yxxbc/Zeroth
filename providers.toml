@@ -211,8 +211,8 @@ api_key_url = "https://openrouter.ai/workspaces/default/keys"
 api_model_base = "https://openrouter.ai/api/v1"
 
 [providers.openrouter.extra_headers]
-"HTTP-Referer" = "https://github.com/linuztx/alter-zero"
-"X-OpenRouter-Title" = "Alter Zero"
+"HTTP-Referer" = "https://github.com/yxxbc/zeroth"
+"X-OpenRouter-Title" = "Zeroth"
 "X-OpenRouter-Categories" = "cli-agent"
 
 [providers.openrouter.kwargs]

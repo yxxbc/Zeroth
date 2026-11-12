@@ -363,7 +363,7 @@ mod tests {
         // The user's file and a trusted project's, merged as the loader
         // merges them: each handler keeps the hooks.json it was read from, so
         // a verdict can tell the model where its hook is configured.
-        let user = Path::new("/home/u/.alter-zero/hooks.json");
+        let user = Path::new("/home/u/.zeroth/hooks.json");
         let project = Path::new("/repo/.alter-zero/hooks.json");
         let merged = parse(SAMPLE).with_source(user).merged(
             &parse(

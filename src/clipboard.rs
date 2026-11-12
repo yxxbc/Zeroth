@@ -931,8 +931,8 @@ mod tests {
     #[test]
     fn paste_store_dir_is_a_session_folder_under_the_config_home() {
         assert_eq!(
-            paste_store_dir(Path::new("/home/me/.alter-zero"), "773c1c6cb321"),
-            PathBuf::from("/home/me/.alter-zero/image-cache/773c1c6cb321")
+            paste_store_dir(Path::new("/home/me/.zeroth"), "773c1c6cb321"),
+            PathBuf::from("/home/me/.zeroth/image-cache/773c1c6cb321")
         );
     }
 

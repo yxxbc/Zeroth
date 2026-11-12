@@ -466,7 +466,7 @@ mod tests {
         // What `/hooks` shows and toggles (`docs/state/config-review.md`): each
         // hook that can run names its file and itself, and whether the user
         // trusts it; a handler that never runs carries neither.
-        let source = std::path::Path::new("/home/u/.alter-zero/hooks.json");
+        let source = std::path::Path::new("/home/u/.zeroth/hooks.json");
         let file = HooksFile::parse(SAMPLE)
             .expect("fixture parses")
             .with_source(source);
@@ -476,7 +476,7 @@ mod tests {
         let pre = event(&overview, HookEvent::PreToolUse);
         let guard = &pre.matchers[0].hooks[0];
         let (path, identity) = guard.trust_key.as_ref().expect("a runnable hook");
-        assert_eq!(path, "/home/u/.alter-zero/hooks.json");
+        assert_eq!(path, "/home/u/.zeroth/hooks.json");
         assert_eq!(identity.label(), "PreToolUse · bash");
         assert_eq!(identity.command, "./guard.sh");
         assert!(guard.trusted);
