@@ -253,7 +253,7 @@ pub fn read_clipboard_image(dir: &Path) -> Result<PathBuf, String> {
     // container entered with `docker exec -it`, an SSH login: the terminal
     // carries keystrokes, never the desktop's selection. Say so at once, and
     // what works instead, rather than let arboard go looking for an X server
-    // and report whatever that probe ran into (`docs/ops/docker.md`).
+    // and report whatever that probe ran into.
     #[cfg(target_os = "linux")]
     require_display(
         std::env::var_os("DISPLAY").as_deref(),
@@ -323,8 +323,8 @@ pub const NO_IMAGE_ON_CLIPBOARD: &str = "no image on the clipboard — copy a pi
      path";
 
 /// Why a Linux paste is refused in a session that names no display, and what
-/// to do instead. It names both variables because the fix is to forward one
-/// (`docs/ops/docker.md` *The clipboard*), and it speaks for **this** agent
+/// to do instead. It names both variables because the fix is to forward one,
+/// and it speaks for **this** agent
 /// ([`crate::APP_NAME`], pinned by a test).
 #[cfg(target_os = "linux")]
 const NO_DISPLAY_REASON: &str = "no desktop clipboard in this session (neither DISPLAY nor \
@@ -850,7 +850,7 @@ mod tests {
         out.into_inner()
     }
 
-    // ===== a session with no display (docs/input/image-paste.md, docs/ops/docker.md) =====
+    // ===== a session with no display (docs/input/image-paste.md) =====
 
     #[cfg(target_os = "linux")]
     #[test]

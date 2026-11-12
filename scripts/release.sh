@@ -13,7 +13,6 @@
 #   scripts/release.sh notes VERSION             # the release notes: CHANGELOG.md's section + the compare link
 #   scripts/release.sh publish VERSION [DIST]    # the GitHub release (gh), or --dry-run to see the commands
 #   scripts/release.sh download VERSION [DIST]   # a published release's assets back into dist/, verified (no gh)
-#   scripts/release.sh npm VERSION [DIST]        # the npm packages (docs/ops/npm.md), or --dry-run to stage and validate them
 #   scripts/release.sh prepare VERSION           # bump the version everywhere, roll the changelog, ready to tag
 #   scripts/release.sh selftest                  # the tooling's own fixture-driven tests
 set -euo pipefail
@@ -33,7 +32,7 @@ version)
 	. "$HERE/release/lib.sh"
 	manifest_version
 	;;
-check | build | verify | notes | publish | download | npm | prepare | selftest)
+check | build | verify | notes | publish | download | prepare | selftest)
 	exec bash "$HERE/release/$cmd.sh" "$@"
 	;;
 -h | --help | help)

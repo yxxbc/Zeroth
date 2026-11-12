@@ -12,9 +12,8 @@
 # there is no curl: no gh and no GitHub account. Each asset's own line of
 # SHA256SUMS is written beside it as its .sha256, the file `build` writes
 # and `verify` holds every archive to, and then `verify` proves the lot:
-# checksums, layout, CPU and, for the host's own archive, `--version`. This
-# is how a version already on GitHub is published to npm by hand
-# (docs/ops/npm.md). The directory must be empty or new, so a download is never
+# checksums, layout, CPU and, for the host's own archive, `--version`. The
+# directory must be empty or new, so a download is never
 # mixed into another dist, and nothing is written to it until SHA256SUMS has
 # been read and every name in it is a plain file name.
 set -euo pipefail

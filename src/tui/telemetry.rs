@@ -1,4 +1,4 @@
-//! The anonymous daily usage ping at the boundary (`docs/ops/telemetry.md`): the
+//! The anonymous daily usage ping at the boundary (`TELEMETRY.md`): the
 //! install id's mint, the one-time notice, the send, and the record of the
 //! delivered day and version — everything `telemetry` (the pure half) leaves
 //! to the side that can read a clock, draw entropy, touch the file and spawn

@@ -21,7 +21,7 @@
 //! - [`spawn_usage_fetch`] — one subscription's usage, for the `/usage` page
 //!   (`docs/providers/usage.md`).
 //! - [`spawn_telemetry_ping`] — the once-a-day anonymous usage ping
-//!   (`docs/ops/telemetry.md`), fire-and-forget: it reports only success, so the
+//!   (`TELEMETRY.md`), fire-and-forget: it reports only success, so the
 //!   loop can record the day, and a dead collector costs the user nothing.
 //!
 //! **Invariant 1:** a worker only ever *sends*. None of them reads stdin, so
@@ -395,7 +395,7 @@ fn spawn_copilot_login(cancel: CancelToken, tx: tokio::sync::mpsc::UnboundedSend
     });
 }
 
-/// Deliver the day's telemetry ping on a detached thread (`docs/ops/telemetry.md`),
+/// Deliver the day's telemetry ping on a detached thread (`TELEMETRY.md`),
 /// sending `day` and the version the ping carried back on success
 /// (`telemetry::Delivery`) so the loop — never this thread — records them in
 /// `telemetry.json`. A failure sends nothing: there is nothing the user

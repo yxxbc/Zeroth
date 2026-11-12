@@ -141,7 +141,7 @@ pub fn startup_paragraph_lines(text: &str, width: u16) -> Vec<Line<'static>> {
 }
 
 /// The one-time telemetry disclosure as a compact, themed card under the
-/// banner (`docs/ops/telemetry.md`): [`notice_card_lines`] over
+/// banner (`TELEMETRY.md`): [`notice_card_lines`] over
 /// `telemetry::notice()`.
 #[must_use]
 pub fn telemetry_notice_lines(width: u16) -> Vec<Line<'static>> {

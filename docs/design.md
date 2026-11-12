@@ -23,14 +23,6 @@ nothing asked ([`headless.md`](cli/headless.md)). It is the TUI's own `Session`
 over a viewport that paints nowhere, so the conversation it records is the
 one the TUI would have.
 
-The same binary also ships as a **headless Kali Linux container**
-([`docker.md`](ops/docker.md)): the published release on Kali Rolling with a small
-set of command-line tools, for Docker and Podman. It changes nothing about the
-app — the container is somewhere to `exec` into — but it is where two things
-the app takes from its surroundings have to be handed over on purpose: the
-terminal's identity, which picks the image protocol, and the display server,
-which Ctrl+V reads the clipboard from.
-
 ## Behaviour
 
 - The app runs in ratatui's **inline viewport** (no alternate screen). Normal
@@ -1683,7 +1675,7 @@ stream for their own reasons).
   unguarded (each new session's file is unique per pid, but there is no
   codex-style state-db arbitration).
 - No markdown rendering or scrollback nav keys (YAGNI).
-- **Telemetry** (`docs/ops/telemetry.md`) counts *installs whose ping reached the
+- **Telemetry** (`TELEMETRY.md`) counts *installs whose ping reached the
   collector*: a launch with no network is uncounted until a later launch that
   day gets through, a config home shared by two machines counts once, and a
   deleted `telemetry.json` counts as a new install. The country is the edge's

@@ -16,7 +16,7 @@
 //! - process identity: [`process_uid`] (the background tasks root,
 //!   `docs/tools/background.md`, and the environment's `User` line) and
 //!   [`session_id`],
-//! - telemetry (`docs/ops/telemetry.md`): [`utc_day`] (the once-a-day key) and
+//! - telemetry (`TELEMETRY.md`): [`utc_day`] (the once-a-day key) and
 //!   [`random_bytes`] (the install id's entropy).
 
 use zeroth::llm;

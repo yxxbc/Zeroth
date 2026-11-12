@@ -4,26 +4,8 @@
 # repo); this guards a local ./.env (ALTER_ZERO_ENV_FILE / no-HOME fallback) too —
 # never commit secrets (docs/providers/llm.md).
 .env
-# Local Worker secrets and development state never belong in source control.
-/telemetry/.dev.vars
-/telemetry/.dev.vars.*
-!/telemetry/.dev.vars.example
-/telemetry/.wrangler/
-/telemetry/node_modules/
 
 # scripts/release.sh build packages the release assets here (docs/ops/release.md).
 /dist
-# The npm launcher package's local leftovers (docs/ops/npm.md): what `npm install`
-# or `npm pack` run inside npm/ would write. Staged packages go to target/npm.
-/npm/node_modules/
-/npm/package-lock.json
-/npm/*.tgz
 # Python's bytecode cache (scripts/release/release_server.py under the selftest).
 __pycache__/
-# makepkg run in aur/ itself, from before each AUR package had its own
-# directory (docs/ops/aur.md): its build tree, staging dir, downloads and
-# packages. Each package directory's allowlist .gitignore covers its own.
-/aur/src/
-/aur/pkg/
-/aur/*.tar.*
-/aur/*.log

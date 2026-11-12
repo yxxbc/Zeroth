@@ -1,6 +1,6 @@
 //! Anonymous usage telemetry — **one ping a day per install**, so the project
 //! can count how many people ran it and where they are, and nothing else
-//! (`docs/ops/telemetry.md`).
+//! (`TELEMETRY.md`).
 //!
 //! This module is the pure half: the `telemetry.json` format
 //! ([`TelemetryFile`]), the install id it keeps, the wire payload ([`Ping`] —
@@ -28,9 +28,9 @@ use crate::APP_NAME;
 pub const PAYLOAD_VERSION: u32 = 2;
 
 /// Where the ping goes unless [`ENDPOINT_ENV`] says otherwise: the collector
-/// in `telemetry/`, deployed as the Cloudflare Worker `alter-zero-telemetry`
-/// on its account's `workers.dev` subdomain (`docs/ops/telemetry.md` *Deploying
-/// it*). A deployment that prints a different URL changes this constant.
+/// the upstream project deployed as the Cloudflare Worker
+/// `alter-zero-telemetry` on its `workers.dev` subdomain. This repository ships
+/// no collector; change this constant to point a build at one you run.
 pub const DEFAULT_ENDPOINT: &str = "https://alter-zero-telemetry.linuztx.workers.dev/v1/ping";
 
 /// The file's name under the config home: `{config_home}/telemetry.json`.
@@ -304,7 +304,7 @@ fn unquote(value: &str) -> &str {
 /// distribution's `ID`, and the version of whichever of those two names the
 /// platform. No prompt, path, model, key, hostname or user name is in reach
 /// of this struct, and `the_payload_carries_exactly_the_seven_fields` pins
-/// the key set so adding one is a deliberate act (`docs/ops/telemetry.md` *What
+/// the key set so adding one is a deliberate act (`TELEMETRY.md` *What
 /// is sent*).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Ping {
@@ -567,7 +567,7 @@ mod tests {
         // The machine-readable `ID`, never the pretty name and never the
         // version: "which distributions do we build for" is the question, and
         // `ubuntu 22.04.3 LTS (Jammy Jellyfish)` answers a narrower one about
-        // one machine (`docs/ops/telemetry.md` *The Linux distribution*).
+        // one machine (`TELEMETRY.md` *About `distro` and `os_version`*).
         let ubuntu = "NAME=\"Ubuntu\"\nVERSION=\"22.04.3 LTS (Jammy Jellyfish)\"\nID=ubuntu\nID_LIKE=debian\n";
         assert_eq!(distro_from_os_release(ubuntu).as_deref(), Some("ubuntu"));
 
@@ -725,7 +725,7 @@ mod tests {
     #[test]
     fn the_payload_carries_exactly_the_seven_fields() {
         // The whole wire body, pinned field by field — adding one here is a
-        // deliberate act the doc must describe (`docs/ops/telemetry.md`).
+        // deliberate act the doc must describe (`TELEMETRY.md`).
         let ping = Ping::new(
             "6f1c2a4d9e0b7c3a5f8e1d2c4b6a7980",
             "0.1.0",

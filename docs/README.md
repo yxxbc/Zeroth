@@ -156,16 +156,12 @@ The pre-TUI command surface: flags, the `[PROMPT]` shortcut, headless mode and t
 
 ## Operations
 
-Shipping it: releases, Docker, AUR, npm, telemetry, updates, the smoke suite, build time and binary size.
+Shipping it: releases, updates, the smoke suite, build time and binary size.
 
-- [`ops/aur.md`](ops/aur.md): The Arch Linux packages — `aur/`
 - [`ops/binary-size.md`](ops/binary-size.md): Binary size — the binary a release ships
 - [`ops/build-time.md`](ops/build-time.md): Build time — `cargo build --release`
-- [`ops/docker.md`](ops/docker.md): The headless Kali container
-- [`ops/npm.md`](ops/npm.md): The npm packages — `npm/`
 - [`ops/release.md`](ops/release.md): Releases — the tag, the workflow, the assets, the notes
 - [`ops/smoke.md`](ops/smoke.md): The smoke suite — `scripts/smoke.sh`
-- [`ops/telemetry.md`](ops/telemetry.md): Telemetry — counting users by day and country
 - [`ops/update.md`](ops/update.md): Update notice — the once-a-day release check and `alter-zero update`
 
 ## Credits

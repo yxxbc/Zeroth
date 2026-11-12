@@ -176,6 +176,5 @@ streamed, undoes the submission. Every turn end dispatches **one** queued entry.
   fast mode, local models.
 - `docs/state/` — resume, rollouts, checkpoints, permissions, settings,
   per-directory state, trust/config review.
-- `docs/ops/` — release, npm, AUR, Docker, smoke, telemetry, update, binary
-  size, build time.
+- `docs/ops/` — release, smoke, update, binary size, build time.
 - `docs/agents/`, `docs/cli/` — subagents/agent tools, and CLI/headless/MCP.

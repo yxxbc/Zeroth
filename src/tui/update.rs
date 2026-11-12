@@ -142,7 +142,7 @@ impl Session<'_> {
     /// same queue the banner rides. Chrome, never `history`; a purge rebuild
     /// does not re-emit it. Its command is the one that updates this install
     /// — `zeroth update`, or the package manager's that unpacked this
-    /// binary under `node_modules` (`docs/ops/npm.md`).
+    /// binary under `node_modules`.
     fn commit_update_notice(&mut self, latest: &str) {
         let width = self.term.screen().width;
         let manager = std::env::current_exe()

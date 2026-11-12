@@ -242,7 +242,7 @@ Two consequences at the boundary:
   terminal the user sits at, not to a project (`docs/ui/theme.md`).
 - **`permissions.json`**, **`skills.json`** — already per project; unchanged.
 - **`telemetry.json`** — the anonymous daily ping's switch and install id
-  (`docs/ops/telemetry.md`). An opt-out that applied only to the directory you
+  (`TELEMETRY.md`). An opt-out that applied only to the directory you
   happened to be in would be a surprise, so the `/settings` **Telemetry** row
   is the one knob that persists per *user*: `SessionSettings::telemetry` is
   `#[serde(skip)]`, `copy_value` never moves it, and the boundary seeds it

@@ -103,7 +103,7 @@ things and stops: the release and the running version, the release page
 command is `alter-zero update` unless a JavaScript package manager installed
 the binary: then it is the manager's own — `npm install -g
 @linuztx/alter-zero@latest` and kin, `update::update_command` over
-`update::package_manager(current_exe)` (`docs/ops/npm.md` *Updating*) — because
+`update::package_manager(current_exe)` — because
 `alter-zero update` refuses such an install.
 
 Three rules decide *when* it shows:
@@ -213,7 +213,7 @@ What it does, in order:
    checkout's build output with a release binary would be *undone* by the
    next `cargo build`, silently. **And a package manager's install**, for the
    same reason: `update::package_manager` reads npm, pnpm, Bun or Yarn off
-   the binary's own path under `node_modules` (`docs/ops/npm.md`), and the
+   the binary's own path under `node_modules`, and the
    subcommand stops with that manager's command — `npm installed {exe} —
    update it with npm instead: npm install -g @linuztx/alter-zero@latest` —
    since a binary replaced behind the manager's back is replaced again by its
@@ -244,7 +244,7 @@ The subcommand ignores `ALTER_ZERO_UPDATE_CHECK`: that variable silences the
 
 The next launch on the new binary also sends the day's telemetry ping again,
 carrying the new version — the one exception to that ping's once-a-day rule
-(`docs/ops/telemetry.md` *When it is sent*) — so the dashboard's Versions panel
+(`TELEMETRY.md` *When it is sent*) — so the dashboard's Versions panel
 moves the install the same day rather than at midnight UTC. It is the same
 install id, so it counts as the same user on a new version, never as a new
 install.
@@ -285,10 +285,6 @@ records its day.
   withdrawing the row and writing no file; a server whose latest release *is*
   the running version recording `latest` with no `notice_day`; `alter-zero
   update` from a copy of the binary against that server (`is the newest
-  release`, exit `0`), from `target/debug` (refused, exit `1`), from an
-  install laid out as `npm install -g` lays one out under `node_modules` and
-  started through the npm launcher's bin link (refused with the npm command,
-  exit `1`, the binary left as it was, and its card naming that command),
-  and against
+  release`, exit `0`), from `target/debug` (refused, exit `1`), and against
   `v9.9.9` — the copy replaced by the served archive's binary (a new inode)
   and still answering `--version`, since the fake release is this build.

@@ -8,7 +8,7 @@
 //! environment predicate ([`enabled_by_env`]), the card's text ([`notice`]),
 //! the two guards `zeroth update` needs ([`is_cargo_build_dir`], and
 //! [`package_manager`] for an install npm or its kin own — whose own command,
-//! [`update_command`], the card names instead; `docs/ops/npm.md`). No
+//! [`update_command`], the card names instead). No
 //! clock, no filesystem, no network: the boundary (`tui::update`) reads the
 //! UTC date, does the read-modify-write over the file and spawns the request
 //! — the one impure function here, [`fetch_latest`], is what that worker
@@ -43,8 +43,8 @@ pub const DEFAULT_REPO_URL: &str = env!("CARGO_PKG_REPOSITORY");
 pub const INSTALLER_FILE: &str = "install.sh";
 pub const INSTALLER_BRANCH: &str = "main";
 
-/// The npm package that installs the binary — `npm/package.json`'s name
-/// (`docs/ops/npm.md`), which every package manager's update command names.
+/// The npm package that earlier releases were published under. An install npm
+/// owns still names it, and every package manager's update command does too.
 pub const NPM_PACKAGE: &str = "@linuztx/alter-zero";
 
 /// A JavaScript package manager that can install [`NPM_PACKAGE`] — and then
@@ -873,14 +873,5 @@ mod tests {
             !text.contains("`zeroth update`"),
             "never the command that would reinstall under node_modules: {text}"
         );
-    }
-
-    #[test]
-    fn the_npm_package_is_the_one_npm_package_json_publishes() {
-        let manifest =
-            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/npm/package.json"))
-                .expect("the checkout's npm/package.json");
-        let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("valid JSON");
-        assert_eq!(manifest["name"], NPM_PACKAGE);
     }
 }

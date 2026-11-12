@@ -116,7 +116,7 @@ smoke_sanitize_env() {
 	# native arboard path wins, the OSC 52 fallback they read back never fires,
 	# and the suite overwrites the developer's real clipboard on its way past.
 	unset DISPLAY WAYLAND_DISPLAY XAUTHORITY
-	# Telemetry (docs/ops/telemetry.md) is opt-out and pings a real collector once
+	# Telemetry (TELEMETRY.md) is opt-out and pings a real collector once
 	# a day per config home — off for the suite, both exported (the tmux
 	# server inherits it) and spelled out in every launch string.
 	export ALTER_ZERO_TELEMETRY=0

@@ -200,7 +200,7 @@ impl Session<'_> {
             // Nowhere to keep an install id without a config home — and
             // nothing to turn on when the environment forbade it, which is
             // what stops `DO_NOT_TRACK=1` being cycled around from inside
-            // the app (`docs/ops/telemetry.md`).
+            // the app (`TELEMETRY.md`).
             telemetry: config::telemetry_json_path().is_some()
                 && !config::telemetry_forbidden_by_env(),
             // The same two conditions for the update check (`docs/ops/update.md`).
@@ -325,7 +325,7 @@ impl Session<'_> {
             // Shift+Tab's path owns this one; the menu never routes it here.
             SettingKey::PermissionMode => {}
             // The one per-user row: its file is telemetry.json, and turning
-            // it on sends today's ping if none has gone (docs/ops/telemetry.md).
+            // it on sends today's ping if none has gone (TELEMETRY.md).
             SettingKey::Telemetry => self.apply_telemetry_setting(),
             // Its twin: update.json, and turning it on runs today's check if
             // none has (docs/ops/update.md).

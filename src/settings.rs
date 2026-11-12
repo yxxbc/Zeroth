@@ -103,7 +103,7 @@ pub enum SettingKey {
     /// so under the banner (`docs/ops/update.md`). Persists **per user**
     /// (`update.json`), like its neighbour.
     UpdateCheck,
-    /// Send the anonymous daily usage ping (`docs/ops/telemetry.md`). The one
+    /// Send the anonymous daily usage ping (`TELEMETRY.md`). The one
     /// row that persists **per user** (`telemetry.json`), not per directory.
     Telemetry,
 }
@@ -249,7 +249,7 @@ pub struct SettingAvailability {
     /// way, since it is about the request, not the screen.
     pub images: bool,
     /// Whether there is a config home to keep an install id in
-    /// (`docs/ops/telemetry.md`). Without one a fresh random id per launch would
+    /// (`TELEMETRY.md`). Without one a fresh random id per launch would
     /// count one person as many, so the row reports `false (unavailable)`
     /// rather than offering a toggle that would miscount.
     pub telemetry: bool,
@@ -358,7 +358,7 @@ pub struct SessionSettings {
     #[serde(skip_serializing_if = "is_default_ask_timeout")]
     pub ask_timeout_secs: u64,
     /// Send the anonymous daily ping (default `true` — opt-out,
-    /// `docs/ops/telemetry.md`). **Never in `settings.json`**: an opt-out that
+    /// `TELEMETRY.md`). **Never in `settings.json`**: an opt-out that
     /// applied only to the directory you happened to be in would be a
     /// surprise, so the value lives in `telemetry.json` beside the install
     /// id and the boundary seeds it from there (the `PermissionMode` pattern:
@@ -459,7 +459,7 @@ impl SessionSettings {
 
     /// Whether the daily ping is actually sent: the knob **and** a config
     /// home to keep the install id in ([`hooks_active`](Self::hooks_active)'s
-    /// twin, `docs/ops/telemetry.md`).
+    /// twin, `TELEMETRY.md`).
     #[must_use]
     pub const fn telemetry_active(&self) -> bool {
         self.telemetry && self.availability.telemetry
@@ -630,7 +630,7 @@ impl SessionSettings {
             // Not ours — the posture persists per project in permissions.json.
             SettingKey::PermissionMode => {}
             // Not ours either — the switch persists per user in telemetry.json
-            // (`docs/ops/telemetry.md`).
+            // (`TELEMETRY.md`).
             SettingKey::Telemetry => {}
             // Nor this one — update.json (`docs/ops/update.md`).
             SettingKey::UpdateCheck => {}

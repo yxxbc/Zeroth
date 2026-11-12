@@ -53,10 +53,9 @@ path. The image-aware `read` tool then uploads it to a vision model and draws
 it inline, exactly as a paste would. (A path typed or `@`-picked into the
 composer is text, not an attachment — it is the `read` that attaches.)
 
-The headless Kali container forwards the display server on request —
-`docker/run.sh --clipboard`, the Wayland socket and/or X11 with its cookie
-(`docs/ops/docker.md` *The clipboard*) — after which the variables are set and the
-ordinary path below runs, unchanged. A display that is named but cannot be
+When the terminal forwards the display server — the Wayland socket and/or
+X11 with its cookie — the variables are set and the ordinary path below runs,
+unchanged. A display that is named but cannot be
 reached (a forwarded socket gone stale after a re-login) keeps `arboard`'s own
 cause and gains the same advice.
 
@@ -611,8 +610,7 @@ renders `[Image #N]` as a text marker. The `?` shortcuts band gains a
   every unset/empty pairing refuses with both variables named and the
   read-by-path advice; either display — a non-UTF-8 one included — keeps the
   native path; an unreachable clipboard keeps its cause; and both sentences
-  are pinned to `APP_NAME`. The forwarding itself is driven end to end in
-  `docs/ops/docker.md` against a real X server and a real Wayland compositor.
+  are pinned to `APP_NAME`.
 - `clipboard.rs` also unit-tests the streaming core headless: `CappedWriter`
   (bytes verbatim under the cap, `InvalidData` past it, the cap itself
   allowed) and `stream_encoded_image_into_capped` (an encoded PNG lands

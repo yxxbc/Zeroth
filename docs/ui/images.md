@@ -314,9 +314,9 @@ docker exec -it -e TERM -e COLORTERM -e TERM_PROGRAM -e KITTY_WINDOW_ID -e TMUX 
 
 A bare `-e NAME` takes the value from the caller's own environment. `TMUX` is
 on the list deliberately: it is what keeps the multiplexer rule above honest
-inside the container too, so a container under tmux asks nothing at all.
+inside a nested session too, so a session under tmux asks nothing at all.
 Measured on the raw byte stream before the terminal was asked, resuming a
-rollout that holds an image read (`docs/ops/docker.md` *Terminal identity*): no
+rollout that holds an image read: no
 flags, 0 kitty escapes and 35 half-block cells; the flags from a kitty
 terminal, 8 escapes carrying 37 KB of picture; the flags inside tmux,
 half-blocks again. The first of those now holds only for a terminal that does

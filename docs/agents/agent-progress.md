@@ -220,9 +220,8 @@ since a stop can be reported before the forwarder relays them.
   run changes nothing; a settled agent still reads `Done`; a paragraph
   ten thousand words long, a run with no space in it and a page of blank
   space are each read only up to the bound, and a row over a line ending in
-  four megabytes of spaces is built inside a millisecond (a wall-clock gate,
-  skipped by the AUR package's `check()` with the other frame budgets,
-  `docs/ops/aur.md`); the paragraph is found where a whole-text reading puts it
+  four megabytes of spaces is built inside a millisecond (a wall-clock gate);
+  the paragraph is found where a whole-text reading puts it
   after every chunk of every text of up to six characters drawn from a
   letter, a space, a CR and a line break, cut every way it can be, and in a
   hand-written stream of CRLF endings and words split across chunks. The

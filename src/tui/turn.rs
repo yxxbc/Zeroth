@@ -128,7 +128,7 @@ impl Session<'_> {
         // Re-renders the listing this turn's context is about to carry.
         self.rescan_skills();
         self.rescan_agents();
-        // The daily ping's day rollover (`docs/ops/telemetry.md`): a session left
+        // The daily ping's day rollover (`TELEMETRY.md`): a session left
         // open across midnight counts on the new day too — this app idles in
         // a terminal all day, so pinging only at bootstrap undercounts
         // exactly its heaviest users. Here rather than on every event because

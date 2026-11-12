@@ -11,7 +11,7 @@ smoke_begin
 # true on a desktop too — Ctrl+V must fail GRACEFULLY: a red "Failed to paste
 # image" notice commits to scrollback, and the composer stays responsive
 # afterwards (no hang, no crash). This exercises the key binding + the boundary
-# error path. It is also every container and SSH session (docs/ops/docker.md), so
+# error path. It is also every container and SSH session, so
 # the notice has to say WHY — no display is named — and what works instead.
 S24="${S}_imagepaste"
 launch "$S24" 80 24
@@ -33,7 +33,6 @@ expect_has "$imgpaste" -F "Failed to paste image" "Ctrl+V with no clipboard did 
 # The notice wraps at 80 columns, so each assertion is a phrase short enough
 # to sit on one row wherever the wrap falls.
 expect_has "$imgpaste" -F "no desktop clipboard" "a paste with no display must say there is no desktop clipboard, not report a failed X11 probe"
-<<<<<<< HEAD
 # The variable it names is the platform's own: a Linux session is told to
 # forward DISPLAY/WAYLAND_DISPLAY, a macOS one that it is not a GUI login
 # (`clipboard::NO_DISPLAY_REASON` vs `clipboard::macos`). Both refusals must be
@@ -42,11 +41,6 @@ case "$(uname -s)" in
 Darwin) want_hint="GUI" ;;
 *) want_hint="WAYLAND_DISPLAY" ;;
 esac
-expect_has "$imgpaste" -F "$want_hint" "the refusal must name what is missing, since fixing that is the fix (docs/docker.md, docs/image-paste.md)"
-||||||| 93da26ed
-expect_has "$imgpaste" -F "WAYLAND_DISPLAY" "the refusal must name the variables, since forwarding one is the fix (docs/docker.md)"
-=======
-expect_has "$imgpaste" -F "WAYLAND_DISPLAY" "the refusal must name the variables, since forwarding one is the fix (docs/ops/docker.md)"
->>>>>>> docs/reorganize
+expect_has "$imgpaste" -F "$want_hint" "the refusal must name what is missing, since fixing that is the fix (docs/input/image-paste.md)"
 expect_has "$imgpaste" -F "read its path" "the refusal must say what works instead: read the image by path"
 expect_has "$imgalive" -F "still alive" "the composer was unresponsive after a failed image paste (Ctrl+V hung or crashed the app)"

@@ -4,7 +4,6 @@
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 smoke_begin
 
-<<<<<<< HEAD
 # This phase's fixture is the ABSENCE of a native clipboard: the app's
 # OSC 52 fallback is what it reads back, out of tmux's paste buffer. A macOS
 # GUI login HAS a pasteboard — the native path wins, nothing is written as
@@ -19,11 +18,6 @@ if [ "$(uname -s)" = Darwin ] && command -v launchctl >/dev/null 2>&1 &&
 fi
 
 # the `/export` page (docs/export.md). `/copy`'s sibling over the WHOLE
-||||||| 93da26ed
-# the `/export` page (docs/export.md). `/copy`'s sibling over the WHOLE
-=======
-# the `/export` page (docs/ui/export.md). `/copy`'s sibling over the WHOLE
->>>>>>> docs/reorganize
 # conversation: a read-only two-row page — `❯ 1. Copy to clipboard` over
 # `2. Save to file`, the highlighted row's description under the list, a
 # key hint — that closes on the pick. Launched in a throwaway cwd so the

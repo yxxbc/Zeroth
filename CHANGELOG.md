@@ -320,6 +320,10 @@ release heading when a version is cut.
 
 ### Removed
 
+- **The npm, Docker, AUR and telemetry-collector packaging.** This fork ships
+  the binary and its GitHub release archives only; the packaging trees, their
+  CI jobs and the docs that described them are gone.
+
 - **`/help`.** It printed the list of commands into the conversation, which
   the `/` palette already shows: every command and what it does. Type `/` to
   browse them.

@@ -1,8 +1,7 @@
 # Binary size — the binary a release ships
 
-Every way of installing Alter Zero downloads the same file: `install.sh`, the
-npm platform packages, `alter-zero-bin` and the Docker image all unpack the
-release archive `scripts/release.sh build` makes (`docs/ops/release.md`). Its size
+Every install downloads the same file: `install.sh` unpacks the release
+archive `scripts/release.sh build` makes (`docs/ops/release.md`). Its size
 is a download for every install and a disk cost for every machine, so it was
 measured before anything changed, the way `docs/ops/build-time.md` measures
 compile time and `docs/architecture/memory.md` measures RSS: what the bytes are, which
@@ -222,8 +221,8 @@ that remains is not.
 ### Stripping the symbol table: −1.77 MB, −0.44 MB of the archive
 
 The release keeps its symbol table on purpose: it is what turns a user's
-`RUST_BACKTRACE=1` report into function names (`docs/ops/release.md`), and
-`alter-zero-bin` keeps it for the same reason (`docs/ops/aur.md`). Stripping was
+`RUST_BACKTRACE=1` report into function names (`docs/ops/release.md`).
+Stripping was
 the cheapest saving before this change — 4.8 MB, a fifth of the file — and
 fat LTO took most of it without losing a name: what is left is 1.77 MB of the
 binary and 442 KB of the download (16,829,912 bytes stripped, 8,089,697
@@ -313,10 +312,6 @@ toolchain is pinned to a stable release (`rust-toolchain.toml`), and a
 
 `cargo build --release` and `cargo install --path .` build `release`, as
 before; `cargo install --path . --profile dist` installs the shipped build.
-The AUR source package builds `release` with its own flags (`docs/ops/aur.md`),
-and makepkg strips its binary anyway; it can move to `--profile dist` from
-the first release that has the profile, since it builds a tagged release's
-source and never leads one.
 
 ## Re-measuring
 

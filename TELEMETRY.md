@@ -7,10 +7,8 @@ launch that would send one, and it goes away with a single setting, a single
 environment variable, or the `DO_NOT_TRACK` convention.
 
 This document is the complete statement of what leaves your machine. The
-implementation is `src/telemetry.rs` and `src/tui/telemetry.rs`; the design
-notes are in [`docs/ops/telemetry.md`](docs/ops/telemetry.md), and the collector that
-receives the ping is in [`telemetry/`](telemetry/) — nothing here talks to a
-third-party analytics service.
+implementation is `src/telemetry.rs` and `src/tui/telemetry.rs`; nothing here
+talks to a third-party analytics service.
 
 ## What is sent
 
@@ -252,22 +250,17 @@ The first terminal prints the one line the app sends, and nothing else, for as
 long as you leave it running. `scripts/smoke.sh` Phase 115 is the same check,
 automated.
 
-## Running your own collector
+## Pointing the ping elsewhere
 
-Forks and self-hosters are the reason `ALTER_ZERO_TELEMETRY_URL` exists.
-[`telemetry/`](telemetry/) is a complete Cloudflare Worker over a D1 database
-with a dashboard of users per day, per country, per app version, per OS and
-per platform (`ubuntu 24.04`, `macos 15.3.1`);
-[`telemetry/README.md`](telemetry/README.md) deploys it in about five
-commands. Point your build at it with that variable, or change
-`telemetry::DEFAULT_ENDPOINT` in `src/telemetry.rs`.
+`ALTER_ZERO_TELEMETRY_URL` overrides the endpoint for a run, and
+`telemetry::DEFAULT_ENDPOINT` in `src/telemetry.rs` changes it for a build.
+This repository does not ship a collector.
 
 ## The update check
 
 One other request leaves your machine on its own: **once a day**, after the
 first frame, the app asks whether a newer release is out, so it can say so
-under the banner and point you at `zeroth update` (or, for an npm
-install, at `npm install -g @linuztx/alter-zero@latest`). It is a separate
+under the banner and point you at `zeroth update`. It is a separate
 feature with a separate switch, described in [`docs/ops/update.md`](docs/ops/update.md),
 and it belongs in this document because the document promises to be the
 complete list.
@@ -275,7 +268,7 @@ complete list.
 The whole request is one `HEAD` of the repository's releases page —
 
 ```
-HEAD https://github.com/linuztx/alter-zero/releases/latest
+HEAD https://github.com/yxxbc/zeroth/releases/latest
 User-Agent: alter-zero/0.1.0
 ```
 

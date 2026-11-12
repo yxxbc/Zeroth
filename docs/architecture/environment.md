@@ -97,8 +97,7 @@ Date: 2026-09-29
 
 Whether the agent runs as root decides whether it needs `sudo` at all, and a
 model that guesses gets it wrong both ways: `sudo` in a root container that
-doesn't have it installed (the Kali image, `docs/ops/docker.md`), or a bare
-`apt install` as an ordinary user. A `sudo` that asks for a password is also
+doesn't have it installed, or a bare `apt install` as an ordinary user. A `sudo` that asks for a password is also
 a prompt only `bashsend` can answer (`docs/tools/bash-tools.md`), so knowing up
 front saves a round. One line settles it, stated as a fact with no
 instructions attached, in the block's own terse style:

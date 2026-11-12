@@ -124,7 +124,7 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
 
             // 11. The day's telemetry ping was delivered: record the day and
             //     the version so the next launch today on this version sends
-            //     nothing (docs/ops/telemetry.md).
+            //     nothing (TELEMETRY.md).
             Some(delivered) = session.telemetry_rx.recv() => session.on_telemetry_result(&delivered),
 
             // 12. The update check answered: record what it found and, if

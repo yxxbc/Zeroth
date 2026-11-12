@@ -317,7 +317,7 @@ impl<'t> Session<'t> {
             super::trust::load_project_layer(&cwd),
         );
 
-        // The telemetry ping's report channel (docs/ops/telemetry.md) — its own
+        // The telemetry ping's report channel (TELEMETRY.md) — its own
         // `select!` source, because the worker outlives nothing but must
         // never write the file itself.
         let (telemetry_tx, telemetry_rx) =
@@ -335,7 +335,7 @@ impl<'t> Session<'t> {
             .settings_for(&cwd.display().to_string());
         // The Telemetry row's standing value is `telemetry.json`'s, not this
         // directory's entry — a user preference, not a project's
-        // (`docs/ops/telemetry.md`); the environment then overrides it for the
+        // (`TELEMETRY.md`); the environment then overrides it for the
         // run like every other knob.
         settings.telemetry =
             config::load_telemetry_file(config::telemetry_json_path().as_deref()).enabled;
@@ -674,7 +674,7 @@ impl<'t> Session<'t> {
         if !picker {
             session.models.fire_session_start();
         }
-        // The day's anonymous usage ping (docs/ops/telemetry.md), AFTER the first
+        // The day's anonymous usage ping (TELEMETRY.md), AFTER the first
         // frame is queued so it can never delay it: the install id is minted
         // if this is the first launch, the one-time notice is committed under
         // the banner (before a [PROMPT]'s bubble below), and the send goes to

@@ -20,8 +20,7 @@ scripts/release.sh prepare X.Y.Z     # bump + roll the changelog (a commit's wor
 git commit … && git tag -a vX.Y.Z -m "alter-zero vX.Y.Z" && git push origin HEAD vX.Y.Z
         │
         ▼  .github/workflows/release.yml
-   check ──► gate ──► build ×4 ──┬──► publish ──┬──► npm-publish
-                                 └──► npm ──────┘
+   check ──► gate ──► build ×4 ──► publish
 ```
 
 1. **`check`** — the tag names Cargo.toml's version, and Cargo.lock, the
@@ -38,19 +37,10 @@ git commit … && git tag -a vX.Y.Z -m "alter-zero vX.Y.Z" && git push origin HE
    renders the notes (`scripts/release.sh notes`) into the job summary, and
    either publishes (`scripts/release.sh publish`) or, on a rehearsal,
    prints the exact `gh` commands it would have run.
-5. **`npm`** — stages the same archives as the npm packages
-   (`scripts/release.sh npm`, [`docs/ops/npm.md`](npm.md)) and dry-runs them,
-   on every run, pull requests included.
-6. **`npm-publish`** — after the GitHub release and that rehearsal,
-   publishes them: only on a published tag, only once the repository opts
-   in with the `NPM_PUBLISH` variable, and only in the `npm` environment,
-   whose rules admit release tags alone.
 
 Every job holds `contents: read`. `publish` alone is granted `contents:
-write`, and only the `GH_TOKEN` step uses it; `npm-publish` alone is granted
-`id-token: write`, the OIDC token npm's trusted publishing and provenance
-statement present, so no rehearsal — a pull request's included — holds
-anything that can publish.
+write`, and only the `GH_TOKEN` step uses it, so no rehearsal — a pull
+request's included — holds anything that can publish.
 
 ### What a release carries
 
@@ -246,7 +236,6 @@ tree, which is how the selftest drives them against fixtures.
 | `notes VERSION [DIST]` | The markdown above, on stdout. |
 | `publish VERSION [DIST] [--notes FILE] [--dry-run]` | `verify`, assemble `SHA256SUMS`, then `gh release create` **as a draft** with notes and every asset, then `gh release edit --draft=false` (`--latest` unless a pre-release). |
 | `download VERSION [DIST] [--from URL]` | A published release back into an empty `dist/`: its `SHA256SUMS`, then every asset it lists, with curl or wget (no `gh`), each beside its `.sha256` as `build` leaves it, then `verify`. `--from` names another repository root. |
-| `npm VERSION [DIST] [--out DIR] [--dry-run]` | `verify`, stage the four platform packages and the launcher under `target/npm`, then `npm publish` each not yet on the registry, the launcher last ([`docs/ops/npm.md`](npm.md)). |
 | `prepare VERSION` | The version bump and changelog roll, then `check`, then the commit/tag/push to run. |
 | `selftest` | 250-odd fixture-driven assertions over all of the above. |
 
@@ -264,8 +253,6 @@ tree, which is how the selftest drives them against fixtures.
 5. `CHANGELOG.md` keeps `## [Unreleased]` and its link.
 6. With a tag: it is `vX.Y.Z`, and `[Unreleased]` is **empty** — an entry
    left there was written for this release and never rolled into it.
-7. `npm/package.json` names the same version and pins exactly one platform
-   package per release target at it ([`docs/ops/npm.md`](npm.md)).
 
 CI runs `check` with no tag on every push, so the tree is held to rules 1–5
 at all times: the version in Cargo.toml is always the latest released one or
@@ -290,12 +277,11 @@ that died mid-upload) is deleted and recreated. `--verify-tag` refuses to
 mint a tag: the tag push is the trigger, and a release without a tag in the
 repository would be a release of nothing.
 
-`prepare` rewrites five files atomically (through a temp file and `mv`, no
+`prepare` rewrites four files atomically (through a temp file and `mv`, no
 `sed -i`, whose argument GNU and BSD disagree on): Cargo.toml's `[package]`
 version and nothing else's, Cargo.lock's entry for the crate (exactly what
 `cargo update --workspace` would write), the README badge's label and alt
-text, `npm/package.json`'s version and its platform packages' pins, and
-`CHANGELOG.md`, where `## [Unreleased]` stays, empty, over a new
+text, and `CHANGELOG.md`, where `## [Unreleased]` stays, empty, over a new
 `## [X.Y.Z] - <today>` heading that takes its body, and the link block
 gains the version's compare link (or the tag link for a first release) with
 `[Unreleased]` re-pointed past it. It refuses a version that is not semver,
@@ -337,8 +323,8 @@ publish X.Y.Z dist` with `gh` signed in (the dry run shows the exact calls).
 ## Cutting a release
 
 ```bash
-scripts/release.sh prepare 0.2.0               # edits Cargo.toml, Cargo.lock, README.md, npm/package.json, CHANGELOG.md; runs check
-git add Cargo.toml Cargo.lock README.md CHANGELOG.md npm/package.json
+scripts/release.sh prepare 0.2.0               # edits Cargo.toml, Cargo.lock, README.md, CHANGELOG.md; runs check
+git add Cargo.toml Cargo.lock README.md CHANGELOG.md
 git commit -m "Release v0.2.0"
 git tag -a v0.2.0 -m "alter-zero v0.2.0"
 git push origin HEAD v0.2.0
@@ -350,18 +336,6 @@ git push origin HEAD v0.2.0
 `main` — ideally after one rehearsal run. The section's date is the day it
 was written; edit it to the tag's day if that differs.
 
-**npm follows the GitHub release in the same run.** Once the repository
-sets `NPM_PUBLISH`, the tag push publishes the npm packages right after the
-GitHub release, from the same archives; [`docs/ops/npm.md`](npm.md) covers the
-one-time setup and publishing a version by hand.
-
-**The AUR packages follow the release, never lead it.** `aur/alter-zero`
-builds the tag's own source tarball and `aur/alter-zero-bin` repackages the
-release's Linux archives, and neither checksum can exist before the release
-does, so `prepare` leaves them alone and `check` never compares them. Once
-the release is published, bump both as [`docs/ops/aur.md`](aur.md) describes
-and push the same files to the AUR.
-
 While a version is in progress, changes land under `## [Unreleased]` in
 Keep a Changelog's groups (`Added`, `Changed`, `Deprecated`, `Removed`,
 `Fixed`, `Security`), written for the user who reads the release notes, not
@@ -372,8 +346,7 @@ the reviewer who reads the commit.
 `.github/workflows/ci.yml` runs on every push to `main` and every pull
 request: **gate** (the four commands), **smoke** (the tmux suite over the
 real binary), **release tooling** (`shellcheck` over the scripts and
-`install.sh`, `selftest`, `check`, and the npm launcher's `node --test`),
-**telemetry** (the collector's `node --test`), and **built-in skill scripts**
+`install.sh`, `selftest`, `check`), and **built-in skill scripts**
 (the offline `unittest`s of the scripts the `web-search` skill seeds). The
 smoke job runs one worker per core rather than the suite's default of twice
 that: a `-j 8`
@@ -429,10 +402,10 @@ while both packagings landed inside the same second, and the selftest now
 sleeps a second between them to keep that from coming back. The binary itself
 is not claimed reproducible across machines.
 
-**Versions are read in five places because they are written in five.** A
-single source would be better; short of generating the README and the npm
-manifest, the next best thing is a check that fails when any copy drifts,
-and a `prepare` that edits all five so nobody has to remember.
+**Versions are read in four places because they are written in four.** A
+single source would be better; short of generating the README, the next best
+thing is a check that fails when any copy drifts, and a `prepare` that edits
+all four so nobody has to remember.
 
 **Actions pinned to major tags, moved by Dependabot.** `actions/checkout`,
 `actions/upload-artifact`, `actions/download-artifact` and
@@ -506,12 +479,9 @@ toolchain bump is the one edit it already is.
   a fixture forward and a first release, `publish --dry-run` with `gh`
   absent from `PATH`, `install.sh` end to end against the stand-in
   release server (above), `download` back from that server with curl and
-  with wget alone, and the npm packages staged, published to a
-  stand-in registry and installed back with `npm install -g`
-  ([`docs/ops/npm.md`](npm.md)). It needs bash, awk, sed, tar, gzip, `file`, a C
-  compiler and python3, plus node and npm for the npm cases, and runs in
-  under half a minute — most of it npm's own start-up, a dozen times; CI and
-  the release workflow both run it.
+  with wget alone. It needs bash, awk, sed, tar, gzip, `file`, a C compiler
+  and python3, and runs in under half a minute; CI and the release workflow
+  both run it.
 - `shellcheck -x` over the scripts and `install.sh` (which it checks as
   POSIX `sh`, flagging any bashism), in CI and in the release `check` job.
 - The scripts avoid bash 4 (`${var,,}`, associative arrays, `mapfile`),

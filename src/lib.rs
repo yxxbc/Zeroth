@@ -112,7 +112,7 @@
 //! - [`telemetry`]   — the anonymous daily usage ping's pure half: the
 //!   `telemetry.json` format and its install id, the five-field payload,
 //!   the once-a-day decision and the environment predicate — plus the one
-//!   boundary send the worker thread calls (see `docs/ops/telemetry.md`).
+//!   boundary send the worker thread calls (see `TELEMETRY.md`).
 //! - [`subagents`]   — the `agents/*.md` subagent definitions behind the
 //!   `agent` tool's `subagent_type`: the frontmatter parse, the tool
 //!   allowlist, the model/system-prompt overrides, the budgeted listing and

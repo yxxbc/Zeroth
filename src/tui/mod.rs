@@ -46,7 +46,7 @@
 //! | [`recorder`] | Mirroring history to a rollout file (`docs/state/resume.md`). |
 //! | [`resume`] | Finding recorded sessions on disk. |
 //! | [`settings`] | Applying a `/settings` knob the menu cycled (`docs/state/settings.md`). |
-//! | [`telemetry`] | The once-a-day anonymous usage ping (once more on the day of an update): the install id, the notice, the send, the recorded day and version (`docs/ops/telemetry.md`). |
+//! | [`telemetry`] | The once-a-day anonymous usage ping (once more on the day of an update): the install id, the notice, the send, the recorded day and version (`TELEMETRY.md`). |
 //! | [`update`] | The once-a-day update check: the request, the card under the banner, the recorded day (`docs/ops/update.md`). |
 //! | [`update_cli`] | The `zeroth update` subcommand: the check, then the one-line installer over this binary (`docs/ops/update.md`). |
 //! | [`herdr`] | Telling the herdr pane this session runs in what it is doing: the loop-bottom sync into the library's tracker and worker, and the failed-turn hold (`docs/architecture/herdr.md`). |
@@ -272,14 +272,14 @@ pub(crate) struct Session<'t> {
     /// MCP server state changes (`docs/tools/mcp.md`) — never swapped either;
     /// connections outlive turns like background shells.
     mcp_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::llm::mcp::McpEvent>,
-    /// The telemetry ping worker's report (`docs/ops/telemetry.md`): the UTC day
+    /// The telemetry ping worker's report (`TELEMETRY.md`): the UTC day
     /// it delivered and the version the ping carried, which the **loop**
     /// then records in `telemetry.json` — the worker never writes the file,
     /// so it can't race the `/settings` toggle's write. Silent on failure.
     telemetry_tx: tokio::sync::mpsc::UnboundedSender<zeroth::telemetry::Delivery>,
     telemetry_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::telemetry::Delivery>,
     /// The UTC day this **session** last spawned a ping for, successful or
-    /// not (`docs/ops/telemetry.md`). Two jobs: the turn-start rollover check
+    /// not (`TELEMETRY.md`). Two jobs: the turn-start rollover check
     /// compares against it and returns without touching the file on the
     /// common path, and it bounds a failing collector to one attempt per day
     /// per session rather than one per turn — the file's `last_ping_day`,

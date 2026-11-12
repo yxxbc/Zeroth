@@ -32,7 +32,7 @@ prints one line per required tool (the pinned toolchain, rustfmt/clippy, `mbx`,
 | `providers.toml`, `src/llm/config.rs` | `cargo test --lib llm::config` |
 | `scripts/smoke/lib.sh`, `scripts/smoke.sh` | `bash scripts/smoke/selftest.sh` |
 | `scripts/smoke/phases/` | `cargo build && scripts/smoke.sh <ids>` |
-| `scripts/`, `install.sh`, `npm/`, `telemetry/`, `docker/`, `aur/` | that subtree's suite (CONTRIBUTING *Testing*), not `cargo test` |
+| `scripts/`, `install.sh` | that subtree's suite (CONTRIBUTING *Testing*), not `cargo test` |
 | `prompts/`, `docs/`, `CHANGELOG.md` | nothing; prose has no gate |
 
 Filters are substrings: a module path selects everything under it, so
@@ -128,9 +128,8 @@ edit a released changelog section. Intent in `docs/`, user-visible changes in
 - Don't run the whole `cargo test` or smoke suite "to check" a small edit.
 - Don't `rm -rf target/`, change `incremental`, `[profile.*]` or
   `rust-toolchain.toml`; `cargo clean -p zeroth` fixes a stale link.
-- Don't run release/publish/build-image commands (`scripts/release.sh`
-  prepare/build/npm/download, `docker/build.sh`, `makepkg`, pushes) — those are
-  the user's calls. `scripts/release.sh selftest`/`check` are fine when
-  touching it.
+- Don't run release/publish commands (`scripts/release.sh`
+  prepare/build/download, pushes) — those are the user's calls.
+  `scripts/release.sh selftest`/`check` are fine when touching it.
 - Don't add `#[ignore]` or `#[allow]` to get green; fix the cause or say you're
   blocked.

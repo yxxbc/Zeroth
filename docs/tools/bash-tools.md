@@ -290,8 +290,7 @@ also have broken quiet commands. What came with the flip:
    counted every terminal, including a command still inside its own call, so
    concurrent subagents' ordinary commands could have hit it.
 6. **bash, not sh.** Resolved once per process from `PATH`; a non-login,
-   non-interactive shell, so the Docker image's virtualenv (`ENV`, not
-   `.bashrc` — `docs/ops/docker.md`) still reaches every command.
+   non-interactive shell, so a pre-set `ENV` still reaches every command.
 7. **A pipe where no terminal can be had.** Off Unix, or where neither
    `setsid` nor the helper can give the command a controlling terminal, the
    command runs on a pipe as it always did — same frames, same data view —

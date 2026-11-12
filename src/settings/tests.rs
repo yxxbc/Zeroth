@@ -683,7 +683,7 @@ fn settings_file_round_trips_and_an_empty_one_is_the_old_shape() {
     );
 }
 
-// ===== the Telemetry row (docs/ops/telemetry.md) =====
+// ===== the Telemetry row (TELEMETRY.md) =====
 
 #[test]
 fn the_telemetry_row_is_last_cycles_and_needs_a_config_home() {

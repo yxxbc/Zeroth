@@ -106,11 +106,9 @@ export PATH="/opt/homebrew/opt/util-linux/bin:$PATH"
 | Tool | Needed for |
 | --- | --- |
 | `tmux` | `scripts/smoke.sh` — the only automated coverage of the terminal I/O boundary |
-| `node` | the telemetry collector's tests (`telemetry/`), the npm launcher's (`npm/`), and — with `npm` — the release selftest's npm cases |
 | `shellcheck` | `install.sh` and `scripts/release/*.sh`, which CI lints |
-| `python3` | the container tests, `scripts/build_timings.py` |
-| Docker or Podman | `docker/` — the headless Kali image |
-| `Xvfb` | the Linux clipboard's X11 paste read (`cargo test --test clipboard_linux -- --ignored`) |
+| `python3` | `scripts/build_timings.py` |
+| `Xvfb` | The Linux clipboard's X11 paste read (`cargo test --test clipboard_linux -- --ignored`) |
 
 </details>
 
@@ -195,7 +193,6 @@ helper it calls (the live-region geometry works this way: `term.rs` acts on
 | `tests/` | Integration tests, including the memory gates and the `#[ignore]`d live ones |
 | `scripts/smoke/phases/` | One file per smoke phase |
 | `prompts/` | The system prompt, the built-in agent definitions and the built-in skills |
-| `telemetry/`, `docker/` | The collector Worker and the headless Kali image, each with its own tests |
 
 [`docs/architecture/module-layout.md`](docs/architecture/module-layout.md) is the full map.
 
@@ -236,10 +233,7 @@ red run is read for what it is.
 | Smoke suite's own tests | `bash scripts/smoke/selftest.sh` | you changed `scripts/smoke/lib.sh` or `scripts/smoke.sh` — the phase readers and the selector, in under a second |
 | Live provider tests | `OPENROUTER_API_KEY=… cargo test --test live_openrouter -- --ignored --nocapture` | you changed a provider, a wire format, or the context assembly |
 | Memory gates | `cargo test --test image_turn_memory`, `--test model_parse_memory`, `--test image_paste_memory` | you changed anything that allocates per turn, per request or per picture |
-| Telemetry collector | `(cd telemetry && node --test)` | you changed `telemetry/` |
-| Release tooling | `scripts/release.sh selftest` and `scripts/release.sh check` | you changed `scripts/release/`, `install.sh` or `npm/` |
-| npm launcher | `(cd npm && node --test)` | you changed `npm/` |
-| Container | `python3 -m unittest discover -s docker/tests -p 'test_*.py'` | you changed `docker/` |
+| Release tooling | `scripts/release.sh selftest` and `scripts/release.sh check` | you changed `scripts/release/` or `install.sh` |
 | Built-in skill scripts | `python3 -m unittest discover -s prompts/skills/web-search/scripts -p 'test_*.py'` | you changed `prompts/skills/web-search/scripts/` |
 
 ### The smoke suite
@@ -350,10 +344,9 @@ open the pull request:
   they will notice, not which function you renamed;
 - the diff is your change and nothing else. No drive-by reformatting.
 
-CI runs four jobs on every pull request: the gate, the smoke suite under tmux,
-the release tooling (`shellcheck`, `selftest`, and the version/changelog `check`),
-and the telemetry collector's tests. The container image has its own workflow,
-triggered by changes to `docker/`. A smoke failure uploads every phase's log as
+CI runs the gate on Linux and macOS, the smoke suite under tmux, the release
+tooling (`shellcheck`, `selftest`, and the version/changelog `check`), and the
+built-in skill scripts' tests. A smoke failure uploads every phase's log as
 an artifact — start there rather than guessing.
 
 In the description, say what changed, why, and how you tested it. If a review

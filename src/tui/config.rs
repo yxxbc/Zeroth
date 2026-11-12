@@ -1093,7 +1093,7 @@ pub(crate) fn theme_json_path() -> Option<PathBuf> {
 }
 
 /// The telemetry file — `{config_home}/telemetry.json`, its own file like
-/// `theme.json` (one file per feature that owns it, `docs/ops/telemetry.md`):
+/// `theme.json` (one file per feature that owns it, `TELEMETRY.md`):
 /// the install id, the on/off switch, the last delivered day and whether
 /// the one-time notice has been shown. `None` (no config home) disables the
 /// feature outright — nowhere to keep an id means no ping, since a fresh
@@ -1120,7 +1120,7 @@ pub(crate) fn load_telemetry_file(path: Option<&Path>) -> zeroth::telemetry::Tel
 /// another's. Best-effort like [`save_theme`]: a failed write is swallowed
 /// (a read-only home must never kill the TUI) and a `None` path (no config
 /// home) edits nothing — the feature is off there anyway
-/// (`docs/ops/telemetry.md`).
+/// (`TELEMETRY.md`).
 pub(crate) fn update_telemetry_file(
     path: Option<&Path>,
     edit: impl FnOnce(&mut zeroth::telemetry::TelemetryFile),
@@ -1215,7 +1215,7 @@ pub(crate) fn telemetry_endpoint() -> String {
 /// `ALTER_ZERO_TELEMETRY`, or a set `DO_NOT_TRACK`.
 ///
 /// This is what makes the opt-out *hard* rather than a mere seed
-/// (`docs/ops/telemetry.md`): the `/settings` row reports itself unavailable, so
+/// (`TELEMETRY.md`): the `/settings` row reports itself unavailable, so
 /// it cannot be cycled back on, and `telemetry_active()` stays false however
 /// the row is set. Every other `ALTER_ZERO_*` override only seeds its row —
 /// but the others are preferences, and this one is a statement that nothing
@@ -1229,7 +1229,7 @@ pub(crate) fn telemetry_forbidden_by_env() -> bool {
 /// What the environment says about telemetry for this run —
 /// `ALTER_ZERO_TELEMETRY` in the app's on/off grammar, outranked by a set
 /// `DO_NOT_TRACK` — or `None` to defer to `telemetry.json`
-/// (`telemetry::enabled_by_env`, `docs/ops/telemetry.md`).
+/// (`telemetry::enabled_by_env`, `TELEMETRY.md`).
 fn telemetry_env_override() -> Option<bool> {
     let telemetry = std::env::var(zeroth::telemetry::TELEMETRY_ENV).ok();
     let dnt = std::env::var(zeroth::telemetry::DNT_ENV).ok();
@@ -1457,7 +1457,7 @@ pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionS
     // The Telemetry row: `ALTER_ZERO_TELEMETRY` (and the cross-tool
     // `DO_NOT_TRACK`, which outranks it) seed it for the run over the value
     // `telemetry.json` supplied — an override, never saved
-    // (`docs/ops/telemetry.md`).
+    // (`TELEMETRY.md`).
     if let Some(on) = telemetry_env_override() {
         settings.telemetry = on;
     }

@@ -30,7 +30,7 @@ use super::config;
 /// check, the fetch or the install could not be done — or when this binary
 /// is a `cargo` build directory's, which is a checkout to `git pull`, not an
 /// install to overwrite, or a package manager's under `node_modules`, which
-/// that manager updates (`docs/ops/npm.md`). The installer's own output is the
+/// that manager updates. The installer's own output is the
 /// progress report.
 pub(crate) fn run() -> i32 {
     let bin = env!("CARGO_PKG_NAME");

@@ -246,9 +246,9 @@ incremental = true
 incremental = false
 
 # The shipped binary: `scripts/release.sh build` compiles every release
-# archive in this profile, so it is what install.sh, npm, `alter-zero-bin`
-# and the Docker image all install — `cargo build --profile dist` yields
-# `./target/dist/alter-zero`. Fat LTO over one codegen unit hands LLVM the
+# archive in this profile, so it is what install.sh and the release archives
+# install — `cargo build --profile dist` yields `./target/dist/zeroth`. Fat
+# LTO over one codegen unit hands LLVM the
 # whole program as a single module: code no caller reaches goes whatever crate
 # it is in, a generic stops being copied into every unit that uses it, and
 # inlining crosses every crate boundary. On x86_64 Linux the binary went from

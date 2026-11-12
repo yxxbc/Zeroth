@@ -436,7 +436,7 @@ installed before bootstrap starts any server, and the shutdown is bounded
 ## Not in headless mode, on purpose
 
 - **No telemetry ping and no update check.** The ping's rule is that its
-  notice is shown before any send (`docs/ops/telemetry.md`); a run with no screen
+  notice is shown before any send (`TELEMETRY.md`); a run with no screen
   shows nothing, and CI machines are where a phone-home is least welcome.
 - **No input history.** An automated prompt is not something the user typed;
   ↑ in the TUI should not walk through a cron job's prompts.

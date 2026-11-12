@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="Zeroth" width="100%">
+<img src="assets/banner.jpg" alt="Zeroth" width="100%">
 
 # Zeroth
 
@@ -12,33 +12,17 @@ Use the same tools for cybersecurity research, technical investigation, and ever
 <p>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Built_with-Rust-F5A97F?style=for-the-badge&amp;logo=rust&amp;logoColor=white&amp;labelColor=181825" alt="Built with Rust" height="32"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Platforms-Linux_%7C_macOS-89B4FA?style=for-the-badge&amp;logo=linux&amp;logoColor=white&amp;labelColor=181825" alt="Platforms: Linux and macOS" height="32"></a>
-  <a href="https://github.com/linuztx/alter-zero/releases"><img src="https://img.shields.io/badge/Version-0.0.0-89DCEB?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;labelColor=181825" alt="Version: 0.0.0" height="32"></a>
+  <a href="https://github.com/yxxbc/zeroth/releases"><img src="https://img.shields.io/badge/Version-0.0.0-89DCEB?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;labelColor=181825" alt="Version: 0.0.0" height="32"></a>
   <br>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-A6E3A1?style=for-the-badge&amp;logo=apache&amp;logoColor=white&amp;labelColor=181825" alt="License: Apache 2.0" height="32"></a>
-  <a href="#support-the-project"><img src="https://img.shields.io/badge/Support-Donate-CBA6F7?style=for-the-badge&amp;logo=githubsponsors&amp;logoColor=white&amp;labelColor=181825" alt="Support Zeroth" height="32"></a>
-  <a href="https://ko-fi.com/linuztx"><img src="https://img.shields.io/badge/Ko--fi-Support-F38BA8?style=for-the-badge&amp;logo=kofi&amp;logoColor=white&amp;labelColor=181825" alt="Support Zeroth on Ko-fi" height="32"></a>
-  <a href="https://deepwiki.com/linuztx/alter-zero"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
 [Quick start](#quick-start) ·
 [Features](#features) ·
 [Model providers](#model-providers) ·
 [Commands & shortcuts](#commands--shortcuts) ·
-[Support](#support-the-project) ·
 [Acknowledgements](#acknowledgements)
 
-</div>
-
-<div align="center">
-<img alt="Zeroth terminal coding agent demo" src="assets/alter-zero-demo.gif" width="100%" />
-</div>
-
-<div align="center">
-  <a href="https://youtu.be/H-uCHyHsWbk?si=6sd5c7MnQMz3nI4O">
-    <img src="https://img.youtube.com/vi/H-uCHyHsWbk/maxresdefault.jpg" alt="Watch the Zeroth video demo on YouTube" width="100%">
-  </a>
-  <br>
-  <strong><a href="https://youtu.be/H-uCHyHsWbk?si=6sd5c7MnQMz3nI4O">Watch the video demo on YouTube</a></strong>
 </div>
 
 ---
@@ -60,11 +44,10 @@ Zeroth is an open-source AI coding agent written in Rust, inspired by Claude Cod
 Zeroth runs on **Linux** (x86_64, arm64) and **macOS** (Intel, Apple silicon) in a modern terminal.
 
 > **Fork note:** Zeroth is a derivative of
-> [Alter Zero](https://github.com/linuztx/alter-zero). The one-line installer
-> in this repository installs Zeroth's own releases from
-> [`yxxbc/zeroth`](https://github.com/yxxbc/zeroth) once one is published; the
-> npm package and container image below still belong to the upstream project
-> and install its binary, not this fork's.
+> [Alter Zero](https://github.com/linuztx/alter-zero). The installer in this
+> repository installs releases from
+> [`yxxbc/zeroth`](https://github.com/yxxbc/zeroth); until the first one is
+> published, use [Build from source](#build-from-source).
 
 ### Install
 
@@ -75,12 +58,6 @@ curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh
 ```
 
 It picks the build for your machine, verifies its SHA-256 against the checksum published with the release, installs `zeroth` into `~/.local/bin`, and tells you if that directory is not on your `PATH`. Its banner is the app's own `crest` mascot, animated while it works; `sh install.sh --preview` plays that mascot alone for ten seconds (or `--preview 20`) without touching the network.
-
-Or install the same build with npm:
-
-```bash
-npm install -g @linuztx/alter-zero
-```
 
 <details>
 <summary><strong>Install options</strong></summary>
@@ -99,29 +76,6 @@ curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh -
 ```
 
 For a manual install, each release's notes list every archive with its SHA-256, so you can download, verify, and extract one by hand.
-
-</details>
-
-<details>
-<summary><strong>Run it in a Kali Linux container</strong></summary>
-
-`docker/` builds a small headless Kali Rolling image around the latest release, with a working set of command-line tools, for Docker or Podman. One command builds it and starts a container on a folder of yours:
-
-```bash
-docker/build.sh ~/projects/site              # add --engine podman for Podman
-docker exec -it -e TERM -e COLORTERM -e TERM_PROGRAM -e KITTY_WINDOW_ID -e TMUX \
-  alter-zero-kali alter-zero
-```
-
-Outside a multiplexer, the `-e` flags hand over your terminal's identity so
-pictures render as real images rather than half-blocks. The
-[container guide](docker/README.md) covers workspaces, the published ports,
-pasting images, and adding tools.
-
-Inside tmux, enable `allow-passthrough` on the host and explicitly select the
-outer terminal's image protocol for that `docker exec`; the
-[tmux instructions](docker/README.md#pictures-in-your-terminal) include a
-ready-to-run Podman example.
 
 </details>
 
@@ -277,7 +231,6 @@ The essentials are always one keystroke away: `/` opens commands, and `?` in an 
 | `/hooks` | Browse hooks and trust or stop trusting each one |
 | `/skills` | Browse skills and enable or disable each one |
 | `/mcp` | Manage MCP servers |
-| `/donate` | Support the project with a crypto donation |
 | `/secrets` | Store credentials the agent uses by placeholder, `<secret:NAME>`, without ever seeing the value |
 | `/quit` | Exit the app |
 
@@ -355,7 +308,7 @@ git diff origin/main | zeroth -p --output-format json "Review this diff"
 
 [Headless mode](docs/cli/headless.md) covers the output formats, exit codes and permission modes.
 
-Run `zeroth mcp --help` for MCP server management commands, and `zeroth update` to install the newest release over the binary you are running (an npm install updates with `npm install -g @linuztx/alter-zero@latest`).
+Run `zeroth mcp --help` for MCP server management commands, and `zeroth update` to install the newest release over the binary you are running.
 
 </details>
 
@@ -380,29 +333,14 @@ Claude Code-style `.claude/skills/` and `.mcp.json` files are also supported. Ho
 
 </details>
 
-## Support the project
-
-Zeroth is free and open source. If it earns a place in your terminal, a donation keeps the work going. `/donate` shows these addresses inside the app, each in a copyable box.
-
-| Coin | Supported network(s) | Address |
-| --- | --- | --- |
-| BTC (Bitcoin) | Bitcoin Native SegWit | `bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7` |
-| ETH (Ethereum) | Ethereum, Linea, Base, Arbitrum, BNB Chain, OP, Polygon | `0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b` |
-| SOL (Solana) | Solana | `Gwhv5c6uAa6aAz1MjwzV9QJpbm7CJWy2kuCeZ75mFc94` |
-
-> **Important:** Send only on a network listed for that address. Confirm that the asset and selected network match before sending. An address may look valid on another network, but funds sent on an unlisted or mismatched network may be unrecoverable.
-
-Thank you.
-
 ## License
 
-Zeroth is released under the [Apache License 2.0](LICENSE). Copyright 2026 [linuztx](https://github.com/linuztx).
+Zeroth is released under the [Apache License 2.0](LICENSE). Copyright 2026 the Zeroth contributors. Upstream attribution is recorded in [NOTICE](NOTICE).
 
 ## Acknowledgements
 
 Zeroth is made possible by the people, projects, and communities behind it:
 
-- [Agent Zero](https://agent-zero.ai) and its team for supporting the development of Zeroth, including the free [A0T](https://www.agent-zero.ai/p/token/) inference credits used during testing.
 - [Claude Code](https://claude.com/claude-code) and [Codex CLI](https://github.com/openai/codex) for the interaction patterns that helped shape Zeroth.
 - [ratatui](https://ratatui.rs) and [crossterm](https://github.com/crossterm-rs/crossterm) for the foundation of the terminal UI.
 
