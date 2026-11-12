@@ -129,6 +129,24 @@ impl App {
         });
     }
 
+    /// Queue a submitted message batch for the next turn slot. The boundary
+    /// calls this when a turn-end checkpoint snapshot is still in flight, so a
+    /// direct submission waits behind it exactly like an already-queued
+    /// follow-up (`docs/state/checkpoint.md`).
+    pub fn queue_messages(&mut self, texts: Vec<String>, images: Vec<(String, PathBuf)>) {
+        if texts.is_empty() {
+            return;
+        }
+        self.queued
+            .push_back(QueuedTurn::Messages { texts, images });
+    }
+
+    /// Queue a standalone `!` command behind a pending checkpoint
+    /// ([`queue_messages`](Self::queue_messages)'s shell twin).
+    pub fn queue_shell_command(&mut self, command: String) {
+        self.queued.push_back(QueuedTurn::Shell(command));
+    }
+
     /// Alt+Up over a steered message: put `text` back in the composer to edit,
     /// extend or drop. The boundary reclaims it from the shared queue first
     /// ([`SteerQueue::take_last`](crate::steer::SteerQueue::take_last)) —

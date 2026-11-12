@@ -568,6 +568,7 @@ pub fn git_available() -> bool {
 /// area, branches, or global git config. A disabled store (no root, git
 /// missing, or `ALTER_ZERO_CHECKPOINTS=0`) makes every operation an inert
 /// no-op. See `docs/state/checkpoint.md`.
+#[derive(Clone)]
 pub struct CheckpointStore {
     /// The private object store dir (`GIT_DIR`). Empty when disabled.
     git_dir: PathBuf,

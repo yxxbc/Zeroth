@@ -114,6 +114,7 @@ pub(crate) mod startup;
 pub(crate) mod stream;
 pub(crate) mod telemetry;
 pub(crate) mod theme;
+pub(crate) mod timing;
 pub(crate) mod trust;
 pub(crate) mod turn;
 pub(crate) mod update;
@@ -382,6 +383,18 @@ pub(crate) struct Session<'t> {
     hist_store: InputHistoryStore,
     /// Per-turn working-directory snapshots (`docs/state/checkpoint.md`).
     checkpoints: CheckpointStore,
+    /// The turn-end snapshot runs on its own thread; both ends of its result
+    /// channel live here, so the loop records the commit without waiting for
+    /// `git`.
+    checkpoint_tx: tokio::sync::mpsc::UnboundedSender<turn::CheckpointDone>,
+    checkpoint_rx: tokio::sync::mpsc::UnboundedReceiver<turn::CheckpointDone>,
+    /// The snapshot in flight, with the turn-end dispatch deferred behind it
+    /// (a queued follow-up must not edit before the just-ended state is
+    /// captured).
+    checkpoint_pending: Option<turn::PendingCheckpoint>,
+    /// Bumped whenever history is replaced or rewound: a snapshot that
+    /// started before the rewind is dropped when it lands.
+    checkpoint_epoch: u64,
     /// Where the `/settings` knobs persist (`settings.json`, this directory's
     /// entry — `docs/state/per-directory-state.md`); `None` disables persistence,
     /// like `config.json`'s path (`docs/state/settings.md`). The live values

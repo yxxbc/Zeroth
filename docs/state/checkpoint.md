@@ -73,6 +73,44 @@ just backtrack with `target_len = usize::MAX`. It also means a checkpoint whose
 turn was rewound away is dropped, never resurrected — the same invariant the
 resume rollout file already keeps for its transcript items (`docs/state/resume.md`).
 
+### The turn-end snapshot runs on a worker
+
+A turn-end snapshot is `git add -A` over the whole working directory — O(bytes),
+measured in the hundreds of milliseconds on an ordinary project and seconds on a
+cold or large store. It used to run on the event-loop thread, so every turn end
+froze the UI for that long. It now runs on its own thread:
+
+- `dispatch_after_turn` starts the snapshot (`Session::start_checkpoint_snapshot`)
+  and finishes its non-checkpoint work — closing tool groups, settling notices,
+  retiring tasks, taking the completion board, clearing the turn handle.
+- The **dispatch after the turn** — the next queued turn, or the automatic turn
+  about a completion the model never heard — waits for the result instead of
+  running immediately, so nothing can edit the tree before the just-ended state
+  is captured. A direct submission (`Submit`, a `!command`) that lands while the
+  snapshot is in flight is queued the same way (`App::queue_messages` /
+  `App::queue_shell_command`); it starts when the result lands.
+- The result (`CheckpointDone`) comes back on a channel the event loop selects
+  on. It is recorded only if it still belongs to this conversation: the same
+  `after`, the same **rewind epoch** as when it started, and a history at least
+  that long. `/clear`, `/resume` and a backtrack join the pending worker — its
+  git must not race the restore's on the same private store — bump the epoch
+  and forget the pending dispatch (`Session::invalidate_checkpoints`), so a
+  snapshot from a conversation that no longer exists is dropped rather than
+  recorded.
+- Quitting the TUI, and a headless run finishing under an interrupt, wait up to
+  five seconds for a pending result and record it — never dispatch the deferred
+  turn. An ordinary headless run treats the pending snapshot as "not idle", so
+  it records it and only then exits.
+
+The **session-start** snapshot (`after == 0`) still runs synchronously before
+the first frame: its cost guard (`cwd_scope` + the snapshot budget) already
+bounds it, and a backtrack to the first message must find it in the chain.
+
+The timing is measurable without a debugger: `ALTER_ZERO_TIMING=<path>` (or
+`=1` for `<tmp>/zeroth-timing.log`) appends `turn-end`, `checkpoint.snapshot`
+and `checkpoint.dispatch-wait` lines. The TUI writes to a file rather than
+stderr so a log line can never corrupt the inline viewport.
+
 ## The two layers
 
 Split the repo's usual way — a **pure core** (unit-tested) and a **boundary**

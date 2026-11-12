@@ -419,12 +419,18 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
             () = tokio::time::sleep_until(tokio::time::Instant::from_std(
                 agents_deadline.unwrap_or_else(Instant::now),
             )), if agents_deadline.is_some() => {}
+            Some(done) = session.checkpoint_rx.recv() => session.on_checkpoint_done(done),
         }
         // Compaction at the loop bottom only while the run waits on its
         // subagents — the idle boundary a follow-up turn will come out of.
         let waiting = session.waiting_on_agents();
         session.after_headless_iteration(waiting);
     }
+    // An interrupted run may still have a turn-end snapshot on its worker;
+    // record it before shutting the store down, but never start a turn.
+    session
+        .settle_checkpoint_quietly(std::time::Duration::from_secs(5))
+        .await;
     session.emit_settled(&mut reporter, run_start, &mut emitted);
     session.finish(
         &mut reporter,
@@ -663,6 +669,7 @@ impl Session<'_> {
             && !self.app.turn_active()
             && self.app.queued.is_empty()
             && !self.waiting_on_agents()
+            && !self.checkpoint_pending()
     }
 
     fn waiting_on_agents(&self) -> bool {
@@ -676,6 +683,7 @@ impl Session<'_> {
         self.inflight.is_none()
             && !self.app.turn_active()
             && self.app.queued.is_empty()
+            && !self.checkpoint_pending()
             && self.app.agents().iter().any(zeroth::herdr::agent_busy)
     }
 

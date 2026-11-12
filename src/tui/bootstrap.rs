@@ -561,6 +561,9 @@ impl<'t> Session<'t> {
         // into `seed_app` — a refusal is only worth a toast when it took
         // something away.
         let checkpoints_wanted = settings.checkpoints;
+        // The turn-end snapshot reports back through this channel; the loop
+        // records the commit when it lands (`docs/state/checkpoint.md`).
+        let (checkpoint_tx, checkpoint_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let cwd_display = ui::display_cwd(&cwd, home.as_deref());
         let mut session = Self {
@@ -650,6 +653,10 @@ impl<'t> Session<'t> {
             recorder,
             hist_store,
             checkpoints,
+            checkpoint_tx,
+            checkpoint_rx,
+            checkpoint_pending: None,
+            checkpoint_epoch: 0,
             settings_path,
             tips_saved: Some(tips_next),
             inflight: None,

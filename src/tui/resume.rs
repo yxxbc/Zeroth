@@ -318,6 +318,8 @@ impl Session<'_> {
         // (resume), Claude Code's reason for a switch — before anything of it
         // is swapped out, so the event names it (docs/tools/hooks.md).
         self.models.end_conversation("resume");
+        // A snapshot from the conversation being replaced is stale.
+        self.invalidate_checkpoints();
         let restored = self.restore_final_checkpoint(&session_checkpoints);
         // The loaded pictures — a paste's size, a file gone since the session
         // was recorded — are looked for by the purge rebuild below, which is

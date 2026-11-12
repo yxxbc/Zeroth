@@ -1,10 +1,11 @@
 //! The async event loop: a `select!` over every source that can wake the app.
 //!
-//! Eleven sources fan onto one thread — terminal input, the streamed reply,
+//! Twelve sources fan onto one thread — terminal input, the streamed reply,
 //! coalesced draw ticks, `@` file-search results, finished Ctrl+V clipboard
 //! reads, the `/login` sign-in worker, `/model` list fetches, the startup
 //! capability probe, background-shell events, subagent events, MCP server
-//! events and the telemetry ping's report. `select!` polls its branches in
+//! events, the telemetry ping's report and the turn-end checkpoint's result.
+//! `select!` polls its branches in
 //! randomized order, so input and draws can't starve each other — the
 //! round-robin fairness codex builds explicitly.
 //!
@@ -130,9 +131,19 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             // 12. The update check answered: record what it found and, if
             //     newer, announce it once the session is idle (docs/ops/update.md).
             Some(latest) = session.update_rx.recv() => session.on_update_result(&latest),
+
+            // 13. A turn-end checkpoint snapshot finished on its worker
+            //     thread: record it, then dispatch the turn-end work that
+            //     waited for it (docs/state/checkpoint.md).
+            Some(done) = session.checkpoint_rx.recv() => session.on_checkpoint_done(done),
         }
         session.after_iteration();
     }
+    // A turn-end snapshot still on its worker is the last thing the session
+    // owes the next launch; wait briefly rather than lose it at quit.
+    session
+        .settle_checkpoint_quietly(std::time::Duration::from_secs(5))
+        .await;
     Ok(session.shutdown())
 }
 

@@ -530,6 +530,8 @@ impl Session<'_> {
         // with a pristine snapshot of the current tree so a backtrack in the new
         // session can restore its starting point (docs/state/checkpoint.md).
         self.recorder.start_new();
+        // A snapshot still running describes the conversation just wiped.
+        self.invalidate_checkpoints();
         self.models.begin_conversation("clear");
         if let Some(commit) = self.checkpoints.snapshot("session start") {
             self.recorder
@@ -645,6 +647,9 @@ impl Session<'_> {
     /// reflog). The loop-bottom `recorder.sync` sees history shrink and rewrites
     /// the file, dropping the rewound-away checkpoints in lockstep.
     fn confirm_backtrack(&mut self) -> std::io::Result<()> {
+        // The history was rewound: a snapshot still in flight is about a
+        // conversation that no longer exists.
+        self.invalidate_checkpoints();
         let restored = self.restore_checkpoint_at(self.app.history.len());
         // `App::confirm_backtrack` already rewound the checklist to the
         // snapshot at the cut; the shared registry follows

@@ -56,6 +56,32 @@ pub(crate) struct TurnInput {
     pub(crate) images: Vec<(String, PathBuf)>,
 }
 
+/// A turn-end snapshot that finished on its own thread
+/// (`docs/state/checkpoint.md`): the history length it was taken at, the
+/// rewind epoch it belongs to, and the store's commit when git succeeded.
+pub(crate) struct CheckpointDone {
+    pub(crate) after: usize,
+    pub(crate) epoch: u64,
+    pub(crate) commit: Option<String>,
+}
+
+/// The snapshot in flight, with the turn-end dispatch it deferred. A queued
+/// follow-up (or the automatic completion turn) must not start editing before
+/// the just-ended state is captured; it waits for this result instead of
+/// blocking the loop.
+pub(crate) struct PendingCheckpoint {
+    after: usize,
+    epoch: u64,
+    began: Instant,
+    /// The worker running `git`. Joined on a rewind: the restore must not run
+    /// against the store while the snapshot still holds its index lock.
+    handle: std::thread::JoinHandle<()>,
+    /// The unheard completion notices collected for the deferred dispatch.
+    /// `None` until `dispatch_after_turn` has finished its non-checkpoint
+    /// work.
+    dispatch: Option<Vec<PendingNotice>>,
+}
+
 impl Session<'_> {
     /// Start one turn for `input`'s texts: record + commit each user bullet to
     /// scrollback, open the stream, reset the per-turn clocks, and spawn the
@@ -63,6 +89,14 @@ impl Session<'_> {
     /// queue flush, so the paths can never drift. Empty batches are the caller's
     /// job to skip. See `docs/input/queue.md`.
     pub(crate) fn start_turn(&mut self, input: TurnInput) {
+        // A direct submission that lands while the turn-end snapshot is still
+        // running waits in the queue: the snapshot must capture the
+        // just-ended state before this turn edits anything
+        // (`docs/state/checkpoint.md`). The checkpoint result dispatches it.
+        if self.checkpoint_pending() {
+            self.app.queue_messages(input.texts, input.images);
+            return;
+        }
         let TurnInput { texts, images } = input;
         let width = self.term.screen().width;
         // Each path is recorded onto the message whose text carries its
@@ -192,6 +226,12 @@ impl Session<'_> {
     /// for a shell turn — the cell is the record, codex parity), and Esc routes
     /// through the normal interrupt path.
     pub(crate) fn run_shell(&mut self, command: String) {
+        // See `start_turn`: a `!` command is a turn too, and must not run
+        // while the turn-end snapshot is still reading the tree.
+        if self.checkpoint_pending() {
+            self.app.queue_shell_command(command);
+            return;
+        }
         let width = self.term.screen().width;
         // begin_shell records the cell's `! command` header (Role::Shell) in
         // history; commit it with NO trailing blank — the `⎿ Running…` preview
@@ -334,15 +374,18 @@ impl Session<'_> {
     /// Esc-interrupt outcomes) *and* the idle completion arrival, so the paths
     /// can never drift.
     pub(crate) fn dispatch_after_turn(&mut self) {
+        let _timing = super::timing::TimingGuard::new("turn-end");
         // Every turn end closes the open read/search group where the turn
         // ended (docs/ui/tool-groups.md); this is the backstop, so a group no
         // close point reached can never hold its reads out of scrollback.
         let committing = self.commits_allowed();
         self.close_tool_group(committing, self.term.screen().width);
-        // The turn just ended and its history is settled — snapshot the code
-        // state before any queued follow-up starts editing again
-        // (docs/state/checkpoint.md).
-        self.checkpoint_turn_end();
+        // The turn just ended and its history is settled. The snapshot runs
+        // on its own thread; when it lands, the queued follow-up (or the
+        // automatic completion turn) is dispatched — so nothing starts
+        // editing before the just-ended state is captured, and the loop never
+        // waits on `git` (docs/state/checkpoint.md).
+        let snapshotting = self.start_checkpoint_snapshot();
         self.settle_bg_completions();
         // A plan whose every task is completed retires here — the turn that
         // finished it showed the all-green rows, and from now on the list is
@@ -364,6 +407,20 @@ impl Session<'_> {
         // The finished turn's handle is spent; whatever dispatches below takes
         // its place (and nothing dispatching leaves the loop idle).
         self.inflight = None;
+        if snapshotting {
+            if let Some(pending) = self.checkpoint_pending.as_mut() {
+                pending.dispatch = Some(unheard);
+            }
+            return;
+        }
+        self.dispatch_after_checkpoint(unheard);
+    }
+
+    /// Dispatch whatever comes after the turn-end snapshot: the next queued
+    /// turn, else the automatic follow-up about a completion the model never
+    /// heard. Shared by the synchronous and deferred paths so they cannot
+    /// drift.
+    fn dispatch_after_checkpoint(&mut self, unheard: Vec<PendingNotice>) {
         if !self.flush_next_queued() && unheard.iter().any(|note| note.from_model) {
             self.start_background_turn(&unheard);
         }
@@ -392,24 +449,117 @@ impl Session<'_> {
         }
     }
 
-    /// Snapshot the working directory at a turn boundary and record it against
-    /// the current conversation length (`docs/state/checkpoint.md`). Called before the
-    /// next queued turn dispatches, so it captures the *just-ended* turn's code
-    /// state — which is exactly what a later backtrack to the next message, or a
-    /// resume, restores. A disabled store or a failed git step is a silent no-op
-    /// (the TUI never dies for a checkpoint). The recorded line flushes with the
-    /// loop's next `recorder.sync`.
-    fn checkpoint_turn_end(&mut self) {
-        if !self.checkpoints.is_enabled() {
-            return;
+    /// Start the turn-end snapshot on its own thread
+    /// (`docs/state/checkpoint.md`). Returns whether the dispatch after the
+    /// turn must wait for it; a disabled store or a snapshot already in
+    /// flight dispatches immediately. A failed git step is a silent no-op
+    /// (the TUI never dies for a checkpoint); the recorded line flushes with
+    /// the loop's next `recorder.sync`.
+    fn start_checkpoint_snapshot(&mut self) -> bool {
+        if !self.checkpoints.is_enabled() || self.checkpoint_pending.is_some() {
+            return false;
         }
         let after = self.app.history.len();
-        if let Some(commit) = self
-            .checkpoints
-            .snapshot(&format!("checkpoint after {after} items"))
-        {
-            self.recorder
-                .record_checkpoint(checkpoint::Checkpoint { after, commit });
+        let epoch = self.checkpoint_epoch;
+        let store = self.checkpoints.clone();
+        let tx = self.checkpoint_tx.clone();
+        let message = format!("checkpoint after {after} items");
+        let handle = std::thread::spawn(move || {
+            let began = Instant::now();
+            let commit = store.snapshot(&message);
+            super::timing::record("checkpoint.snapshot", began.elapsed());
+            let _ = tx.send(CheckpointDone {
+                after,
+                epoch,
+                commit,
+            });
+        });
+        self.checkpoint_pending = Some(PendingCheckpoint {
+            after,
+            epoch,
+            began: Instant::now(),
+            handle,
+            dispatch: None,
+        });
+        true
+    }
+
+    /// A turn-end snapshot landed: record the commit when it still belongs to
+    /// this conversation, then dispatch what the turn-end deferred. A snapshot
+    /// that started before a rewind (`checkpoint_epoch`) or whose history
+    /// position no longer exists is dropped.
+    pub(crate) fn on_checkpoint_done(&mut self, done: CheckpointDone) {
+        let Some(pending) = self.checkpoint_pending.take() else {
+            return;
+        };
+        super::timing::record("checkpoint.dispatch-wait", pending.began.elapsed());
+        if !checkpoint_applies(
+            &pending,
+            &done,
+            self.checkpoint_epoch,
+            self.app.history.len(),
+        ) {
+            return;
+        }
+        if let Some(commit) = done.commit {
+            self.recorder.record_checkpoint(checkpoint::Checkpoint {
+                after: done.after,
+                commit,
+            });
+        }
+        if let Some(unheard) = pending.dispatch {
+            self.dispatch_after_checkpoint(unheard);
+        }
+    }
+
+    /// A rewind (`/clear`, a `/resume` load, a backtrack) makes any snapshot
+    /// in flight describe a conversation that no longer exists: bump the
+    /// epoch and forget the pending dispatch.
+    pub(crate) fn invalidate_checkpoints(&mut self) {
+        // Join first: the restore that follows rewinds the same private git
+        // store, and two git processes must not hold its index at once.
+        if let Some(pending) = self.checkpoint_pending.take() {
+            let _ = pending.handle.join();
+        }
+        self.checkpoint_epoch = self.checkpoint_epoch.wrapping_add(1);
+    }
+
+    /// Whether a turn-end snapshot is still in flight — the headless idle
+    /// rule and the input queue's gate.
+    pub(crate) fn checkpoint_pending(&self) -> bool {
+        self.checkpoint_pending.is_some()
+    }
+
+    /// Drain a snapshot still in flight before the session ends, recording it
+    /// if it still belongs to the conversation. Never dispatches the deferred
+    /// turn: the session is closing. Bounded, so a stuck `git` cannot hold
+    /// the process past `grace`.
+    pub(crate) async fn settle_checkpoint_quietly(&mut self, grace: std::time::Duration) {
+        if self.checkpoint_pending.is_none() {
+            return;
+        }
+        let deadline = tokio::time::Instant::now() + grace;
+        while self.checkpoint_pending.is_some() {
+            let received = tokio::time::timeout_at(deadline, self.checkpoint_rx.recv()).await;
+            let Ok(Some(done)) = received else {
+                self.checkpoint_pending = None;
+                return;
+            };
+            let Some(pending) = self.checkpoint_pending.take() else {
+                return;
+            };
+            if checkpoint_applies(
+                &pending,
+                &done,
+                self.checkpoint_epoch,
+                self.app.history.len(),
+            ) && let Some(commit) = done.commit
+            {
+                self.recorder.record_checkpoint(checkpoint::Checkpoint {
+                    after: done.after,
+                    commit,
+                });
+            }
         }
     }
 
@@ -440,5 +590,68 @@ impl Session<'_> {
         self.tx = tx;
         self.reply_rx = rx;
         self.clocks.end_turn();
+    }
+}
+
+/// Whether a snapshot that landed still describes this conversation: it must
+/// be the one requested (same `after`), from before any rewind (both epochs
+/// agree with the session's), and the history must still reach its position.
+fn checkpoint_applies(
+    pending: &PendingCheckpoint,
+    done: &CheckpointDone,
+    epoch: u64,
+    history_len: usize,
+) -> bool {
+    pending.after == done.after
+        && pending.epoch == done.epoch
+        && done.epoch == epoch
+        && done.after <= history_len
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pending(after: usize, epoch: u64) -> PendingCheckpoint {
+        PendingCheckpoint {
+            after,
+            epoch,
+            began: Instant::now(),
+            handle: std::thread::spawn(|| {}),
+            dispatch: None,
+        }
+    }
+
+    fn done(after: usize, epoch: u64) -> CheckpointDone {
+        CheckpointDone {
+            after,
+            epoch,
+            commit: Some("abc".to_string()),
+        }
+    }
+
+    #[test]
+    fn a_checkpoint_only_applies_to_its_own_unchanged_history() {
+        assert!(checkpoint_applies(&pending(7, 1), &done(7, 1), 1, 7));
+        assert!(
+            checkpoint_applies(&pending(7, 1), &done(7, 1), 1, 9),
+            "a later turn may have grown the history"
+        );
+        assert!(
+            !checkpoint_applies(&pending(7, 1), &done(7, 1), 1, 6),
+            "a rewind past the snapshot's position must drop it"
+        );
+        assert!(
+            !checkpoint_applies(&pending(7, 1), &done(7, 2), 2, 7),
+            "a result from another epoch is stale"
+        );
+        assert!(
+            !checkpoint_applies(&pending(7, 1), &done(7, 1), 2, 7),
+            "the session rewound after the snapshot started"
+        );
+        assert!(
+            !checkpoint_applies(&pending(7, 1), &done(6, 1), 1, 7),
+            "the result names a different history position"
+        );
     }
 }
