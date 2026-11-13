@@ -669,7 +669,7 @@ fn render_strip_above(
 /// `live_region_height` rows). `None` when the cell is not on the composer's
 /// text rows; a click on the prompt/indent seats the row's start.
 ///
-/// It rebuilds the same [`input_box`] layout the frame paints with, so the
+/// It rebuilds the same `input_box` layout the frame paints with, so the
 /// drawn rows and the hit test cannot drift. Wrapped rows are mapped back to
 /// their source ranges; a wide glyph counts its columns. Tabs are rare in a
 /// draft and the renderer expands them, so a click past a tab lands on the

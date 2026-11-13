@@ -40,6 +40,9 @@ EXPECT_REPLY="Happy to help"
 SETTLED_REPLY="Two commands away"
 # The startup banner's tier-independent title word (docs/ui/header.md).
 HEADER_MARK="Zeroth"
+# Count the banner's title, not ordinary conversation text that mentions the
+# product by name.
+HEADER_TITLE_MARK="Zeroth (v"
 # A committed turn summary (an ERE; anchor it with ^ where it must start a
 # row): the past tense of the status verb the turn ended on, then " for {n}"
 # (`app::STATUS_VERBS`, docs/ui/status-indicator.md). Wait on this wherever any

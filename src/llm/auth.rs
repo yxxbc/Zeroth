@@ -85,7 +85,7 @@ pub(crate) const NOT_SIGNED_IN: &str =
 /// Resolve `cfg` into what its next request needs.
 ///
 /// - **[`AuthScheme::ApiKey`]** → the stored key and nothing else, with **no
-///   I/O at all**. Every ordinary provider's path is byte-identical to what
+///   network I/O**. Every ordinary provider's path is byte-identical to what
 ///   it was before the subscriptions existed. [`AuthScheme::OptionalKey`] is
 ///   the same answer, a stored key or none (`docs/providers/ollama.md`).
 /// - **[`AuthScheme::GithubCopilot`]** → the exchanged Copilot bearer and the
@@ -110,10 +110,13 @@ pub(crate) const NOT_SIGNED_IN: &str =
 ///
 /// # Errors
 /// An exchange or refresh the provider refused becomes an
-/// [`LlmError`](super::LlmError); [`AuthScheme::ApiKey`] is infallible.
+/// [`LlmError`](super::LlmError). Logout and credential-store read failures
+/// also stop the request before any credential is sent.
 pub(crate) fn request_auth(cfg: &ModelConfig) -> Result<RequestAuth> {
+    super::keystore::ensure_connection_enabled(&cfg.provider_id)?;
+    let key = super::keystore::provider_key(&cfg.provider_id);
     let stored = cfg.api_key.as_deref().filter(|k| !k.is_empty());
-    match cfg.auth {
+    let auth = match cfg.auth {
         // The Messages API is the one wire format whose key is not a bearer.
         // It is the *pair* that decides, not either half: an Anthropic key
         // reaching a chat-completions shim is still a bearer, and an OpenAI
@@ -129,7 +132,8 @@ pub(crate) fn request_auth(cfg: &ModelConfig) -> Result<RequestAuth> {
             let Some(refresh) = stored else {
                 return Ok(RequestAuth::default());
             };
-            let access = claude::authorize(refresh)?;
+            let access =
+                claude::authorize_for(refresh, key.as_deref().unwrap_or(claude::REFRESH_ENV_VAR))?;
             Ok(RequestAuth {
                 bearer: Some(access.bearer),
                 base: None,
@@ -148,7 +152,8 @@ pub(crate) fn request_auth(cfg: &ModelConfig) -> Result<RequestAuth> {
             // of the credential, applied where it is minted
             // (`cline::bearer_for`) rather than here, so every caller of that
             // module gets the wire form and not just this seam.
-            let access = cline::authorize(refresh)?;
+            let access =
+                cline::authorize_for(refresh, key.as_deref().unwrap_or(cline::REFRESH_ENV_VAR))?;
             Ok(RequestAuth {
                 bearer: Some(access.bearer),
                 base: None,
@@ -163,7 +168,11 @@ pub(crate) fn request_auth(cfg: &ModelConfig) -> Result<RequestAuth> {
             // The account's project is looked up on the configured base —
             // the host the request itself goes to, never another
             // (`docs/providers/antigravity.md` *What a provider file says*).
-            let access = antigravity::authorize(refresh, &cfg.api_base)?;
+            let access = antigravity::authorize_for(
+                refresh,
+                &cfg.api_base,
+                key.as_deref().unwrap_or(antigravity::REFRESH_ENV_VAR),
+            )?;
             Ok(RequestAuth {
                 bearer: Some(access.bearer),
                 base: None,
@@ -189,7 +198,10 @@ pub(crate) fn request_auth(cfg: &ModelConfig) -> Result<RequestAuth> {
             let Some(refresh) = stored else {
                 return Ok(RequestAuth::default());
             };
-            let access = chatgpt::authorize(refresh)?;
+            let access = chatgpt::authorize_for(
+                refresh,
+                key.as_deref().unwrap_or(chatgpt::REFRESH_ENV_VAR),
+            )?;
             let mut headers = vec![("user-agent".to_string(), chatgpt::user_agent().to_string())];
             // Absent on a token that carries no auth claims — attach the
             // header conditionally rather than sending an empty account id,
@@ -208,12 +220,106 @@ pub(crate) fn request_auth(cfg: &ModelConfig) -> Result<RequestAuth> {
                 project: None,
             })
         }
+    };
+    super::keystore::ensure_connection_enabled(&cfg.provider_id)?;
+    auth
+}
+
+/// A 401 from inference may mean a cached bearer was retired early. An
+/// exchange's own refusal, a streamed reply, and API keys never take this
+/// path. The caller retains `recovered` across its transport retries.
+pub(crate) fn recover_unauthorized<T>(
+    scheme: AuthScheme,
+    recovered: &mut bool,
+    mut attempt: impl FnMut() -> (Result<T>, bool, bool),
+    invalidate: impl FnOnce(),
+) -> Result<T> {
+    let (result, emitted, sent) = attempt();
+    if !*recovered
+        && !emitted
+        && sent
+        && !matches!(scheme, AuthScheme::ApiKey | AuthScheme::OptionalKey)
+        && matches!(&result, Err(super::LlmError::Api { status: 401, .. }))
+    {
+        *recovered = true;
+        invalidate();
+        return attempt().0;
+    }
+    result
+}
+
+pub(crate) fn invalidate_access(cfg: &ModelConfig) {
+    let Some(token) = cfg.api_key.as_deref() else {
+        return;
+    };
+    match cfg.auth {
+        AuthScheme::ChatGptCodex => chatgpt::invalidate_access(token),
+        AuthScheme::AnthropicConsole => claude::invalidate_access(token),
+        AuthScheme::ClineAccount => cline::invalidate_access(token),
+        AuthScheme::GoogleAntigravity => antigravity::invalidate_access(token),
+        AuthScheme::GithubCopilot => copilot::invalidate_access(token),
+        AuthScheme::ApiKey | AuthScheme::OptionalKey => {}
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unauthorized_recovery_runs_once_only_after_an_oauth_inference_request() {
+        use std::cell::Cell;
+        let calls = Cell::new(0);
+        let invalidations = Cell::new(0);
+        let mut recovered = false;
+        let result: Result<()> = recover_unauthorized(
+            AuthScheme::ChatGptCodex,
+            &mut recovered,
+            || {
+                calls.set(calls.get() + 1);
+                (
+                    Err(super::super::LlmError::Api {
+                        status: 401,
+                        body: "invalid_token".into(),
+                    }),
+                    false,
+                    true,
+                )
+            },
+            || invalidations.set(invalidations.get() + 1),
+        );
+        assert!(result.is_err());
+        assert_eq!(calls.get(), 2);
+        assert_eq!(invalidations.get(), 1);
+        assert!(recovered);
+        for (scheme, emitted, sent, status) in [
+            (AuthScheme::ApiKey, false, true, 401),
+            (AuthScheme::ChatGptCodex, true, true, 401),
+            (AuthScheme::ChatGptCodex, false, false, 401),
+            (AuthScheme::ChatGptCodex, false, true, 403),
+        ] {
+            calls.set(0);
+            let mut recovered = false;
+            let _: Result<()> = recover_unauthorized(
+                scheme,
+                &mut recovered,
+                || {
+                    calls.set(calls.get() + 1);
+                    (
+                        Err(super::super::LlmError::Api {
+                            status,
+                            body: "denied".into(),
+                        }),
+                        emitted,
+                        sent,
+                    )
+                },
+                || panic!("this failure must not invalidate credentials"),
+            );
+            assert_eq!(calls.get(), 1);
+            assert!(!recovered);
+        }
+    }
 
     #[test]
     fn the_not_signed_in_refusal_names_the_row_that_signs_in() {

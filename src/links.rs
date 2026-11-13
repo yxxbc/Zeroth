@@ -153,7 +153,7 @@ pub fn strip_line_suffix(token: &str) -> &str {
 /// that reaches the line's end can still grow (`src/ap` → `src/app.rs`), so
 /// the trailing line must be withheld until a stopper seals it. A trailing
 /// comma, semicolon, colon, `!`, `?` or closer is not part of the link
-/// ([`trim_tail`] gives it back), so text appended after it cannot restyle the
+/// (`trim_tail` gives it back), so text appended after it cannot restyle the
 /// path and the line is settled.
 #[must_use]
 pub fn has_forming_path(text: &str) -> bool {

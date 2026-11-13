@@ -175,6 +175,7 @@ fn a_placement_interns_on_its_size_so_a_resize_gets_a_fresh_one() {
         max_cols: 120,
         font: (10, 20),
         auto_resize: true,
+        graphics: false,
     });
     let wide = place("/tmp/cat.png", (700, 689), 200).expect("reserved");
     let same = place("/tmp/cat.png", (700, 689), 200).expect("reserved");
@@ -202,6 +203,7 @@ fn place_in_fits_a_box_and_never_exceeds_it() {
         max_cols: 120,
         font: (8, 16),
         auto_resize: true,
+        graphics: false,
     });
     let wide = place_in("/tmp/card-wide.png", (1600, 1200), 30, 5).expect("reserved");
     assert!(wide.cols <= 30, "{wide:?}");
@@ -250,6 +252,7 @@ fn a_picture_the_boundary_found_missing_reserves_no_rows() {
         max_cols: 120,
         font: (10, 20),
         auto_resize: true,
+        graphics: false,
     });
     let path = "/zeroth-tests/missing/desktop-first.png";
     assert!(
@@ -297,6 +300,32 @@ fn the_default_policy_draws_nothing_until_the_boundary_reports_in() {
     // keeps the pre-image line output unchanged.
     assert!(!ImagePolicy::default().available);
     assert!(ImagePolicy::default().show, "the row itself is on, though");
+}
+
+#[test]
+fn native_mascot_graphics_require_an_available_graphics_protocol() {
+    let _guard = policy_lock();
+    set_policy(ImagePolicy {
+        show: true,
+        available: true,
+        graphics: false,
+        ..ImagePolicy::default()
+    });
+    assert!(
+        !graphics_available(),
+        "half-block fallback is not native graphics"
+    );
+    set_policy(ImagePolicy {
+        graphics: true,
+        ..policy()
+    });
+    assert!(graphics_available());
+    set_policy(ImagePolicy {
+        show: false,
+        ..policy()
+    });
+    assert!(!graphics_available(), "Show images still controls the icon");
+    set_policy(ImagePolicy::default());
 }
 
 // ===== the two format helpers =====
@@ -600,6 +629,7 @@ fn the_setting_is_what_decides_whether_a_picture_is_downscaled_at_all() {
     let bytes = encode_png(3000, 2000);
     set_policy(ImagePolicy {
         auto_resize: true,
+        graphics: false,
         ..ImagePolicy::default()
     });
     assert!(downscale_for_model(&bytes, image::ImageFormat::Png).is_some());
@@ -1470,6 +1500,7 @@ fn halfblock_policy() -> ImagePolicy {
         max_cols: 120,
         font: HALFBLOCK_FONT,
         auto_resize: true,
+        graphics: false,
     }
 }
 

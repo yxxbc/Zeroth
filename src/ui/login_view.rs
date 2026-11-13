@@ -106,6 +106,20 @@ fn login_row(name: &str, status: Option<bool>, selected: bool, width: u16) -> Li
 /// question, not an answer.
 fn login_rows(onboarding: &KeyOnboarding) -> Vec<(String, Option<bool>)> {
     match onboarding.step {
+        KeyStep::Connections => onboarding
+            .connection_matches()
+            .into_iter()
+            .map(|c| {
+                (
+                    format!(
+                        "{} · {}",
+                        c.name,
+                        if c.account { "account" } else { "API key" }
+                    ),
+                    None,
+                )
+            })
+            .collect(),
         KeyStep::Method => onboarding
             .methods()
             .iter()
@@ -157,6 +171,7 @@ fn login_list_lines(onboarding: &KeyOnboarding, width: u16) -> Vec<Line<'static>
     let rows = login_rows(onboarding);
     if rows.is_empty() {
         let placeholder = match onboarding.step {
+            KeyStep::Connections => LOGIN_NO_CONNECTIONS,
             KeyStep::Subscription => LOGIN_NO_SUBSCRIPTION_MATCH,
             KeyStep::Local => LOGIN_NO_LOCAL_MATCH,
             _ => LOGIN_NO_MATCH,
@@ -179,6 +194,7 @@ fn login_list_lines(onboarding: &KeyOnboarding, width: u16) -> Vec<Line<'static>
 /// How many rows the current list step offers — the `(n/total)` counter's total.
 fn login_list_len(onboarding: &KeyOnboarding) -> usize {
     match onboarding.step {
+        KeyStep::Connections => onboarding.connection_matches().len(),
         KeyStep::Method => onboarding.methods().len(),
         KeyStep::Subscription => onboarding.subscription_matches().len(),
         KeyStep::Local => onboarding.local_matches().len(),
@@ -646,6 +662,7 @@ fn server_page_lines(onboarding: &KeyOnboarding, width: u16) -> Vec<Line<'static
 /// `/login` page that asks its question in words ([`method_page_lines`]).
 fn list_page_lines(onboarding: &KeyOnboarding, width: u16, height: u16) -> Vec<Line<'static>> {
     let hint = match onboarding.step {
+        KeyStep::Connections => LOGIN_LOGOUT_HINT,
         KeyStep::Subscription => LOGIN_SUBSCRIPTION_HINT,
         KeyStep::Local => LOGIN_LOCAL_HINT,
         _ => LOGIN_PROVIDER_HINT,
@@ -723,8 +740,24 @@ pub(super) fn key_onboarding_lines(
     height: u16,
 ) -> Vec<Line<'static>> {
     match onboarding.step {
+        KeyStep::ConfirmLogout => {
+            let Some(choice) = onboarding.logout_choice() else {
+                return Vec::new();
+            };
+            question_page_lines(
+                &format!("{} · {}?", choice.action_label(), choice.name),
+                &[
+                    ("Cancel".into(), None),
+                    (choice.action_label().into(), None),
+                ],
+                onboarding.selected,
+                LOGIN_LOGOUT_CONFIRM_HINT,
+                width,
+                height,
+            )
+        }
         KeyStep::Method => method_page_lines(onboarding, width, height),
-        KeyStep::Subscription | KeyStep::Provider | KeyStep::Local => {
+        KeyStep::Subscription | KeyStep::Provider | KeyStep::Local | KeyStep::Connections => {
             list_page_lines(onboarding, width, height)
         }
         KeyStep::SigninMethod => signin_method_page_lines(onboarding, width, height),

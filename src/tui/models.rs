@@ -272,6 +272,13 @@ impl ModelSession {
             Some(host) => host.env_file.clone(),
             None => config::load_env_file(&env_file_path),
         };
+        llm::keystore::set_store_path(env_file_path.clone());
+        llm::keystore::set_provider_keys(
+            providers
+                .providers
+                .iter()
+                .map(|(id, p)| (id.clone(), p.key_env(id))),
+        );
         // OpenAI rotates a refresh token as it is used, and the rotation
         // happens deep on a backend thread with no path in hand — so tell the
         // module where the store is, once. Without this the retired token
@@ -434,7 +441,11 @@ impl ModelSession {
                     startup_speed.as_ref().and_then(|s| s.tier.clone()),
                 )
             })
-            .filter(ModelConfig::is_usable);
+            .filter(|cfg| {
+                cfg.is_usable()
+                    || env_file.is_disabled(&cfg.provider_id)
+                    || env_file.key_disabled(&config::key_env_name(&providers, &cfg.provider_id))
+            });
         // Whether the *real* backend activated (vs the dummy fallback) — the
         // capability state and its probe only make sense against a live provider.
         // `ZEROTH_STALL_MS` preempts both with the test-only wedged backend.
@@ -701,6 +712,14 @@ impl ModelSession {
     /// someone opens the page their provider is missing from is the moment
     /// to say it again.
     pub(crate) fn reload_providers(&mut self) -> Vec<String> {
+        // Rotations and logout can have come from another terminal.
+        match std::fs::read_to_string(&self.env_file_path) {
+            Ok(text) => self.env_file = EnvFile::parse(&text),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.env_file = EnvFile::default()
+            }
+            Err(error) => return vec![format!("Could not read the credential store: {error}")],
+        }
         let in_use = self
             .active_provider
             .as_deref()
@@ -708,6 +727,12 @@ impl ModelSession {
         match config::load_providers(self.home.as_deref(), in_use) {
             Ok((providers, issues)) => {
                 self.providers = providers;
+                llm::keystore::set_provider_keys(
+                    self.providers
+                        .providers
+                        .iter()
+                        .map(|(id, p)| (id.clone(), p.key_env(id))),
+                );
                 issues
             }
             Err(reason) => vec![format!("{reason} — keeping the providers already loaded")],
@@ -725,6 +750,86 @@ impl ModelSession {
     /// there is no key to paste for one (`docs/providers/copilot.md`).
     pub(crate) fn provider_choices(&self) -> Vec<ProviderChoice> {
         config::provider_choices(&self.providers, &self.env_file)
+    }
+
+    pub(crate) fn connection_choices(&self) -> Vec<zeroth::app::ConnectionChoice> {
+        self.providers
+            .providers
+            .iter()
+            .filter(|(_, p)| !p.auth.key_optional())
+            .filter_map(|(id, p)| {
+                config::resolve_api_key(&self.providers, &self.env_file, id)?;
+                Some(zeroth::app::ConnectionChoice {
+                    provider: id.clone(),
+                    name: p.name.clone(),
+                    account: p.auth.is_subscription(),
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn credential_warnings(&self) -> Vec<String> {
+        llm::keystore::take_credential_warnings(&self.env_file_path)
+    }
+
+    pub(crate) fn disconnect_provider(
+        &mut self,
+        provider: &str,
+    ) -> Result<(String, Vec<String>), String> {
+        let name = self
+            .providers
+            .get(provider)
+            .ok_or_else(|| "This provider is no longer configured".to_string())?
+            .name
+            .clone();
+        let key = self.key_env(provider);
+        let legacy = llm::chatgpt::legacy_key_env(&key);
+        let fresh = std::fs::read_to_string(&self.env_file_path)
+            .map(|text| EnvFile::parse(&text))
+            .unwrap_or_else(|_| self.env_file.clone());
+        let mut tokens: Vec<String> = [
+            config::resolve_api_key(&self.providers, &self.env_file, provider),
+            fresh.get(&key).map(str::to_string),
+            legacy.and_then(|key| fresh.get(key)).map(str::to_string),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        tokens.sort();
+        tokens.dedup();
+        let aliases: Vec<_> = legacy.into_iter().collect();
+        let text = EnvFile::disconnect(&self.env_file_path, provider, &key, &aliases)
+            .map_err(|error| format!("Could not remove this connection: {error}"))?;
+        self.env_file = EnvFile::parse(&text);
+        self.cancel_model_fetch();
+        self.probe_pending = false;
+        if let Some(active) = self.active_provider.clone()
+            && self.key_env(&active) == key
+            && let Some(cfg) = self.config_for(
+                &active,
+                &self.active_model.clone(),
+                self.active_thinking,
+                self.active_vision,
+                self.active_context,
+                self.active_tier(),
+            )
+        {
+            self.rebuild(cfg);
+        }
+        Ok((name, tokens))
+    }
+
+    pub(crate) fn save_connection(
+        &mut self,
+        provider: &str,
+        env_var: &str,
+        key: &str,
+    ) -> Result<(), String> {
+        let text = EnvFile::activate(&self.env_file_path, provider, env_var, key)
+            .map_err(|error| format!("Could not save this connection: {error}"))?;
+        self.env_file = EnvFile::parse(&text);
+        self.rebuild_current();
+        Ok(())
     }
 
     /// The **subscription** rows the `/login` flow shows, each tagged with
@@ -2259,7 +2364,7 @@ impl Session<'_> {
     /// be written. The in-memory copy refreshes with it, so the next `/model`
     /// fetch or switch resolves it immediately.
     pub(crate) fn save_api_key(&mut self, provider: &str, env_var: &str, key: &str) {
-        match self.models.save_api_key(env_var, key) {
+        match self.models.save_connection(provider, env_var, key) {
             Ok(()) => self.toast(
                 format!("Saved {env_var} — run /model to use {provider}"),
                 ToastKind::Info,

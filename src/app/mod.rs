@@ -93,8 +93,8 @@ pub use self::hooks_menu::{HooksLevel, HooksMenu};
 pub use self::input_history::{HistorySearch, InputHistory, SearchState};
 pub use self::keys::edits_composer;
 pub use self::login::{
-    DeviceLogin, DeviceStatus, KeyOnboarding, KeyStep, LocalChoice, LoginMethod, ProviderChoice,
-    ServerPage, ServerSave, ServerTest, SigninKind, SubscriptionChoice, TokenAsk,
+    ConnectionChoice, DeviceLogin, DeviceStatus, KeyOnboarding, KeyStep, LocalChoice, LoginMethod,
+    ProviderChoice, ServerPage, ServerSave, ServerTest, SigninKind, SubscriptionChoice, TokenAsk,
 };
 pub use self::look::{Look, LookFile, MascotFile, SpinnerFile};
 pub use self::mascot::{Mascot, MascotPicker, MascotRow};

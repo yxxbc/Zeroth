@@ -138,16 +138,19 @@ stored its own token there, and a rotation of the chain that sign-in
 replaced overwriting it would turn the next launch into the forced re-login
 the sign-in had just done.
 
-Login and both rotating providers share `EnvFile::update` (the rotations
-through its conditional twin `EnvFile::update_if`): its read, update
+Login and rotating providers share the store-edit transaction behind
+`EnvFile::update` and its conditional twin `EnvFile::update_if`: its read, update
 and atomic replacement are serialized within the process. A private temporary
 file prevents partially written credentials and concurrent writes losing other
 provider keys. Read errors are propagated rather than treating an unreadable
 store as an empty one. A store that is a symlink — kept in a dotfiles
 checkout, say — is written through to the file it names, so the link
-survives the replacement. Refresh persistence remains best-effort.
-These locks coordinate threads in one process; they do not coordinate two
-separate running applications sharing the same rotating credential.
+survives the replacement. Store edits also take a cross-process lock. A
+per-credential lock covers reading the latest token, refreshing and persisting it,
+so separate applications cannot replay the same rotating credential. Persistence
+failures keep the live session usable and produce a visible warning. Logout and
+one-time unauthorized recovery are specified in
+[credential lifecycle](credential-lifecycle.md).
 
 The disk write is only half of it. The live `ModelConfig` carries the token the
 session *started* with and nothing reloads it mid-run, so once that token is

@@ -220,6 +220,8 @@ impl Session<'_> {
             Action::SetThinking(mode) => self.set_thinking(mode),
             Action::SetSpeed(tier) => self.set_speed(tier),
             Action::OpenKeyOnboarding => self.open_key_onboarding(),
+            Action::OpenLogout => self.open_logout(),
+            Action::LogoutProvider(provider) => self.logout_provider(&provider)?,
             Action::CloseKeyOnboarding => {
                 // Esc/Ctrl+C dismissed the flow. A device sign-in it was
                 // *past* answers Action::CancelDeviceLogin instead, so there
@@ -589,6 +591,15 @@ impl Session<'_> {
     /// ToolStart that would otherwise wedge a phantom running tool) lands on the
     /// dropped receiver and can't reach the next turn. See `docs/input/interrupt.md`.
     fn interrupt_turn(&mut self) -> std::io::Result<()> {
+        self.interrupt_turn_impl(true)
+    }
+
+    /// Logout stops work without automatically submitting queued follow-ups.
+    pub(crate) fn interrupt_for_logout(&mut self) -> std::io::Result<()> {
+        self.interrupt_turn_impl(false)
+    }
+
+    fn interrupt_turn_impl(&mut self, dispatch: bool) -> std::io::Result<()> {
         // The turn's clock, read before `abandon_inflight` stops it: a kept
         // turn's receipt says how long the turn ran (docs/input/interrupt.md).
         let elapsed = self
@@ -637,7 +648,9 @@ impl Session<'_> {
                 // completions held during the turn still settle
                 // (docs/tools/background.md).
                 self.repaint_conversation()?;
-                self.dispatch_after_turn();
+                if dispatch {
+                    self.dispatch_after_turn();
+                }
             }
             Some(zeroth::app::InterruptedTurn::Kept {
                 partial,
@@ -677,7 +690,9 @@ impl Session<'_> {
                 // to the model, or a `!` command run locally); any later batches
                 // iterate at the following turn-ends. Held background completions
                 // settle first, like every turn end (docs/tools/background.md).
-                self.dispatch_after_turn();
+                if dispatch {
+                    self.dispatch_after_turn();
+                }
             }
             None => self.render.reset(),
         }

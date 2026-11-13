@@ -1215,6 +1215,9 @@ impl<'t> Session<'t> {
     /// position), the herdr pane's state, the transcript pre-render, and the
     /// detached-thread sweep.
     pub(crate) fn after_iteration(&mut self) {
+        for warning in self.models.credential_warnings() {
+            self.toast(warning, zeroth::app::ToastKind::Error);
+        }
         // The context gauge (docs/architecture/token-estimate.md): whatever this iteration
         // added to the history — a message sent, a tool's output — shows on
         // the footer now, at its calibrated estimate on top of the last usage

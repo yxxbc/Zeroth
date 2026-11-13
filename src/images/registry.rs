@@ -50,6 +50,9 @@ pub struct ImagePolicy {
     /// `false` before the boundary reports in, which is why a unit test that
     /// never sets a policy sees the pre-image behaviour.
     pub available: bool,
+    /// Whether the detected protocol paints true-colour terminal graphics.
+    /// Half-block rendering remains the fallback for ordinary terminals.
+    pub graphics: bool,
 }
 
 impl Default for ImagePolicy {
@@ -60,6 +63,7 @@ impl Default for ImagePolicy {
             auto_resize: true,
             font: DEFAULT_FONT_SIZE,
             available: false,
+            graphics: false,
         }
     }
 }
@@ -89,6 +93,31 @@ pub fn policy() -> ImagePolicy {
 pub fn showing() -> bool {
     let policy = policy();
     policy.show && policy.available
+}
+
+/// Whether the active terminal supports a native graphics protocol.
+#[must_use]
+pub fn graphics_available() -> bool {
+    let policy = policy();
+    policy.show && policy.available && policy.graphics
+}
+
+fn mascot_image_cell() -> &'static RwLock<Option<String>> {
+    static MASCOT_IMAGE: OnceLock<RwLock<Option<String>>> = OnceLock::new();
+    MASCOT_IMAGE.get_or_init(|| RwLock::new(None))
+}
+
+/// Publish the bundled mascot image's session-local cache path.
+pub fn set_mascot_image_path(path: Option<String>) {
+    if let Ok(mut guard) = mascot_image_cell().write() {
+        *guard = path;
+    }
+}
+
+/// The bundled mascot image path, when the boundary has materialized it.
+#[must_use]
+pub fn mascot_image_path() -> Option<String> {
+    mascot_image_cell().read().ok()?.clone()
 }
 
 /// Whether a large image is downscaled before it is sent to the model.

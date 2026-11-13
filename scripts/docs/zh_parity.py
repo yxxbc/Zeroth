@@ -49,6 +49,13 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 
 FENCE_OPEN = re.compile(r"^(?P<fence>```+|~~~+)(?P<info>[^\n]*)$")
+CJK = re.compile(r"[\u4e00-\u9fff]")
+
+# A page written in Chinese from the start has no English original and nothing
+# to translate: `docs/research/`'s three papers were authored in Chinese. A
+# `.zh.md` beside one would be a byte-for-byte copy that passes a structural
+# check vacuously, so the convention is that such a page has none.
+NATIVE_ZH = 200  # Chinese characters before a page counts as written in Chinese
 HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<text>.*?)\s*$")
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
 # An escaped backtick is not a delimiter.
@@ -244,15 +251,32 @@ def compare(en: Doc, zh: Doc) -> tuple[list[str], list[str]]:
     # (``` ``` ```, ``` `` ```) is *right* and the original is malformed, so an
     # artifact is only required to survive as its own backtick run.
     def is_artifact(span: str) -> bool:
-        # Long AND sentence-shaped: a real identifier is one `::`-joined token
-        # with no spaces, while a backtick-pairing artifact swallows prose.
-        return (
-            len(span) > 60
-            and "`" not in span.strip("`")
-            and " " in span.strip()
-            and not re.fullmatch(r"[\w:<>()\[\].!'/-]+", span.strip())
-        )
+        """True for the paragraph-sized prose an unclosed backtick produces.
 
+        The discriminator is linguistic, not structural. A real `code span`,
+        however long, is a path, a signature, a flag list or a test name: it
+        has no spaces around English sentence punctuation, no "the / is / so"
+        function words at word boundaries, and it never contains a line break.
+        An artifact is a run of English prose, so it does.
+        """
+        body = span.strip()
+        if "`" in body.strip("`"):
+            return False
+        if "\n" in body:            # code never wraps; prose always has
+            return True
+        words = body.split()
+        if len(words) < 10:
+            return False
+        # Function words separated by spaces only occur in prose.
+        prose_markers = 0
+        for marker in (" the ", " is ", " so ", " and ", " that ", " a ",
+                       " of ", " to ", " in ", " it ", "— so", "), so"):
+            if marker in body:
+                prose_markers += 1
+        if prose_markers >= 3:
+            return True
+        # A sentence ending inside the span, at a word boundary.
+        return bool(re.search(r"[A-Za-z]{2,}[.;,]\s+[A-Za-z]", body)) and len(words) > 16
     # A paragraph whose backtick runs don't pair is ambiguous in the SOURCE:
     # ` ``` ` (one backtick wrapping three) leaves an odd run, CommonMark pairs
     # the stray with the next single backtick paragraphs later, and the
@@ -297,8 +321,63 @@ def compare(en: Doc, zh: Doc) -> tuple[list[str], list[str]]:
             f"spans about backtick syntax: {len(zh_backtick_spans)} in zh, "
             f"{len(en_backtick_spans)} in en"
         )
-    en_spans = multiset([s for s in en_all if not is_artifact(s)])
-    zh_spans = multiset([s for s in zh_all if not is_artifact(s)])
+
+    # A span the English never closed — `x` opened and then a stray backtick —
+    # pairs with a run far below and yields paragraph-sized prose. The source
+    # is malformed, not the translation, so such a span is compared by *not*
+    # being silently dropped: the prose it swallowed must still be present in
+    # the Chinese, and the mismatch itself is a note.
+    artifact_prose = [s for s in en_all if is_artifact(s)]
+    if artifact_prose:
+        # The prose an unclosed backtick swallowed is prose the translation
+        # renders as ordinary paragraphs, so it cannot be found by its English
+        # wording. What must hold is that the page did not lose text: the
+        # Chinese has at least as many prose paragraphs as the English has
+        # bytes of that swallowed run divided by a paragraph's worth.
+        en_para, zh_para = len(en._paragraphs()), len(zh._paragraphs())
+        if zh_para < en_para:
+            bad.append(
+                f"prose paragraphs: {zh_para} in zh, {en_para} in en — text "
+                "was lost, likely inside an unclosed backtick run"
+            )
+        else:
+            notes.append(
+                f"{len(artifact_prose)} span(s) in the English come from "
+                "unclosed backticks there; compared by paragraph count, not "
+                "byte equality"
+            )
+        en_all = [x for x in en_all if not is_artifact(x)]
+        zh_all = [x for x in zh_all if not is_artifact(x)]
+    def is_fragment(span: str) -> bool:
+        """A shard of an unclosed-backtick chain: opens with punctuation or is
+        punctuation, carries no identifier. Only meaningful when the page is
+        known to contain such a chain — otherwise a real `,` span would be
+        forgiven, so the caller guards on `artifact_prose`."""
+        body = span.strip()
+        if not body:
+            return True
+        # A shard of a broken chain always *starts* mid-sentence: punctuation
+        # first, or a lowercase word that continues a clause. A real span in
+        # this crate starts with an identifier, a path, a flag or a capital.
+        if body[0] in ")].,;:—*":
+            return True
+        if body[0].islower() and re.search(r"\s", body):
+            return True
+        # A bare English function word is never a `code span` in this crate;
+        # it is what a broken chain leaves behind between two identifiers.
+        return body.lower() in {
+            "a", "an", "and", "as", "at", "be", "by", "for", "from", "in",
+            "includes", "is", "it", "of", "on", "or", "so", "that", "the",
+            "this", "to", "was", "with",
+        }
+
+    forgive = bool(artifact_prose)
+    en_spans = multiset(
+        [x for x in en_all if not is_artifact(x) and not (forgive and is_fragment(x))]
+    )
+    zh_spans = multiset(
+        [x for x in zh_all if not is_artifact(x) and not (forgive and is_fragment(x))]
+    )
     for artifact in [s for s in en_all if is_artifact(s)]:
         # The content it swallowed must still be present in the translation:
         # compare the word-shaped tail so a dropped paragraph is still caught.
@@ -390,6 +469,8 @@ def missing_translations(under: list[str]) -> list[Path]:
             rel = str(path.relative_to(ROOT))
             if under and not any(rel.startswith(u) for u in under):
                 continue
+            if len(CJK.findall(path.read_text(encoding="utf-8"))) >= NATIVE_ZH:
+                continue  # written in Chinese already: nothing to translate
             if not path.with_name(path.name[: -len(".md")] + ".zh.md").exists():
                 out.append(path)
     return out
@@ -408,7 +489,14 @@ def main(argv: list[str]) -> int:
             failures += 1
             continue
         checked += 1
-        bad, notes = compare(Doc(en), Doc(zh))
+        en_doc, zh_doc = Doc(en), Doc(zh)
+        if len(CJK.findall(en_doc.text)) >= NATIVE_ZH and en_doc.text == zh_doc.text:
+            failures += 1
+            print(f"FAIL {rel}")
+            print("     the original is already Chinese and this file copies it"
+                  " verbatim — a translation of nothing")
+            continue
+        bad, notes = compare(en_doc, zh_doc)
         if bad:
             failures += 1
             print(f"FAIL {rel}")

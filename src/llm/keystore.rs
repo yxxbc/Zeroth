@@ -59,21 +59,70 @@ impl EnvFile {
         value: &str,
         replaces: impl FnOnce(Option<&str>) -> bool,
     ) -> std::io::Result<Option<String>> {
-        use std::io::ErrorKind;
+        edit_store(path, |current| {
+            replaces(Self::parse(current).get(key)).then(|| Self::upsert(current, key, value))
+        })
+    }
 
-        static UPDATES: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _update = UPDATES.lock().unwrap_or_else(|error| error.into_inner());
-        let current = match std::fs::read_to_string(path) {
-            Ok(text) => text,
-            Err(error) if error.kind() == ErrorKind::NotFound => String::new(),
-            Err(error) => return Err(error),
-        };
-        if !replaces(Self::parse(&current).get(key)) {
-            return Ok(None);
-        }
-        let updated = Self::upsert(&current, key, value);
-        persist_private(path, &updated)?;
-        Ok(Some(updated))
+    /// Whether this provider was explicitly disconnected, even if a shell
+    /// exports a credential. Login clears the marker. See
+    /// `docs/providers/credential-lifecycle.md`.
+    #[must_use]
+    pub fn is_disabled(&self, provider: &str) -> bool {
+        self.get(&logout_marker(provider)) == Some("1")
+    }
+
+    /// Whether the credential shared by one or more providers was removed.
+    #[must_use]
+    pub fn key_disabled(&self, key: &str) -> bool {
+        self.get(&disabled_key_marker(key)) == Some("1")
+    }
+
+    /// Remove a connection's saved credential and aliases, and disable
+    /// environment fallbacks until the user signs in again.
+    ///
+    /// # Errors
+    /// Returns store read, lock or atomic-write failures; no credential is
+    /// reported as removed until the update succeeds.
+    pub fn disconnect(
+        path: &std::path::Path,
+        provider: &str,
+        key: &str,
+        aliases: &[&str],
+    ) -> std::io::Result<String> {
+        edit_store(path, |current| {
+            let removed = remove_keys(
+                current,
+                &std::iter::once(key)
+                    .chain(aliases.iter().copied())
+                    .collect::<Vec<_>>(),
+            );
+            let disabled = Self::upsert(&removed, &logout_marker(provider), "1");
+            Some(Self::upsert(&disabled, &disabled_key_marker(key), "1"))
+        })
+        .map(Option::unwrap_or_default)
+    }
+
+    /// Save a connection and clear its logout markers in the same update.
+    ///
+    /// # Errors
+    /// Returns store read, lock or atomic-write failures.
+    pub fn activate(
+        path: &std::path::Path,
+        provider: &str,
+        key: &str,
+        value: &str,
+    ) -> std::io::Result<String> {
+        edit_store(path, |current| {
+            let enabled = remove_keys(
+                current,
+                &[&logout_marker(provider), &disabled_key_marker(key)],
+            );
+            // Remove duplicate definitions too: deleting the first must never
+            // expose a second, older credential on the next logout or login.
+            Some(Self::upsert(&remove_keys(&enabled, &[key]), key, value))
+        })
+        .map(Option::unwrap_or_default)
     }
 
     /// Parse `.env` text into its key/value pairs. Malformed lines (no `=`, an
@@ -164,6 +213,296 @@ fn split_key_value(line: &str) -> Option<(&str, &str)> {
         Some((key, value))
     } else {
         None
+    }
+}
+
+fn logout_marker(provider: &str) -> String {
+    use std::fmt::Write;
+    let mut marker = String::from("ZEROTH_LOGGED_OUT_");
+    for byte in provider.bytes() {
+        let _ = write!(marker, "{byte:02X}");
+    }
+    marker
+}
+
+fn disabled_key_marker(key: &str) -> String {
+    format!("ZEROTH_CREDENTIAL_DISABLED_{key}")
+}
+
+fn remove_keys(text: &str, keys: &[&str]) -> String {
+    let lines: Vec<_> = text
+        .lines()
+        .filter(|line| !split_key_value(line).is_some_and(|(key, _)| keys.contains(&key)))
+        .collect();
+    if lines.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", lines.join("\n"))
+    }
+}
+
+fn read_store(path: &std::path::Path) -> std::io::Result<String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => Ok(text),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(error),
+    }
+}
+
+fn store_target(path: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+    match std::fs::canonicalize(path) {
+        Ok(path) => Ok(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let parent = path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or_else(|| std::path::Path::new("."));
+            let mut builder = std::fs::DirBuilder::new();
+            builder.recursive(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            builder.create(parent)?;
+            Ok(std::fs::canonicalize(parent)?.join(
+                path.file_name()
+                    .ok_or_else(|| std::io::Error::other("credential store has no file name"))?,
+            ))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn sidecar(path: &std::path::Path, suffix: &str) -> std::path::PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(format!(".{suffix}"));
+    path.with_file_name(name)
+}
+
+/// A separate inode survives atomic store replacement and kernel locks are
+/// released on crash. Lock failures never fall back to an unsafe refresh.
+struct StoreLock(std::fs::File);
+
+impl StoreLock {
+    fn acquire(path: &std::path::Path, timeout: std::time::Duration) -> std::io::Result<Self> {
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true).truncate(false).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let file = options.open(path)?;
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            match file.try_lock() {
+                Ok(()) => return Ok(Self(file)),
+                Err(std::fs::TryLockError::WouldBlock) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "another Zeroth process is updating this credential; try again",
+                    ));
+                }
+                Err(std::fs::TryLockError::Error(error)) => return Err(error),
+            }
+        }
+    }
+}
+
+impl Drop for StoreLock {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
+fn edit_store(
+    path: &std::path::Path,
+    edit: impl FnOnce(&str) -> Option<String>,
+) -> std::io::Result<Option<String>> {
+    static UPDATES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _update = UPDATES.lock().unwrap_or_else(|error| error.into_inner());
+    let path = store_target(path)?;
+    let _lock = StoreLock::acquire(&sidecar(&path, "lock"), std::time::Duration::from_secs(2))?;
+    let current = read_store(&path)?;
+    let Some(updated) = edit(&current) else {
+        return Ok(None);
+    };
+    persist_private(&path, &updated)?;
+    Ok(Some(updated))
+}
+
+/// One rotating credential's cross-process transaction. The store lock is
+/// acquired only for edits; logout never waits for this network-length lock.
+pub(crate) struct RefreshLease {
+    _lock: Option<StoreLock>,
+    path: Option<std::path::PathBuf>,
+    key: String,
+    token: String,
+}
+
+impl RefreshLease {
+    pub(crate) fn acquire(
+        path: Option<std::path::PathBuf>,
+        key: &str,
+        fallback: &str,
+    ) -> super::Result<Self> {
+        let Some(path) = path else {
+            return Ok(Self {
+                _lock: None,
+                path: None,
+                key: key.into(),
+                token: fallback.into(),
+            });
+        };
+        let path = store_target(&path).map_err(store_error)?;
+        let lock = StoreLock::acquire(
+            &sidecar(&path, &format!("refresh-{key}.lock")),
+            std::time::Duration::from_secs(35),
+        )
+        .map_err(store_error)?;
+        let env = EnvFile::parse(&read_store(&path).map_err(store_error)?);
+        if env.key_disabled(key) {
+            return Err(disconnected());
+        }
+        let token = env
+            .get(key)
+            .filter(|t| !t.is_empty())
+            .unwrap_or(fallback)
+            .to_string();
+        Ok(Self {
+            _lock: Some(lock),
+            path: Some(path),
+            key: key.into(),
+            token,
+        })
+    }
+
+    pub(crate) fn token(&self) -> &str {
+        &self.token
+    }
+
+    pub(crate) fn ensure_enabled(&self) -> super::Result<()> {
+        if let Some(path) = &self.path
+            && EnvFile::parse(&read_store(path).map_err(store_error)?).key_disabled(&self.key)
+        {
+            return Err(disconnected());
+        }
+        Ok(())
+    }
+}
+
+fn disconnected() -> super::LlmError {
+    super::LlmError::Decode("This connection is signed out. Run /login to reconnect.".into())
+}
+
+fn store_error(error: std::io::Error) -> super::LlmError {
+    super::LlmError::Decode(format!("Could not access the credential store: {error}"))
+}
+
+fn active_store() -> &'static std::sync::Mutex<Option<std::path::PathBuf>> {
+    static STORE: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
+    &STORE
+}
+
+fn provider_keys() -> &'static std::sync::Mutex<std::collections::HashMap<String, String>> {
+    static KEYS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, String>>> =
+        std::sync::OnceLock::new();
+    KEYS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+/// Register the provider file's credential names, including user overrides.
+pub fn set_provider_keys(keys: impl IntoIterator<Item = (String, String)>) {
+    *provider_keys().lock().unwrap_or_else(|e| e.into_inner()) = keys.into_iter().collect();
+}
+
+pub(crate) fn provider_key(provider: &str) -> Option<String> {
+    provider_keys()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(provider)
+        .cloned()
+}
+
+/// Set the store consulted before outbound requests, so logout in another
+/// process also disables already-built model configurations.
+pub fn set_store_path(path: std::path::PathBuf) {
+    *active_store().lock().unwrap_or_else(|e| e.into_inner()) = Some(path);
+}
+
+pub(crate) fn ensure_connection_enabled(provider: &str) -> super::Result<()> {
+    let path = active_store()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if let Some(path) = path {
+        let env = EnvFile::parse(&read_store(&path).map_err(store_error)?);
+        let key = provider_keys()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(provider)
+            .cloned();
+        if env.is_disabled(provider) || key.is_some_and(|key| env.key_disabled(&key)) {
+            return Err(disconnected());
+        }
+    }
+    Ok(())
+}
+
+fn warnings() -> &'static std::sync::Mutex<Vec<(std::path::PathBuf, String)>> {
+    static WARNINGS: std::sync::Mutex<Vec<(std::path::PathBuf, String)>> =
+        std::sync::Mutex::new(Vec::new());
+    &WARNINGS
+}
+
+/// Take credential-persistence warnings for this store, for the TUI's visible
+/// notice or headless stderr. Messages never contain token values.
+pub fn take_credential_warnings(path: &std::path::Path) -> Vec<String> {
+    let mut warnings = warnings().lock().unwrap_or_else(|e| e.into_inner());
+    let mut taken = Vec::new();
+    warnings.retain(|(store, message)| {
+        if store == path {
+            taken.push(message.clone());
+            false
+        } else {
+            true
+        }
+    });
+    taken
+}
+
+pub(crate) fn persist_rotation(
+    path: &std::path::Path,
+    key: &str,
+    rotated: &str,
+    chain: &[&str],
+) -> bool {
+    let result = edit_store(path, |text| {
+        let env = EnvFile::parse(text);
+        (!env.key_disabled(key)
+            && env
+                .get(key)
+                .is_none_or(|held| held.is_empty() || chain.contains(&held)))
+        .then(|| EnvFile::upsert(text, key, rotated))
+    });
+    match result {
+        Ok(updated) => updated.is_some(),
+        Err(error) => {
+            let notice = (
+                path.to_path_buf(),
+                format!(
+                    "Refreshed credential {key} could not be saved: {error}. This session can continue, but you may need /login after restarting. Check the credential store's permissions and disk space."
+                ),
+            );
+            let mut warnings = warnings().lock().unwrap_or_else(|e| e.into_inner());
+            if !warnings.contains(&notice) {
+                warnings.push(notice);
+            }
+            false
+        }
     }
 }
 
@@ -318,6 +657,130 @@ fn persist_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn logout_removes_aliases_and_masks_environment_fallbacks_until_login() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".env");
+        std::fs::write(
+            &path,
+            "# keep\nTOKEN=first\nexport TOKEN=duplicate\nOLD_TOKEN=old\nOTHER=untouched\n",
+        )
+        .unwrap();
+        let text = EnvFile::disconnect(&path, "example-account", "TOKEN", &["OLD_TOKEN"]).unwrap();
+        let env = EnvFile::parse(&text);
+        assert!(env.is_disabled("example-account"));
+        assert!(env.get("TOKEN").is_none());
+        assert!(env.get("OLD_TOKEN").is_none());
+        assert_eq!(env.get("OTHER"), Some("untouched"));
+        assert!(text.starts_with("# keep\n"));
+        assert!(!persist_rotation(
+            &path,
+            "TOKEN",
+            "late-refresh",
+            &["first"]
+        ));
+        assert!(
+            EnvFile::parse(&std::fs::read_to_string(&path).unwrap())
+                .get("TOKEN")
+                .is_none()
+        );
+        let text = EnvFile::activate(&path, "example-account", "TOKEN", "signed-in-again").unwrap();
+        let env = EnvFile::parse(&text);
+        assert!(!env.is_disabled("example-account"));
+        assert_eq!(env.get("TOKEN"), Some("signed-in-again"));
+        assert!(persist_rotation(
+            &path,
+            "TOKEN",
+            "rotated",
+            &["signed-in-again"]
+        ));
+    }
+
+    #[test]
+    fn refresh_uses_the_latest_token_and_logout_stops_its_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".env");
+        EnvFile::update(&path, "TOKEN", "another-process-rotated").unwrap();
+        let lease = RefreshLease::acquire(Some(path.clone()), "TOKEN", "stale-in-memory").unwrap();
+        assert_eq!(lease.token(), "another-process-rotated");
+        EnvFile::disconnect(&path, "example", "TOKEN", &[]).unwrap();
+        assert!(lease.ensure_enabled().is_err());
+        drop(lease);
+        assert!(RefreshLease::acquire(Some(path), "TOKEN", "stale-in-memory").is_err());
+    }
+
+    #[test]
+    fn failed_rotation_is_reported_without_disclosing_the_credential() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("not-a-file");
+        std::fs::create_dir(&path).unwrap();
+        assert!(!persist_rotation(
+            &path,
+            "TOKEN",
+            "DO-NOT-DISCLOSE",
+            &["old-secret"]
+        ));
+        let notices = take_credential_warnings(&path);
+        assert_eq!(notices.len(), 1);
+        assert!(notices[0].contains("could not be saved"));
+        assert!(!notices[0].contains("DO-NOT-DISCLOSE"));
+        assert!(!notices[0].contains("old-secret"));
+    }
+
+    #[test]
+    fn logout_markers_distinguish_provider_ids_that_sanitize_alike() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".env");
+        let text = EnvFile::disconnect(&path, "a-b", "TOKEN", &[]).unwrap();
+        let env = EnvFile::parse(&text);
+        assert!(env.is_disabled("a-b"));
+        assert!(!env.is_disabled("a_b"));
+    }
+
+    #[test]
+    fn credential_store_process_worker() {
+        let Some(path) = std::env::var_os("ZEROTH_TEST_CREDENTIAL_STORE") else {
+            return;
+        };
+        let path = std::path::PathBuf::from(path);
+        std::fs::write(path.with_extension("ready"), "ready").unwrap();
+        EnvFile::update(&path, "TOKEN", "after").unwrap();
+    }
+
+    #[test]
+    fn credential_store_updates_wait_for_another_process() {
+        use std::time::{Duration, Instant};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".env");
+        std::fs::write(&path, "TOKEN=before\n").unwrap();
+        let lock = std::fs::File::create(dir.path().join(".env.lock")).unwrap();
+        lock.lock().unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "llm::keystore::tests::credential_store_process_worker",
+            ])
+            .env("ZEROTH_TEST_CREDENTIAL_STORE", &path)
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !path.with_extension("ready").exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let ready = path.with_extension("ready").exists();
+        std::thread::sleep(Duration::from_millis(150));
+        let while_locked = std::fs::read_to_string(&path).unwrap();
+        drop(lock);
+        assert!(child.wait().unwrap().success());
+        assert!(ready, "the child reached the credential update");
+        assert_eq!(
+            while_locked, "TOKEN=before\n",
+            "another process must not bypass the store lock"
+        );
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "TOKEN=after\n");
+    }
 
     // ===== the secrets file (docs/state/secrets.md) =====
 

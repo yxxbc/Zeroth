@@ -1335,7 +1335,11 @@ fn fetch_email(bearer: &str) -> Option<String> {
 /// A refresh Google refused, a `loadCodeAssist` that failed, or a transport
 /// failure.
 pub fn authorize(refresh_token: &str, base: &str) -> Result<Access> {
-    let bearer = bearer_for(refresh_token)?;
+    authorize_for(refresh_token, base, REFRESH_ENV_VAR)
+}
+
+pub(crate) fn authorize_for(refresh_token: &str, base: &str, key_env: &str) -> Result<Access> {
+    let bearer = bearer_for(refresh_token, key_env)?;
     let key = live_refresh_token(refresh_token);
     let known = setups().lock().ok().and_then(|map| map.get(&key).cloned());
     let setup = match known {
@@ -1367,7 +1371,15 @@ pub fn authorize(refresh_token: &str, base: &str) -> Result<Access> {
 }
 
 /// The bearer for `refresh_token`: cached, else minted under the gate.
-fn bearer_for(refresh_token: &str) -> Result<String> {
+pub(crate) fn invalidate_access(token: &str) {
+    let current = live_refresh_token(token);
+    if let Ok(mut map) = bearers().lock() {
+        map.remove(token);
+        map.remove(&current);
+    }
+}
+
+fn bearer_for(refresh_token: &str, key_env: &str) -> Result<String> {
     if let Some(bearer) = cached_bearer(refresh_token) {
         return Ok(bearer);
     }
@@ -1375,16 +1387,33 @@ fn bearer_for(refresh_token: &str) -> Result<String> {
     if let Some(bearer) = cached_bearer(refresh_token) {
         return Ok(bearer);
     }
-    let presented = live_refresh_token(refresh_token);
+    let fallback = live_refresh_token(refresh_token);
+    let lease = super::keystore::RefreshLease::acquire(
+        setting(&STORE_PATH).map(std::path::PathBuf::from),
+        key_env,
+        &fallback,
+    )?;
+    let presented = lease.token().to_string();
+    if presented != fallback
+        && let Ok(mut map) = rotations().lock()
+    {
+        for target in map.values_mut() {
+            if *target == fallback {
+                target.clone_from(&presented);
+            }
+        }
+        map.insert(refresh_token.to_string(), presented.clone());
+    }
     let started = Instant::now();
     let tokens = post_form(&token_url(), refresh_body(&presented))?;
+    lease.ensure_enabled()?;
     let bearer = tokens.access_token.clone().unwrap_or_default();
     let key = match tokens
         .refresh_token
         .filter(|t| !t.is_empty() && *t != presented)
     {
         Some(rotated) => {
-            persist_refresh(&rotated, &[refresh_token, &presented]);
+            persist_refresh(key_env, &rotated, &[refresh_token, &presented]);
             if let Ok(mut map) = rotations().lock() {
                 for target in map.values_mut() {
                     if *target == presented {
@@ -1418,22 +1447,18 @@ fn bearer_for(refresh_token: &str) -> Result<String> {
             );
         }
     }
+    lease.ensure_enabled()?;
     Ok(bearer)
 }
 
 /// Write a rotated refresh token back into the `.env` store — only while the
 /// store still holds this session's own chain (or nothing), so a sign-in
 /// that landed meanwhile is never overwritten. Best-effort.
-fn persist_refresh(rotated: &str, chain: &[&str]) {
+fn persist_refresh(key: &str, rotated: &str, chain: &[&str]) {
     let Some(path) = setting(&STORE_PATH) else {
         return;
     };
-    let _ = super::EnvFile::update_if(
-        std::path::Path::new(&path),
-        REFRESH_ENV_VAR,
-        rotated,
-        |held| held.is_none_or(|held| held.is_empty() || chain.contains(&held)),
-    );
+    super::keystore::persist_rotation(std::path::Path::new(&path), key, rotated, chain);
 }
 
 /// The catalog answer for the account — `fetchAvailableModels` for its

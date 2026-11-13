@@ -964,7 +964,7 @@ pub fn cursor_visible(app: &App) -> bool {
     if let Some(onboarding) = &app.key_onboarding
         && matches!(
             onboarding.step,
-            KeyStep::Device | KeyStep::SigninMethod | KeyStep::Method
+            KeyStep::Device | KeyStep::SigninMethod | KeyStep::Method | KeyStep::ConfirmLogout
         )
     {
         return false;
@@ -1333,7 +1333,7 @@ pub fn cursor_position(area: Rect, app: &App) -> (u16, u16) {
             // their title, off the rows, wherever a short terminal's rungs
             // left it — the page's first text row, since a title is the one
             // row the question never sheds.
-            KeyStep::Method | KeyStep::SigninMethod => {
+            KeyStep::Method | KeyStep::SigninMethod | KeyStep::ConfirmLogout => {
                 (0, title_row(&lines).unwrap_or(DEVICE_CURSOR_ROW))
             }
             // The device page has no field at all; the caret parks at the
@@ -1347,7 +1347,7 @@ pub fn cursor_position(area: Rect, app: &App) -> (u16, u16) {
             ),
             // The three lists are one shape — none carries a title — so their
             // filter is the frame's first content row.
-            KeyStep::Subscription | KeyStep::Provider | KeyStep::Local => {
+            KeyStep::Subscription | KeyStep::Provider | KeyStep::Local | KeyStep::Connections => {
                 (cols(&onboarding.query), prompt.unwrap_or(DEVICE_CURSOR_ROW))
             }
             // After what was typed: the address as typed, or one mask glyph

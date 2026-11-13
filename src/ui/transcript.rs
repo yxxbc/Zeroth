@@ -60,7 +60,7 @@ fn transcript_build(app: &App, width: u16) -> (Vec<Line<'static>>, Option<Range<
 /// output, or a summary/background notice) plus its trailing blank spacer,
 /// self-contained so [`TranscriptCache`] can render each committed item
 /// exactly once and only ever append. The spacer is skipped after a shell
-/// command's header ([`is_shell_header`]): its tool's `⎿` output sits flush
+/// command's header (`is_shell_header`): its tool's `⎿` output sits flush
 /// below it, whether that tool is already in history or still the running
 /// live tail, so the overlay renders the same exec cell as the inline view.
 ///

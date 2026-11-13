@@ -404,8 +404,16 @@ fn forgotten() -> &'static Mutex<Vec<String>> {
     &FORGOTTEN
 }
 
-/// Resolve aliases before the lookup: another config may have refreshed the
-/// same account while this config still holds an older refresh token.
+/// Drop only the bearer, retaining the current refresh-token chain.
+pub(crate) fn invalidate_access(token: &str) {
+    let current = live_refresh_token(token);
+    if let Ok(mut map) = cache().lock() {
+        map.remove(token);
+        map.remove(&current);
+    }
+}
+
+/// Resolve old configurations through the latest in-memory rotation.
 fn cached_access(refresh_token: &str) -> Option<Access> {
     let presented = live_refresh_token(refresh_token);
     let map = cache().lock().ok()?;
@@ -716,6 +724,18 @@ fn authorize_with(
     refresh_token: &str,
     refresh: impl FnOnce(&str) -> Result<TokenSet>,
 ) -> Result<Access> {
+    authorize_with_key(refresh_token, REFRESH_ENV_VAR, refresh)
+}
+
+pub(crate) fn authorize_for(refresh_token: &str, key: &str) -> Result<Access> {
+    authorize_with_key(refresh_token, key, exchange_refresh)
+}
+
+fn authorize_with_key(
+    refresh_token: &str,
+    key: &str,
+    refresh: impl FnOnce(&str) -> Result<TokenSet>,
+) -> Result<Access> {
     if let Some(access) = cached_access(refresh_token) {
         return Ok(access);
     }
@@ -727,9 +747,19 @@ fn authorize_with(
     }
     // What to actually present: the stored token, or whatever a previous
     // rotation turned it into. The config still holds the original.
-    let presented = live_refresh_token(refresh_token);
+    let fallback = live_refresh_token(refresh_token);
+    let lease = super::keystore::RefreshLease::acquire(
+        store_path().lock().ok().and_then(|path| path.clone()),
+        key,
+        &fallback,
+    )?;
+    let presented = lease.token().to_string();
+    if presented != fallback {
+        note_rotation(refresh_token, &fallback, &presented);
+    }
     let refresh_started = Instant::now();
     let tokens = refresh(&presented)?;
+    lease.ensure_enabled()?;
     let access = access_from(&tokens)?;
     let lifetime = cache_lifetime(tokens.expires_in);
     // The alias map keeps old configs working; only the current alias needs
@@ -738,7 +768,7 @@ fn authorize_with(
         .refresh_token
         .filter(|t| !t.is_empty() && *t != presented)
     {
-        persist_refresh(&rotated, &[refresh_token, &presented]);
+        persist_refresh(key, &rotated, &[refresh_token, &presented]);
         note_rotation(refresh_token, &presented, &rotated);
         rotated
     } else {
@@ -772,6 +802,7 @@ fn authorize_with(
             );
         }
     }
+    lease.ensure_enabled()?;
     Ok(access)
 }
 
@@ -796,14 +827,17 @@ fn exchange_refresh(presented: &str) -> Result<TokenSet> {
 
 /// Write a rotated refresh token back into the `.env` key store, in place
 /// — [`persist_refresh_to`] at the store the boundary named. Best-effort: a
-/// store we cannot write still leaves a working session, and the failure
-/// surfaces as a re-login at the next launch rather than a mid-turn error
-/// the user can do nothing about.
-fn persist_refresh(rotated: &str, chain: &[&str]) {
+/// store we cannot write leaves the live session usable and queues a visible
+/// warning; the next launch may require signing in again.
+fn persist_refresh(key: &str, rotated: &str, chain: &[&str]) {
     let Some(path) = store_path().lock().ok().and_then(|p| p.clone()) else {
         return;
     };
-    persist_refresh_to(&path, rotated, chain);
+    if key == REFRESH_ENV_VAR {
+        persist_refresh_to(&path, rotated, chain);
+    } else {
+        super::keystore::persist_rotation(&path, key, rotated, chain);
+    }
 }
 
 /// Write `rotated` under [`REFRESH_ENV_VAR`] in the store at `path`, but
@@ -815,10 +849,7 @@ fn persist_refresh(rotated: &str, chain: &[&str]) {
 /// not overwrite it: the next launch would present a retired token and
 /// force the re-login the sign-in had just done. Returns whether it wrote.
 fn persist_refresh_to(path: &std::path::Path, rotated: &str, chain: &[&str]) -> bool {
-    super::EnvFile::update_if(path, REFRESH_ENV_VAR, rotated, |current| {
-        current.is_none_or(|held| held.is_empty() || chain.contains(&held))
-    })
-    .is_ok_and(|written| written.is_some())
+    super::keystore::persist_rotation(path, REFRESH_ENV_VAR, rotated, chain)
 }
 
 /// What the sign-in confirmation names beside the provider: the organisation

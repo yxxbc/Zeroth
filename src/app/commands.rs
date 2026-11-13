@@ -122,6 +122,8 @@ pub enum CommandEffect {
     /// `/model` — saving a key never touches the running turn. See `docs/providers/llm.md`
     /// / `docs/ui/toast.md`.
     Login,
+    /// Open the shared account/API-key disconnection page.
+    Logout,
     /// Open the inline `/settings` menu — the session's togglable knobs.
     /// Works **mid-turn** like `/model`: it only replaces the composer, and a
     /// change that rebuilds the backend rebinds the *next* turn. See
@@ -283,6 +285,11 @@ pub const COMMANDS: &[SlashCommand] = &[
         "login",
         "Sign in, add an API key, or connect a local model",
         CommandEffect::Login,
+    ),
+    SlashCommand::builtin(
+        "logout",
+        "Sign out of an account or remove an API key",
+        CommandEffect::Logout,
     ),
     SlashCommand::builtin("settings", "Open settings menu", CommandEffect::Settings),
     SlashCommand::builtin("theme", "Choose the colour theme", CommandEffect::Theme),
@@ -769,6 +776,7 @@ impl App {
                 // opens the onboarding inline. See docs/providers/llm.md / docs/ui/toast.md.
                 Action::OpenKeyOnboarding
             }
+            CommandEffect::Logout => Action::OpenLogout,
             CommandEffect::Settings => {
                 // /settings works mid-turn for the same reason: it replaces
                 // only the composer, and a change that rebuilds the backend

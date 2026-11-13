@@ -236,11 +236,17 @@ path.
 ### Where a key comes from: `.env` persistence
 
 Because `std::env::set_var` is `unsafe` (this crate `forbid`s unsafe), the app
-never mutates the process environment. Instead the `.env` file is loaded once at
-startup into an in-memory `llm::keystore::EnvFile` map. Key resolution
+never mutates the process environment. Instead the `.env` file is loaded at
+startup into an in-memory `llm::keystore::EnvFile` map, and re-read when
+`/login` or `/model` opens. Key resolution
 (`tui::config::resolve_api_key`) checks the **real process env first** (dotenv
 precedence — an exported `OPENROUTER_API_KEY` still wins) and falls back to the
 `.env` map, so a key set either way is found.
+
+Explicit logout disables the connection before either fallback is consulted.
+For rotating account credentials, the latest saved refresh token takes precedence
+over an older exported token. File edits and refreshes coordinate across processes;
+see [credential lifecycle](credential-lifecycle.md).
 
 `EnvFile` is a small **pure, tested** `.env` reader/writer: `parse` reads
 `KEY=VALUE` pairs (comments, blanks, `export ` prefix, and quotes handled), and

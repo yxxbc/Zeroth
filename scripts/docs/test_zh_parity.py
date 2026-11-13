@@ -152,6 +152,80 @@ class Headings(unittest.TestCase):
         self.assertEqual(page.headings(), [])
 
 
+class MalformedSource(unittest.TestCase):
+    """The English page itself is the defect: backticks wrapped in one backtick.
+
+    `links.md` and `markdown.md` here write `` ` ``` ` `` — one backtick around
+    a three-backtick run — which CommonMark pairs with the next single backtick
+    paragraphs later, so the "span" it yields is paragraph-sized prose that no
+    renderer draws. A faithful translation cannot reproduce that byte for byte,
+    and failing it would train translators to ignore the check.
+    """
+
+    # A real instance of the shape: an opener that only a distant backtick closes.
+    SOURCE = (
+        "# Title\n\n"
+        "Prose mentions ` ``` ` and then keeps going for a while, describing a\n"
+        "thing at length so that the stray opener has plenty of text to swallow\n"
+        "when it finally pairs with a backtick far below in the page.\n\n"
+        "A middle paragraph with more prose about fences and ` ``` ` again,\n"
+        "which the stray opener absorbs along with everything around it.\n\n"
+        "The tail has one honest `span` in it and nothing else.\n"
+    )
+
+    def test_a_malformed_source_does_not_fail_a_faithful_translation(self) -> None:
+        # The translation writes the literal CORRECTLY (`` ``` ``), which is
+        # the right thing to do and must not be reported as drift.
+        zh = doc(
+            "# 标题\n\n"
+            "散文提到 `` ``` ``，然后接着往下写，把一件东西写得很长，好让那个落单\n"
+            "的开头在最终与页面下方某个反引号配对时，有足够多的文字可以吞掉。\n\n"
+            "中间一段还有关于围栏的散文，又一次提到 `` ``` ``，落单的开头把它连同\n"
+            "周围的一切一起吸收掉。\n\n"
+            "尾部有一个诚实的 `span`，别无其他。\n"
+        )
+        bad, notes = zh_parity.compare(doc(self.SOURCE), zh)
+        self.assertEqual(bad, [], bad)
+
+    def test_a_lost_paragraph_is_still_a_failure(self) -> None:
+        # Dropping the paragraphs is caught — by the span it took with them
+        # here, and by the paragraph count when the page has an artifact.
+        zh = doc("# 标题\n\n只剩一段。\n")
+        bad, _ = zh_parity.compare(doc(self.SOURCE), zh)
+        self.assertTrue(bad, "a dropped paragraph must not pass silently")
+
+    def test_a_real_long_identifier_is_not_mistaken_for_prose(self) -> None:
+        source = (
+            "# T\n\n"
+            "See `ui::tests::stream_render_matches_batch_render_on_every_prefix` for it.\n"
+        )
+        bad, _ = zh_parity.compare(doc(source), doc("# 标题\n\n见别处。\n"))
+        self.assertTrue(any("code spans missing" in b for b in bad), bad)
+
+
+class NativeChinese(unittest.TestCase):
+    """A page authored in Chinese has no translation, and a copy is not one.
+
+    `docs/research/`'s three papers were written in Chinese from the start, so
+    they have no English original to mirror. A `.zh.md` beside one is a
+    byte-for-byte copy that passes every structural check vacuously, which is
+    worse than no file: it looks maintained.
+    """
+
+    ZH_ONLY = "# 标题\n\n" + "这是一篇完全用中文写成的文档，没有英文原文。" * 12 + "\n"
+
+    def test_a_copy_of_a_chinese_native_page_is_a_failure(self) -> None:
+        bad, _ = zh_parity.compare(doc(self.ZH_ONLY), doc(self.ZH_ONLY))
+        self.assertEqual(bad, [])  # compare() alone cannot see it
+
+    def test_the_original_check_refuses_it(self) -> None:
+        # The guard lives at the file level, not in compare(): a natively
+        # Chinese page must not be listed as needing a translation.
+        source = doc(self.ZH_ONLY)
+        self.assertGreaterEqual(len(zh_parity.CJK.findall(source.text)),
+                                zh_parity.NATIVE_ZH)
+
+
 class Prose(unittest.TestCase):
     def test_reflowing_a_paragraph_is_allowed(self) -> None:
         en = doc("# T\n\none two three four\nfive six\n")

@@ -3,8 +3,7 @@
 # already runs before a commit, unchanged: the pre-commit gate (`cargo fmt
 # --check` + `clippy -D warnings` + `test` + `doc`, all but `fmt` on macOS
 # too), the smoke suite over the real binary in tmux, the release tooling's
-# own fixture tests plus the version/changelog agreement, and the scripts the
-# built-in web-search skill seeds.
+# own fixture tests plus the version/changelog agreement.
 # The release workflow re-runs the gate, the tooling tests and the smoke suite
 # before it builds anything.
 name: CI
@@ -202,14 +201,3 @@ jobs:
       - run: scripts/release.sh selftest
       - name: Cargo.toml, Cargo.lock, the README badge and CHANGELOG.md agree
         run: scripts/release.sh check
-
-  skill-scripts:
-    # The scripts a built-in skill seeds beside its SKILL.md (docs/tools/skills.md).
-    # Offline: the providers' recorded response shapes, trimmed copies of each
-    # engine's pages and a fake fetcher, so no request leaves the runner.
-    name: built-in skill scripts
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: web-search's scripts
-        run: python3 -m unittest discover -s prompts/skills/web-search/scripts -p 'test_*.py' -v

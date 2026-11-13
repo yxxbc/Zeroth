@@ -25,6 +25,7 @@ fn drawing(max_cols: u16) -> MutexGuard<'static, ()> {
         max_cols,
         auto_resize: true,
         font: (10, 20),
+        graphics: false,
     });
     guard
 }

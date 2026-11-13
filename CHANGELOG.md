@@ -18,6 +18,14 @@ release heading when a version is cut.
 
 ### Added
 
+- **Accounts and API keys can now be disconnected.** The login menu adds
+  connection management, with a command opening the same page. Confirmation
+  removes local credentials and cached authentication, and prevents environment
+  fallbacks or an in-flight refresh from restoring a logged-out connection.
+  Login restores the connection. OAuth refreshes now coordinate across processes,
+  report persistence failures, and recover once from an unauthorized inference
+  request. See [credential lifecycle](docs/providers/credential-lifecycle.md).
+
 - **Typing on a long draft no longer copies its wrapping every frame.** The
   composer's wrap cache now hands out a shared `Arc<[Range<usize>]>`;
   `display_rows`, `row_count`, `cursor_row_col`, vertical motion and the
@@ -193,6 +201,22 @@ release heading when a version is cut.
   (`docs/tools/hooks.md`).
 
 ### Fixed
+
+- **`install.sh --preview` now shows the banner an install actually draws.**
+  It played the text mascot under a stale "the one-line installer" caption
+  even on terminals that get the image banner — the one run a user makes to
+  see a theme before installing told them something that was not there. The
+  preview now goes through the same banner path as an install, artwork
+  fetched the same way, falling back to the text mascot when the fetch
+  fails; it still looks up no release and installs nothing. Its cursor is
+  restored if it is interrupted, which the early `exit` used to skip. The
+  image itself also arrives whole now: the chunk count came from `wc -l`,
+  which BSD `fold` undercounts because it does not newline-terminate its
+  last line, so the real tail went out flagged "more to come" and the
+  terminal waited for bytes that never came (`EBADPNG`, half a banner). The
+  protocol's reply to a transmit is suppressed (`q=2`) as well — it is
+  written to the terminal's *input*, and the shell read the error as a
+  command once the installer had exited (`docs/ops/release.md`).
 
 - **The Antigravity sign-in no longer freezes — or crashes — the interface.**
   Its reachability probe (a 30-second `HEAD`) ran on the async event loop and

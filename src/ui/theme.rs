@@ -1240,6 +1240,10 @@ pub(super) const LOGIN_PROVIDER_HINT: &str = "↑↓ navigate  enter select  esc
 
 /// The dim hint under the local server list (`docs/providers/local-models.md`).
 pub(super) const LOGIN_LOCAL_HINT: &str = "↑↓ navigate  enter connect  esc back";
+pub(super) const LOGIN_LOGOUT_HINT: &str = "↑↓ navigate  enter select  esc back";
+pub(super) const LOGIN_LOGOUT_CONFIRM_HINT: &str =
+    "Removes local credentials only · Esc to go back";
+pub(super) const LOGIN_NO_CONNECTIONS: &str = "No connected accounts or API keys";
 
 /// The list placeholder when the local server filter matches nothing.
 pub(super) const LOGIN_NO_LOCAL_MATCH: &str = "No matching servers";

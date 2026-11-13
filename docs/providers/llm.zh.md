@@ -212,10 +212,15 @@ skills、agents、looks 和 trust 留在原地，旧目录永不被修改——�
 ### key 从哪来：`.env` 持久化
 
 因为 `std::env::set_var` 是 `unsafe`（本 crate `forbid` unsafe），应用从不修改
-进程环境。而是把 `.env` 文件在启动时加载一次进一个内存里的
-`llm::keystore::EnvFile` map。key 解析（`tui::config::resolve_api_key`）先看
+进程环境。而是把 `.env` 文件在启动时加载进一个内存里的
+`llm::keystore::EnvFile` map，并在 `/login` 或 `/model` 打开时重读。
+key 解析（`tui::config::resolve_api_key`）先看
 **真实的进程环境**（dotenv 的优先级——一个导出的 `OPENROUTER_API_KEY` 仍然
 胜出），再退到 `.env` map，所以两种方式设的 key 都找得到。
+
+主动退出会在查询任何回退来源之前禁用该连接。对于会轮换的账户凭据，最近保存的
+refresh token 优先于导出的旧 token。文件修改和刷新在进程之间协调，详见
+[凭据生命周期](credential-lifecycle.md)。
 
 `EnvFile` 是一个小的、**纯的、有测试的** `.env` 读写器：`parse` 读 `KEY=VALUE`
 对（注释、空行、`export ` 前缀和引号都处理），而 `upsert` **就地**重写一个

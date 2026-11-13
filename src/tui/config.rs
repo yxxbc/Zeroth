@@ -166,6 +166,18 @@ pub(crate) fn resolve_api_key(
     provider: &str,
 ) -> Option<String> {
     let key_env = key_env_name(providers, provider);
+    if env_file.is_disabled(provider) || env_file.key_disabled(&key_env) {
+        return None;
+    }
+    // Rotating OAuth credentials on disk are newer than an exported token
+    // from the shell that launched this process.
+    if providers
+        .get(provider)
+        .is_some_and(|p| p.auth.is_subscription())
+        && let Some(key) = env_file.get(&key_env).filter(|key| !key.is_empty())
+    {
+        return Some(key.to_string());
+    }
     resolve_env(env_file, &key_env)
         .or_else(|| {
             zeroth::llm::chatgpt::legacy_key_env(&key_env)
@@ -315,6 +327,9 @@ fn choices_where(
 /// llama.cpp or vLLM server a user described in their own file — is
 /// configured by that description alone (`docs/providers/user-providers.md`).
 fn is_configured(providers: &ProvidersFile, env_file: &EnvFile, id: &str) -> bool {
+    if env_file.is_disabled(id) || env_file.key_disabled(&key_env_name(providers, id)) {
+        return false;
+    }
     let provider = providers.get(id);
     let keyed = resolve_api_key(providers, env_file, id).is_some();
     let host_var = provider
@@ -1684,6 +1699,35 @@ pub(crate) fn mcp_tool_timeout() -> std::time::Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn logout_masks_specific_and_generic_credentials_and_login_restores_resolution() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".env");
+        std::fs::write(&path, "OPENROUTER_API_KEY=old\nZEROTH_API_KEY=generic\n").unwrap();
+        let text = EnvFile::disconnect(&path, "openrouter", "OPENROUTER_API_KEY", &[]).unwrap();
+        let providers = ProvidersFile::builtin();
+        assert_eq!(
+            resolve_api_key(&providers, &EnvFile::parse(&text), "openrouter"),
+            None
+        );
+        assert!(!is_configured(
+            &providers,
+            &EnvFile::parse(&text),
+            "openrouter"
+        ));
+        let text = EnvFile::activate(
+            &path,
+            "chatgpt_codex",
+            "CHATGPT_CODEX_REFRESH_TOKEN",
+            "freshly-rotated",
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_api_key(&providers, &EnvFile::parse(&text), "chatgpt_codex").as_deref(),
+            Some("freshly-rotated")
+        );
+    }
 
     fn write(path: &Path, body: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();

@@ -362,7 +362,8 @@ pub(super) fn sample_locals() -> Vec<LocalChoice> {
 /// Drive the flow to the local server list (the method step's third row).
 pub(super) fn local_app() -> App {
     let mut app = login_app();
-    app.on_key(key(KeyCode::Up)); // wraps to "Sign in with a local model"
+    app.on_key(key(KeyCode::Down));
+    app.on_key(key(KeyCode::Down)); // the local-model row precedes connection management
     app.on_key(key(KeyCode::Enter));
     assert_eq!(app.key_onboarding.as_ref().unwrap().step, KeyStep::Local);
     app

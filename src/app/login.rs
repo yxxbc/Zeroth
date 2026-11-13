@@ -44,6 +44,10 @@ pub enum KeyStep {
     /// and its API token, when the server turns out to want one
     /// ([`ServerPage`], `docs/providers/local-models.md`).
     Server,
+    /// Connected accounts and API keys, shared by `/login` and `/logout`.
+    Connections,
+    /// Confirm local removal of the pinned connection; Cancel is selected.
+    ConfirmLogout,
 }
 
 /// The three ways in, in the order the method step lists them.
@@ -56,11 +60,18 @@ pub enum LoginMethod {
     /// Connect a model server running on this machine or the network
     /// (Ollama, LM Studio) — no key, an address (`docs/providers/local-models.md`).
     Local,
+    /// Manage connections and remove saved credentials.
+    Connections,
 }
 
 impl LoginMethod {
     /// The methods in list order.
-    pub const ALL: [Self; 3] = [Self::Subscription, Self::ApiKey, Self::Local];
+    pub const ALL: [Self; 4] = [
+        Self::Subscription,
+        Self::ApiKey,
+        Self::Local,
+        Self::Connections,
+    ];
 
     /// The row label. "Account" rather than "subscription": the list it
     /// opens signs in to accounts — GitHub Copilot, ChatGPT, Anthropic's
@@ -71,6 +82,31 @@ impl LoginMethod {
             Self::Subscription => "Sign in with an account",
             Self::ApiKey => "Sign in with an API key",
             Self::Local => "Sign in with a local model",
+            Self::Connections => "Manage connections / sign out",
+        }
+    }
+}
+
+/// One connected provider. Only its label and kind reach the UI, never a
+/// credential value. The boundary resolves which connections exist.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectionChoice {
+    /// The configured provider id.
+    pub provider: String,
+    /// The human-readable provider name.
+    pub name: String,
+    /// Whether the credential is an account sign-in rather than an API key.
+    pub account: bool,
+}
+
+impl ConnectionChoice {
+    /// The action shown in the confirmation question.
+    #[must_use]
+    pub fn action_label(&self) -> &'static str {
+        if self.account {
+            "Sign out"
+        } else {
+            "Remove API key"
         }
     }
 }
@@ -393,6 +429,10 @@ impl DeviceLogin {
 /// `docs/providers/local-models.md`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct KeyOnboarding {
+    /// Active connections injected by the boundary for the logout page.
+    pub connections: Vec<ConnectionChoice>,
+    /// Index pinned before entering confirmation, independent of filtering.
+    pub chosen_connection: Option<usize>,
     /// The API-key providers to choose from, injected at open
     /// ([`App::open_key_onboarding`]).
     pub providers: Vec<ProviderChoice>,
@@ -435,6 +475,33 @@ pub struct KeyOnboarding {
 }
 
 impl KeyOnboarding {
+    /// Connections matching the current search, in provider order.
+    #[must_use]
+    pub fn connection_matches(&self) -> Vec<&ConnectionChoice> {
+        let query = self.query.to_lowercase();
+        self.connections
+            .iter()
+            .filter(|c| {
+                c.name.to_lowercase().contains(&query) || c.provider.to_lowercase().contains(&query)
+            })
+            .collect()
+    }
+
+    /// The connection the confirmation page is asking about.
+    #[must_use]
+    pub fn logout_choice(&self) -> Option<&ConnectionChoice> {
+        self.connections.get(self.chosen_connection?)
+    }
+
+    fn return_to_connections(&mut self) {
+        let target = self.logout_choice().map(|c| c.provider.clone());
+        self.step = KeyStep::Connections;
+        self.selected = self
+            .connection_matches()
+            .iter()
+            .position(|c| Some(&c.provider) == target.as_ref())
+            .unwrap_or(0);
+    }
     /// The method rows in list order — every one, always: the root is a
     /// question with three answers, so it has no filter to narrow them.
     #[must_use]
@@ -594,6 +661,8 @@ impl KeyOnboarding {
             KeyStep::SigninMethod => self.signin_kinds().len(),
             KeyStep::Provider => self.matches().len(),
             KeyStep::Local => self.local_matches().len(),
+            KeyStep::Connections => self.connection_matches().len(),
+            KeyStep::ConfirmLogout => 2,
             KeyStep::Device | KeyStep::Key | KeyStep::Server => 0,
         }
     }
@@ -652,6 +721,38 @@ impl App {
             env_path: env_path.into(),
             ..KeyOnboarding::default()
         });
+    }
+
+    /// Open the shared connection page using a fresh boundary snapshot.
+    pub fn open_connection_manager(&mut self, connections: Vec<ConnectionChoice>) {
+        if self.key_onboarding.is_none() {
+            self.open_key_onboarding(Vec::new(), Vec::new(), Vec::new(), "");
+        }
+        if let Some(page) = self.key_onboarding.as_mut() {
+            page.connections = connections;
+            page.chosen_connection = None;
+            page.go(KeyStep::Connections);
+        }
+    }
+
+    fn on_key_logout_confirm(&mut self, key: KeyEvent) -> Action {
+        let Some(page) = self.key_onboarding.as_mut() else {
+            return Action::None;
+        };
+        match key.code {
+            KeyCode::Up | KeyCode::Down => page.selected = 1 - page.selected.min(1),
+            KeyCode::Home => page.selected = 0,
+            KeyCode::End => page.selected = 1,
+            KeyCode::Esc => page.return_to_connections(),
+            KeyCode::Enter if page.selected == 0 => page.return_to_connections(),
+            KeyCode::Enter => {
+                if let Some(choice) = page.logout_choice() {
+                    return Action::LogoutProvider(choice.provider.clone());
+                }
+            }
+            _ => {}
+        }
+        Action::None
     }
 
     /// Is a local server's connection test in flight? Ctrl+C then cancels it
@@ -821,9 +922,12 @@ impl App {
             return Action::None;
         };
         match step {
-            KeyStep::Method | KeyStep::Subscription | KeyStep::Provider | KeyStep::Local => {
-                self.on_key_login_list(key)
-            }
+            KeyStep::Method
+            | KeyStep::Subscription
+            | KeyStep::Provider
+            | KeyStep::Local
+            | KeyStep::Connections => self.on_key_login_list(key),
+            KeyStep::ConfirmLogout => self.on_key_logout_confirm(key),
             KeyStep::SigninMethod => self.on_key_signin_method(key),
             KeyStep::Device => self.on_key_device(key),
             KeyStep::Key => self.on_key_login_key(key),
@@ -892,6 +996,7 @@ impl App {
                     Some(LoginMethod::Subscription) => onboarding.go(KeyStep::Subscription),
                     Some(LoginMethod::ApiKey) => onboarding.go(KeyStep::Provider),
                     Some(LoginMethod::Local) => onboarding.go(KeyStep::Local),
+                    Some(LoginMethod::Connections) => return Action::OpenLogout,
                     None => {}
                 }
                 Action::None
@@ -943,9 +1048,24 @@ impl App {
                 }
                 Action::None
             }
-            KeyStep::SigninMethod | KeyStep::Device | KeyStep::Key | KeyStep::Server => {
+            KeyStep::Connections => {
+                let id = onboarding
+                    .connection_matches()
+                    .get(onboarding.selected)
+                    .map(|c| c.provider.clone());
+                onboarding.chosen_connection =
+                    id.and_then(|id| onboarding.connections.iter().position(|c| c.provider == id));
+                if onboarding.chosen_connection.is_some() {
+                    onboarding.step = KeyStep::ConfirmLogout;
+                    onboarding.selected = 0;
+                }
                 Action::None
             }
+            KeyStep::ConfirmLogout
+            | KeyStep::SigninMethod
+            | KeyStep::Device
+            | KeyStep::Key
+            | KeyStep::Server => Action::None,
         }
     }
 
@@ -1208,8 +1328,8 @@ impl App {
                 field.push_str(&cleaned);
                 page.failure = None;
             }
-            KeyStep::Method | KeyStep::SigninMethod | KeyStep::Device => {}
-            KeyStep::Subscription | KeyStep::Provider | KeyStep::Local => {
+            KeyStep::Method | KeyStep::SigninMethod | KeyStep::Device | KeyStep::ConfirmLogout => {}
+            KeyStep::Subscription | KeyStep::Provider | KeyStep::Local | KeyStep::Connections => {
                 let flat = pasted.split_whitespace().collect::<Vec<_>>().join(" ");
                 if flat.is_empty() {
                     return;

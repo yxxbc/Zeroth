@@ -2160,45 +2160,60 @@ fn stream_round(
     // emitted nothing, and for a connection lost under one that did: the
     // `Retrying` voids the failed attempt, its consumers withdrawing what it
     // streamed, so a retry never duplicates streamed text (docs/providers/offline.md).
+    let mut auth_recovered = false;
     let attempt = || {
         let mut emitted = false;
         // Track the thinking phase so a reasoning burst opens exactly one
         // ThinkingStart and the first response text after it closes with a
         // ThinkingEnd — the pairing the status line expects.
         let mut thinking = false;
-        let result = client.stream_chat(messages.to_vec(), cancel, |delta: Delta| {
-            if !delta.reasoning.is_empty() {
-                emitted = true;
-                if !thinking {
-                    thinking = true;
-                    let _ = tx.send(StreamEvent::ThinkingStart);
-                }
-                let _ = tx.send(StreamEvent::ThinkingChunk(delta.reasoning));
-            }
-            if !delta.response.is_empty() {
-                emitted = true;
-                if thinking {
-                    thinking = false;
-                    let _ = tx.send(StreamEvent::ThinkingEnd);
-                }
-                let _ = tx.send(StreamEvent::Chunk(delta.response));
-            }
-            if !delta.tool_calls.is_empty() {
-                // The model is generating a tool call: each piece goes out
-                // under its call's slot, so the status keeps ticking
-                // (docs/ui/status-indicator.md) and a `write` previews as its
-                // content arrives (docs/ui/write-streaming.md). Close the
-                // thinking phase first if a reasoning burst preceded the call.
-                emitted = true;
-                if thinking {
-                    thinking = false;
-                    let _ = tx.send(StreamEvent::ThinkingEnd);
-                }
-                for piece in delta.tool_calls {
-                    let _ = tx.send(StreamEvent::ToolCallDelta(piece));
-                }
-            }
-        });
+        let result = super::auth::recover_unauthorized(
+            client.auth_scheme(),
+            &mut auth_recovered,
+            || {
+                let mut sent = false;
+                let result = client.stream_chat_attempt(
+                    messages.to_vec(),
+                    cancel,
+                    |delta: Delta| {
+                        if !delta.reasoning.is_empty() {
+                            emitted = true;
+                            if !thinking {
+                                thinking = true;
+                                let _ = tx.send(StreamEvent::ThinkingStart);
+                            }
+                            let _ = tx.send(StreamEvent::ThinkingChunk(delta.reasoning));
+                        }
+                        if !delta.response.is_empty() {
+                            emitted = true;
+                            if thinking {
+                                thinking = false;
+                                let _ = tx.send(StreamEvent::ThinkingEnd);
+                            }
+                            let _ = tx.send(StreamEvent::Chunk(delta.response));
+                        }
+                        if !delta.tool_calls.is_empty() {
+                            // The model is generating a tool call: each piece goes out
+                            // under its call's slot, so the status keeps ticking
+                            // (docs/ui/status-indicator.md) and a `write` previews as its
+                            // content arrives (docs/ui/write-streaming.md). Close the
+                            // thinking phase first if a reasoning burst preceded the call.
+                            emitted = true;
+                            if thinking {
+                                thinking = false;
+                                let _ = tx.send(StreamEvent::ThinkingEnd);
+                            }
+                            for piece in delta.tool_calls {
+                                let _ = tx.send(StreamEvent::ToolCallDelta(piece));
+                            }
+                        }
+                    },
+                    &mut sent,
+                );
+                (result, emitted, sent)
+            },
+            || client.invalidate_auth(),
+        );
         // A stream that completed while still "thinking" (reasoning only, no
         // response) must still close the phase. A failed one leaves it open:
         // the error and the interrupt settle it where they land, and the

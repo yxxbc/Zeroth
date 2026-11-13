@@ -18,6 +18,14 @@
 问（[`headless.md`](cli/headless.md)）。它就是 TUI 自己的 `Session`，跑在一个
 哪里都不绘制的 viewport 上，所以它记录的对话正是 TUI 会记录的那一份。
 
+## 终端吉祥物
+
+默认的 `crest` 幼兽是产品的吉祥物和图标。如果现有图片管线检测到终端支持图形协议，
+启动横幅会显示它的透明 PNG；其他终端继续使用紧凑的块字符绘制。
+两种表示都遵循当前 `/mascot` 选择，选择器预览也使用同一选中表示。
+README 横幅保留午夜蓝湖面和发光的零环，用幼兽替换兜帽人物。
+详见 `docs/ui/mascot.md`、`docs/ui/header.md` 和 `docs/ui/images.md`。
+
 ## 行为
 
 - 应用跑在 ratatui 的**内联 viewport** 里（不用备用屏幕）。终端常规的
@@ -700,6 +708,11 @@ provider 的 tool ID 与并行调用的分组。它只在匹配上重建出的�
 [`prompt-caching.md`](providers/prompt-caching.md)。凭据刷新共享一个逐
 provider 的兑换闸门，而登录与轮换共享 `EnvFile::update`，用于串行、原子的凭据
 文件更新。
+
+- **连接管理与退出**（[凭据生命周期](providers/credential-lifecycle.md)）。
+  登录页在三种连接方式之后增加管理入口；退出命令打开同一页。确认操作区分账户退出
+  与 API key 移除，删除本地凭据和缓存，并持久禁用环境变量回退。重新登录清除禁用。
+  刷新使用跨进程事务锁，保存失败会显示通知，未授权的推理请求最多恢复一次。
 
 ### 数据流
 

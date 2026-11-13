@@ -41,7 +41,18 @@ trap 'stop_release; rm -rf "$T"' EXIT
 # PID goes to a file: a variable set in here would die with the subshell and
 # leave the server running past the selftest.
 serve_release() {
-	python3 "$STEPS/release_server.py" "$1" "$2" >"$T/port" 2>"$T/server.err" &
+	# A port file left by an earlier stand-in would be read as this one's, so
+	# the wait below would return the previous server's port (and the caller
+	# would talk to the wrong process). Callers stop what they started.
+	rm -f "$T/port"
+	# The optional 3rd argument is a directory served at /art/<name>, where
+	# the installer reads its banner artwork from when a test points
+	# ZEROTH_INSTALL_ART_BASE_URL here (the empty 3rd slot is INSTALLER).
+	if [ -n "${3:-}" ]; then
+		python3 "$STEPS/release_server.py" "$1" "$2" "" "$3" >"$T/port" 2>"$T/server.err" &
+	else
+		python3 "$STEPS/release_server.py" "$1" "$2" >"$T/port" 2>"$T/server.err" &
+	fi
 	printf '%s\n' "$!" >"$T/server.pid"
 	local i=0
 	while [ ! -s "$T/port" ] && [ "$i" -lt 100 ]; do
@@ -57,6 +68,57 @@ stop_release() {
 	fi
 	rm -f "$T/port"
 }
+
+# run_on_tty CMD… — run a command with a terminal as its stdout, so the
+# installer's `[ -t 1 ]` branches (the animated mascot, the graphics banner)
+# are exercised. `script` ships with Linux and macOS but spells the command
+# differently: util-linux takes `-c CMD`, BSD takes it as trailing arguments.
+# Leaves the output in OUT. The status is the command's where the local
+# `script` reports one, so assert on OUT rather than on it.
+run_on_tty() {
+	if script -q -c true /dev/null >/dev/null 2>&1; then
+		OUT="$(script -q -e -c "$(printf '%q ' "$@")" /dev/null </dev/null 2>&1)"
+	else
+		OUT="$(script -q /dev/null "$@" </dev/null 2>&1)"
+	fi
+}
+
+# kitty_image_state OUT FILE — "ok" when the Kitty escapes in OUT carry one
+# complete image whose decoded payload is FILE byte for byte, otherwise what
+# went wrong. The art is sent in 4096-byte chunks, so a count that is off by
+# one truncates the PNG at the far end and the terminal answers EBADPNG —
+# a check that only looked for the first chunk would pass on that.
+kitty_image_state() {
+	printf '%s' "$1" | python3 -c '
+import base64, sys
+raw = sys.stdin.buffer.read()
+want = open(sys.argv[1], "rb").read()
+# Every chunk after the first is a continuation that carries only `i` and
+# `m`, so the terminator sits on a chunk with no `f=100` of its own: walk
+# them in order, opening an image at `f=100` and closing it at `m=0`.
+images, cur, terms = [], None, 0
+for part in raw.split(b"\x1b_G")[1:]:
+    head, _, rest = part.partition(b";")
+    body = rest.split(b"\x1b\\")[0]
+    if b"f=100" in head:
+        cur = []
+        images.append(cur)
+    if cur is None:
+        continue  # a tail chunk whose image never closed — truncated
+    cur.append(body)
+    if b"m=0" in head:
+        terms += 1
+        cur = None
+if not images:
+    print("no image")
+elif terms != len(images):
+    print("%d image(s) but %d terminator(s)" % (len(images), terms))
+else:
+    got = base64.b64decode(b"".join(images[0]))
+    print("ok" if got == want else "%d of %d bytes" % (len(got), len(want)))
+' "$2"
+}
+
 # ---------------------------------------------------------------------------
 PASS=0
 FAILED=0
@@ -484,6 +546,54 @@ EOF
 			expect_lacks "…and never prompting for a release" "$OUT" "Release"
 			expect_ok "…with a count, as --preview N and --preview=N" sh "$CHECKOUT/install.sh" --preview=1
 			expect_ok "…and the --proview spelling" sh "$CHECKOUT/install.sh" --proview 1
+			expect_lacks "…with the banner an install draws, not the old one-liner caption" "$OUT" "the one-line installer"
+			# --preview promises what an install shows. On a terminal that
+			# advertises the Kitty graphics protocol that is the image
+			# banner, fetched exactly as the real run fetches it — the
+			# preview is the one place a user checks a theme before
+			# committing to the install (docs/ops/release.md).
+			stop_release
+			mkdir -p "$T/art"
+			cp "$CHECKOUT/assets/banner-v2.png" "$T/art/banner-v2.png"
+			cp "$CHECKOUT/assets/mascot-crest.png" "$T/art/mascot-crest.png"
+			art_base="http://127.0.0.1:$(serve_release "$T/art" v0.4.2 "$T/art")/art"
+			run_on_tty env TERM=xterm-kitty ZEROTH_INSTALL_ASSET_DIR="$T/no-assets" \
+				ZEROTH_INSTALL_ART_BASE_URL="$art_base" sh "$CHECKOUT/install.sh" --preview 1
+			expect_contains "…--preview draws the image banner on a graphics terminal" "$OUT" "_Ga=T,f=100"
+			expect_eq "…sending one whole PNG, terminator and all" "ok" \
+				"$(kitty_image_state "$OUT" "$CHECKOUT/assets/banner-v2.png")"
+			expect_contains "…and asking the terminal for no reply, which would otherwise land in the shell's input" "$OUT" "q=2"
+			expect_contains "…naming the app over it" "$OUT" "Zeroth"
+			# The art must not be stretched or drawn over: a `c` without an
+			# `r` is scaled by the terminal from the picture's own aspect
+			# ratio, and the default cursor policy leaves the cursor on the
+			# row below the placement, which is what puts the mascot under
+			# the banner instead of on top of it (kitty's graphics protocol,
+			# "Controlling displayed image layout").
+			expect_contains "…placing the banner by columns only, so it is not stretched" "$OUT" "c=56"
+			expect_lacks "…with no hand-computed row count" "$OUT" ",r=8"
+			expect_lacks "…and no pinned cursor, which is what let the text land on the art" "$OUT" "C=1"
+			expect_contains "…drawing the mascot below the banner as its own image" "$OUT" "i=32"
+			# `--preview N` is a wait, not a flash: it holds the banner for the
+			# seconds asked for and shows them passing.
+			started=$(date +%s)
+			run_on_tty env TERM=xterm-kitty ZEROTH_INSTALL_ASSET_DIR="$T/no-assets" \
+				ZEROTH_INSTALL_ART_BASE_URL="$art_base" sh "$CHECKOUT/install.sh" --preview 2
+			elapsed=$(($(date +%s) - started))
+			if [ "$elapsed" -ge 2 ]; then pass "…--preview 2 lasts two seconds"; else flunk "…--preview 2 lasted ${elapsed}s"; fi
+			expect_contains "…showing the wait as a bar" "$OUT" "Preview"
+			expect_contains "…counting the seconds asked for" "$OUT" "2 s · nothing is installed"
+			# The artwork is a nicety: a terminal that cannot fetch it keeps
+			# the text mascot rather than failing the preview, and the run
+			# still installs nothing.
+			run_on_tty env TERM=xterm-kitty ZEROTH_INSTALL_ASSET_DIR="$T/no-assets" \
+				ZEROTH_INSTALL_ART_BASE_URL="http://127.0.0.1:1/art" sh "$CHECKOUT/install.sh" --preview 1
+			expect_contains "…falling back to the text mascot when the artwork is unreachable" "$OUT" "Zeroth"
+			expect_lacks "…drawing no image it never got" "$OUT" "_Ga=T"
+			expect_contains "…with the banner an install draws, caption and all" "$OUT" "Open-source coding agent"
+			expect_lacks "…not the old one-line-installer caption" "$OUT" "the one-line installer"
+			expect_contains "…and saying nothing is installed" "$OUT" "nothing is installed"
+			stop_release
 			expect_fail "install.sh refuses --preview with no seconds left" sh "$CHECKOUT/install.sh" --preview 0
 			expect_contains "…saying so" "$OUT" "at least one second"
 			expect_fail "install.sh refuses a negative preview" sh "$CHECKOUT/install.sh" --preview=abc

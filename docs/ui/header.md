@@ -1,7 +1,7 @@
 # The startup header banner
 
 A Claude-Code-style **header** committed to scrollback at launch: the
-session's block-character **mascot** (see `docs/ui/mascot.md`) beside the
+session's **mascot** (see `docs/ui/mascot.md`) beside the
 product name + version, the working directory, and a one-line command hint.
 It is the first thing the user sees, and it scrolls up into history naturally
 as the conversation grows — exactly like Claude Code's welcome banner.
@@ -15,7 +15,9 @@ as the conversation grows — exactly like Claude Code's welcome banner.
 ```
 
 - **Mascot** — the selected mascot's art (crest by default, switched with
-  `/mascot`), drawn flush-left and coloured with a left-to-right
+  `/mascot`). On a terminal with a native graphics protocol, crest is a
+  transparent PNG icon; other terminals use its compact block-character art.
+  It is drawn flush-left and coloured with a left-to-right
   **accent → link gradient** (the theme's own two accents — Catppuccin
   Mocha's sky `#89DCEB` → blue `#89B4FA` by default, One Dark's `#56B6C2` →
   `#61AFEF` under `/theme onedark`; `docs/ui/theme.md`) keyed by display column
@@ -71,9 +73,10 @@ top the Ctrl+O transcript — `ui::transcript_build` prepends `header_lines` + a
 blank before walking history, so the overlay mirrors the inline scrollback,
 which opens with the banner (the empty-transcript placeholder keys on "nothing
 beyond the banner", and the backtrack selection/scroll offsets come from the
-same walk, so they stay consistent). `header_lines` is a pure `ui` helper fed
-from `App::session` + `App::mascot` + `env!("CARGO_PKG_VERSION")`; the
-boundary owns the timing.
+same walk, so they stay consistent). `header_lines` is a line builder fed
+from `App::session`, `App::mascot`, `env!("CARGO_PKG_VERSION")`, and the
+process-wide image policy. The boundary publishes the image path; the builder
+does no file I/O. The boundary owns the timing.
 
 ### Surviving every rebuild
 
@@ -121,12 +124,13 @@ counters — it only ever adds mascot/metadata rows. The header text is likewise
 kept clear of the strings other phases key on (`for commands`,
 `dummy_model_name ·`, `Happy`, `⎿`, `Done for`, `esc to interrupt`).
 
-## API (all pure, in `ui/header.rs`)
+## API (in `ui/header.rs`)
 
 - `header_lines(app: &App, width: u16) -> Vec<Line<'static>>` — the whole
-  banner as scrollback rows for the session's mascot, sized to `width`. No
-  trailing spacer; the caller adds one (the `insert_before(msg);
-  insert_before(blank)` pattern).
+  banner as scrollback rows for the session's mascot, sized to `width`. A
+  native-graphics terminal gets a compact icon block through the image
+  carrier; other terminals get the block-character art. No trailing spacer;
+  the caller adds one (the `insert_before(msg); insert_before(blank)` pattern).
 - `header_lines_for(app, mascot, width)` (`pub(super)`) — the same banner for
   an explicit mascot: the `/mascot` picker's live preview, so the preview and
   the banner share one builder (`docs/ui/mascot.md`).
@@ -141,7 +145,8 @@ kept clear of the strings other phases key on (`for commands`,
 
 ## Tests
 
-- `ui/tests/header.rs` unit tests (`header_*`): the banner composes art rows
+- `ui/tests/header.rs` unit tests (`header_*`), plus the icon layout test in
+  `ui/header.rs`: the banner composes art rows
   beside the aligned metadata column (verbatim art, the 2-column gap, no
   trailing pad on meta-less rows); the metadata block seats lower beside a
   taller mascot (every mascot's session-less banner puts its two rows at

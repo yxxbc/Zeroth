@@ -493,6 +493,25 @@ impl OpenAiClient {
         cancel: &CancelToken,
         on_delta: impl FnMut(Delta),
     ) -> Result<StreamOutcome> {
+        self.stream_chat_attempt(messages, cancel, on_delta, &mut false)
+    }
+
+    pub(crate) fn auth_scheme(&self) -> super::AuthScheme {
+        self.cfg.auth
+    }
+
+    pub(crate) fn invalidate_auth(&self) {
+        super::auth::invalidate_access(&self.cfg);
+    }
+
+    pub(crate) fn stream_chat_attempt(
+        &self,
+        messages: Vec<ChatMessage>,
+        cancel: &CancelToken,
+        on_delta: impl FnMut(Delta),
+        sent: &mut bool,
+    ) -> Result<StreamOutcome> {
+        *sent = false;
         if cancel.is_cancelled() {
             return Err(LlmError::Cancelled);
         }
@@ -504,6 +523,10 @@ impl OpenAiClient {
         // account's own host — a Business seat is served from a different one
         // than the file names. See `docs/providers/copilot.md`.
         let auth = super::auth::request_auth(&self.cfg)?;
+        if cancel.is_cancelled() {
+            return Err(LlmError::Cancelled);
+        }
+        *sent = true;
         let url = self.request_url(auth.base.as_deref());
         // Where a failed send is checked against the host (`docs/providers/offline.md`):
         // this same client, so the probe goes the way the request went.

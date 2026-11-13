@@ -33,6 +33,46 @@ impl Session<'_> {
             .open_key_onboarding(providers, subscriptions, locals, env_path);
     }
 
+    pub(crate) fn open_logout(&mut self) {
+        self.cancel_device_login();
+        self.open_key_onboarding();
+        self.app
+            .open_connection_manager(self.models.connection_choices());
+    }
+
+    pub(crate) fn logout_provider(&mut self, provider: &str) -> std::io::Result<()> {
+        let active = self
+            .models
+            .active_provider()
+            .is_some_and(|active| self.models.key_env(active) == self.models.key_env(provider));
+        let (name, tokens) = match self.models.disconnect_provider(provider) {
+            Ok(result) => result,
+            Err(reason) => {
+                self.toast(reason, ToastKind::Error);
+                return Ok(());
+            }
+        };
+        self.cancel_device_login();
+        for token in tokens {
+            forget_auth(&token);
+        }
+        if active {
+            self.agent_registry.kill_all();
+            self.registry.kill_all();
+            self.registry.clear_notices();
+            if self.app.turn_active() {
+                self.interrupt_for_logout()?;
+            }
+        }
+        self.app.close_key_onboarding();
+        self.sync_backend_info();
+        self.toast(
+            format!("Disconnected {name} — run /login to reconnect"),
+            ToastKind::Info,
+        );
+        Ok(())
+    }
+
     /// Enter on a local server's page: test the connection on a worker — the
     /// server's model listing, fetched the way `/model` will fetch it — before
     /// anything is saved. An address that is no URL at all is answered at
@@ -212,7 +252,7 @@ impl Session<'_> {
         llm::claude::forget(token);
         llm::cline::forget(token);
         llm::antigravity::forget(token);
-        match self.models.save_api_key(&env_var, token) {
+        match self.models.save_connection(&id, &env_var, token) {
             Ok(()) => {
                 self.app.close_key_onboarding();
                 // Name the seat when the exchange did: "Signed in ✓" leaves
@@ -230,4 +270,13 @@ impl Session<'_> {
             Err(reason) => self.app.fail_device_login(reason),
         }
     }
+}
+
+/// Invalidate all credential caches; only the matching provider has an entry.
+fn forget_auth(token: &str) {
+    llm::copilot::forget(token);
+    llm::chatgpt::forget(token);
+    llm::claude::forget(token);
+    llm::cline::forget(token);
+    llm::antigravity::forget(token);
 }

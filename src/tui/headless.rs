@@ -732,6 +732,9 @@ impl Session<'_> {
     /// compaction itself when `compact` allows it, the rollout, the reaping
     /// — and none of the screen's.
     fn after_headless_iteration(&mut self, compact: bool) {
+        for warning in self.models.credential_warnings() {
+            write(&[core::warning(&warning)]);
+        }
         self.app
             .set_tool_definitions(self.models.backend().tool_definitions());
         self.app.sync_context_used();

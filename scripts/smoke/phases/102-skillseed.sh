@@ -69,15 +69,14 @@ done
 if [ -d "$SK_CFG/skills/web-search" ]; then
 	fail "the first launch seeded skills/web-search, which is retired"
 fi
-# Edit one file, delete the other, relaunch: the edit survives and the deletion
-# is repaired — a seed that overwrote would discard the user's own copy on
-# every restart.
+# Edit files, delete seeded references, relaunch: edits survive and deleted
+# built-in files are repaired — a seed that overwrote would discard the
+# user's own copy on every restart.
 printf '%s\n' "---" "name: skill-creator" "description: MINE-NOT-YOURS." "---" >"$SK_CFG/skills/skill-creator/SKILL.md"
 printf '%s\n' "---" "name: yt-dlp" "description: MY-MEDIA-WORKFLOW." "---" >"$SK_CFG/skills/yt-dlp/SKILL.md"
 printf '%s\n' "---" "name: flaredantic" "description: MY-TUNNEL-WORKFLOW." "---" >"$SK_CFG/skills/flaredantic/SKILL.md"
 rm -f "$SK_CFG/skills/flaredantic/reference.md"
 rm -f "$SK_CFG/skills/skill-creator/reference.md"
-rm -f "$SK_WEB/scripts/mcp_http.py"
 tmux new-session -d -s "$S102" -x 100 -y 24 "$APP_SK"
 sleep 1.2
 submit "$S102" "/quit"
@@ -97,9 +96,6 @@ if ! grep -q "MY-TUNNEL-WORKFLOW" "$SK_CFG/skills/flaredantic/SKILL.md" 2>/dev/n
 fi
 if ! cmp -s "$SMOKE_ROOT/prompts/skills/flaredantic/reference.md" "$SK_CFG/skills/flaredantic/reference.md"; then
 	fail "a deleted flaredantic/reference.md did not come back on the next launch"
-fi
-if [ ! -f "$SK_WEB/scripts/mcp_http.py" ]; then
-	fail "a deleted web-search script did not come back on the next launch"
 fi
 # And the override is left alone: an explicit skills root is the user's set,
 # and every other phase in this suite runs against one that must stay empty.

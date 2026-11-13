@@ -23,6 +23,17 @@ nothing asked ([`headless.md`](cli/headless.md)). It is the TUI's own `Session`
 over a viewport that paints nowhere, so the conversation it records is the
 one the TUI would have.
 
+## Terminal mascot
+
+The default `crest` hatchling is the product's mascot and icon. The startup
+banner uses its transparent PNG on terminals where the existing image
+pipeline reports an available graphics protocol; other terminals keep the
+compact block-character drawing. Both paths follow the current `/mascot`
+selection, and the picker preview uses the same selected representation. The
+README banner keeps its midnight-blue lake and glowing zero ring, with the
+hatchling replacing the hooded figure. See `docs/ui/mascot.md`,
+`docs/ui/header.md`, and `docs/ui/images.md`.
+
 ## Behaviour
 
 - The app runs in ratatui's **inline viewport** (no alternate screen). Normal
@@ -888,6 +899,14 @@ edits and incompatible histories keep the newly derived messages. See
 [`prompt-caching.md`](providers/prompt-caching.md) for its bounds and stress coverage.
 Credential refreshes share a per-provider exchange gate, while login and
 rotation share `EnvFile::update` for serialized, atomic credential-file updates.
+
+- **Connection management and logout** ([credential lifecycle](providers/credential-lifecycle.md)).
+  The login root adds management after its three connection methods; the logout
+  command opens the same page. Confirmation distinguishes account sign-out from
+  API-key removal, deletes local credentials and caches, and persistently disables
+  environment fallbacks. Login clears the disabled state. Refreshes use
+  cross-process transaction locks, persistence failures are visible, and an
+  unauthorized inference request gets at most one recovery attempt.
 
 ### Data flow
 

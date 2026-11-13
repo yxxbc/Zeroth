@@ -7,6 +7,7 @@ use super::wrap::{clamp_spans, cols, wrap_text};
 use super::*;
 
 use crate::app::Mascot;
+use crate::images;
 
 /// Colour `text` with a left-to-right [`header_gradient_start`] →
 /// [`header_gradient_end`] gradient keyed by absolute display column across
@@ -281,6 +282,13 @@ pub fn header_lines(app: &App, width: u16) -> Vec<Line<'static>> {
 pub(super) fn header_lines_for(app: &App, mascot: Mascot, width: u16) -> Vec<Line<'static>> {
     let w = width as usize;
     let meta = meta_rows(app);
+    if mascot == Mascot::Crest
+        && images::graphics_available()
+        && let Some(path) = images::mascot_image_path()
+        && let Some(lines) = graphic_mascot_lines(&meta, &path, width)
+    {
+        return lines;
+    }
     let art = mascot.art();
     let art_w = mascot.art_width();
     let title_w = cols(HEADER_NAME) + cols(&format!(" (v{})", env!("CARGO_PKG_VERSION")));
@@ -332,4 +340,86 @@ pub(super) fn header_lines_for(app: &App, mascot: Mascot, width: u16) -> Vec<Lin
         lines.push(clamp_spans(spans, w));
     }
     lines
+}
+
+/// The default hatchling as a compact PNG on terminals with a native image
+/// protocol. A narrow terminal, a missing cache file, or a disabled image
+/// setting falls back to the catalog's ordinary block art.
+fn graphic_mascot_lines(
+    meta: &[Vec<Span<'static>>],
+    path: &str,
+    width: u16,
+) -> Option<Vec<Line<'static>>> {
+    const ICON_COLS: u16 = 18;
+    const ICON_ROWS: u16 = 12;
+    let place = images::place_in(path, (1312, 1199), ICON_COLS, ICON_ROWS)?;
+    graphic_mascot_lines_at(meta, &place, width)
+}
+
+fn graphic_mascot_lines_at(
+    meta: &[Vec<Span<'static>>],
+    place: &images::Placement,
+    width: u16,
+) -> Option<Vec<Line<'static>>> {
+    let w = usize::from(width);
+    let title_w = cols(HEADER_NAME) + cols(&format!(" (v{})", env!("CARGO_PKG_VERSION")));
+    if w < usize::from(place.cols) + HEADER_ART_GAP + title_w {
+        return None;
+    }
+    let art_rows = usize::from(place.rows);
+    let offset = art_rows.saturating_sub(meta.len()).div_ceil(2);
+    let rows = art_rows.max(offset + meta.len());
+    let mut lines = Vec::with_capacity(rows);
+    for index in 0..rows {
+        let mut spans = Vec::new();
+        if index < art_rows {
+            spans.push(Span::styled(
+                " ".repeat(usize::from(place.cols)),
+                Style::default().underline_color(images::carrier(place.id, index as u16)),
+            ));
+        }
+        if let Some(meta_row) = index.checked_sub(offset).and_then(|row| meta.get(row)) {
+            spans.push(Span::raw(" ".repeat(HEADER_ART_GAP)));
+            spans.extend(meta_row.iter().cloned());
+        }
+        lines.push(clamp_spans(spans, w));
+    }
+    Some(lines)
+}
+
+#[cfg(test)]
+mod graphic_mascot_tests {
+    use super::*;
+
+    #[test]
+    fn graphic_banner_reserves_the_icon_and_seats_metadata_beside_it() {
+        let place = images::Placement {
+            id: 7,
+            path: "mascot.png".to_string(),
+            cols: 16,
+            rows: 9,
+        };
+        let meta = meta_rows(&App::new());
+        let lines = graphic_mascot_lines_at(&meta, &place, 80).unwrap();
+        assert_eq!(lines.len(), 9);
+        assert!(
+            lines[0]
+                .spans
+                .iter()
+                .any(|span| { span.style.underline_color == Some(images::carrier(place.id, 0)) })
+        );
+        assert!(
+            lines[4]
+                .spans
+                .iter()
+                .any(|span| span.content.contains("Zeroth"))
+        );
+        assert!(
+            lines[5]
+                .spans
+                .iter()
+                .any(|span| span.content.contains("commands"))
+        );
+        assert!(graphic_mascot_lines_at(&meta, &place, 26).is_none());
+    }
 }

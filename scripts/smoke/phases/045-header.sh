@@ -67,7 +67,7 @@ sleep 0.5
 # read both (`-S`). What this phase guards is that the banner is still there
 # and still SINGLE; the count assertion below is the real check.
 header_roundtrip="$(tmux capture-pane -t "$S_HEADER" -p -S -80)"
-header_roundtrip_count=$(printf '%s\n' "$header_roundtrip" | grep -cF "$HEADER_MARK")
+header_roundtrip_count=$(printf '%s\n' "$header_roundtrip" | grep -cF "$HEADER_TITLE_MARK")
 echo "==== Phase 45: captured pane (banner + conversation after the Ctrl+O round trip) ===="
 printf '%s\n' "$header_roundtrip"
 tmux kill-session -t "$S_HEADER" 2>/dev/null

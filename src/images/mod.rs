@@ -55,9 +55,9 @@ pub use payload::{
     set_payload_cache_dir,
 };
 pub use registry::{
-    ImagePolicy, Placement, any_placements, auto_resizing, known_missing, known_size, place,
-    place_in, placement, policy, recheck_pictures, remember_missing, remember_size, set_policy,
-    showing,
+    ImagePolicy, Placement, any_placements, auto_resizing, graphics_available, known_missing,
+    known_size, mascot_image_path, place, place_in, placement, policy, recheck_pictures,
+    remember_missing, remember_size, set_mascot_image_path, set_policy, showing,
 };
 pub use store::{
     Detection, GraphicsReply, IMAGE_CELL_SIZE_ENV, IMAGE_PROTOCOL_ENV, IMAGE_RETRANSMIT_ENV,

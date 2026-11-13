@@ -2,6 +2,25 @@
 
 use super::*;
 
+#[test]
+fn logout_confirmation_names_the_connection_and_explains_local_removal() {
+    let mut app = login_app();
+    app.open_connection_manager(vec![crate::app::ConnectionChoice {
+        provider: "openrouter".into(),
+        name: "OpenRouter".into(),
+        account: false,
+    }]);
+    app.on_key(ratatui::crossterm::event::KeyEvent::new(
+        ratatui::crossterm::event::KeyCode::Enter,
+        ratatui::crossterm::event::KeyModifiers::NONE,
+    ));
+    let texts = login_page_at(&app, 90, 30).join("\n");
+    assert!(texts.contains("OpenRouter"));
+    assert!(texts.contains("Remove API key"));
+    assert!(texts.contains("Cancel"));
+    assert!(texts.contains("local"));
+}
+
 /// The key step's whole page height for a provider the file describes in no
 /// words (see `key_onboarding_lines`); a description block grows it.
 const LOGIN_KEY_ROWS: u16 = 7;
@@ -427,6 +446,7 @@ fn the_method_root_is_a_titled_question_with_no_filter() {
             "  → Sign in with an account",
             "    Sign in with an API key",
             "    Sign in with a local model",
+            "    Manage connections / sign out",
             "",
             "  ↑↓ navigate  enter select  escape/ctrl+c cancel",
             rule.as_str(),

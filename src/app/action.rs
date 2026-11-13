@@ -374,6 +374,10 @@ pub enum Action {
     /// resolution to mark the already-configured ones) and hands them to
     /// [`App::open_key_onboarding`]. See `docs/providers/llm.md`.
     OpenKeyOnboarding,
+    /// Open the connection list shared by `/logout` and `/login`.
+    OpenLogout,
+    /// Remove a confirmed connection's local credential and cached auth.
+    LogoutProvider(String),
     /// The onboarding flow was dismissed (Esc/Ctrl+C): [`App::key_onboarding`]
     /// is already cleared; the loop just repaints the collapsed region.
     CloseKeyOnboarding,

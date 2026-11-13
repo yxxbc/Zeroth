@@ -162,7 +162,7 @@ l_server() {
 	local _
 	submit "$1" "/login"
 	wait_for 5 "$1" -F "Sign in with a local model" || fail "/login did not open"
-	keys "$1" Up # the root's last row
+	keys "$1" Home Down Down # the local-model row precedes management
 	sleep 0.2
 	keys "$1" Enter
 	wait_for 5 "$1" -F "enter connect" || fail "Sign in with a local model did not open the server list"
@@ -190,7 +190,7 @@ expect_lacks "$key_list" -F "Ollama · " "the local Ollama is still offered a ke
 expect_lacks "$key_list" -F "LM Studio" "LM Studio is offered a key field"
 keys "$S141" Escape
 sleep 0.3
-keys "$S141" Up
+keys "$S141" Home Down Down
 sleep 0.2
 keys "$S141" Enter
 local_list="$(wait_pane 5 "$S141" -F "enter connect")" || fail "Sign in with a local model did not open the server list"

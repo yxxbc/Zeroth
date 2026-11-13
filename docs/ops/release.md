@@ -178,26 +178,34 @@ pipe, under `NO_COLOR`, or outside a UTF-8 locale.
 
 ## The mascot and `--preview`
 
-The banner is the app's default mascot, `crest`
-(`src/app/mascot.rs`), drawn as three rows of single-width block glyphs
-beside the name. On a terminal it moves: the tint walks down the rows
-along the banner's cyan → blue gradient, the crest swings, and the eyes
-blink every second. It plays for about a second and a half before the
-steps, then becomes the one-row spinner of the **Download** row while the
-archive lands, reporting the bytes so far. A pipe, `TERM=dumb`, `NO_COLOR`
-or a non-UTF-8 locale gets the app's name and the art once, still, and the
-plain fetch instead of the spinner — the same rule the rest of the output
-follows.
+The banner uses `assets/banner-v2.jpg` and `assets/mascot-crest.png` in
+terminals that advertise the Kitty graphics protocol (including Kitty,
+iTerm2, and Ghostty); `assets/banner-v2.png` is the compact PNG rendition for
+that protocol. The image header is fetched from the repository on demand, or
+read from `assets/` when running from a checkout. Other terminals keep the
+text `crest` mascot (`src/app/mascot.rs`) beside the name, animated on an
+interactive terminal with the tint walking down its cyan → blue gradient,
+the crest swinging, and the eyes blinking every second. Platform, release,
+checksum, and install results append as a readable step log below the header.
+During the archive download, a 24-cell bar sits on the log's active row and
+reports downloaded bytes. When curl can read a content length it fills to a
+percentage; otherwise a short segment moves across the bar until the transfer
+finishes. A pipe or `TERM=dumb` gets a single still text banner and plain fetch
+output without cursor animation. `NO_COLOR` removes the tint but leaves
+terminal motion enabled; a non-UTF-8 locale uses the ASCII bar and mascot.
 
-`--preview` (also spelled `--proview`) plays the mascot alone for ten
+`--preview` (also spelled `--proview`) draws the banner alone for ten
 seconds — `--preview N` and `--preview=N` take any whole number of seconds
-— and then exits: no platform check, no network, and nothing installed, so
-it is safe to run from a checkout, over SSH, or to see what the banner
-looks like in a theme. The frames are counted, not timed, so a slow
-terminal runs long rather than dropping frames; where `sleep` takes no
-fraction (a strict POSIX shell), a frame lasts a second rather than a
-tenth. Piped, the art is drawn once and the run says it needs a terminal
-to animate on.
+— and then exits. It draws it the way an install does, image banner
+included: on a graphics terminal that is the same fetched (or checkout)
+artwork the real run puts up, and a fetch that fails falls back to the text
+mascot rather than failing the preview. What it never does is look up a
+release, check the platform, or install anything, so it is safe to run from
+a checkout, over SSH, or to see what the banner looks like in a theme. The
+frames are counted, not timed, so a slow terminal runs long rather than
+dropping frames; where `sleep` takes no fraction (a strict POSIX shell), a
+frame lasts a second rather than a tenth. Piped, the art is drawn once and
+the run says it needs a terminal to animate on.
 
 The script is served from `main` rather than attached to each release
 because the URL then never changes: an asset's name carries the version,

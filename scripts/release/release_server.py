@@ -2,17 +2,20 @@
 """A stand-in for github.com's release pages, so install.sh can be tested
 offline against real archives (docs/ops/release.md).
 
-    python3 scripts/release/release_server.py DIST TAG [INSTALLER]
+    python3 scripts/release/release_server.py DIST TAG [INSTALLER] [ART]
 
 Serves DIST's files at /releases/download/TAG/<name>, redirects
 /releases/latest to /releases/tag/TAG the way GitHub does (the installer and
 the app's update check both read the tag off that redirect), answers
 /releases/tag/TAG with a stub page, and — given INSTALLER, a path to
 install.sh — serves it at /install.sh, where `zeroth update` fetches it
-from a non-GitHub base (docs/ops/update.md). Binds an ephemeral port on
-127.0.0.1 and prints it on the first line of stdout; the selftest and the
-smoke suite point ZEROTH_INSTALL_BASE_URL / ZEROTH_UPDATE_URL at it,
-and `scripts/release.sh download --from`.
+from a non-GitHub base (docs/ops/update.md). Given ART, a directory, its
+files are served at /art/<name>: where the installer reads its banner
+artwork from when ZEROTH_INSTALL_ART_BASE_URL points here, so a preview can
+be tested without the network. Binds an ephemeral port on 127.0.0.1 and
+prints it on the first line of stdout; the selftest and the smoke suite
+point ZEROTH_INSTALL_BASE_URL / ZEROTH_UPDATE_URL at it, and
+`scripts/release.sh download --from`.
 """
 import http.server
 import os
@@ -21,6 +24,7 @@ import sys
 
 DIST, TAG = sys.argv[1], sys.argv[2]
 INSTALLER = sys.argv[3] if len(sys.argv) > 3 else None
+ART = sys.argv[4] if len(sys.argv) > 4 else None
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -46,6 +50,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/install.sh" and INSTALLER and os.path.isfile(INSTALLER):
             with open(INSTALLER, "rb") as fh:
                 return self._send(200, fh.read(), "text/x-shellscript", head)
+        if path.startswith("/art/") and ART:
+            name = os.path.basename(path[len("/art/"):])
+            full = os.path.join(ART, name)
+            if os.path.isfile(full):
+                with open(full, "rb") as fh:
+                    return self._send(200, fh.read(), "image/png", head)
         prefix = f"/releases/download/{TAG}/"
         if path.startswith(prefix):
             name = os.path.basename(path[len(prefix):])

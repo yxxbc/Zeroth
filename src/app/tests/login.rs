@@ -4,6 +4,119 @@ use super::*;
 use crate::llm::local::Verdict;
 
 #[test]
+fn login_root_offers_connection_management() {
+    let app = login_app();
+    assert!(
+        app.key_onboarding
+            .as_ref()
+            .unwrap()
+            .method_labels()
+            .contains(&"Manage connections / sign out")
+    );
+}
+
+#[test]
+fn slash_logout_opens_the_shared_connection_manager() {
+    let mut app = App::new();
+    type_chars(&mut app, "/logout");
+    assert_eq!(app.on_key(key(KeyCode::Enter)), Action::OpenLogout);
+}
+
+#[test]
+fn logout_requires_confirmation_and_distinguishes_accounts_from_keys() {
+    let mut app = login_app();
+    app.open_connection_manager(vec![ConnectionChoice {
+        provider: "openrouter".into(),
+        name: "OpenRouter".into(),
+        account: false,
+    }]);
+    assert_eq!(app.on_key(key(KeyCode::Enter)), Action::None);
+    let page = app.key_onboarding.as_ref().unwrap();
+    assert_eq!(page.step, KeyStep::ConfirmLogout);
+    assert_eq!(
+        page.logout_choice().unwrap().action_label(),
+        "Remove API key"
+    );
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::None,
+        "Cancel is the default"
+    );
+    assert_eq!(
+        app.key_onboarding.as_ref().unwrap().step,
+        KeyStep::Connections
+    );
+    app.on_key(key(KeyCode::Enter));
+    app.on_key(key(KeyCode::Down));
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::LogoutProvider("openrouter".into())
+    );
+    // The boundary, after saving successfully, closes the page.
+    assert!(app.key_onboarding.is_some());
+}
+
+#[test]
+fn logout_filters_connections_without_losing_the_confirmation_target() {
+    let mut app = login_app();
+    app.open_connection_manager(vec![
+        ConnectionChoice {
+            provider: "openrouter".into(),
+            name: "OpenRouter".into(),
+            account: false,
+        },
+        ConnectionChoice {
+            provider: "chatgpt_codex".into(),
+            name: "ChatGPT Codex".into(),
+            account: true,
+        },
+    ]);
+    type_chars(&mut app, "chatgpt");
+    app.on_key(key(KeyCode::Enter));
+    assert_eq!(
+        app.key_onboarding
+            .as_ref()
+            .unwrap()
+            .logout_choice()
+            .unwrap()
+            .action_label(),
+        "Sign out"
+    );
+    app.on_key(key(KeyCode::Down));
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::LogoutProvider("chatgpt_codex".into())
+    );
+}
+
+#[test]
+fn cancelling_logout_preserves_the_filtered_connection_and_selection() {
+    let mut app = login_app();
+    app.open_connection_manager(vec![
+        ConnectionChoice {
+            provider: "account".into(),
+            name: "Account".into(),
+            account: true,
+        },
+        ConnectionChoice {
+            provider: "api".into(),
+            name: "API".into(),
+            account: false,
+        },
+    ]);
+    type_chars(&mut app, "api");
+    app.on_key(key(KeyCode::Enter));
+    app.on_key(key(KeyCode::Esc));
+    assert_eq!(app.key_onboarding.as_ref().unwrap().query, "api");
+    app.on_key(key(KeyCode::Enter));
+    app.on_key(key(KeyCode::Down));
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::LogoutProvider("api".into())
+    );
+}
+
+#[test]
 fn slash_login_opens_the_onboarding_when_idle() {
     let mut app = App::new();
     type_chars(&mut app, "/login");
@@ -70,7 +183,8 @@ fn login_opens_on_the_method_step() {
         vec![
             "Sign in with an account",
             "Sign in with an API key",
-            "Sign in with a local model"
+            "Sign in with a local model",
+            "Manage connections / sign out"
         ]
     );
     assert_eq!(onboarding.providers.len(), 3);
@@ -91,7 +205,7 @@ fn the_method_root_ignores_typing_and_pastes() {
     assert_eq!(onboarding.step, KeyStep::Method);
     assert!(onboarding.query.is_empty(), "no filter opened");
     assert_eq!(onboarding.selected, 1, "typing moves nothing");
-    assert_eq!(onboarding.method_labels().len(), 3, "every way in stays");
+    assert_eq!(onboarding.method_labels().len(), 4, "every way in stays");
     // …and Esc closes at once: there is no query to clear first.
     assert_eq!(app.on_key(key(KeyCode::Esc)), Action::CloseKeyOnboarding);
 }

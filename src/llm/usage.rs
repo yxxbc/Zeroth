@@ -1434,7 +1434,14 @@ pub fn fetch_usage(cfg: &ModelConfig, cancel: &CancelToken) -> Result<UsageRepor
         // `fetchAvailableModels` (`docs/providers/antigravity.md` */usage*).
         AuthScheme::GoogleAntigravity => {
             let refresh = signed_in(cfg.api_key.as_deref())?;
-            let access = super::antigravity::authorize(refresh, &cfg.api_base)?;
+            super::keystore::ensure_connection_enabled(&cfg.provider_id)?;
+            let key = super::keystore::provider_key(&cfg.provider_id);
+            let access = super::antigravity::authorize_for(
+                refresh,
+                &cfg.api_base,
+                key.as_deref()
+                    .unwrap_or(super::antigravity::REFRESH_ENV_VAR),
+            )?;
             let body =
                 super::antigravity::fetch_catalog(&cfg.api_base, &access.bearer, &access.project)
                     .map_err(super::antigravity::explained)?;

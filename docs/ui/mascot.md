@@ -1,8 +1,15 @@
 # The banner mascot and the `/mascot` picker
 
-The startup banner draws a small block-character **mascot** beside the session
-metadata (see `docs/ui/header.md` for the banner itself). The mascot is chosen
-with the **`/mascot`** command — the eighth composer-replacing inline picker —
+The startup banner draws a small **mascot** beside the session metadata (see
+`docs/ui/header.md` for the banner itself). On a graphics-capable terminal the
+default `crest` uses the transparent `assets/mascot-crest.png` mark; terminals
+without a graphics protocol, with images disabled, or when the icon cache
+cannot be written keep the block-character fallback. The binary embeds the
+PNG and materializes it under `~/.zeroth/cache/mascot-crest-v1.png` when a
+graphics protocol is available, so installed builds do not depend on the
+repository checkout. The README uses the same character in
+`assets/banner-v2.jpg`. The mascot is chosen with the **`/mascot`** command —
+the eighth composer-replacing inline picker —
 and the choice persists across sessions, **per working directory**
 (`docs/state/per-directory-state.md`): the repo that wears the gem beside the
 scratch directory that wears the hatchling.
@@ -278,7 +285,9 @@ a project.
   riding the selection, the whole page back once it fits, the cursor on its
   search line) and the rungs under it down to the search line, nothing
   flowing at any height.
-- `ui/tests/header.rs` — the banner side (`docs/ui/header.md`).
+- `ui/tests/header.rs` — the banner side (`docs/ui/header.md`); the layout test
+  in `ui/header.rs` checks the image carrier rows, metadata placement, and
+  narrow-width fallback, while `images::tests` checks native-protocol gating.
 - `scripts/smoke.sh` Phase 139 — the side-by-side page fitting a 12-row
   terminal whole, and the search line on 7.
 - `scripts/smoke.sh` Phase 86 — the picker end to end in a real terminal:

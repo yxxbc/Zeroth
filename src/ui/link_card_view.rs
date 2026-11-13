@@ -25,7 +25,7 @@ const COVER_MAX_ROWS: u16 = 6;
 const COVER_GAP: u16 = 2;
 
 /// The card rows for `card` at `width`. With a usable cover: a thumbnail on
-/// the left (at most a third of the width and [`COVER_MAX_ROWS`] rows) and the
+/// the left (at most a third of the width and `COVER_MAX_ROWS` rows) and the
 /// head/description to its right. Without one — no image, images off, a
 /// terminal that can't draw a picture, a narrow card — the two text rows alone.
 #[must_use]

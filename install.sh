@@ -11,7 +11,7 @@
 #   ZEROTH_VERSION=v0.1.0 … | sh               # pin a release (default: the latest)
 #   ZEROTH_INSTALL_DIR=/usr/local/bin … | sh   # install somewhere else
 #   … | sh -s -- --version v0.1.0 --dir ~/bin      # the same two, as flags
-#   … | sh -s -- --preview                         # the mascot alone, 10 s, installing nothing
+#   … | sh -s -- --preview                         # the banner alone, 10 s, installing nothing
 #   … | sh -s -- --preview 20                      # the same, for 20 s (--preview=20 too)
 #   … | sh -s -- --help
 #
@@ -58,10 +58,10 @@ setup_looks() {
 	esac
 	if [ "$utf8" -eq 1 ]; then
 		arrow='→' tick='✔' cross='✘' bang='!'
-		spin1='▙' spin2='▛' spin3='▜' spin4='▟'
+		bar_fill='━' bar_empty='╌'
 	else
 		arrow='>' tick='+' cross='x' bang='!'
-		spin1='|' spin2='/' spin3='-' spin4="\\"
+		bar_fill='=' bar_empty='.'
 	fi
 	# A frame's pause. `sleep` is not required to take a fraction: where it
 	# does not, a frame lasts a second rather than a tenth, and a preview of
@@ -78,9 +78,9 @@ setup_looks() {
 # Three rows of single-width block glyphs, tinted from the banner's gradient
 # with the tint walking down the rows, its crest swinging and its eyes
 # blinking on a short cycle. On a terminal it animates — a short intro before
-# the steps, a one-row spinner while the archive downloads, and `--preview N`
-# for as long as you ask. In a pipe, under `TERM=dumb` or with no colour, the
-# art is drawn once and left still.
+# the steps, a download progress bar below the log, and `--preview N`
+# for as long as you ask. In a pipe or under `TERM=dumb`, the art is drawn once
+# and left still; `NO_COLOR` suppresses tint without disabling terminal motion.
 # ---------------------------------------------------------------------------
 # Every row is written with its trailing padding already in the string: the
 # captions' column is fixed, and a UTF-8 block glyph is three bytes wide but
@@ -167,28 +167,163 @@ animate() {
 
 # The same art, once, for a pipe or a terminal that cannot hold it still.
 static_banner() {
-	printf '   %s▙▄▙▄▟▄▟%s      %sZeroth%s\n' "$g1" "$reset" "$bold" "$reset"
-	printf '  %s▝▜▄███▄▛▘%s     %sthe one-line installer%s\n' "$g2" "$reset" "$dim" "$reset"
-	printf '    %s▘▘ ▝▝%s\n' "$g3" "$reset"
+	draw_mascot 0 'Zeroth' 'Open-source coding agent' 'Secure, verified installer'
+}
+
+# Graphical terminals that implement the Kitty graphics protocol (including
+# iTerm2 and Ghostty). The installer is commonly piped into `sh`, so assets
+# are fetched from the repository only in this mode. A checkout can use its
+# local artwork, and every failure falls back to the text banner.
+graphics_terminal() {
+	[ -t 1 ] || return 1
+	case "${TERM:-}:${TERM_PROGRAM:-}" in
+	*kitty*:* | *:iTerm.app | *:WezTerm | *:Ghostty | ghostty:*) return 0 ;;
+	esac
+	[ -n "${KITTY_WINDOW_ID:-}${GHOSTTY_RESOURCES_DIR:-}${ITERM_SESSION_ID:-}" ]
+}
+
+prepare_art() {
+	graphics_terminal || return 1
+	local_assets=${ZEROTH_INSTALL_ASSET_DIR:-assets}
+	if [ -f "$local_assets/banner-v2.png" ] && [ -f "$local_assets/mascot-crest.png" ]; then
+		banner_image="$local_assets/banner-v2.png"
+		icon_image="$local_assets/mascot-crest.png"
+		return 0
+	fi
+	art_base=${ZEROTH_INSTALL_ART_BASE_URL:-https://raw.githubusercontent.com/$REPO/main/assets}
+	banner_image="$tmp/banner-v2.png"
+	icon_image="$tmp/mascot-crest.png"
+	# No fetcher, no download: the caller falls back to the text banner.
+	[ -n "${fetcher:-}" ] || return 1
+	if [ "$fetcher" = curl ]; then
+		art_fetch() { curl --connect-timeout 2 --max-time 8 -fsSL -o "$2" "$1"; }
+	else
+		art_fetch() { wget -q --timeout=8 -O "$2" "$1"; }
+	fi
+	if art_fetch "$art_base/banner-v2.png" "$banner_image" && art_fetch "$art_base/mascot-crest.png" "$icon_image"; then
+		return 0
+	fi
+	return 1
+}
+
+# Kitty's remote protocol takes PNG and caps payload chunks at 4096 bytes.
+# The image is given a column count and no row count: the protocol then scales
+# it from the picture's own aspect ratio, so nothing is stretched, and the
+# default cursor policy leaves the cursor on the row below the placement, so
+# what is drawn next lands under the art rather than over it.
+#
+# Two things here are not obvious. The chunk count cannot come from `wc -l`:
+# BSD `fold` does not newline-terminate its last line, so the count came out
+# one short, the real tail went out flagged `m=1` (more to come), and the
+# terminal sat waiting for bytes that never arrived — EBADPNG, and half an
+# image. Buffering one line is the fix, so the last chunk is known rather
+# than counted. And `q=2` asks for no reply at all: the protocol answers a
+# transmit with an OK or an error on the terminal's *input*, and a `sh` that
+# has already exited leaves that answer for the shell to read as a command.
+kitty_png() { # FILE ID COLUMNS
+	encoded_chunks="$tmp/art-chunks"
+	base64 <"$1" | tr -d '\r\n' | fold -w 4096 >"$encoded_chunks"
+	[ -s "$encoded_chunks" ] || return 1
+	awk -v esc="$esc" -v bs='\\' -v id="$2" -v cols="$3" '
+		BEGIN { first = 1 }
+		function send(chunk, last, meta) {
+			if (first) {
+				meta = "a=T,f=100,i=" id ",c=" cols ",q=2"
+				first = 0
+			} else {
+				meta = "i=" id
+			}
+			printf "%s_G%s,m=%d;%s%s", esc, meta, last, chunk, (esc bs)
+		}
+		{ if (have) send(prev, 1); prev = $0; have = 1 }
+		END { if (have) send(prev, 0) }
+	' "$encoded_chunks"
+}
+
+# term_cols — the screen's width, or 80 where nothing answers.
+term_cols() {
+	cols=''
+	if command -v tput >/dev/null 2>&1; then
+		cols=$(tput cols 2>/dev/null) || cols=''
+	fi
+	case "$cols" in '' | *[!0-9]*) cols=80 ;; esac
+	[ "$cols" -ge 8 ] || cols=80
+	printf '%s\n' "$cols"
+}
+
+image_banner() {
+	# Kitty protocol is also implemented by iTerm2 and Ghostty. Each image
+	# leaves the cursor on the row below itself, so the composition needs no
+	# cursor arithmetic — the mascot sits under the banner and the name under
+	# the mascot.
+	cols=$(term_cols)
+	banner_cols=$((cols - 2))
+	[ "$banner_cols" -le 72 ] || banner_cols=72
+	[ "$banner_cols" -ge 16 ] || banner_cols=16
+	kitty_png "$banner_image" 31 "$banner_cols"
+	printf '\r'
+	kitty_png "$icon_image" 32 12
+	printf '\r'
+	printf '  %sZeroth%s\n  %sOpen-source coding agent%s\n  %sSecure, verified installer%s\n' \
+		"$bold" "$reset" "$dim" "$reset" "$dim" "$reset"
 }
 
 banner() {
 	printf '\n'
-	if animate_ok; then
-		animate $((fps * 3 / 2)) 'Zeroth' 'the one-line installer' "building $BIN"
+	if [ "${art_ready:-0}" -eq 1 ]; then
+		image_banner
+	elif animate_ok; then
+		animate $((fps * 3 / 2)) 'Zeroth' 'Open-source coding agent' 'Secure, verified installer'
 	else
-		printf '  %sZeroth%s  %sthe one-line installer%s\n' "$bold" "$reset" "$dim" "$reset"
+		static_banner
 	fi
 	printf '\n'
 }
 
-# preview SECONDS — the mascot alone: no platform check, no network, and
-# nothing installed. The frames are counted, not timed, so a slow terminal
-# runs long rather than dropping frames.
+# bar_of FILLED WIDTH -> the bar in $bar.
+bar_of() {
+	bar=''
+	cell=0
+	while [ "$cell" -lt "$2" ]; do
+		if [ "$cell" -lt "$1" ]; then bar="$bar$bar_fill"; else bar="$bar$bar_empty"; fi
+		cell=$((cell + 1))
+	done
+}
+
+# preview_hold SECONDS — waits out the seconds the preview asked for, showing
+# them pass. An image banner is printed, not animated, so without this a
+# graphics terminal came straight back and `--preview 5` was over in a flash.
+# The frames are counted, not timed, so a slow terminal runs long rather than
+# dropping frames.
+preview_hold() {
+	frames=$(($1 * fps))
+	[ "$frames" -gt 0 ] || frames=1
+	hide_cursor
+	i=0
+	while [ "$i" -lt "$frames" ]; do
+		bar_of $((i * 24 / frames)) 24
+		printf '\r  %s%s%s  %-9s [%s%s%s] %s%d of %d s · nothing is installed%s\033[K' \
+			"$cyan" "$arrow" "$reset" 'Preview' "$cyan" "$bar" "$reset" "$dim" "$((i / fps))" "$1" "$reset"
+		tick
+		i=$((i + 1))
+	done
+	bar_of 24 24
+	printf '\r  %s%s%s  %-9s [%s%s%s] %s%d s · nothing is installed%s\033[K\n' \
+		"$green" "$tick" "$reset" 'Preview' "$cyan" "$bar" "$reset" "$dim" "$1" "$reset"
+	show_cursor
+}
+
+# preview SECONDS — the banner alone, drawn the way an install draws it, and
+# nothing installed.
 preview() {
 	printf '\n'
-	if animate_ok; then
-		animate "$(($1 * fps))" 'Zeroth' 'the one-line installer' "preview · $1 s · nothing is installed"
+	if [ "${art_ready:-0}" -eq 1 ]; then
+		image_banner
+		preview_hold "$1"
+	elif animate_ok; then
+		animate "$(($1 * fps))" 'Zeroth' 'Open-source coding agent' 'Secure, verified installer'
+		printf '  %s%s  %spreview · %s s · nothing is installed%s\n' \
+			"$dim" "$bang" "$dim" "$1" "$reset"
 	else
 		static_banner
 		printf '\n  %s--preview needs a terminal to animate on.%s\n' "$dim" "$reset"
@@ -264,14 +399,22 @@ detect_target() {
 # ---------------------------------------------------------------------------
 # The network: curl, or wget where curl is missing.
 # ---------------------------------------------------------------------------
-need_tools() {
+# need_fetcher — sets `fetcher`, or returns 1 where neither tool is installed.
+# Split from need_tools so a preview (which fetches only its artwork, and can
+# do without) asks for this much and no more.
+need_fetcher() {
 	if command -v curl >/dev/null 2>&1; then
 		fetcher=curl
 	elif command -v wget >/dev/null 2>&1; then
 		fetcher=wget
 	else
-		fail "neither curl nor wget is installed" "Install one and run this again."
+		fetcher=''
+		return 1
 	fi
+}
+
+need_tools() {
+	need_fetcher || fail "neither curl nor wget is installed" "Install one and run this again."
 	command -v tar >/dev/null 2>&1 || fail "tar is not installed"
 	if command -v sha256sum >/dev/null 2>&1; then
 		hasher=sha256sum
@@ -297,9 +440,60 @@ fetch() {
 	fi
 }
 
+# remote_size URL — curl's final response Content-Length, or zero when the
+# server does not publish one (or wget is the fetcher). This is only a hint
+# for the visual bar; the download itself works without a known size.
+remote_size() {
+	if [ "$fetcher" = curl ]; then
+		curl --connect-timeout 2 --max-time 5 -fLsSI "$1" 2>/dev/null |
+			awk 'tolower($1) == "content-length:" { gsub("\\r", "", $2); size = $2 } END { if (size ~ /^[0-9]+$/) print size; else print 0 }'
+	else
+		printf '0\n'
+	fi
+}
+
+# progress_line CURRENT TOTAL FRAME — a fixed-width determinate bar when the
+# server gave us a size, otherwise a bouncing segment plus actual bytes.
+progress_line() {
+	current="$1" total="$2" frame="$3"
+	bar_width=24
+	completed="${4:-0}"
+	marker="$arrow"
+	if [ "$completed" = 1 ]; then
+		filled="$bar_width"
+		progress_text='100%'
+		marker="$tick"
+	elif [ "$total" -gt 0 ] 2>/dev/null; then
+		filled=$((current * bar_width / total))
+		[ "$filled" -le "$bar_width" ] || filled=$bar_width
+		percent=$((current * 100 / total))
+		[ "$percent" -le 100 ] || percent=100
+		progress_text="$percent%"
+	else
+		phase=$((frame % 36))
+		if [ "$phase" -le 18 ]; then position="$phase"; else position=$((36 - phase)); fi
+		filled=0
+		progress_text='downloading'
+	fi
+	bar=''
+	cell=0
+	while [ "$cell" -lt "$bar_width" ]; do
+		if [ "$completed" = 1 ] || [ "$total" -gt 0 ] 2>/dev/null; then
+			if [ "$cell" -lt "$filled" ]; then char="$bar_fill"; else char="$bar_empty"; fi
+		else
+			if [ "$cell" -ge "$position" ] && [ "$cell" -lt $((position + 5)) ]; then char="$bar_fill"; else char="$bar_empty"; fi
+		fi
+		bar="$bar$char"
+		cell=$((cell + 1))
+	done
+	bytes=$(human_size "$current")
+	printf '\r  %s%s%s  %-9s [%s%s%s] %s  %s%s%s\033[K' \
+		"$cyan" "$marker" "$reset" "Download" "$cyan" "$bar" "$reset" "$progress_text" "$dim" "$bytes" "$reset"
+}
+
 # fetch_live URL DEST LABEL — the Download row. On a terminal the fetch runs
-# in the background and its row spins in the mascot's place, reporting the
-# bytes landed so far; the command's own exit status is what this returns.
+# in the background and its progress bar is redrawn in place; the command's
+# own exit status is what this returns. The banner stays above the step log.
 # A background job's `kill -0` still answers for a corpse the shell has not
 # reaped, so the job writes its status to a file and the poll watches that.
 fetch_live() {
@@ -308,6 +502,7 @@ fetch_live() {
 		return
 	fi
 	rm -f "$tmp/fetch.status"
+	total=$(remote_size "$1" || printf '0')
 	# `set -e` would end the subshell at the failed fetch, before it wrote
 	# anything — and the poll below would spin forever.
 	(
@@ -320,15 +515,9 @@ fetch_live() {
 	# A cap, so a fetch that is killed rather than failing cannot hang the
 	# install: two minutes of frames is ten times the longest real download.
 	while [ ! -s "$tmp/fetch.status" ] && [ "$i" -lt 1200 ]; do
-		case "$((i % 4))" in
-		0) spin="$spin1" ;;
-		1) spin="$spin2" ;;
-		2) spin="$spin3" ;;
-		*) spin="$spin4" ;;
-		esac
 		size=''
-		if [ -f "$2" ]; then size=$(human_size "$(wc -c <"$2" | tr -d ' ')"); fi
-		printf '\r  %s%s%s  %-9s %s %s%s\033[K' "$cyan" "$spin" "$reset" "Download" "$3" "$dim" "$size"
+		if [ -f "$2" ]; then size=$(wc -c <"$2" | tr -d ' '); else size=0; fi
+		progress_line "$size" "$total" "$i"
 		tick
 		i=$((i + 1))
 	done
@@ -342,10 +531,18 @@ fetch_live() {
 		return 1
 	fi
 	wait "$pid" 2>/dev/null || true
+	rc=$(cat "$tmp/fetch.status")
+	if [ "$rc" = 0 ]; then
+		if [ -f "$2" ]; then size=$(wc -c <"$2" | tr -d ' '); else size=0; fi
+		progress_line "$size" "$total" "$i" 1
+		printf '\n'
+		show_cursor
+		download_logged=1
+		return 0
+	fi
 	show_cursor
 	printf '\r\033[K'
-	rc=$(cat "$tmp/fetch.status")
-	[ "$rc" = 0 ]
+	return 1
 }
 
 # The tag the repository's "latest release" redirect points at — read off the
@@ -432,17 +629,24 @@ main() {
 		[ "$preview_secs" -gt 0 ] || fail "--preview needs at least one second"
 	fi
 
+	tmp=$(mktemp -d 2>/dev/null || mktemp -d -t zeroth)
+	trap 'show_cursor; rm -rf "${tmp:-}"' EXIT INT TERM HUP
+
 	if [ -n "$preview_secs" ]; then
+		# The preview draws the banner an install draws, artwork and all — the
+		# same temp dir and the same fetch, so what it shows is what you get.
+		# It stops there: no platform check, no release, nothing installed.
+		# A machine with neither curl nor wget keeps the text banner.
+		need_fetcher >/dev/null 2>&1 || true
+		if prepare_art; then art_ready=1; else art_ready=0; fi
 		preview "$preview_secs"
 		exit 0
 	fi
 
-	tmp=$(mktemp -d 2>/dev/null || mktemp -d -t zeroth)
-	trap 'show_cursor; rm -rf "${tmp:-}"' EXIT INT TERM HUP
-
-	banner
 	need_tools
 	detect_target
+	if prepare_art; then art_ready=1; else art_ready=0; fi
+	banner
 	step "Platform" "$platform $dim($target)$reset"
 
 	if [ -n "$want" ]; then
@@ -462,7 +666,9 @@ main() {
 
 	fetch_live "$url" "$archive" "$asset.tar.gz" || fail "no release asset for $target at $tag" "Looked for $url"
 	size=$(human_size "$(wc -c <"$archive" | tr -d ' ')")
-	done_ "Download" "$asset.tar.gz $dim($size)$reset"
+	if [ "${download_logged:-0}" -ne 1 ]; then
+		done_ "Download" "$asset.tar.gz $dim($size)$reset"
+	fi
 	# SHA256SUMS covers every archive in the release — one published file
 	# rather than one beside each asset, which is what the release page
 	# lists and `sha256sum -c` reads.

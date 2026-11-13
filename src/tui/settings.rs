@@ -13,6 +13,7 @@
 //! there is no second copy to keep in step.
 
 use std::io;
+use std::path::PathBuf;
 
 use zeroth::app::ToastKind;
 use zeroth::images::{self, DEFAULT_FONT_SIZE, ImagePolicy};
@@ -20,6 +21,21 @@ use zeroth::project_doc;
 use zeroth::settings::{SettingAvailability, SettingKey};
 
 use super::{Session, config};
+
+const MASCOT_ICON: &[u8] = include_bytes!("../../assets/mascot-crest.png");
+
+/// Materialize the compiled-in icon outside the repository so installed
+/// binaries can draw it too. Failures simply leave the text mascot in place.
+fn materialize_mascot_icon() -> Option<PathBuf> {
+    let path = config::config_home()?.join("cache/mascot-crest-v1.png");
+    if !path.is_file() {
+        let parent = path.parent()?;
+        std::fs::create_dir_all(parent).ok()?;
+        std::fs::write(&path, MASCOT_ICON).ok()?;
+    }
+    zeroth::images::remember_size(path.to_str()?, (1312, 1199));
+    Some(path)
+}
 
 impl Session<'_> {
     /// `/settings`: open the inline menu. Nothing to fetch — the rows derive
@@ -224,7 +240,7 @@ impl Session<'_> {
     /// rows; the `read` executor reads its `auto_resize` to decide whether to
     /// downscale before uploading.
     pub(crate) fn sync_image_policy(&mut self) {
-        let (available, font, _) = self.term.image_capability();
+        let (available, font, protocol) = self.term.image_capability();
         let settings = self.app.settings();
         images::set_policy(ImagePolicy {
             show: settings.show_images,
@@ -232,7 +248,15 @@ impl Session<'_> {
             auto_resize: settings.auto_resize_images,
             font: font.unwrap_or(DEFAULT_FONT_SIZE),
             available,
+            graphics: protocol.is_some_and(|protocol| protocol != "halfblocks"),
         });
+        let mascot_path = if available && protocol.is_some_and(|protocol| protocol != "halfblocks")
+        {
+            materialize_mascot_icon().map(|path| path.to_string_lossy().into_owned())
+        } else {
+            None
+        };
+        images::set_mascot_image_path(mascot_path);
     }
 
     /// Apply a setting the menu just cycled: do whatever it takes to make the

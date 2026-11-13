@@ -526,6 +526,14 @@ fn authorize_with(
 
 /// Forget a stored token's cached bearer — what a fresh sign-in owes, so the
 /// next request exchanges rather than reusing the previous account's.
+pub(crate) fn invalidate_access(token: &str) {
+    if let Some(cache) = BEARERS.get()
+        && let Ok(mut map) = cache.lock()
+    {
+        map.remove(token);
+    }
+}
+
 pub fn forget(oauth_token: &str) {
     // Never behind the gate — an exchange in flight holds it for as long as
     // its request takes. On record *before* the removal: an exchange that
