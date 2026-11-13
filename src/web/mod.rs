@@ -16,6 +16,7 @@ mod guard;
 mod rules;
 mod sources;
 mod tidy;
+mod walk;
 
 pub use cooldown::Cooldowns;
 pub use guard::{
@@ -27,3 +28,4 @@ pub use rules::{
 };
 pub use sources::{Failure, Hit, reply_hits};
 pub use tidy::{Filter, cut_chars, host_of, tidy};
+pub use walk::{Asker, Attempt, Found, Missed, Query, Search};
