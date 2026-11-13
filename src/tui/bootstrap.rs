@@ -597,12 +597,18 @@ impl<'t> Session<'t> {
         let (checkpoint_tx, checkpoint_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let cwd_display = ui::display_cwd(&cwd, home.as_deref());
+        // The streamed reply carries path links as it commits: give both
+        // renderers the session's path policy once (`docs/ui/rich-links.md`).
+        let mut render = ui::StreamRender::new();
+        render.set_paths(Some(app.path_display().clone()));
+        let mut agent_render = ui::StreamRender::new();
+        agent_render.set_paths(Some(app.path_display().clone()));
         let mut session = Self {
             term,
             app,
             models,
-            render: ui::StreamRender::new(),
-            agent_render: ui::StreamRender::new(),
+            render,
+            agent_render,
             transcript: ui::TranscriptCache::new(),
             full_tail: None,
             full_top: None,

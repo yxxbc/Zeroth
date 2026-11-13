@@ -220,8 +220,9 @@ still applies.
   opener (`open`/`xdg-open`/`cmd start`), a left drag selects and copies (the
   app's own selection, since capture takes the terminal's; Shift+drag remains
   the terminal's escape hatch), and Shift is not required. Wheel scrolls.
-  Links are the carriers already painted (OSC 8 URLs and linked file-tool
-  headers); bare paths in prose are the rich-links phase.
+  Links are the carriers already painted — OSC 8 URLs, file-tool headers and
+  the prose/code file paths `links::find_paths` now marks — so a click opens
+  a URL or a file through the same platform opener.
 - Ctrl+O, the context view and every full-screen page paint over the frame
   through the existing overlay path; leaving a page repaints the frame. A
   resize re-wraps from history at the new width.

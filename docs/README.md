@@ -41,7 +41,7 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/header.md`](ui/header.md): The startup header banner
 - [`ui/images.md`](ui/images.md): Inline images
 - [`ui/inline-diff.md`](ui/inline-diff.md): Character-level diff marking in the `edit`/`write` cell
-- [`ui/links.md`](ui/links.md): Clickable links — OSC 8 hyperlinks for wrapped URLs
+- [`ui/links.md`](ui/links.md): Clickable links — OSC 8 hyperlinks for wrapped URLs and file paths
 - [`ui/long-lines.md`](ui/long-lines.md): Very long output lines — bounded rows, honest counts
 - [`ui/markdown.md`](ui/markdown.md): Assistant markdown rendering
 - [`ui/mascot.md`](ui/mascot.md): The banner mascot and the `/mascot` picker

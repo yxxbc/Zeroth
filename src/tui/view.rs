@@ -401,7 +401,12 @@ impl Session<'_> {
                     },
                 );
                 if let Some(text) = self.app.streaming_text().filter(|text| !text.is_empty()) {
-                    lines.extend(ui::message_lines(Role::Assistant, text, width));
+                    lines.extend(ui::message_lines_with_paths(
+                        Role::Assistant,
+                        text,
+                        width,
+                        Some(self.app.path_display()),
+                    ));
                 }
                 (lines, starts)
             }

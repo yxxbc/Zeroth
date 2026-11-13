@@ -104,7 +104,12 @@ pub fn conversation_lines_tracked(
                 Some(report) => lines.extend(hook_report_lines(report, width)),
                 None => continue,
             },
-            HistoryItem::Message(m) => lines.extend(message_lines(m.role, &m.text, width)),
+            HistoryItem::Message(m) => lines.extend(message_lines_with_paths(
+                m.role,
+                &m.text,
+                width,
+                Some(paths),
+            )),
             HistoryItem::Tool(t) => lines.extend(tool_lines(t, width, paths)),
             HistoryItem::Summary(s) => lines.extend(summary_lines(s, width)),
             HistoryItem::Background(n) => lines.extend(background_notice_lines(n, width)),

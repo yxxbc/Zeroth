@@ -18,27 +18,48 @@ use super::*;
 /// their literal text or code styling; the suffix's own `(`/`)` stay prose —
 /// only the target between them is dressed and marked as a link.
 pub(super) fn inline_spans(nodes: &[markdown::Inline], base: Style) -> Vec<(String, Style)> {
+    inline_spans_with_paths(nodes, base, None)
+}
+
+/// [`inline_spans`] with the session's path policy: file-path-like tokens in
+/// prose and code additionally carry a `file://` target when `paths` can place
+/// them (`docs/ui/rich-links.md`). `None` is the verbatim policy — the public
+/// `message_lines` and every unit test keep their old output.
+pub(super) fn inline_spans_with_paths(
+    nodes: &[markdown::Inline],
+    base: Style,
+    paths: Option<&crate::app::PathDisplay>,
+) -> Vec<(String, Style)> {
     let mut out = Vec::new();
     for node in nodes {
         match node {
-            markdown::Inline::Text(t) => autolink_text(t, base, &mut out),
+            markdown::Inline::Text(t) => autolink_text(t, base, paths, &mut out),
             markdown::Inline::Bold(inner) => {
-                out.extend(inline_spans(inner, base.add_modifier(Modifier::BOLD)));
+                out.extend(inline_spans_with_paths(
+                    inner,
+                    base.add_modifier(Modifier::BOLD),
+                    paths,
+                ));
             }
             markdown::Inline::Italic(inner) => {
-                out.extend(inline_spans(inner, base.add_modifier(Modifier::ITALIC)));
+                out.extend(inline_spans_with_paths(
+                    inner,
+                    base.add_modifier(Modifier::ITALIC),
+                    paths,
+                ));
             }
             markdown::Inline::Strike(inner) => {
-                out.extend(inline_spans(
+                out.extend(inline_spans_with_paths(
                     inner,
                     base.add_modifier(Modifier::CROSSED_OUT),
+                    paths,
                 ));
             }
             markdown::Inline::Code(c) => {
-                out.extend(linkify_code_segments(vec![(
-                    c.clone(),
-                    base.fg(inline_code_color()),
-                )]));
+                out.extend(linkify_code_segments_with_paths(
+                    vec![(c.clone(), base.fg(inline_code_color()))],
+                    paths,
+                ));
             }
             markdown::Inline::Link { text, url } => {
                 // The text keeps its own dress and gains the target; the
@@ -48,7 +69,7 @@ pub(super) fn inline_spans(nodes: &[markdown::Inline], base: Style) -> Vec<(Stri
                 // the eye reads as the link is exactly what a click opens
                 // (`docs/ui/links.md` *The decoration parens*).
                 out.extend(
-                    inline_spans(text, base)
+                    inline_spans_with_paths(text, base, paths)
                         .into_iter()
                         .map(|(t, s)| (t, links::linked(s, url))),
                 );
@@ -73,16 +94,53 @@ pub(super) fn inline_spans(nodes: &[markdown::Inline], base: Style) -> Vec<(Stri
 /// (`docs/ui/links.md`): each detected URL takes the markdown-target dress —
 /// [`link_url_color`] + underline, a URL is a URL — plus the carrier that
 /// keeps every wrapped fragment opening the whole target; the prose around it
-/// is untouched.
-fn autolink_text(text: &str, base: Style, out: &mut Vec<(String, Style)>) {
+/// is untouched. Path-like tokens in the remaining prose take the same dress
+/// with a `file://` target when the session's path policy places them
+/// (`docs/ui/rich-links.md`).
+fn autolink_text(
+    text: &str,
+    base: Style,
+    paths: Option<&crate::app::PathDisplay>,
+    out: &mut Vec<(String, Style)>,
+) {
     let mut at = 0;
     for range in links::find_urls(text) {
         if range.start > at {
-            out.push((text[at..range.start].to_string(), base));
+            push_path_text(&text[at..range.start], base, paths, out);
         }
         let url = &text[range.clone()];
         let style = base.fg(link_url_color()).add_modifier(Modifier::UNDERLINED);
         out.push((url.to_string(), links::linked(style, url)));
+        at = range.end;
+    }
+    if at < text.len() {
+        push_path_text(&text[at..], base, paths, out);
+    }
+}
+
+/// Push prose, marking the file paths in it as links when `paths` can resolve
+/// them. Without a policy (the public renderers, unit tests) this is one plain
+/// segment, byte-identical to before.
+fn push_path_text(
+    text: &str,
+    base: Style,
+    paths: Option<&crate::app::PathDisplay>,
+    out: &mut Vec<(String, Style)>,
+) {
+    let Some(paths) = paths else {
+        out.push((text.to_string(), base));
+        return;
+    };
+    let mut at = 0;
+    for range in links::find_paths(text) {
+        let Some(url) = paths.file_url(links::strip_line_suffix(&text[range.clone()])) else {
+            continue;
+        };
+        if range.start > at {
+            out.push((text[at..range.start].to_string(), base));
+        }
+        let style = base.fg(link_url_color()).add_modifier(Modifier::UNDERLINED);
+        out.push((text[range.clone()].to_string(), links::linked(style, &url)));
         at = range.end;
     }
     if at < text.len() {
@@ -93,19 +151,48 @@ fn autolink_text(text: &str, base: Style, out: &mut Vec<(String, Style)>) {
 /// Mark literal code URLs, respecting quote boundaries and preserving trailing
 /// punctuation when the literal itself establishes the URL's extent.
 pub(super) fn linkify_code_segments(segments: Vec<(String, Style)>) -> Vec<(String, Style)> {
-    linkify_with(segments, links::find_code_urls)
+    linkify_targets(segments, |text| {
+        links::find_code_urls(text)
+            .into_iter()
+            .map(|range| {
+                let url = text[range.clone()].to_string();
+                (range, url)
+            })
+            .collect()
+    })
 }
 
-/// Intersect source URL ranges with **unwrapped**, already-styled runs without
-/// changing their bytes or dress, independent of the detector's prose/code
-/// boundary rules. Detection sees the whole line, not individual
+/// [`linkify_code_segments`] for **paths**: a code span's file-path-like token
+/// carries a `file://` target when the session's path policy places it, while
+/// its literal text and code colour stay untouched (`docs/ui/rich-links.md`).
+pub(super) fn linkify_code_segments_with_paths(
+    segments: Vec<(String, Style)>,
+    paths: Option<&crate::app::PathDisplay>,
+) -> Vec<(String, Style)> {
+    let Some(paths) = paths else {
+        return linkify_code_segments(segments);
+    };
+    linkify_targets(segments, |text| {
+        links::find_paths(text)
+            .into_iter()
+            .filter_map(|range| {
+                let url = paths.file_url(links::strip_line_suffix(&text[range.clone()]))?;
+                Some((range, url))
+            })
+            .collect()
+    })
+}
+
+/// Intersect detected `(range, target)` pairs with **unwrapped**, already-styled
+/// runs without changing their bytes or dress, independent of the detector's
+/// prose/code boundary rules. Detection sees the whole line, not individual
 /// syntax-highlighted segments: a highlighter can split a URL at `://`,
 /// punctuation, or query parameters. Every intersecting piece carries the full
 /// target before a wrapper breaks it into display rows. Segments must belong to
 /// one source line; separate lines are never joined.
-fn linkify_with(
+fn linkify_targets(
     segments: Vec<(String, Style)>,
-    detect: fn(&str) -> Vec<std::ops::Range<usize>>,
+    detect: impl Fn(&str) -> Vec<(std::ops::Range<usize>, String)>,
 ) -> Vec<(String, Style)> {
     let text: String = segments.iter().map(|(text, _)| text.as_str()).collect();
     let ranges = detect(&text);
@@ -122,7 +209,7 @@ fn linkify_with(
         }
         let end = offset + content.len();
         let mut at = offset;
-        while let Some(range) = ranges.peek() {
+        while let Some((range, target)) = ranges.peek() {
             if range.start >= end {
                 break;
             }
@@ -131,10 +218,7 @@ fn linkify_with(
                 out.push((text[at..start].to_string(), style));
             }
             let stop = range.end.min(end);
-            out.push((
-                text[start..stop].to_string(),
-                links::linked(style, &text[range.clone()]),
-            ));
+            out.push((text[start..stop].to_string(), links::linked(style, target)));
             at = stop;
             if range.end <= end {
                 ranges.next();

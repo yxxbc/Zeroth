@@ -18,6 +18,14 @@ release heading when a version is cut.
 
 ### Added
 
+- **Clickable file paths in replies.** Assistant prose and inline code now
+  link path-like tokens (`src/app.rs:42`, `./scripts/run.sh`,
+  `~/notes/today.md`) to their absolute, percent-encoded `file://` URI through
+  the session's cwd/home policy. The `:line[:col]` suffix stays plain prose;
+  globs, flags, `key=value` tokens and URLs are refused, and detection never
+  touches the filesystem. Links work in both viewports, and streaming
+  withholds a line while a path may still grow (`docs/ui/links.md`).
+
 - **Experimental screen-owning mode: `--fullscreen`.** The terminal UI can run
   on the alternate screen with the conversation, the live region, the composer
   and the footer painted into one owned frame, instead of committing finished

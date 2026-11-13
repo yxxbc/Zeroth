@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use super::inline::{inline_spans, linkify_code_segments, wrap_inline_hanging};
+use super::inline::{inline_spans_with_paths, linkify_code_segments, wrap_inline_hanging};
 use super::table::{join_wrapped_table_row, table_block_rows};
 use super::theme::*;
 use super::wrap::cols;
@@ -180,13 +180,30 @@ pub(super) fn code_content_tail_rows(
 /// before it and the line itself. (Highlighting uses one-char lookahead within
 /// a line — a call's `(` — so an in-progress code *line* isn't safe to commit
 /// until it completes; [`StreamRender`] withholds it, see there.)
+/// Test-only spelling of [`assistant_lines_with_paths`] with the verbatim path
+/// policy: the unit tests render exactly the old output, and no production
+/// caller keeps a path-less entry point around to drift.
+#[cfg(test)]
 pub(super) fn assistant_lines(
     text: &str,
     width: u16,
     bullet: &str,
     color: Color,
 ) -> Vec<Line<'static>> {
+    assistant_lines_with_paths(text, width, bullet, color, None)
+}
+
+/// [`assistant_lines`] with the session's path policy: file-path-like tokens
+/// carry `file://` targets (`docs/ui/rich-links.md`).
+pub(super) fn assistant_lines_with_paths(
+    text: &str,
+    width: u16,
+    bullet: &str,
+    color: Color,
+    paths: Option<&crate::app::PathDisplay>,
+) -> Vec<Line<'static>> {
     let mut renderer = AssistantRenderer::new(width, bullet, color);
+    renderer.paths = paths.cloned();
     let mut rows: Vec<Line<'static>> = Vec::new();
     for line in text.split('\n') {
         rows.extend(renderer.feed_line(line));
@@ -369,6 +386,11 @@ pub(super) struct AssistantRenderer {
     /// buffered here and rendered **whole** only when the block closes (a line
     /// that does not continue it, or end-of-message via [`Self::flush`]).
     pub(super) table: TableState,
+    /// The session's file-path policy, when the boundary threaded one:
+    /// path-like tokens in prose and code become `file://` links
+    /// (`docs/ui/rich-links.md`). `None` is the verbatim policy — unit tests
+    /// and the public `message_lines` keep their old output.
+    pub(super) paths: Option<crate::app::PathDisplay>,
 }
 
 /// The [`AssistantRenderer`]'s GFM-table state machine (docs/ui/table-streaming.md).
@@ -516,6 +538,7 @@ impl AssistantRenderer {
             fence_indent: 0,
             fence_lenient: Vec::new(),
             table: TableState::None,
+            paths: None,
         }
     }
 
@@ -888,7 +911,11 @@ impl AssistantRenderer {
         } else {
             self.separator()
         };
-        let segments = inline_spans(&markdown::parse_inline(text), self.base_style());
+        let segments = inline_spans_with_paths(
+            &markdown::parse_inline(text),
+            self.base_style(),
+            self.paths.as_ref(),
+        );
         let rows = self.wrap(&segments);
         out.extend(self.emit(rows));
         self.close_block(Last::Paragraph);
@@ -905,7 +932,11 @@ impl AssistantRenderer {
         } else {
             vec![(format!("{hashes} "), style)]
         };
-        segments.extend(inline_spans(&markdown::parse_inline(text), style));
+        segments.extend(inline_spans_with_paths(
+            &markdown::parse_inline(text),
+            style,
+            self.paths.as_ref(),
+        ));
         let rows = self
             .wrap(&segments)
             .into_iter()

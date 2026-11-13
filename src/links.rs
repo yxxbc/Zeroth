@@ -50,6 +50,141 @@ pub fn find_urls(text: &str) -> Vec<Range<usize>> {
     out
 }
 
+/// Byte ranges of **file-path-like** tokens in one prose line
+/// (`docs/ui/rich-links.md`): whitespace-delimited words that start with `/`,
+/// `./`, `../` or `~/`, or contain a `/` whose last segment has a dot
+/// (`src/app/tools.rs`). A trailing `:line[:col]` is left out of the range, so
+/// the visible suffix stays prose. URLs are never paths (`://`), globs
+/// (`*?[]{}`) and backslashes are refused, and a token overlapping a URL found
+/// by [`find_urls`] is skipped. The caller resolves the slice through its
+/// [`PathDisplay`](crate::app::PathDisplay) — detection is lexical and never
+/// touches the filesystem, so a path that does not exist still links (the OS
+/// opener reports it).
+#[must_use]
+pub fn find_paths(text: &str) -> Vec<Range<usize>> {
+    let urls = find_urls(text);
+    let mut out = Vec::new();
+    let mut at = 0;
+    for (i, c) in text.char_indices() {
+        if !c.is_whitespace() && !c.is_control() {
+            continue;
+        }
+        if at < i {
+            path_token(text, at, i, &urls, &mut out);
+        }
+        at = i + c.len_utf8();
+    }
+    if at < text.len() {
+        path_token(text, at, text.len(), &urls, &mut out);
+    }
+    out
+}
+
+/// One whitespace-delimited candidate: trim the prose punctuation around it,
+/// drop a line/column suffix, and keep it only if it reads as a path.
+fn path_token(
+    text: &str,
+    mut start: usize,
+    mut end: usize,
+    urls: &[Range<usize>],
+    out: &mut Vec<Range<usize>>,
+) {
+    while let Some(c) = text[start..end].chars().next() {
+        if matches!(c, '(' | '[' | '{' | '\'' | '"' | '`' | '<') {
+            start += c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    end = trim_tail(text, start, end);
+    end = start + strip_line_suffix(&text[start..end]).len();
+    if end <= start {
+        return;
+    }
+    let token = &text[start..end];
+    if token.contains("://")
+        || token.starts_with('-')
+        || token.contains('=')
+        || token
+            .chars()
+            .any(|c| matches!(c, '*' | '?' | '[' | ']' | '{' | '}' | '\\'))
+    {
+        return;
+    }
+    let last = token.rsplit('/').next().unwrap_or(token);
+    let prefixed = token.starts_with('/')
+        || token.starts_with("./")
+        || token.starts_with("../")
+        || token.starts_with("~/");
+    if !(prefixed || (token.contains('/') && last.contains('.'))) {
+        return;
+    }
+    if !token.chars().any(char::is_alphanumeric) {
+        return;
+    }
+    if urls.iter().any(|url| url.start < end && url.end > start) {
+        return;
+    }
+    out.push(start..end);
+}
+
+/// `path[:line[:col]]` → `path`: up to two trailing `:digits` groups are a
+/// line/column reference, not part of the file name. Anything else (a time, a
+/// URL scheme, a Windows drive) is returned unchanged.
+#[must_use]
+pub fn strip_line_suffix(token: &str) -> &str {
+    let mut rest = token;
+    let mut stripped = false;
+    for _ in 0..2 {
+        let Some((head, tail)) = rest.rsplit_once(':') else {
+            break;
+        };
+        if head.is_empty() || tail.is_empty() || !tail.chars().all(|c| c.is_ascii_digit()) {
+            break;
+        }
+        rest = head;
+        stripped = true;
+    }
+    if stripped { rest } else { token }
+}
+
+/// Whether a path could still be **forming** at the end of `text` — the
+/// sibling of [`has_forming_url`] for the stream committer: a path-like token
+/// that reaches the line's end can still grow (`src/ap` → `src/app.rs`), so
+/// the trailing line must be withheld until a stopper seals it. A trailing
+/// comma, semicolon, colon, `!`, `?` or closer is not part of the link
+/// ([`trim_tail`] gives it back), so text appended after it cannot restyle the
+/// path and the line is settled.
+#[must_use]
+pub fn has_forming_path(text: &str) -> bool {
+    let token = text.split(char::is_whitespace).next_back().unwrap_or("");
+    if token.is_empty() {
+        return false;
+    }
+    let token = token.trim_start_matches(['(', '[', '{', '\'', '"', '`', '<']);
+    let token = strip_line_suffix(token);
+    if token.contains("://")
+        || token.starts_with('-')
+        || token.contains('=')
+        || token
+            .chars()
+            .any(|c| matches!(c, '*' | '?' | '[' | ']' | '{' | '}' | '\\'))
+    {
+        return false;
+    }
+    let last = token.rsplit('/').next().unwrap_or(token);
+    // A trailing path can still grow an extension (`src/ap` → `src/app.rs`),
+    // so any slash-bearing tail is unsettled, not only one that already has a
+    // dot. `and/or` therefore withholds its line until the next word —
+    // conservative, and the line is one token from settled.
+    let looks = token.starts_with('/')
+        || token.starts_with("./")
+        || token.starts_with("../")
+        || token.starts_with("~/")
+        || (token.contains('/') && !last.is_empty());
+    looks && !text.ends_with([',', ';', ':', '!', '?', ')', ']', '}', '\'', '"'])
+}
+
 /// Whether `text` is, whole, one `http://`/`https://` URL: the scheme at its
 /// very first byte, something after the scheme, and nothing anywhere a URL
 /// cannot hold — whitespace, a control, one of the `<>"`` ` ``|` delimiters
@@ -848,5 +983,60 @@ mod tests {
             osc8_open(3, &url),
             "\x1b]8;id=az3;file:///tmp/my%20file.txt\x1b\\"
         );
+    }
+
+    #[test]
+    fn paths_are_detected_conservatively() {
+        let found = |text: &str| {
+            find_paths(text)
+                .into_iter()
+                .map(|range| text[range].to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            found("edited src/app/tools.rs and ./scripts/run.sh."),
+            vec!["src/app/tools.rs", "./scripts/run.sh"]
+        );
+        assert_eq!(found("see (src/app.rs) now"), vec!["src/app.rs"]);
+        assert_eq!(found("read ~/notes/today.md,"), vec!["~/notes/today.md"]);
+        assert_eq!(found("at /tmp/x.txt:42:7"), vec!["/tmp/x.txt"]);
+        // Not paths: prose fractions, bare names, globs, URLs, flags.
+        assert!(found("and/or 1/2 README.md src/*.rs --path=src/x.rs").is_empty());
+        assert_eq!(
+            found("see https://example.com/a.rs"),
+            Vec::<String>::new(),
+            "a URL is never a path"
+        );
+    }
+
+    #[test]
+    fn line_suffixes_are_stripped_only_when_numeric() {
+        assert_eq!(strip_line_suffix("src/app.rs:12"), "src/app.rs");
+        assert_eq!(strip_line_suffix("src/app.rs:12:3"), "src/app.rs");
+        assert_eq!(strip_line_suffix("a:12:b"), "a:12:b");
+        assert_eq!(strip_line_suffix("C:/x"), "C:/x", "a drive is not a suffix");
+        assert_eq!(strip_line_suffix("no-colon"), "no-colon");
+    }
+
+    #[test]
+    fn a_forming_path_withholds_the_line_until_a_stopper() {
+        for tail in [
+            "edited src/ap",
+            "see ./scr",
+            "at ~/notes/today",
+            "path /tmp/x.rs",
+        ] {
+            assert!(has_forming_path(tail), "{tail:?} could still grow a path");
+        }
+        for tail in [
+            "edited src/app.rs ",
+            "edited src/app.rs,",
+            "at /tmp/x.rs:",
+            "and/or is prose",
+            "see https://example.com/a.rs",
+            "nothing here",
+        ] {
+            assert!(!has_forming_path(tail), "{tail:?} is settled");
+        }
     }
 }

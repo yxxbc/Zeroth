@@ -61,6 +61,28 @@ target rides the OSC 8 escape as authored — only the file tool header
 resolves a path to an absolute `file://` URI (`links::file_url`), since
 only it is handed the session's cwd policy.
 
+## File paths
+
+`links::find_paths` detects path-like tokens in assistant prose and inline
+code: a whitespace-delimited word starting with `/`, `./`, `../` or `~/`, or
+containing a `/` whose last segment is not empty (`src/app/tools.rs`). A
+trailing `:line[:col]` is left out of the target and stays plain prose; globs
+(`src/*.rs`), flags, `key=value` tokens, backslashes and URLs (`://`) are
+refused. Detection is lexical — it never touches the filesystem, so a path
+that does not exist still links and the opener reports it.
+
+The renderer resolves each slice through the session's
+`PathDisplay::file_url`: the target is the absolute, percent-encoded
+`file://` URI of the file, `~` and relative paths resolved against the
+session cwd. A relative path with no absolute cwd (the verbatim policy, a
+unit test) stays plain. Prose paths take the same link dress and carrier as
+URLs; inline code keeps its literal colour and gains only the carrier. A path
+still growing at the end of a streamed line is withheld by
+`has_forming_path`, the URL rule's sibling (`links::has_forming_url`).
+
+Tool **output** is still not linked (its word wrap and capping are separate);
+the tool header's own path is, and so is assistant prose and code.
+
 ## Where the pieces live
 
 The full URL is only known **before** wrapping splits it, and the escape can
@@ -301,9 +323,10 @@ anywhere carrying a fragment of it.
   a scheme guesses).
 - Tool/shell output is not linked yet — its wrap (`wrap_output`) breaks at
   word boundaries, so a URL there only splits when wider than the terminal;
-  the same carrier would extend there if it earns its keep. The file tool
-  **header** is the one tool surface that links (to the file, not a URL in
-  the text); the `⎿` corner rows under it are deliberately plain.
+  the same carrier would extend there if it earns its keep. Assistant prose
+  and inline code link URLs **and file paths**; the file tool **header** is
+  the one tool surface that links (to the file, not a URL in the text), and
+  the `⎿` corner rows under it are deliberately plain.
 - The `file://` target names the file as the session sees it: a relative
   argument resolves against the process cwd lexically, symlinks are never
   consulted, and a session `/resume`d from another directory links where the

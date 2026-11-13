@@ -1,8 +1,10 @@
 # Rich links — clickable paths, preview cards, and screen ownership
 
-**Status: proposed.** Nothing on this page is implemented. Today's behaviour —
-OSC 8 hyperlinks for URLs and file-tool headers — is unchanged
-([`links.md`](links.md)).
+**Status: A (clickable paths) implemented; B/C are design.** Assistant prose
+and inline code link file-path-like tokens to `file://` URIs in both viewports
+([`links.md`](links.md) *File paths*). Preview cards, hover in the
+conversation and click-to-expand are the later phases; the screen-owning mode
+that makes them possible is designed in [`full-screen.md`](full-screen.md).
 
 ## The ask
 
@@ -317,17 +319,18 @@ It lands as an opt-in mode first and becomes the default only on parity.
 
 ## Phasing
 
-1. **A — paths.** Detector + targets + render seams + prefix-stability
-   predicate; tests and one raw-stream smoke phase. No mouse, no new state.
-   The renderer change lands in both viewport modes.
-2. **C — the screen-owning mode.** See [`full-screen.md`](full-screen.md):
-   skeleton, parity, then mouse and selection/copy. The hit map built there is
-   the one cards and click-to-expand need.
-3. **Rich links in full mode.** Bare paths everywhere; preview cards inline
-   (the fetch/cache policy above); hover; click-to-expand.
-4. **B — only if C slips.** Overlay-scoped mouse and a `/links` page remain a
-   useful stopgap, and their hit map is a subset of C's, but they are not the
-   target.
+1. **A — paths — done.** Detector (`find_paths`), `file://` targets through
+   `PathDisplay`, prose/code marking, and the `has_forming_path` stream hold;
+   unit tests in `links.rs` and the inline renderer. No mouse, no new state.
+   It landed in both viewport modes.
+2. **C — the screen-owning mode — skeleton, mouse, scrolling and selection
+   done.** See [`full-screen.md`](full-screen.md). Still open there for this
+   page: click-to-expand and the preview card.
+3. **Rich links in full mode — next.** Preview cards inline (the fetch/cache
+   policy above); hover already works for the carriers A added.
+4. **B — only if needed.** Overlay-scoped mouse and a `/links` page remain a
+   useful stopgap for inline mode, and their hit map is a subset of C's, but
+   they are not the target.
 
 ## Open questions
 

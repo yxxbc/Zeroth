@@ -5,7 +5,7 @@
 use super::*;
 use crate::links::style_link;
 use crate::markdown::parse_inline;
-use crate::ui::inline::{inline_spans, wrap_inline};
+use crate::ui::inline::{inline_spans, inline_spans_with_paths, wrap_inline};
 use crate::ui::theme::link_url_color;
 
 /// The `(text, target)` pairs of the segments that carry a link.
@@ -310,4 +310,31 @@ fn literal_url_marking_crosses_syntax_styles_and_preserves_unicode_and_spacing()
             .collect::<Vec<_>>()
     };
     assert_eq!(characters(actual), characters(segments));
+}
+
+#[test]
+fn a_prose_path_carries_its_file_target_only_with_a_policy() {
+    // docs/ui/rich-links.md: detection is lexical; the caller's PathDisplay
+    // turns the slice into the absolute file URI. Without a policy the text
+    // stays exactly as before.
+    let nodes = parse_inline("edited src/app.rs:12, see it");
+    let verbatim = inline_spans(&nodes, Style::default());
+    assert!(
+        linked_segments(&verbatim).is_empty(),
+        "no policy, no path links"
+    );
+    let paths = crate::app::PathDisplay::new("/repo", None);
+    let marked = inline_spans_with_paths(&nodes, Style::default(), Some(&paths));
+    assert_eq!(
+        linked_segments(&marked),
+        vec![(
+            "src/app.rs".to_string(),
+            "file:///repo/src/app.rs".to_string()
+        )]
+    );
+    let text: String = marked.iter().map(|(text, _)| text.as_str()).collect();
+    assert_eq!(
+        text, "edited src/app.rs:12, see it",
+        "the visible text never changes"
+    );
 }

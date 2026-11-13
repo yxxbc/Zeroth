@@ -4,7 +4,7 @@
 //! The walk over the whole history lives in
 //! [`conversation`](super::conversation).
 
-use super::assistant::{assistant_lines, expand_code_tabs};
+use super::assistant::{assistant_lines_with_paths, expand_code_tabs};
 use super::theme::*;
 use super::wrap::{cols, wrap_output};
 use super::*;
@@ -16,6 +16,19 @@ use super::*;
 /// caller can hand them to `insert_before` without lifetime juggling.
 #[must_use]
 pub fn message_lines(role: Role, text: &str, width: u16) -> Vec<Line<'static>> {
+    message_lines_with_paths(role, text, width, None)
+}
+
+/// [`message_lines`] with the session's path policy: an assistant reply's
+/// file-path-like tokens become `file://` links; literal roles ignore it
+/// (`docs/ui/rich-links.md`).
+#[must_use]
+pub fn message_lines_with_paths(
+    role: Role,
+    text: &str,
+    width: u16,
+    paths: Option<&crate::app::PathDisplay>,
+) -> Vec<Line<'static>> {
     let (bullet, color) = match role {
         Role::User => (USER_BULLET, user_color()),
         Role::Assistant => (AI_BULLET, ai_color()),
@@ -27,7 +40,7 @@ pub fn message_lines(role: Role, text: &str, width: u16) -> Vec<Line<'static>> {
     // literal (a user pasting ``` must not be code-blocked, and the dark-bg
     // padding math below assumes plain wrapped lines). See `docs/ui/markdown.md`.
     if role == Role::Assistant {
-        return assistant_lines(text, width, bullet, color);
+        return assistant_lines_with_paths(text, width, bullet, color, paths);
     }
     let content_width = width.saturating_sub(BULLET_WIDTH).max(1);
     let bullet_style = Style::new().fg(color).add_modifier(Modifier::BOLD);

@@ -71,6 +71,11 @@ pub struct StreamRender {
     /// content will land on — and the invariant every prefix holds is
     /// `preview.len() + committed_now >= previous preview.len()`.
     preview_floor: usize,
+    /// The session's file-path policy, applied to the renderer (and every
+    /// renderer re-created on a resize) so path-like tokens in a streamed
+    /// reply carry `file://` targets as they commit
+    /// (`docs/ui/rich-links.md`). `None` is the verbatim policy.
+    paths: Option<crate::app::PathDisplay>,
 }
 
 /// What pins a memoized preview: `(consumed, tail length, committed, width,
@@ -106,7 +111,15 @@ impl StreamRender {
             last_eval: (0, 0),
             preview_memo: None,
             preview_floor: 0,
+            paths: None,
         }
+    }
+
+    /// Inject the session's file-path policy (`docs/ui/rich-links.md`) — the
+    /// boundary calls this once at bootstrap, like `App::set_path_display`.
+    pub fn set_paths(&mut self, paths: Option<crate::app::PathDisplay>) {
+        self.renderer.paths.clone_from(&paths);
+        self.paths = paths;
     }
 
     /// Discard all cached state — used at every turn boundary (turn end, tool
@@ -132,6 +145,7 @@ impl StreamRender {
         if width != self.width {
             self.width = width;
             self.renderer = AssistantRenderer::new(width, AI_BULLET, ai_color());
+            self.renderer.paths.clone_from(&self.paths);
             self.frozen.clear();
             self.consumed = 0;
             self.committed = 0;
@@ -268,6 +282,9 @@ impl StreamRender {
             // restyle the whole word blue+underlined — so its wrapped rows
             // must not reach scrollback as plain prose (docs/ui/links.md).
             || crate::links::has_forming_url(tail_src)
+            // The same for a path that could still grow (`src/ap` →
+            // `src/app.rs`, docs/ui/rich-links.md).
+            || crate::links::has_forming_path(tail_src)
         {
             let stable = self.frozen.len();
             // Hold back a trailing blank run — inside a fence too. A prose
