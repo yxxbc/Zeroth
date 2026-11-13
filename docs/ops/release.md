@@ -182,26 +182,36 @@ The banner uses `assets/banner-v2.jpg` and `assets/mascot-crest.png` in
 terminals that advertise the Kitty graphics protocol (including Kitty,
 iTerm2, and Ghostty); `assets/banner-v2.png` is the compact PNG rendition for
 that protocol. The image header is fetched from the repository on demand, or
-read from `assets/` when running from a checkout. Other terminals keep the
-text `crest` mascot (`src/app/mascot.rs`) beside the name, animated on an
-interactive terminal with the tint walking down its cyan → blue gradient,
-the crest swinging, and the eyes blinking every second. Platform, release,
-checksum, and install results append as a readable step log below the header.
-During the archive download, a 24-cell bar sits on the log's active row and
-reports downloaded bytes. When curl can read a content length it fills to a
-percentage; otherwise a short segment moves across the bar until the transfer
-finishes. A pipe or `TERM=dumb` gets a single still text banner and plain fetch
-output without cursor animation. `NO_COLOR` removes the tint but leaves
-terminal motion enabled; a non-UTF-8 locale uses the ASCII bar and mascot.
+read from `assets/` when running from a checkout. The banner is placed by a
+**column count and no row count**, so the terminal scales it from the
+picture's own aspect ratio instead of stretching it into a cell rectangle,
+and the protocol's default cursor policy leaves the cursor on the row below
+a placement — which is what puts the `crest` mascot under the banner, and the
+name under the mascot, without hand-counted cursor moves. The images carry a
+negative z-index, so text is never hidden behind artwork. Other terminals
+keep the text `crest` mascot (`src/app/mascot.rs`) beside the name, animated
+on an interactive terminal with the tint walking down its cyan → blue
+gradient, the crest swinging, and the eyes blinking every second. Platform,
+release, checksum, and install results append as a readable step log below
+the header. During the archive download, a 24-cell bar sits on the log's
+active row and reports downloaded bytes. When curl can read a content length
+it fills to a percentage; otherwise a short segment moves across the bar
+until the transfer finishes. A pipe or `TERM=dumb` gets a single still text
+banner and plain fetch output without cursor animation. `NO_COLOR` removes
+the tint but leaves terminal motion enabled; a non-UTF-8 locale uses the
+ASCII bar and mascot.
 
 `--preview` (also spelled `--proview`) draws the banner alone for ten
 seconds — `--preview N` and `--preview=N` take any whole number of seconds
 — and then exits. It draws it the way an install does, image banner
 included: on a graphics terminal that is the same fetched (or checkout)
 artwork the real run puts up, and a fetch that fails falls back to the text
-mascot rather than failing the preview. What it never does is look up a
-release, check the platform, or install anything, so it is safe to run from
-a checkout, over SSH, or to see what the banner looks like in a theme. The
+mascot rather than failing the preview. An image is printed, not animated,
+so the seconds are waited out on a `Preview` row whose bar fills as they
+pass: `--preview 5` is five seconds of banner, not a flash. What it never
+does is look up a release, check the platform, or install anything, so it is
+safe to run from a checkout, over SSH, or to see what the banner looks like
+in a theme. The
 frames are counted, not timed, so a slow terminal runs long rather than
 dropping frames; where `sleep` takes no fraction (a strict POSIX shell), a
 frame lasts a second rather than a tenth. Piped, the art is drawn once and

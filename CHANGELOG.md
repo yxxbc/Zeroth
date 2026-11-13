@@ -216,7 +216,13 @@ release heading when a version is cut.
   terminal waited for bytes that never came (`EBADPNG`, half a banner). The
   protocol's reply to a transmit is suppressed (`q=2`) as well — it is
   written to the terminal's *input*, and the shell read the error as a
-  command once the installer had exited (`docs/ops/release.md`).
+  command once the installer had exited. The composition no longer guesses at
+  cells either: the banner is placed by a column count and no row count, so
+  the terminal scales it from the picture's own aspect ratio instead of
+  stretching it into an 8×7 box, and the protocol's default cursor policy
+  puts the mascot under the banner rather than into it. `--preview N` holds
+  for its seconds on a `Preview` bar instead of returning the moment the
+  image was printed (`docs/ops/release.md`).
 
 - **The Antigravity sign-in no longer freezes — or crashes — the interface.**
   Its reachability probe (a 30-second `HEAD`) ran on the async event loop and

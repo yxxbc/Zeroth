@@ -210,7 +210,10 @@ prepare_art() {
 # The image is given a column count and no row count: the protocol then scales
 # it from the picture's own aspect ratio, so nothing is stretched, and the
 # default cursor policy leaves the cursor on the row below the placement, so
-# what is drawn next lands under the art rather than over it.
+# what is drawn next lands under the art rather than over it. A negative
+# z-index keeps the text on top of the artwork even in a terminal that gets
+# the cursor policy wrong — the failure is then a readable banner, not a
+# caption hidden behind a picture.
 #
 # Two things here are not obvious. The chunk count cannot come from `wc -l`:
 # BSD `fold` does not newline-terminate its last line, so the count came out
@@ -228,7 +231,7 @@ kitty_png() { # FILE ID COLUMNS
 		BEGIN { first = 1 }
 		function send(chunk, last, meta) {
 			if (first) {
-				meta = "a=T,f=100,i=" id ",c=" cols ",q=2"
+				meta = "a=T,f=100,i=" id ",c=" cols ",z=-1,q=2"
 				first = 0
 			} else {
 				meta = "i=" id
