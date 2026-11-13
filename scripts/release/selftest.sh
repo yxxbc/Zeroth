@@ -570,8 +570,8 @@ EOF
 			# row below the placement, which is what puts the mascot under
 			# the banner instead of on top of it (kitty's graphics protocol,
 			# "Controlling displayed image layout").
-			expect_contains "…placing the banner by columns only, so it is not stretched" "$OUT" "c=56"
-			expect_lacks "…with no hand-computed row count" "$OUT" ",r=8"
+			expect_contains "…placing the banner by columns only, so it is not stretched" "$OUT" "i=31,c="
+			expect_lacks "…with no hand-computed row count" "$OUT" ",r="
 			expect_lacks "…and no pinned cursor, which is what let the text land on the art" "$OUT" "C=1"
 			expect_contains "…drawing the mascot below the banner as its own image" "$OUT" "i=32"
 			# `--preview N` is a wait, not a flash: it holds the banner for the
