@@ -24,6 +24,25 @@ pub struct LinkCard {
     /// `og:description`, else `<meta name="description">`; empty when neither.
     #[serde(default)]
     pub description: String,
+    /// The page's `og:image`/`twitter:image`, verbatim; the boundary resolves
+    /// it against the page URL, downloads it and fills [`cover`](Self::cover).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover_url: Option<String>,
+    /// The downloaded cover thumbnail (`docs/ui/rich-links.md`): a cached file
+    /// and its pixel size, so the text card can grow a picture without another
+    /// metadata parse.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover: Option<Cover>,
+}
+
+/// A cached cover image: where the boundary saved it and how large it is.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Cover {
+    /// The file's **absolute** path under the card cache, so the image store
+    /// can read it at paint time on this machine.
+    pub path: String,
+    /// The image's pixel size, for the cell fit.
+    pub px: (u32, u32),
 }
 
 impl LinkCard {
@@ -54,6 +73,11 @@ pub fn parse(html: &str, url: &str) -> Option<LinkCard> {
         title: clean(&title),
         site: clean(&site),
         description: clean(&description),
+        cover_url: meta(html, "og:image")
+            .or_else(|| meta(html, "twitter:image"))
+            .map(|url| url.trim().to_string())
+            .filter(|url| !url.is_empty()),
+        cover: None,
     };
     card.is_meaningful().then_some(card)
 }

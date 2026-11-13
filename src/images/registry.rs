@@ -28,7 +28,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock, RwLock};
 
 use super::geometry::{
-    DEFAULT_FONT_SIZE, DEFAULT_IMAGE_WIDTH, FontSize, IMAGE_ID_MAX, image_cells,
+    DEFAULT_FONT_SIZE, DEFAULT_IMAGE_WIDTH, FontSize, IMAGE_ID_MAX, fit_cells, image_budget,
+    image_cells,
 };
 
 /// What the session is doing about images: the two `/settings` display rows,
@@ -156,6 +157,31 @@ pub fn place(path: &str, px: (u32, u32), avail_cols: u16) -> Option<Placement> {
     }
     let policy = policy();
     let (cols, rows) = image_cells(px, policy.font, policy.max_cols, avail_cols)?;
+    intern(path, cols, rows)
+}
+
+/// [`place`] inside a **box**: at most `avail_cols` wide and `max_rows` tall.
+/// The link card's cover uses this (`docs/ui/rich-links.md`): a wide page
+/// image fits a third of the card, not the terminal's full width, and a tall
+/// one never pushes the card past its row budget. Everything else — the
+/// policy, the missing-file sighting, the interner — is [`place`]'s.
+#[must_use]
+pub fn place_in(path: &str, px: (u32, u32), avail_cols: u16, max_rows: u16) -> Option<Placement> {
+    if !showing() || known_missing(path) || max_rows == 0 {
+        return None;
+    }
+    let policy = policy();
+    let (cols, rows) = image_budget(policy.max_cols, avail_cols, policy.font)?;
+    let budget = (cols, rows.min(max_rows));
+    if budget.0 == 0 || budget.1 == 0 {
+        return None;
+    }
+    let (cols, rows) = fit_cells(px, policy.font, budget);
+    intern(path, cols, rows)
+}
+
+/// Intern one `(path, cols, rows)` placement, or hand back the existing id.
+fn intern(path: &str, cols: u16, rows: u16) -> Option<Placement> {
     let key = (path.to_string(), cols, rows);
     let mut guard = placements().lock().ok()?;
     if let Some(&id) = guard.ids.get(&key) {

@@ -1,14 +1,15 @@
 # Rich links — clickable paths, preview cards, and screen ownership
 
-**Status: paths, click-to-expand and text preview cards implemented.** Assistant
-prose and inline code link file-path-like tokens to `file://` URIs in both
-viewports ([`links.md`](links.md) *File paths*); the screen-owning mode adds
-click-to-expand, the composer's click-to-place caret and **text-only preview
-cards** for a URL alone on a line (site, title, description; fetched on demand
-through `zeroth::link_card` and cached under `~/.zeroth/cache/link-cards.json`,
-`ALTER_ZERO_LINK_CARDS=0` disables). Cover images, B's overlay-only fallback
-and the editor handoff remain later phases
-([`full-screen.md`](full-screen.md)).
+**Status: paths, click-to-expand and preview cards (text + cover) implemented.**
+Assistant prose and inline code link file-path-like tokens to `file://` URIs in
+both viewports ([`links.md`](links.md) *File paths*); the screen-owning mode
+adds click-to-expand, the composer's click-to-place caret and **preview cards**
+for a URL alone on a line: site, title, description, and — when the page has an
+`og:image` and the terminal draws pictures — a cover thumbnail on the left
+(fetched on demand through `zeroth::link_card`, cached under
+`~/.zeroth/cache/link-cards.json` + `cache/link-cards/`, `ALTER_ZERO_LINK_CARDS=0`
+disables). B's overlay-only fallback and the editor handoff remain later
+phases ([`full-screen.md`](full-screen.md)).
 
 ## The ask
 
@@ -330,12 +331,15 @@ It lands as an opt-in mode first and becomes the default only on parity.
 2. **C — the screen-owning mode — skeleton, mouse, scrolling and selection
    done.** See [`full-screen.md`](full-screen.md). Still open there for this
    page: click-to-expand and the preview card.
-3. **Rich links in full mode — text cards done.** A lone URL line in an
-   assistant reply becomes `● site — title` plus a dim description once fetched
-   (two rows replacing the link line). The fetch is one worker thread per URL
-   (at most eight in flight), 5 s/512 KiB/`text/html` only, private hosts and
-   redirects to them refused, cached across restarts. Cover images and the
-   `/links` page remain.
+3. **Rich links in full mode — cards done (text + cover).** A lone URL line in
+   an assistant reply becomes `● site — title` plus a dim description, and a
+   cover thumbnail (≤ 1/3 width, ≤ 6 rows, aspect kept) when `og:image` was
+   fetched and the terminal can draw pictures; the image store loads it from
+   the card cache at paint time. The fetch is one worker thread per URL (at
+   most eight in flight), 5 s/512 KiB/`text/html` for the page and
+   2 MiB/`image/*` for the cover, private hosts and redirects to them refused,
+   cached across restarts (covers under a 32 MiB oldest-first budget). The
+   `/links` page remains.
 4. **B — only if needed.** Overlay-scoped mouse and a `/links` page remain a
    useful stopgap for inline mode, and their hit map is a subset of C's, but
    they are not the target.

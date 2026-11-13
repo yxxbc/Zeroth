@@ -229,9 +229,10 @@ still applies.
   Links are the carriers already painted — OSC 8 URLs, file-tool headers and
   the prose/code file paths `links::find_paths` now marks — so a click opens
   a URL or a file through the same platform opener. A URL **alone on a line**
-  in an assistant reply is fetched and replaced by a two-row preview card
-  (site — title, dim description), cached in `~/.zeroth/cache/link-cards.json`
-  (`ALTER_ZERO_LINK_CARDS=0` disables); every card cell carries the link.
+  in an assistant reply is fetched and replaced by a preview card (site —
+  title, dim description, and a cover thumbnail when the page has one and the
+  terminal can draw pictures), cached in `~/.zeroth/cache/link-cards.json`
+  (`ALTER_ZERO_LINK_CARDS=0` disables); every text cell carries the link.
 - Ctrl+O, the context view and every full-screen page paint over the frame
   through the existing overlay path; leaving a page repaints the frame. A
   resize re-wraps from history at the new width.
@@ -294,8 +295,8 @@ still applies.
    click-to-place caret all work; still open here: character-precise selection
    and mouse on picker/option rows.
 4. **Rich links — text cards done.** A lone URL line in an assistant reply
-   becomes a two-row preview card (site — title, dim description) once fetched;
-   covers and the `/links` page remain (`rich-links.md`).
+   becomes a preview card (site — title, dim description, cover when one
+   exists) once fetched; the `/links` page remains (`rich-links.md`).
 5. **Default decision.** Flip the default, keep `--inline`, evaluate removal.
 
 ## Open questions

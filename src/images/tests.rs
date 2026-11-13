@@ -192,6 +192,31 @@ fn a_placement_interns_on_its_size_so_a_resize_gets_a_fresh_one() {
 }
 
 #[test]
+fn place_in_fits_a_box_and_never_exceeds_it() {
+    // The link card's cover (`docs/ui/rich-links.md`): at most a third of the
+    // card's width and a fixed row budget, aspect ratio kept inside both.
+    let _guard = policy_lock();
+    set_policy(ImagePolicy {
+        show: true,
+        available: true,
+        max_cols: 120,
+        font: (8, 16),
+        auto_resize: true,
+    });
+    let wide = place_in("/tmp/card-wide.png", (1600, 1200), 30, 5).expect("reserved");
+    assert!(wide.cols <= 30, "{wide:?}");
+    assert!(wide.rows <= 5, "{wide:?}");
+    let narrow = place_in("/tmp/card-wide.png", (1600, 1200), 12, 5).expect("reserved");
+    assert!(narrow.cols <= 12, "{narrow:?}");
+    assert_ne!(
+        wide.id, narrow.id,
+        "a different box is a different placement"
+    );
+    assert_eq!(place_in("/tmp/card-wide.png", (1600, 1200), 30, 0), None);
+    set_policy(ImagePolicy::default());
+}
+
+#[test]
 fn nothing_is_reserved_while_images_are_off() {
     let _guard = policy_lock();
     set_policy(ImagePolicy {

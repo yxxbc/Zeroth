@@ -5,22 +5,28 @@
 //!
 //! Policy: `http(s)` only; a 5 s timeout; `text/html` only; at most 512 KiB
 //! read; no cookies or credentials; private/loopback/link-local hosts refused,
-//! including on a redirect. The card cache lives beside the sessions under the
-//! config home, so a card survives a restart and the same URL is never fetched
-//! twice. `ALTER_ZERO_LINK_CARDS` (default on; a falsy value disables it) turns
-//! the whole feature off — no request, no card.
+//! including on a redirect. The page's `og:image` cover is downloaded under
+//! the same host/redirect policy (2 MiB, `image/*`) into the card cache, so a
+//! card survives a restart and the same URL is never fetched twice.
+//! `ALTER_ZERO_LINK_CARDS` (default on; a falsy value disables it) turns the
+//! whole feature off — no request, no card.
 
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use zeroth::link_card::{LinkCard, is_private_host};
+use zeroth::link_card::{Cover, LinkCard, is_private_host};
 
 /// How long one page may take.
 const TIMEOUT: Duration = Duration::from_secs(5);
 /// How much HTML is read before parsing stops.
 const BODY_CAP: u64 = 512 * 1024;
+/// How much of a cover image is read.
+const COVER_CAP: u64 = 2 * 1024 * 1024;
+/// The cover cache's total budget; oldest files go past it.
+const COVER_CACHE_BYTES: u64 = 32 * 1024 * 1024;
 /// A redirect chain longer than this is refused.
 const REDIRECTS: usize = 3;
 
@@ -97,7 +103,33 @@ fn fetch(url: &str) -> Option<LinkCard> {
     if parsed.host_str().is_none_or(is_private_host) {
         return None;
     }
-    let client = reqwest::blocking::Client::builder()
+    let client = client()?;
+    let response = client.get(parsed).send().ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let html = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())?;
+    if !html.to_ascii_lowercase().contains("text/html") {
+        return None;
+    }
+    let mut body = String::new();
+    response.take(BODY_CAP).read_to_string(&mut body).ok()?;
+    let mut card = zeroth::link_card::parse(&body, url)?;
+    // The cover is best-effort: no image leaves the text card intact.
+    if let Some(image) = card.cover_url.take() {
+        attach_cover(&mut card, &image, url);
+    }
+    Some(card)
+}
+
+/// The blocking client both requests share: timeout, no cookies, a generic
+/// user agent, and a redirect policy that stops at the cap or at a private
+/// host (`docs/ui/rich-links.md`).
+fn client() -> Option<reqwest::blocking::Client> {
+    reqwest::blocking::Client::builder()
         .timeout(TIMEOUT)
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= REDIRECTS
@@ -115,21 +147,102 @@ fn fetch(url: &str) -> Option<LinkCard> {
             " (link preview)"
         ))
         .build()
-        .ok()?;
-    let response = client.get(parsed).send().ok()?;
-    if !response.status().is_success() {
-        return None;
+        .ok()
+}
+
+/// Download `image` (relative to `page`), save it under the card cache and
+/// record its path/size on `card`. The image is untrusted too: same host
+/// policy, `image/*` only, 2 MiB cap, and a file that does not decode as an
+/// image is removed rather than placed.
+fn attach_cover(card: &mut LinkCard, image: &str, page: &str) {
+    let Some(dir) = cache_path().and_then(|path| path.parent().map(Path::to_path_buf)) else {
+        return;
+    };
+    let Some(url) = reqwest::Url::parse(page)
+        .ok()
+        .and_then(|base| base.join(image).ok())
+    else {
+        return;
+    };
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none_or(is_private_host) {
+        return;
     }
-    let html = response
+    let Some(client) = client() else {
+        return;
+    };
+    let Ok(response) = client.get(url.clone()).send() else {
+        return;
+    };
+    if !response.status().is_success() {
+        return;
+    }
+    let content_type = response
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())?;
-    if !html.to_ascii_lowercase().contains("text/html") {
-        return None;
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !content_type.starts_with("image/") {
+        return;
     }
-    let mut body = String::new();
-    response.take(BODY_CAP).read_to_string(&mut body).ok()?;
-    zeroth::link_card::parse(&body, url)
+    let mut bytes = Vec::new();
+    if response.take(COVER_CAP).read_to_end(&mut bytes).is_err() {
+        return;
+    }
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let mut hasher = DefaultHasher::new();
+    url.as_str().hash(&mut hasher);
+    let path = dir.join(format!("{:016x}.img", hasher.finish()));
+    if std::fs::write(&path, &bytes).is_err() {
+        return;
+    }
+    let px = image::ImageReader::open(&path)
+        .ok()
+        .and_then(|reader| reader.with_guessed_format().ok())
+        .and_then(|reader| reader.into_dimensions().ok());
+    let Some(px) = px else {
+        let _ = std::fs::remove_file(&path);
+        return;
+    };
+    card.cover = Some(Cover {
+        path: path.display().to_string(),
+        px,
+    });
+    prune_covers(&dir);
+}
+
+/// Keep the cover cache under [`COVER_CACHE_BYTES`], oldest first. Best
+/// effort: an unreadable directory or file simply ends the sweep.
+fn prune_covers(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut files: Vec<(std::time::SystemTime, u64, PathBuf)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().is_none_or(|ext| ext != "img") {
+                return None;
+            }
+            let meta = entry.metadata().ok()?;
+            Some((meta.modified().ok()?, meta.len(), path))
+        })
+        .collect();
+    let mut total: u64 = files.iter().map(|(_, size, _)| *size).sum();
+    if total <= COVER_CACHE_BYTES {
+        return;
+    }
+    files.sort_by_key(|(modified, _, _)| *modified);
+    for (_, size, path) in files {
+        if total <= COVER_CACHE_BYTES {
+            break;
+        }
+        if std::fs::remove_file(&path).is_ok() {
+            total = total.saturating_sub(size);
+        }
+    }
 }
 
 #[cfg(test)]
