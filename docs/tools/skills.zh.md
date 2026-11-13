@@ -108,13 +108,18 @@ server，`docs/state/config-review.md`）：一个 `SKILL.md` 在被模型显式
 
 ### 内置 skill
 
-二进制里带五个 skill：**`skill-creator`**、**`jina-reader`**、**`yt-dlp`**、
-**`flaredantic`** 和 **`frontend-design`**。它们都走下面描述的同一套播种与
+二进制里带七个 skill：**`skill-creator`**、**`jina-reader`**、**`yt-dlp`**、
+**`flaredantic`**、**`frontend-design`**、**`crestling`** 和 **`zeroth-project`**。
+它们都走下面描述的同一套播种与
 发现路径。`frontend-design` 是 Anthropic 官方的设计指导 skill，Apache-2.0；
 它的 `LICENSE.txt` 被播种在 `SKILL.md` 旁边，好让署名跟着这份拷贝一起走
 （`prompts/skills/README.md` 记着每个内置项的来历）。`web-search` 已**退役**：
 搜索与读网页现在是原生的 `web_search`/`web_fetch` 工具
 （[`docs/tools/web-search.md`](web-search.md)），它的 `scripts/` 也没了。
+
+`crestling` 回答 Zeroth 冠羽幼龙吉祥物及“第零扇区”虚构故事的问题。
+`zeroth-project` 则根据当前 checkout 回答软件本身、实现方式与贡献者等事实问题；
+它会把吉祥物故事视为虚构设定，而非项目历史。
 
 #### `skill-creator`
 
@@ -682,7 +687,7 @@ rescan 的条件重建让 tool 集合保持最新，`skills_offered` 让清单�
 | 位置 | 内容 |
 |---|---|
 | `src/skills.rs` | **纯**：`SkillMetadata`、frontmatter 解析、名字校验、清单 + 预算、正文渲染、`SkillRegistry` 句柄 |
-| `prompts/skills/` | 内嵌并播种的内置项：`skill-creator` 与 `flaredantic`（各含 `SKILL.md` + `reference.md`）、`jina-reader` 与 `yt-dlp`（各一个 `SKILL.md`）、`frontend-design`（`SKILL.md` + `LICENSE.txt`）。`README.md` 记录来历与许可；`web-search` 随原生 `web_search`/`web_fetch` 工具一起删除了 |
+| `prompts/skills/` | 内嵌并播种的内置项：`skill-creator` 与 `flaredantic`（各含 `SKILL.md` + `reference.md`）、`jina-reader`、`yt-dlp`、`crestling` 与 `zeroth-project`（各一个 `SKILL.md`）、`frontend-design`（`SKILL.md` + `LICENSE.txt`）。`README.md` 记录来历与许可；`web-search` 随原生 `web_search`/`web_fetch` 工具一起删除了 |
 | `src/llm/skill.rs` | 根解析、`read_dir` 游走、内置播种（`seed_builtin_skills`）、从上下文推导的 `LoadedSkills`、以及工具执行器（`run_skill_tool`） |
 | `src/llm/tools.rs` | `skill_spec()`、`display_name`、`summarize_call` |
 | `src/llm/backend.rs` | `with_skills` —— `with_tasks` 那一套 |

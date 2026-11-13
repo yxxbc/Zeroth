@@ -31,7 +31,7 @@ use crate::skills::{
 /// on a fresh install is what is authored in `prompts/skills/` — beside every
 /// other `include_str!`'d markdown this crate embeds, and editable on disk
 /// once it is there.
-const BUILTIN_SKILL_FILES: [(&str, &str); 8] = [
+const BUILTIN_SKILL_FILES: [(&str, &str); 10] = [
     (
         "flaredantic/SKILL.md",
         include_str!("../../prompts/skills/flaredantic/SKILL.md"),
@@ -51,12 +51,20 @@ const BUILTIN_SKILL_FILES: [(&str, &str); 8] = [
         include_str!("../../prompts/skills/flaredantic/reference.md"),
     ),
     (
+        "crestling/SKILL.md",
+        include_str!("../../prompts/skills/crestling/SKILL.md"),
+    ),
+    (
         "jina-reader/SKILL.md",
         include_str!("../../prompts/skills/jina-reader/SKILL.md"),
     ),
     (
         "skill-creator/SKILL.md",
         include_str!("../../prompts/skills/skill-creator/SKILL.md"),
+    ),
+    (
+        "zeroth-project/SKILL.md",
+        include_str!("../../prompts/skills/zeroth-project/SKILL.md"),
     ),
     // Its sibling reference — the loader's own substitution tokens, which a
     // *body* cannot spell out (it would expand them) and a read file can.

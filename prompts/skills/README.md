@@ -14,6 +14,7 @@ carries material that may be redistributed under that license:
 |---|---|---|
 | `frontend-design` | Anthropic's official skill set, via the local skill library | Apache-2.0, carried verbatim in `frontend-design/LICENSE.txt` |
 | `flaredantic`, `jina-reader`, `skill-creator`, `yt-dlp` | the Alter Zero base project (this fork's ancestor) | Apache-2.0, the same root license |
+| `crestling`, `zeroth-project` | Original Zeroth project content, contributed by the project maintainer | Apache-2.0, the same root license |
 
 `web-search` is deliberately absent: Zeroth's native `web_search`/`web_fetch`
 tools replace it (`docs/tools/web-search.md`).

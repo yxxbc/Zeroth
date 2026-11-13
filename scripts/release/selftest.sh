@@ -595,6 +595,22 @@ EOF
 			expect_contains "…with the banner an install draws, caption and all" "$OUT" "Open-source coding agent"
 			expect_lacks "…not the old one-line-installer caption" "$OUT" "the one-line installer"
 			expect_contains "…and saying nothing is installed" "$OUT" "nothing is installed"
+			# The banner names the version the way the app's own header does
+			# (`Zeroth (v0.4.2)`, docs/ui/header.md), from what the installer
+			# can know without a lookup: a pinned ZEROTH_VERSION, or the
+			# Cargo.toml beside a checkout's copy of this script.
+			expect_contains "…naming the version from the checkout's Cargo.toml" "$OUT" "Zeroth (v0.0.0)"
+			run_on_tty env TERM=xterm-kitty ZEROTH_VERSION=v0.4.2 ZEROTH_INSTALL_ASSET_DIR="$T/no-assets" \
+				ZEROTH_INSTALL_ART_BASE_URL="http://127.0.0.1:1/art" sh "$CHECKOUT/install.sh" --preview 1
+			expect_contains "…and the pinned version, without the v the tag carries" "$OUT" "Zeroth (v0.4.2)"
+			# Nowhere to learn one — piped in where no Cargo.toml sits beside
+			# the script — the name stands alone rather than inventing a
+			# version, and the release step still names it later.
+			cp "$CHECKOUT/install.sh" "$T/alone-install.sh"
+			run_on_tty env TERM=xterm-kitty ZEROTH_INSTALL_ASSET_DIR="$T/no-assets" \
+				ZEROTH_INSTALL_ART_BASE_URL="http://127.0.0.1:1/art" sh "$T/alone-install.sh" --preview 1
+			expect_contains "…and standing alone with no version to name" "$OUT" "Zeroth"
+			expect_lacks "…never inventing one" "$OUT" "Zeroth ("
 			stop_release
 			expect_fail "install.sh refuses --preview with no seconds left" sh "$CHECKOUT/install.sh" --preview 0
 			expect_contains "…saying so" "$OUT" "at least one second"

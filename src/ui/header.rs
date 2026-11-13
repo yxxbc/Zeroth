@@ -342,6 +342,12 @@ pub(super) fn header_lines_for(app: &App, mascot: Mascot, width: u16) -> Vec<Lin
     lines
 }
 
+/// The pixel size of `assets/mascot-crest.png` — the file the app compiles
+/// in and the installer sends. `place_in` takes it as given rather than
+/// decoding the picture, so this constant and the PNG must agree; a test
+/// reads the file's own IHDR to hold them to it (`docs/ui/header.md`).
+pub const MASCOT_ICON_PX: (u32, u32) = (384, 351);
+
 /// The default hatchling as a compact PNG on terminals with a native image
 /// protocol. A narrow terminal, a missing cache file, or a disabled image
 /// setting falls back to the catalog's ordinary block art.
@@ -352,7 +358,7 @@ fn graphic_mascot_lines(
 ) -> Option<Vec<Line<'static>>> {
     const ICON_COLS: u16 = 18;
     const ICON_ROWS: u16 = 12;
-    let place = images::place_in(path, (1312, 1199), ICON_COLS, ICON_ROWS)?;
+    let place = images::place_in(path, MASCOT_ICON_PX, ICON_COLS, ICON_ROWS)?;
     graphic_mascot_lines_at(meta, &place, width)
 }
 

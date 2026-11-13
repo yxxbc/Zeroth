@@ -4,8 +4,10 @@
 `docs/ui/header.md`）。支持原生图形协议的终端会显示透明底的 `crest` PNG 图标
 `assets/mascot-crest.png`；
 其他终端、关闭图片或图标缓存写入失败时继续显示紧凑的块字符画。PNG 会内嵌在二进制
-中，图形协议可用时再落到 `~/.zeroth/cache/mascot-crest-v1.png`，已安装的程序不依赖
-仓库目录。README 用同一角色绘制在 `assets/banner-v2.jpg`。
+中，图形协议可用时再落到 `~/.zeroth/cache/mascot-crest-v2.png`，已安装的程序不依赖
+仓库目录。这张 PNG 是 384×351——一个 18 列的小标记，更大的源图只换来更多上传：这个
+尺寸下文件 78 KB，安装器的 4096 字节分块是 18 块而不是 138 块。它声明的尺寸是
+`ui::MASCOT_ICON_PX`，并有测试读文件自己的 IHDR 来保证两者一致。README 用同一角色绘制在 `assets/banner-v2.jpg`。
 mascot 用 **`/mascot`** 命令挑选 —— 第八个替换 composer
 的内联 picker —— 选择会跨 session 保留，且**按工作目录**保留
 （`docs/state/per-directory-state.md`）：戴宝石的那个 repo，旁边是戴幼雏的那个

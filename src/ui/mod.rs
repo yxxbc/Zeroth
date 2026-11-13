@@ -120,7 +120,7 @@ pub use self::footer::{
     search_line, shell_mode_line, toast_line, toast_rows,
 };
 pub use self::header::{
-    header_lines, notice_card_lines, startup_notice_lines, startup_paragraph_lines,
+    MASCOT_ICON_PX, header_lines, notice_card_lines, startup_notice_lines, startup_paragraph_lines,
     telemetry_notice_lines, update_notice_lines,
 };
 pub use self::hook_cell::hook_report_lines;

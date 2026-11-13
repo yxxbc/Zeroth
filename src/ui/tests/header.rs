@@ -552,3 +552,21 @@ fn the_hint_points_at_login_until_a_model_is_configured() {
     );
     assert!(!text.contains("/login"), "{text:?}");
 }
+
+#[test]
+fn mascot_icon_px_matches_the_png_it_describes() {
+    // The banner places the compiled-in hatchling with an explicit pixel
+    // size (`place_in` never decodes the picture to learn it), and the
+    // installer sends the same file to the terminal. A size that drifts from
+    // the file is invisible until the art comes out distorted, so the file's
+    // own IHDR is the authority (docs/ui/header.md).
+    const PNG: &[u8] = include_bytes!("../../../assets/mascot-crest.png");
+    assert_eq!(&PNG[12..16], b"IHDR", "a PNG starts with its IHDR chunk");
+    let width = u32::from_be_bytes(PNG[16..20].try_into().unwrap());
+    let height = u32::from_be_bytes(PNG[20..24].try_into().unwrap());
+    assert_eq!(
+        (width, height),
+        MASCOT_ICON_PX,
+        "the declared icon size must be the PNG's own"
+    );
+}

@@ -220,9 +220,11 @@ release heading when a version is cut.
   cells either: the banner is placed by a column count and no row count, so
   the terminal scales it from the picture's own aspect ratio instead of
   stretching it into an 8×7 box, and the protocol's default cursor policy
-  puts the mascot under the banner rather than into it. `--preview N` holds
-  for its seconds on a `Preview` bar instead of returning the moment the
-  image was printed (`docs/ops/release.md`).
+  puts the mascot under the banner rather than into it. It names the version
+  the way the app's header does — `Zeroth (v0.4.2)`, from a pinned
+  `ZEROTH_VERSION` or the `Cargo.toml` beside a checkout, never a lookup.
+  `--preview N` holds for its seconds on a `Preview` bar instead of returning
+  the moment the image was printed (`docs/ops/release.md`).
 
 - **The Antigravity sign-in no longer freezes — or crashes — the interface.**
   Its reachability probe (a 30-second `HEAD`) ran on the async event loop and
@@ -276,6 +278,16 @@ release heading when a version is cut.
   a symlink cannot point out; `master` still bypasses).
 
 ### Changed
+
+- **The mascot PNG is a quarter of the file it was, and about half the
+  binary's share of it.** `assets/mascot-crest.png` was 1312×1199 — 561 KB to
+  draw an 18-column mark — so every graphics-terminal launch carried it and
+  the installer spent 138 protocol chunks sending it. At 384×351 the mark is
+  unchanged on screen, the file is 78 KB, and the chunks number 18. Its
+  declared size is now `ui::MASCOT_ICON_PX`, held to the file's own IHDR by a
+  test, and the icon cache moves to `mascot-crest-v2.png` so a build does not
+  draw a cached copy of the old file at the new size
+  (`docs/ui/mascot.md`).
 
 - **A release runs the terminal suite before it builds anything.** The
   Release workflow now gates on the tmux smoke suite as well as the unit

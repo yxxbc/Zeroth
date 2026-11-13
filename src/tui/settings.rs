@@ -27,13 +27,17 @@ const MASCOT_ICON: &[u8] = include_bytes!("../../assets/mascot-crest.png");
 /// Materialize the compiled-in icon outside the repository so installed
 /// binaries can draw it too. Failures simply leave the text mascot in place.
 fn materialize_mascot_icon() -> Option<PathBuf> {
-    let path = config::config_home()?.join("cache/mascot-crest-v1.png");
+    // The `v2` in the name is the picture, not the scheme: the icon was
+    // re-encoded smaller (a 561 KB PNG for an 18-column mark), and a cache
+    // file left by an older build would otherwise be drawn at the new
+    // file's declared size. A new name retires it without a migration.
+    let path = config::config_home()?.join("cache/mascot-crest-v2.png");
     if !path.is_file() {
         let parent = path.parent()?;
         std::fs::create_dir_all(parent).ok()?;
         std::fs::write(&path, MASCOT_ICON).ok()?;
     }
-    zeroth::images::remember_size(path.to_str()?, (1312, 1199));
+    zeroth::images::remember_size(path.to_str()?, zeroth::ui::MASCOT_ICON_PX);
     Some(path)
 }
 

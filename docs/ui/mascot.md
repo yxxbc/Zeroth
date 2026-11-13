@@ -5,9 +5,13 @@ The startup banner draws a small **mascot** beside the session metadata (see
 default `crest` uses the transparent `assets/mascot-crest.png` mark; terminals
 without a graphics protocol, with images disabled, or when the icon cache
 cannot be written keep the block-character fallback. The binary embeds the
-PNG and materializes it under `~/.zeroth/cache/mascot-crest-v1.png` when a
+PNG and materializes it under `~/.zeroth/cache/mascot-crest-v2.png` when a
 graphics protocol is available, so installed builds do not depend on the
-repository checkout. The README uses the same character in
+repository checkout. The PNG is 384×351 — an 18-column mark, so a larger
+source bought nothing but upload: at that size the file is 78 KB and the
+installer's 4096-byte chunks number 18 rather than 138. Its declared size is
+`ui::MASCOT_ICON_PX`, and a test reads the file's own IHDR to keep the two
+equal. The README uses the same character in
 `assets/banner-v2.jpg`. The mascot is chosen with the **`/mascot`** command —
 the eighth composer-replacing inline picker —
 and the choice persists across sessions, **per working directory**

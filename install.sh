@@ -165,9 +165,59 @@ animate() {
 	show_cursor
 }
 
+# script_version — the version to name in the banner, or empty where there is
+# none to name. Two sources, both local: a pinned `ZEROTH_VERSION`/`--version`,
+# and the `Cargo.toml` beside a checkout's copy of this script. The piped
+# installer has neither (the tag is a network lookup, and the banner is drawn
+# before one is made), so it names the release in its Release step instead.
+script_version() {
+	if [ -n "${want:-}" ]; then
+		case "$want" in v*) printf '%s\n' "${want#v}" ;; *) printf '%s\n' "$want" ;; esac
+		return
+	fi
+	case "$0" in
+	*/*) here=$(dirname "$0") ;;
+	*) here='' ;;
+	esac
+	manifest="${here:+$here/}Cargo.toml"
+	[ -f "$manifest" ] || return 0
+	# Only `[package]`'s own `version`, never a dependency's.
+	awk '
+		/^\[package\]/ { in_package = 1; next }
+		/^\[/ { in_package = 0 }
+		in_package && /^version[ \t]*=/ {
+			value = $0
+			sub(/^[^=]*=[ \t]*/, "", value)
+			gsub(/["\047 \t]/, "", value)
+			print value
+			exit
+		}
+	' "$manifest"
+}
+
 # The same art, once, for a pipe or a terminal that cannot hold it still.
 static_banner() {
-	draw_mascot 0 'Zeroth' 'Open-source coding agent' 'Secure, verified installer'
+	draw_mascot 0 "$(banner_name)" 'Open-source coding agent' 'Secure, verified installer'
+}
+
+# banner_name — `Zeroth`, or `Zeroth (v0.4.2)` when a version is known. The
+# shape is the app's own header (`docs/ui/header.md`), so the installer and
+# the session it installs introduce themselves the same way.
+banner_name() {
+	# Memoized: the animated banner asks once per frame, and resolving the
+	# version costs a subprocess.
+	if [ -n "${banner_name_done:-}" ]; then
+		printf '%s\n' "$banner_name_text"
+		return
+	fi
+	version=$(script_version)
+	if [ -n "$version" ]; then
+		banner_name_text="Zeroth (v$version)"
+	else
+		banner_name_text='Zeroth'
+	fi
+	banner_name_done=1
+	printf '%s\n' "$banner_name_text"
 }
 
 # Graphical terminals that implement the Kitty graphics protocol (including
@@ -267,8 +317,8 @@ image_banner() {
 	printf '\r'
 	kitty_png "$icon_image" 32 12
 	printf '\r'
-	printf '  %sZeroth%s\n  %sOpen-source coding agent%s\n  %sSecure, verified installer%s\n' \
-		"$bold" "$reset" "$dim" "$reset" "$dim" "$reset"
+	printf '  %s%s%s\n  %sOpen-source coding agent%s\n  %sSecure, verified installer%s\n' \
+		"$bold" "$(banner_name)" "$reset" "$dim" "$reset" "$dim" "$reset"
 }
 
 banner() {
@@ -276,7 +326,7 @@ banner() {
 	if [ "${art_ready:-0}" -eq 1 ]; then
 		image_banner
 	elif animate_ok; then
-		animate $((fps * 3 / 2)) 'Zeroth' 'Open-source coding agent' 'Secure, verified installer'
+		animate $((fps * 3 / 2)) "$(banner_name)" 'Open-source coding agent' 'Secure, verified installer'
 	else
 		static_banner
 	fi
@@ -324,7 +374,7 @@ preview() {
 		image_banner
 		preview_hold "$1"
 	elif animate_ok; then
-		animate "$(($1 * fps))" 'Zeroth' 'Open-source coding agent' 'Secure, verified installer'
+		animate "$(($1 * fps))" "$(banner_name)" 'Open-source coding agent' 'Secure, verified installer'
 		printf '  %s%s  %spreview · %s s · nothing is installed%s\n' \
 			"$dim" "$bang" "$dim" "$1" "$reset"
 	else

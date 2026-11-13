@@ -122,8 +122,9 @@ there is nothing here that executes on discovery.
 
 ### Built-in skills
 
-Five skills ship with the binary: **`skill-creator`**, **`jina-reader`**,
-**`yt-dlp`**, **`flaredantic`** and **`frontend-design`**. All use the same
+Seven skills ship with the binary: **`skill-creator`**, **`jina-reader`**,
+**`yt-dlp`**, **`flaredantic`**, **`frontend-design`**, **`crestling`** and
+**`zeroth-project`**. All use the same
 seed and discovery path described below. `frontend-design` is Anthropic's
 official design-guidance skill, Apache-2.0; its `LICENSE.txt` is seeded beside
 the `SKILL.md` so the attribution travels with the copy
@@ -131,6 +132,11 @@ the `SKILL.md` so the attribution travels with the copy
 is **retired**: search and page-reading are the native
 `web_search`/`web_fetch` tools now ([`docs/tools/web-search.md`](web-search.md)),
 and its `scripts/` are gone.
+
+`crestling` answers questions about Zeroth's crested-hatchling mascot and its
+fictional Sector Zeroth story. `zeroth-project` handles factual questions about
+the software, its implementation, and contributors by consulting the checkout.
+The second skill treats the mascot's lore as fiction, not project history.
 
 #### `skill-creator`
 
@@ -801,7 +807,7 @@ here unchanged (`hooks::claude_code_alias`, `docs/tools/hooks.md`).
 | Where | What |
 |---|---|
 | `src/skills.rs` | **pure**: `SkillMetadata`, frontmatter parse, name validation, listing + budget, body render, the `SkillRegistry` handle |
-| `prompts/skills/` | embedded and seeded built-ins: `skill-creator` and `flaredantic` (`SKILL.md` + `reference.md` each), `jina-reader` and `yt-dlp` (one `SKILL.md` each), `frontend-design` (`SKILL.md` + `LICENSE.txt`). `README.md` records provenance and licensing; `web-search` was removed with the native `web_search`/`web_fetch` tools |
+| `prompts/skills/` | embedded and seeded built-ins: `skill-creator` and `flaredantic` (`SKILL.md` + `reference.md` each), `jina-reader`, `yt-dlp`, `crestling` and `zeroth-project` (one `SKILL.md` each), `frontend-design` (`SKILL.md` + `LICENSE.txt`). `README.md` records provenance and licensing; `web-search` was removed with the native `web_search`/`web_fetch` tools |
 | `src/llm/skill.rs` | root resolution, the `read_dir` walk, the built-in seed (`seed_builtin_skills`), context-derived `LoadedSkills`, and the tool executor (`run_skill_tool`) |
 | `src/llm/tools.rs` | `skill_spec()`, `display_name`, `summarize_call` |
 | `src/llm/backend.rs` | `with_skills` — the `with_tasks` pattern |

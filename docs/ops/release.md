@@ -188,8 +188,13 @@ picture's own aspect ratio instead of stretching it into a cell rectangle,
 and the protocol's default cursor policy leaves the cursor on the row below
 a placement — which is what puts the `crest` mascot under the banner, and the
 name under the mascot, without hand-counted cursor moves. The images carry a
-negative z-index, so text is never hidden behind artwork. Other terminals
-keep the text `crest` mascot (`src/app/mascot.rs`) beside the name, animated
+negative z-index, so text is never hidden behind artwork. The name carries the
+version the way the app's own header does — `Zeroth (v0.4.2)` — from what the
+script can know without a lookup: a pinned `ZEROTH_VERSION`/`--version`, or the
+`Cargo.toml` beside a checkout's copy of it. A piped install has neither, so it
+stands as `Zeroth` and the Release step names the version a moment later.
+Other terminals keep the text `crest` mascot (`src/app/mascot.rs`) beside the
+name, animated
 on an interactive terminal with the tint walking down its cyan → blue
 gradient, the crest swinging, and the eyes blinking every second. Platform,
 release, checksum, and install results append as a readable step log below
