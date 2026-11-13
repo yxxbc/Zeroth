@@ -4,12 +4,15 @@
 //! a *burst* (a paste, or very fast typing) once [`BURST_MIN_CHARS`] pile up. The
 //! event loop uses this to stop asking for an **immediate** frame per burst
 //! character (`schedule_frame_in` requests one a beat out instead), while a lone
-//! keystroke still paints at once. The actual coalescing — one paint per
-//! [`crate::frame::MIN_FRAME_INTERVAL`] no matter how many requests — is the
-//! frame scheduler's rate limiter; the scheduler keeps the *soonest* pending
-//! deadline, so the burst request never postpones a frame, it only avoids
-//! demanding extra ones (codex's scheduler folds the same way). Decisions come
-//! from injected `Instant`s, so it is unit-tested with no clock.
+//! keystroke still paints at once. The check runs **before** the urgent-frame
+//! choice: a burst character must never take the keypress's
+//! [`crate::frame::URGENT_FRAME_INTERVAL`] path, or a paste would repaint at
+//! ~500 fps. Ordinary requests still coalesce to one paint per
+//! [`crate::frame::MIN_FRAME_INTERVAL`] through the frame scheduler's rate
+//! limiter; the scheduler keeps the *soonest* pending deadline, so the burst
+//! request never postpones a frame, it only avoids demanding extra ones
+//! (codex's scheduler folds the same way). Decisions come from injected
+//! `Instant`s, so it is unit-tested with no clock.
 
 use std::ops::Range;
 use std::time::{Duration, Instant};
@@ -379,12 +382,12 @@ mod tests {
     #[test]
     fn annotate_pairs_each_placeholder_with_its_path_in_text_order() {
         let paths = [
-            PathBuf::from("/h/.alter-zero/image-cache/s/1.png"),
-            PathBuf::from("/h/.alter-zero/image-cache/s/2.jpg"),
+            PathBuf::from("/h/.zeroth/image-cache/s/1.png"),
+            PathBuf::from("/h/.zeroth/image-cache/s/2.jpg"),
         ];
         assert_eq!(
             super::annotate_image_placeholders("[Image #1] and [Image #2] compare", &paths),
-            "[Image #1: /h/.alter-zero/image-cache/s/1.png] and [Image #2: /h/.alter-zero/image-cache/s/2.jpg] compare"
+            "[Image #1: /h/.zeroth/image-cache/s/1.png] and [Image #2: /h/.zeroth/image-cache/s/2.jpg] compare"
         );
     }
 

@@ -25,16 +25,26 @@ already in this codebase; this change ports the rest.
 > paint is `last frame + 8.33 ms`, and a competitor's benchmark measured
 > 7.36 ms per keystroke under load against its own 0.39 ms. The floor coalesces
 > correctly; it just does not know a keypress from an animation tick.
+>
+> **Fixed 2026-11-14:** the request now carries urgency. A keypress that edits
+> the composer is clamped against `URGENT_FRAME_INTERVAL` (2 ms) and `soonest`
+> pulls the pending deadline forward; the paste-burst check still runs first.
+> Ordinary requests keep the 120 fps floor. The rest of that document's
+> measurements (the composer's O(draft) wrap, the per-frame row sums) are still
+> open work.
 
 ## Pieces
 
-- **`frame.rs`** — `FrameRateLimiter` (`MIN_FRAME_INTERVAL = 8.333 ms` = 120 fps)
-  with a pure `clamp_deadline` (never emit sooner than the floor past the last
-  frame) and `soonest` (fold a new request into the pending deadline, keeping
-  the earliest). A thin async `run_scheduler` task receives requested deadlines
-  on an mpsc channel, coalesces + rate-limits them, sleeps until due, then sends
-  one draw tick. `FrameRequester` is the cloneable send handle
-  (`schedule_frame` / `schedule_frame_in`). Pure parts are unit-tested; the
+- **`frame.rs`** — `FrameRateLimiter` (`MIN_FRAME_INTERVAL = 8.333 ms` = 120 fps
+  for ordinary requests, `URGENT_FRAME_INTERVAL = 2 ms` for composer-editing
+  keypresses) with a pure `clamp_request` (never emit sooner than the request's
+  floor past the last frame; `clamp_deadline` keeps the ordinary contract) and
+  `soonest` (fold a new request into the pending deadline, keeping the earliest —
+  an urgent keypress therefore pulls an animation frame forward). A thin async
+  `run_scheduler` task receives `FrameRequest`s on an mpsc channel, coalesces +
+  rate-limits them, sleeps until due, then sends one draw tick.
+  `FrameRequester` is the cloneable send handle (`schedule_frame`,
+  `schedule_frame_urgent`, `schedule_frame_in`). Pure parts are unit-tested; the
   async task is covered by `smoke.sh`.
 
 - **`paste.rs`** — `PasteBurst`, a pure state machine: characters arriving within
@@ -66,8 +76,10 @@ already in this codebase; this change ports the rest.
   answers ranked matches on a tokio channel the loop can `select!` on; see
   `docs/input/file-search.md`.)
 
-  `schedule_frame()` after every state change requests a redraw; the scheduler
-  emits a coalesced tick that drives the actual paint. `insert_before` queues its
+  `schedule_frame()` after every state change requests a redraw; a
+  composer-editing keypress instead uses `schedule_frame_urgent()` (after the
+  paste-burst check), whose 2 ms floor keeps it ahead of the animation chain.
+  The scheduler emits a coalesced tick that drives the actual paint. `insert_before` queues its
   lines and `set_view_height` adjusts the tracked geometry inline; the tick then
   writes the queued lines *and* repaints the live region in one synchronized
   frame (the flicker fix — `docs/ui/flicker.md`).

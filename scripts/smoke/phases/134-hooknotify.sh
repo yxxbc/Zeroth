@@ -37,7 +37,7 @@ class Stub(BaseHTTPRequestHandler):
         body = self.rfile.read(int(self.headers.get("content-length") or 0)).decode()
         last = json.loads(body).get("messages", [{}])[-1]
         if last.get("role") == "user":
-            args = {"command": "date +%%s%%N > %s; echo smoke134-ran" % ran,
+            args = {"command": "python3 -c 'import time; print(int(time.time() * 1000))' > %s; echo smoke134-ran" % ran,
                     "description": "Mark the run"}
             call = {"index": 0, "id": "call_134", "type": "function",
                     "function": {"name": "bash", "arguments": json.dumps(args)}}
@@ -75,7 +75,7 @@ cat >"$HN_HOOKS" <<HOOKS
   "PostToolUse": [{"hooks": [{"type": "command", "command": "$hn_record"}]}]
 }}
 HOOKS
-HN_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_HOOKS=1 ALTER_ZERO_HOOKS_FILE=$HN_HOOKS ALTER_ZERO_PROVIDERS_FILE=$HN_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+HN_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_HOOKS=1 ZEROTH_HOOKS_FILE=$HN_HOOKS ZEROTH_PROVIDERS_FILE=$HN_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 
 # hn_events — the logged events' names, in the order they were recorded.
 hn_events() {
@@ -109,7 +109,7 @@ submit "$S134" "smoke134 notify"
 hn_prompt="$(wait_pane 20 "$S134" -F "Bash command")" || fail "the permission prompt never opened"
 dump "the permission prompt" "$hn_prompt"
 # Answer at once — option 1, Yes — while the notifier still sleeps.
-hn_answered="$(date +%s%N)"
+hn_answered="$(smoke_now_ms)"
 keys "$S134" Enter
 hn_settled="$(wait_settled 30 "$S134" -S -200 -- -F "Done.")" || fail "the turn never settled"
 dump "the settled turn" "$hn_settled"
@@ -124,7 +124,7 @@ expect_eq "$(hn_field Notification message)" "Zeroth needs your permission to us
 	"the notification's message"
 [ -s "$HN_RAN" ] || fail "the approved command never ran"
 hn_ran="$(cat "$HN_RAN" 2>/dev/null || echo 0)"
-hn_delay_ms=$(((hn_ran - hn_answered) / 1000000))
+hn_delay_ms=$((hn_ran - hn_answered))
 note "the command ran ${hn_delay_ms} ms after the answer (the notifier sleeps 4 s)"
 if [ "$hn_delay_ms" -ge 2000 ]; then
 	fail "the notifier held the prompt up: the command ran ${hn_delay_ms} ms after the answer"

@@ -1017,7 +1017,7 @@ pub fn render_live_with_preview(
     let lines: Vec<Line> = bx
         .rows
         .iter()
-        .zip(&bx.row_ranges)
+        .zip(bx.row_ranges.iter())
         .enumerate()
         .skip(bx.scroll)
         .take(bx.text.height as usize)

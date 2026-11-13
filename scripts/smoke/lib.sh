@@ -82,7 +82,7 @@ SMOKE_TYPE_SETTLE="${SMOKE_TYPE_SETTLE:-0.2}"
 # The environment the suite states rather than inherits (docs/design.md, "The
 # smoke suite defines its own environment"). Every assertion is written
 # against the DUMMY backend's canned turns, so a resolvable provider key, a
-# stale `ALTER_ZERO_*` knob, `NO_COLOR`, a reachable display or a developer's
+# stale `ZEROTH_*` knob, `NO_COLOR`, a reachable display or a developer's
 # `OLLAMA_HOST` each turn passing assertions into failures that say nothing
 # about the app. Idempotent; run before the first launch of every phase.
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ smoke_sanitize_env() {
 	for v in $(env | sed -n 's/^\([A-Za-z0-9_]*API_KEY\)=.*/\1/p'); do
 		unset "$v"
 	done
-	for v in $(env | sed -n 's/^\(ALTER_ZERO_[A-Za-z0-9_]*\)=.*/\1/p'); do
+	for v in $(env | sed -n 's/^\(ZEROTH_[A-Za-z0-9_]*\)=.*/\1/p'); do
 		unset "$v"
 	done
 	# The local servers are configured by being *pointed at*
@@ -119,32 +119,32 @@ smoke_sanitize_env() {
 	# Telemetry (TELEMETRY.md) is opt-out and pings a real collector once
 	# a day per config home — off for the suite, both exported (the tmux
 	# server inherits it) and spelled out in every launch string.
-	export ALTER_ZERO_TELEMETRY=0
+	export ZEROTH_TELEMETRY=0
 	# …nor may one ask github.com for a newer release (docs/ops/update.md).
-	export ALTER_ZERO_UPDATE_CHECK=0
+	export ZEROTH_UPDATE_CHECK=0
 	# The spinner tip (docs/ui/tips.md) hangs a row under the status line once a
 	# turn has run three seconds — a row every phase that holds a turn that
 	# long would find in the strip it asserts on. Off for the suite; the
 	# tips phase (125) turns them back on for its own launches.
-	export ALTER_ZERO_TIPS=0
+	export ZEROTH_TIPS=0
 	# The project's AGENTS.md (docs/state/project-doc.md) leads every context the
 	# app builds, and the suite runs from a real checkout that has one: its
 	# text fills the top of every Ctrl+D view and pushes off the page the rows
 	# a phase reads there. Off for the suite; the /init phase (52) turns it
 	# back on for its own temp project.
-	export ALTER_ZERO_PROJECT_DOC_MAX_BYTES=0
+	export ZEROTH_PROJECT_DOC_MAX_BYTES=0
 	# A session starts in auto mode (docs/state/permissions.md), where the dummy's
 	# writes run unasked and a real backend's commands meet the classifier —
 	# and the permission phases are about the prompt. Manual for the suite,
 	# exported (a phase's own launch string inherits it) and spelled out in
 	# every launch string; Phase 64 unsets it to cover the default.
-	export ALTER_ZERO_PERMISSION_MODE=manual
+	export ZEROTH_PERMISSION_MODE=manual
 	# Reads, searches and listings fold into one collapsed line unless
 	# Verbose output is on (docs/ui/tool-groups.md) — and the suite's phases
 	# assert on the per-call cells (`● Read(about.py)`, a numbered peek, a
 	# `● Bash(ls …)` tail). On for the suite, exported and spelled out in
 	# every launch string; Phase 146 turns it off for its own launches.
-	export ALTER_ZERO_VERBOSE=1
+	export ZEROTH_VERBOSE=1
 }
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ smoke_phase_tags() { # file → "serial" (space-separated tags, possibly empty)
 smoke_abs_path() { # PATH → absolute, spelled the way the caller spelled the tree
 	# Logical, not physical: a directory name is only made absolute, never
 	# resolved through a symlink. That matters for the BINARY — with mbx,
-	# `target/` is a symlink into the build cache, and `alter-zero update`
+	# `target/` is a symlink into the build cache, and `zeroth update`
 	# tells a checkout's binary from an install by the `target/…/debug` in the
 	# path it was handed; resolving it made Phase 116 read the checkout's own
 	# build as an installed release and install over it. Plain `pwd`, no
@@ -265,6 +265,27 @@ smoke_sed_in_place() { # SCRIPT FILE — rewrite FILE through a sed script
 	fi
 	mv "$tmp" "$file"
 }
+smoke_now_ms() { # → epoch milliseconds as one integer, on both platforms
+	# GNU `date +%s%N` / `+%s%3N` has no BSD equivalent: macOS `date` prints a
+	# literal "N" (or an empty field), which turns a timing assertion into a
+	# false pass or a red run. Python's clock is on both CI runners, and
+	# milliseconds keep every phase's arithmetic in plain integers.
+	python3 -c 'import time; print(int(time.time() * 1000))'
+}
+smoke_braille_cells() { # [STRING] (or stdin) → count of U+2800–U+28FF cells
+	# The old byte-wise `LC_ALL=C grep -oE $'\xe2[\xa0-\xa3][\x80-\xbf]'`
+	# counted UTF-8 sequences, but BSD/toybox grep rejects a bracket range of
+	# raw high bytes ("illegal byte sequence") and GNU-only PCRE `\x{2800}`
+	# is not portable either. Decode the bytes explicitly: no locale, no regex
+	# engine, no false zero.
+	local text
+	if [ "$#" -gt 0 ]; then
+		text="$1"
+	else
+		text="$(cat)"
+	fi
+	printf '%s' "$text" | python3 -c 'import sys; text = sys.stdin.buffer.read().decode("utf-8", "replace"); print(sum(0x2800 <= ord(c) <= 0x28FF for c in text))'
+}
 
 # ---------------------------------------------------------------------------
 # Per-phase setup. Call once at the top of a phase file, after sourcing.
@@ -308,7 +329,7 @@ smoke_begin() {
 	# Isolate the config home (~/.zeroth by default) so the dummy stays the
 	# backend regardless of any real key/model a developer has saved there.
 	SMOKE_CFG="$SMOKE_TMP/cfg"
-	# ALTER_ZERO_SKILLS_DIR REPLACES the skills root list, so an empty directory
+	# ZEROTH_SKILLS_DIR REPLACES the skills root list, so an empty directory
 	# gives a hermetic, skill-free session with the feature itself still on (a
 	# machine that HAS skills would inject their listing at the top of every
 	# context and push the rows the phases assert on off the screen).
@@ -318,7 +339,7 @@ smoke_begin() {
 	SMOKE_AGENTS="$SMOKE_TMP/agents"
 	# Every conversation records a rollout (docs/state/resume.md). The app keeps them
 	# under the config home now, but the suite says so explicitly: for a long
-	# time they fell back to `$HOME/.alter-zero/sessions` whatever the config
+	# time they fell back to `$HOME/.zeroth/sessions` whatever the config
 	# dir was, and each run left ~100 dummy-backend sessions in the developer's
 	# own `/resume` picker (`scripts/smoke.sh --sweep-leaked` clears those).
 	SMOKE_SESSIONS="$SMOKE_TMP/sessions"
@@ -344,17 +365,17 @@ smoke_begin() {
 	# Lifecycle hooks, the project config layer and the spinner tips are off
 	# for hermeticity too, and the permission mode is manual (the sanitizer's
 	# note on it).
-	CFG_ENV="ALTER_ZERO_CONFIG_DIR=$SMOKE_CFG ALTER_ZERO_SESSIONS_DIR=$SMOKE_SESSIONS ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_SKILLS_DIR=$SMOKE_SKILLS ALTER_ZERO_AGENTS_DIR=$SMOKE_AGENTS ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_UPDATE_CHECK=0 ALTER_ZERO_TIPS=0 ALTER_ZERO_PERMISSION_MODE=manual ALTER_ZERO_VERBOSE=1"
+	CFG_ENV="ZEROTH_CONFIG_DIR=$SMOKE_CFG ZEROTH_SESSIONS_DIR=$SMOKE_SESSIONS ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_PROJECT_CONFIG=0 ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PERMISSION_MODE=manual ZEROTH_VERBOSE=1"
 	# Persistence seeds the input history from a file on startup; /dev/null
 	# gives every launch an EMPTY history so the ↑/↓ and Ctrl+R assertions are
 	# unaffected by earlier submissions.
-	CFG_ENV_NOHIST="$CFG_ENV ALTER_ZERO_HISTORY_FILE=/dev/null"
-	APP="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
-	APP_ABS="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+	CFG_ENV_NOHIST="$CFG_ENV ZEROTH_HISTORY_FILE=/dev/null"
+	APP="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+	APP_ABS="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 	# The launch string the permission-prompt phases share: a 2.5s pre-stream
 	# pause is the window their mid-turn keys land in (a fresh config home, so
 	# no standing rule covers anything).
-	APP_PERM="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=2500 $BIN"
+	APP_PERM="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=2500 $BIN"
 	# Session-name prefix. The server is private, so the names need only be
 	# readable — every phase's sessions are `${S}_something`.
 	S="smoke"

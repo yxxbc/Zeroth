@@ -842,3 +842,27 @@ impl App {
         Action::None
     }
 }
+
+/// Whether a key edits the composer's text rather than only moving a
+/// highlight. The TUI boundary gives exactly these keys an **urgent** frame: a
+/// keypress must not wait behind the 120 fps floor while a reply streams or the
+/// status line animates (`docs/architecture/input-latency.md`). Navigation,
+/// function and modified keys keep the ordinary floor, so a held key or an
+/// unrecognised paste cannot saturate the pty.
+///
+/// Pure, so the decision is unit-tested with injected `KeyEvent`s and the
+/// boundary only calls it. Ctrl/Alt/Super keys are shortcuts, not text, even
+/// when they carry a `Char`; Shift is how uppercase text is typed, so it stays.
+#[must_use]
+pub fn edits_composer(key: &KeyEvent) -> bool {
+    if key
+        .modifiers
+        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
+    {
+        return false;
+    }
+    matches!(
+        key.code,
+        KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete | KeyCode::Enter
+    )
+}

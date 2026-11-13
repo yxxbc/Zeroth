@@ -54,7 +54,7 @@ scripts/smoke.sh --skip 115              # everything but
 scripts/smoke.sh --failed                # re-run what failed last time
 scripts/smoke.sh --list                  # phases, tags, last durations
 scripts/smoke.sh -v                      # every phase's whole log
-scripts/smoke.sh target/release/alter-zero
+scripts/smoke.sh target/release/zeroth
 bash scripts/smoke/phases/055-permission.sh   # ONE phase, output live
 bash scripts/smoke/selftest.sh                # the readers + selector, no app, no tmux
 scripts/preflight.sh --smoke                  # tmux, bash 4+, setsid — before reading a red run
@@ -99,9 +99,9 @@ and `SMOKE_BIN` are the environment spellings of the knobs.
   standing permission rule, a `/model` choice or a `/settings` value one
   phase persists is invisible to every other (the old suite had to `rm -f`
   the shared `permissions.json` between the permission phases by hand);
-- **its own sessions root** (`ALTER_ZERO_SESSIONS_DIR=$SMOKE_TMP/sessions`),
+- **its own sessions root** (`ZEROTH_SESSIONS_DIR=$SMOKE_TMP/sessions`),
   spelled out even though the app now keeps rollouts under the config home:
-  for a long time they fell back to `$HOME/.alter-zero/sessions` whatever the
+  for a long time they fell back to `$HOME/.zeroth/sessions` whatever the
   config dir was, and every run left a few hundred dummy-backend sessions in
   the developer's own `/resume` picker. `scripts/smoke.sh --sweep-leaked`
   lists what older runs left there (the offline backends' model names give
@@ -118,7 +118,7 @@ and `SMOKE_BIN` are the environment spellings of the knobs.
 - **`$TMPDIR` pointed into the tree**, so a bare `mktemp -d` — and the app's
   own scratchpad — land inside it;
 - the sanitized environment (`smoke_sanitize_env`: every `*_API_KEY`, every
-  `ALTER_ZERO_*`, `OLLAMA_HOST`, `NO_COLOR`, the display variables unset;
+  `ZEROTH_*`, `OLLAMA_HOST`, `NO_COLOR`, the display variables unset;
   telemetry, the update check, the spinner tips and the project's `AGENTS.md`
   exported off; the permission mode exported `manual`, since a session starts
   in auto, where the dummy's writes never ask, and the prompt phases are
@@ -155,10 +155,12 @@ was not a safe transformation until each carried its own.
 | `work_dir [NAME]` | a short working directory under the phase's isolated HOME, so the footer renders the cwd as `~/{NAME}`. A phase asserting the footer's **tail** (the `· N shells` count, the context gauge) must launch in one, with `$APP_ABS`/`$BIN_ABS` |
 | `smoke_on_exit CMD…` | run at teardown — a stub server to kill |
 | `smoke_skip REASON` | this platform cannot exercise what the phase tests, and the phase says so instead of failing a check. Exits 77; the runner counts it as `skip`, apart from a pass, so a green macOS run never quietly means "half the phases did nothing". The one reason to reach for it: a fixture that is the **absence** of a native clipboard |
-| `smoke_abs_path PATH` | made absolute **keeping the name given** (no symlink walked) — for the binary, which `alter-zero update` tells from an install by the `target/…/debug` in its path |
+| `smoke_abs_path PATH` | made absolute **keeping the name given** (no symlink walked) — for the binary, which `zeroth update` tells from an install by the `target/…/debug` in its path |
 | `smoke_real_path PATH` | made absolute with every symlink resolved (leaf included) — for a work dir, a `$HOME`, a temp root, which the app resolves and then compares |
 | `smoke_file_size FILE` / `smoke_file_mode FILE` | a file's byte size / permission bits (`stat -c%s`/`stat -c %a` are GNU's, `stat -f%z`/`stat -f %Lp` BSD's) |
 | `smoke_sed_in_place SCRIPT FILE` | rewrite a file in place without `sed -i`, whose backup-suffix argument GNU and BSD disagree on |
+| `smoke_now_ms` | epoch time in milliseconds as one integer — GNU `date +%s%N` / `+%s%3N` prints a literal `N` (or nothing) under BSD `date`, so every timing assertion uses this instead |
+| `smoke_braille_cells [STRING]` | count of U+2800–U+28FF cells in STRING or stdin — decodes the UTF-8 bytes explicitly, since BSD/toybox grep rejects a byte-range bracket expression and GNU-only PCRE `\x{…}` is not portable |
 | `count_bare_prompts` / `count_rules` / `count_footers` / `count_msg_lines` | the "exactly one input box on screen" counters the resize phases share |
 
 ### Portability
@@ -182,10 +184,18 @@ rules that follow:
 - **A count read back from `wc` gets `tr -d ' '`.** BSD `wc` pads its number
   (`"       0"`), GNU's does not, so a bare `[ "$(… | wc -l)" = 0 ]` is false
   on a Mac and true on CI.
+- **A wall-clock delta goes through `smoke_now_ms`.** `date +%s%N`,
+  `+%s%3N` and `+%s.%N` are GNU-only: BSD `date` prints a literal `N`, so an
+  arithmetic expansion either errors or quietly turns the delta into 0.
+  Phases 6, 32, 48, 133 and 134 measure integer milliseconds now, including
+  the hook command in 134, which has to write its own timestamp. A count of
+  braille cells goes through `smoke_braille_cells` for the same reason —
+  `LC_ALL=C grep -oE $'\xe2[\xa0-\xa3][\x80-\xbf]'` is an illegal byte
+  sequence to BSD/toybox grep. Both helpers are pinned by `selftest.sh`.
 - **A path the app resolves goes through `smoke_real_path`**, and a path it is
   *handed* (the binary) through `smoke_abs_path`. On macOS `$TMPDIR` is
   `/var/...` behind `/private/var/...`; with mbx, `target/` is a symlink into
-  the build cache, and resolving it hands `alter-zero update` a path outside
+  the build cache, and resolving it hands `zeroth update` a path outside
   any `target/` (Phase 116).
 - **An error string from the platform's libc is matched loosely.** ENXIO is
   `No such device or address` on Linux and `Device not configured` on macOS

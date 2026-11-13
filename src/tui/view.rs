@@ -36,7 +36,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
 
-use zeroth::app::{App, DebugPage, HistoryItem, Role, View};
+use zeroth::app::{App, DebugPage, HistoryItem, Role, View, edits_composer};
 use zeroth::images;
 use zeroth::links;
 use zeroth::paste;
@@ -113,10 +113,13 @@ impl Session<'_> {
 
     /// Schedule the redraw for a just-handled key. A plain typed character that
     /// lands in a `PasteBurst` asks for a *relaxed* frame a beat out instead of
-    /// an immediate one; every other key (and the first characters of a run)
-    /// paints at once. The scheduler keeps the soonest pending deadline and its
-    /// rate limiter caps everything at 120 fps — that floor, not the burst
-    /// branch, is what coalesces a paste run into a few paints (see
+    /// an immediate one; **the burst detector is consulted first**, so a paste's
+    /// characters can never take the urgent path and saturate the pty. A key
+    /// that edits the composer then gets an urgent frame — it uses its own 2 ms
+    /// floor and pulls an already-queued animation frame earlier, so a streaming
+    /// reply cannot hold a keystroke for a whole 8.33 ms beat. Every other key
+    /// (navigation, shortcuts, the first characters of a run) keeps the 120 fps
+    /// floor that coalesces redraws (`docs/architecture/input-latency.md`,
     /// `zeroth::paste`).
     pub(crate) fn schedule_for_key(&mut self, key: &KeyEvent) {
         let plain_char =
@@ -126,6 +129,8 @@ impl Session<'_> {
         }
         if plain_char && self.burst.note_char(std::time::Instant::now()) {
             self.frame.schedule_frame_in(paste::BURST_CHAR_INTERVAL);
+        } else if edits_composer(key) {
+            self.frame.schedule_frame_urgent();
         } else {
             self.frame.schedule_frame();
         }

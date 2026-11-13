@@ -29,7 +29,9 @@ ordinary typing (and `tmux send-keys -l`) produces. So:
 
 - **A real paste** → one `Event::Paste` → the placeholder path below.
 - **Fast typing / a key burst** → many `Event::Key`s, typed verbatim, coalesced
-  into one repaint by `PasteBurst` (unchanged; `smoke.sh` Phase 6).
+  into one repaint by `PasteBurst` (unchanged; `smoke.sh` Phase 6). The detector
+  runs before the urgent-frame choice, so burst characters never take the
+  keypress's 2 ms path (`docs/architecture/input-latency.md`).
 
 `main.rs` routes `Event::Paste(text)` to `App::on_paste(&text)` (conversation
 view only — the Ctrl+O overlay has no composer, like typing there), then

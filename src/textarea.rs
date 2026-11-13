@@ -20,6 +20,7 @@
 
 use std::cell::RefCell;
 use std::ops::Range;
+use std::sync::Arc;
 
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 use unicode_width::UnicodeWidthStr;
@@ -56,7 +57,12 @@ pub struct TextArea {
 #[derive(Debug, Clone)]
 struct WrapCache {
     width: u16,
-    rows: Vec<Range<usize>>,
+    /// Shared, not copied: a frame asks for these rows four to six times
+    /// (`display_rows`, `row_count`, `cursor_row_col`, `input_box`…), and a
+    /// cloned `Vec<Range>` is O(draft) every time
+    /// (`docs/architecture/input-latency.md` Cause 2). An edit replaces the
+    /// whole cache, so the rows are never mutated behind an `Arc`.
+    rows: Arc<[Range<usize>]>,
 }
 
 impl TextArea {
@@ -482,34 +488,45 @@ impl TextArea {
 
     // ===== wrapping / rendering geometry (width-parameterised) =====
 
-    /// The wrapped row ranges at `width`, recomputing the cache only when the
-    /// width changes. Each range is the displayed byte slice of one visual row.
+    /// The wrapped row ranges at `width`, **shared** with the cache: cloning an
+    /// `Arc` is O(1), so a frame's several readers borrow the one allocation
+    /// instead of each copying the whole `Vec<Range>`
+    /// (`docs/architecture/input-latency.md` Cause 2). Recomputes only when the
+    /// width changes or an edit invalidated the cache. Each range is the
+    /// displayed byte slice of one visual row.
+    #[must_use]
+    pub fn wrapped_rows_shared(&self, width: u16) -> Arc<[Range<usize>]> {
+        let mut cache = self.wrap_cache.borrow_mut();
+        let stale = cache.as_ref().is_none_or(|c| c.width != width);
+        if stale {
+            *cache = Some(WrapCache {
+                width,
+                rows: Arc::from(wrap_rows(&self.text, width)),
+            });
+        }
+        cache.as_ref().unwrap().rows.clone()
+    }
+
+    /// The wrapped row ranges at `width` as an owned `Vec` — the shape the
+    /// renderer's `InputBox` stores and the tests assert on. Prefer
+    /// [`wrapped_rows_shared`](Self::wrapped_rows_shared) on a hot path.
     #[must_use]
     pub fn wrapped_rows(&self, width: u16) -> Vec<Range<usize>> {
-        {
-            let mut cache = self.wrap_cache.borrow_mut();
-            let stale = cache.as_ref().is_none_or(|c| c.width != width);
-            if stale {
-                *cache = Some(WrapCache {
-                    width,
-                    rows: wrap_rows(&self.text, width),
-                });
-            }
-        }
-        self.wrap_cache.borrow().as_ref().unwrap().rows.clone()
+        self.wrapped_rows_shared(width).to_vec()
     }
 
     /// The cached wrapped rows *without* recomputing — `None` when the cache is
     /// cold (between an edit and the next render). Vertical motion uses this so it
-    /// never needs to know the terminal width.
-    fn cached_rows(&self) -> Option<Vec<Range<usize>>> {
+    /// never needs to know the terminal width; the shared handle keeps the
+    /// `&mut self` motion methods free of a `RefCell` borrow.
+    fn cached_rows(&self) -> Option<Arc<[Range<usize>]>> {
         self.wrap_cache.borrow().as_ref().map(|c| c.rows.clone())
     }
 
     /// The visible text of each wrapped row at `width` (for rendering).
     #[must_use]
     pub fn display_rows(&self, width: u16) -> Vec<String> {
-        self.wrapped_rows(width)
+        self.wrapped_rows_shared(width)
             .iter()
             .map(|r| self.text[r.clone()].to_string())
             .collect()
@@ -518,7 +535,7 @@ impl TextArea {
     /// How many visual rows the input occupies at `width` (always at least one).
     #[must_use]
     pub fn row_count(&self, width: u16) -> usize {
-        self.wrapped_rows(width).len().max(1)
+        self.wrapped_rows_shared(width).len().max(1)
     }
 
     /// The cursor's `(visual row, display column)` at `width`. The row is the last
@@ -531,7 +548,7 @@ impl TextArea {
     /// below it.
     #[must_use]
     pub fn cursor_row_col(&self, width: u16) -> (usize, usize) {
-        let rows = self.wrapped_rows(width);
+        let rows = self.wrapped_rows_shared(width);
         let row = row_of(&rows, self.cursor);
         let r = &rows[row];
         let end = self.cursor.min(r.end);
@@ -1312,5 +1329,38 @@ mod tests {
         let mut wide = TextArea::from_text("aé b");
         wide.set_cursor(2); // inside `é`
         assert!(wide.text().is_char_boundary(wide.cursor()));
+    }
+
+    #[test]
+    fn wrapped_rows_shared_reuses_one_cache_instead_of_copying_it() {
+        // docs/architecture/input-latency.md Cause 2: `wrapped_rows` cloned the
+        // whole `Vec<Range>` on every call, and one frame asked for it four to
+        // six times. A warm cache must hand back the *same* allocation; an edit
+        // must invalidate it and produce a different one.
+        let mut ta = TextArea::from_text("a long line that wraps\nand another");
+        let first = ta.wrapped_rows_shared(5);
+        let second = ta.wrapped_rows_shared(5);
+        assert!(
+            std::sync::Arc::ptr_eq(&first, &second),
+            "a warm wrap cache must be shared, not rebuilt or copied"
+        );
+        assert_eq!(&*first, ta.wrapped_rows(5).as_slice());
+        ta.insert_str("X");
+        let after = ta.wrapped_rows_shared(5);
+        assert!(
+            !std::sync::Arc::ptr_eq(&first, &after),
+            "an edit must invalidate the shared cache"
+        );
+    }
+
+    #[test]
+    fn the_render_helpers_read_the_shared_wrap_cache() {
+        let ta = TextArea::from_text("hello wrapped world");
+        let shared = ta.wrapped_rows_shared(6);
+        assert_eq!(ta.row_count(6), shared.len().max(1));
+        assert_eq!(ta.display_rows(6).len(), shared.len());
+        let (row, col) = ta.cursor_row_col(6);
+        assert!(row < shared.len());
+        assert!(col <= 6);
     }
 }

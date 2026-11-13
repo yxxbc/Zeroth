@@ -91,6 +91,7 @@ pub use self::export::{EXPORT_EMPTY_NOTICE, ExportPicker, ExportTarget, export_f
 pub use self::file_picker::FileSearch;
 pub use self::hooks_menu::{HooksLevel, HooksMenu};
 pub use self::input_history::{HistorySearch, InputHistory, SearchState};
+pub use self::keys::edits_composer;
 pub use self::login::{
     DeviceLogin, DeviceStatus, KeyOnboarding, KeyStep, LocalChoice, LoginMethod, ProviderChoice,
     ServerPage, ServerSave, ServerTest, SigninKind, SubscriptionChoice, TokenAsk,
@@ -241,7 +242,7 @@ pub struct App {
     /// model's streamed chain-of-thought: the strip previews its tail live and
     /// [`finish_reasoning`](App::finish_reasoning) collapses it into the
     /// committed `Thought for …` cell. `None` between phases — and always,
-    /// when the display is off (`ALTER_ZERO_SHOW_THINKING=0`), because the
+    /// when the display is off (`ZEROTH_SHOW_THINKING=0`), because the
     /// boundary then never opens one. See `docs/ui/thinking-stream.md`.
     reasoning: Option<String>,
     /// Where this round's settled [`HistoryItem::Reasoning`] items landed in
@@ -272,7 +273,7 @@ pub struct App {
     compact_before: u64,
     /// The active model's context window in tokens, when known (the provider's
     /// `/v1/models` `context_length`, the saved settings, or the
-    /// `ALTER_ZERO_CONTEXT_WINDOW` override — injected at the boundary via
+    /// `ZEROTH_CONTEXT_WINDOW` override — injected at the boundary via
     /// [`set_context_window`](Self::set_context_window)). Drives the footer's
     /// `{used}/{window} ({pct}%)` gauge and the auto-compact trigger; `None`
     /// hides both. See `docs/architecture/compact.md`.
@@ -665,7 +666,7 @@ pub struct App {
     /// The session's togglable knobs — what `/settings` shows and what the
     /// boundary reads before it streams thinking, offers tools, snapshots the
     /// tree, or auto-compacts. Seeded at bootstrap from `settings.json` + the
-    /// `ALTER_ZERO_*` overrides; read through [`settings`](App::settings). See
+    /// `ZEROTH_*` overrides; read through [`settings`](App::settings). See
     /// `docs/state/settings.md`.
     settings: crate::settings::SessionSettings,
     /// The live status of the turn in flight (verb, token tally, arrow, and the
@@ -935,7 +936,7 @@ pub struct App {
     abandoned_permissions: Vec<String>,
     /// The session's permission posture (`manual`/`edit`) — pinned at the
     /// footer's right edge, toggled with Ctrl+A. `None` while permissions are
-    /// disabled (`ALTER_ZERO_PERMISSIONS=0`), which hides the segment and
+    /// disabled (`ZEROTH_PERMISSIONS=0`), which hides the segment and
     /// makes the toggle explain itself instead. Injected at startup and kept
     /// in sync by the boundary (the gate owns the live rules); see
     /// `docs/state/permissions.md`.

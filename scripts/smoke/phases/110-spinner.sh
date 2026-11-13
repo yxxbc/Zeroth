@@ -17,7 +17,7 @@ smoke_begin
 # trick).
 S110="${S}_spinner"
 SPIN_CFG="$(mktemp -d)"
-APP_SPINNER="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$SPIN_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_SKILLS_DIR=$SMOKE_SKILLS ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=2000 $BIN"
+APP_SPINNER="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$SPIN_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=2000 $BIN"
 tmux new-session -d -s "$S110" -x 90 -y 30 "$APP_SPINNER"
 sleep 0.8
 tmux send-keys -t "$S110" -l "/spinner"
@@ -54,25 +54,22 @@ if [ "$(printf '%s\n' "$spin_open" | grep -c '(.*●.*)')" -lt 1 ]; then
 fi
 # The two braille tracks (docs/ui/spinner.md). Their rows are LIVE — the ball
 # has moved on from its opening frame by the time the pane is captured — so
-# the checks are structural: eight braille cells each (U+2800–U+28FF, the
-# bytes E2 A0..A3 80..BF — counted bytewise under LC_ALL=C, since a
-# multibyte range in a bracket expression is not portable across locales),
-# and the gravity track's bare floor `⣀` under at least six of them (the
-# 2×2-dot ball covers at most two cells).
-braille_cells() {
-	printf '%s' "$1" | LC_ALL=C grep -oE $'\xe2[\xa0-\xa3][\x80-\xbf]' | wc -l
-}
+# the checks are structural: eight braille cells each (U+2800–U+28FF, counted
+# by `smoke_braille_cells` in lib.sh, which decodes the bytes rather than
+# asking grep for a byte range — BSD/toybox grep rejects one), and the gravity
+# track's bare floor `⣀` under at least six of them (the 2×2-dot ball covers
+# at most two cells).
 # (every row sits behind the indent and the `→ ` marker or its blank width,
 # so the name is matched after a space rather than at the line's start)
 spin_gravity_row="$(printf '%s\n' "$spin_open" | grep -E "(^| )gravity ")"
 spin_wave_row="$(printf '%s\n' "$spin_open" | grep -E "(^| )wave ")"
-if [ "$(braille_cells "$spin_gravity_row")" -ne 8 ]; then
+if [ "$(smoke_braille_cells "$spin_gravity_row")" -ne 8 ]; then
 	fail "the gravity row is not an eight-cell braille track: '$spin_gravity_row'"
 fi
 if [ "$(printf '%s' "$spin_gravity_row" | grep -oF "⣀" | wc -l)" -lt 6 ]; then
 	fail "the gravity track's floor is missing under the ball: '$spin_gravity_row'"
 fi
-if [ "$(braille_cells "$spin_wave_row")" -ne 8 ]; then
+if [ "$(smoke_braille_cells "$spin_wave_row")" -ne 8 ]; then
 	fail "the wave row is not an eight-cell braille track: '$spin_wave_row'"
 fi
 # The preview at the open is the highlighted (default gravity) style: the
@@ -81,7 +78,7 @@ spin_gravity_preview="$(printf '%s\n' "$spin_open" | grep -F "Working…")"
 if printf '%s\n' "$spin_gravity_preview" | grep -q '(.*●.*) Working'; then
 	fail "the preview wears the comet rather than the default gravity track"
 fi
-if [ "$(braille_cells "${spin_gravity_preview%% Working*}")" -ne 8 ]; then
+if [ "$(smoke_braille_cells "${spin_gravity_preview%% Working*}")" -ne 8 ]; then
 	fail "the preview does not open with the eight-cell braille track: '$spin_gravity_preview'"
 fi
 # ↑ to comet: the counter, the preview and the description follow the

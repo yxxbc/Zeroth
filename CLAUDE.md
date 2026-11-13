@@ -111,8 +111,11 @@ below are the canaries.
 
 `select!` runs over five sources: input, reply events, draw ticks, `@`-search
 results, and finished Ctrl+V clipboard reads. Every state change schedules a
-frame; the scheduler coalesces to 120 fps (`MIN_FRAME_INTERVAL`), and while a
-turn is active the draw branch re-arms a 32 ms animation frame.
+frame; the scheduler coalesces ordinary requests to 120 fps
+(`MIN_FRAME_INTERVAL`), but a key that edits the composer gets its own 2 ms
+urgent floor (`URGENT_FRAME_INTERVAL`, after the paste-burst check) so typing
+does not queue behind an animation tick, and while a turn is active the draw
+branch re-arms a 32 ms animation frame.
 
 `Submit(text)` → `tui::turn::Session::start_turn`: record, commit, spawn one
 `ReplySource`. **Enter during a turn steers** it: the backend drains the shared

@@ -20,7 +20,7 @@ ctrlo_day="$CTRLO_DIR/2026/07/23"
 mkdir -p "$ctrlo_day"
 ctrlo_file="$ctrlo_day/rollout-2026-07-23T10-00-00-48484848.jsonl"
 {
-	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-48","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"alter-zero","version":"0.1.0"}}\n' "$PWD"
+	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-48","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"zeroth","version":"0.1.0"}}\n' "$PWD"
 	printf '{"timestamp":"2026-07-23T10:00:01.000Z","type":"message","payload":{"role":"user","text":"resumed ctrlo html app","timestamp":"10:00 AM"}}\n'
 	for t in 1 2 3; do
 		body="Created /tmp/buddies${t}.html (1000 lines)"
@@ -36,7 +36,7 @@ ctrlo_file="$ctrlo_day/rollout-2026-07-23T10-00-00-48484848.jsonl"
 	done
 	printf '{"timestamp":"2026-07-23T10:00:03.000Z","type":"message","payload":{"role":"assistant","text":"All three buddy files saved and animated.","timestamp":"10:00 AM"}}\n'
 } >"$ctrlo_file"
-launch "$S48" 100 30 "env $CFG_ENV_NOHIST ALTER_ZERO_SESSIONS_DIR=$CTRLO_DIR ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+launch "$S48" 100 30 "env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$CTRLO_DIR ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux send-keys -t "$S48" -l "/resume"
 sleep 0.3
 tmux send-keys -t "$S48" Enter # open the picker
@@ -58,7 +58,7 @@ for _ in $(seq 1 60); do # the loaded conversation repaints inline (collapsed Wr
 	sleep 0.1
 done
 sleep 1.0 # let the loop-bottom transcript warm finish after the load
-ctrlo_t0="$(date +%s.%N)"
+ctrlo_t0="$(smoke_now_ms)"
 tmux send-keys -t "$S48" C-o
 ctrlo_blank=0
 ctrlo_open_ms=""
@@ -68,7 +68,7 @@ for _ in $(seq 1 200); do # sample tightly: no capture may be a blank screen
 		ctrlo_blank=1
 	fi
 	if printf '%s' "$ctrlo_pane" | grep -q "T R A N S C R I P T"; then
-		ctrlo_open_ms="$(awk "BEGIN{printf \"%.0f\", ($(date +%s.%N) - $ctrlo_t0)*1000}")"
+		ctrlo_open_ms=$(( $(smoke_now_ms) - ctrlo_t0 ))
 		break
 	fi
 	sleep 0.01

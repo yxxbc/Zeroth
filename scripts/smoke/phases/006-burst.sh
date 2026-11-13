@@ -15,16 +15,16 @@ launch "$S3" 80 24
 BURST="$(printf 'x%.0s' $(seq 1 997))END"
 burst_ms=0
 burst_ok=0
-burst_start=$(date +%s%3N)
+burst_start=$(smoke_now_ms)
 tmux send-keys -t "$S3" -l "$BURST"
 while [ "$burst_ms" -lt 600 ]; do
 	if tmux capture-pane -t "$S3" -p | grep -qF "END"; then
 		burst_ok=1
 		break
 	fi
-	burst_ms=$(($(date +%s%3N) - burst_start))
+	burst_ms=$(( $(smoke_now_ms) - burst_start ))
 done
-burst_ms=$(($(date +%s%3N) - burst_start))
+burst_ms=$(( $(smoke_now_ms) - burst_start ))
 echo "==== Phase 6: 1000-char burst fully rendered in ${burst_ms}ms (ok=$burst_ok) ===="
 tmux kill-session -t "$S3" 2>/dev/null
 

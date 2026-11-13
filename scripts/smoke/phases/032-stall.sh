@@ -5,7 +5,7 @@
 smoke_begin
 
 # an Esc interrupt stays PROMPT even when the backend is slow to
-# observe the cancel (docs/input/interrupt.md — the interrupt-lag fix). ALTER_ZERO_STALL_MS
+# observe the cancel (docs/input/interrupt.md — the interrupt-lag fix). ZEROTH_STALL_MS
 # selects a test backend that ignores the cancel for N ms, modelling a real
 # network backend wedged in a blocking read during the pre-first-token pause. The
 # old loop did `cancel + join`, which blocks the single-threaded loop until the
@@ -17,7 +17,7 @@ smoke_begin
 # a join()ing loop keeps it up ~N ms, a detaching loop clears it in tens of ms.
 STALL_S="${S}_stall"
 STALL_MS=3000
-launch "$STALL_S" 80 24 "env $CFG_ENV ALTER_ZERO_STALL_MS=$STALL_MS $BIN"
+launch "$STALL_S" 80 24 "env $CFG_ENV ZEROTH_STALL_MS=$STALL_MS $BIN"
 submit "$STALL_S" "hello there"
 # Wait for the pre-first-token status window (the stall backend sends nothing yet).
 stall_streaming=0
@@ -30,12 +30,12 @@ for _ in $(seq 1 40); do # up to ~2s
 done
 # Esc, then measure how long the live status line takes to clear (the undo's
 # prompt settle — no notice commits for a no-output interrupt).
-stall_t0="$(date +%s.%N)"
+stall_t0="$(smoke_now_ms)"
 tmux send-keys -t "$STALL_S" Escape
 stall_gap=""
 for _ in $(seq 1 250); do # up to ~5s (well past the 3s stall)
 	if ! tmux capture-pane -t "$STALL_S" -p | grep -qF "esc to interrupt"; then
-		stall_gap="$(awk "BEGIN{printf \"%.3f\", $(date +%s.%N) - $stall_t0}")"
+		stall_gap="$(awk "BEGIN{printf \"%.3f\", ($(smoke_now_ms) - $stall_t0) / 1000}")"
 		break
 	fi
 	sleep 0.02

@@ -2,6 +2,13 @@
 
 Date: 2026-11-12
 
+Status (2026-11-14): **Causes 1, 2 and 3 are fixed.** The global frame floor
+now has a 2 ms urgent path for composer-editing keypresses; the wrap cache is
+shared (`Arc`) instead of cloned four to six times per frame; and `live_rows`
+derives its eight row counts once. Still open: incremental re-wrap, a cap on
+recalled drafts (Cause 4) and a frame-time log (item 5). The measurements
+below are kept as the record of what was wrong and how it was found.
+
 ## The question
 
 A competitor's own benchmark (`miyu`, 15 sessions + a 16-thread compile running
@@ -41,11 +48,11 @@ every edit, because `forget_geometry` drops the cache):
 Conclusion from the numbers: **an ordinary keystroke costs well under 0.1 ms of
 CPU.** The 7.36 ms in the benchmark is not this code computing.
 
-## Cause 1 — the frame floor is global, so a keystroke queues behind animation
+## Cause 1 — the frame floor was global, so a keystroke queued behind animation (fixed)
 
-`frame.rs::FrameRateLimiter::clamp_deadline` never emits a frame sooner than
-`MIN_FRAME_INTERVAL` (8.333 ms, 120 fps) **after the last frame emitted**,
-whatever asked for it. `schedule_frame()` from a keypress and
+At the time of this measurement, `frame.rs::FrameRateLimiter::clamp_deadline`
+never emitted a frame sooner than `MIN_FRAME_INTERVAL` (8.333 ms, 120 fps)
+**after the last frame emitted**, whatever asked for it. `schedule_frame()` from a keypress and
 `schedule_frame_in(32 ms)` from the status spinner travel the same channel, and
 the limiter cannot tell them apart.
 
@@ -83,17 +90,19 @@ no separate rate limiter to clamp against — the beat is a target, not a floor.
 That is why miyu measures sub-millisecond: same termbox-class work, a different
 scheduling policy. We did not lose 7 ms of rendering; we scheduled it away.
 
-### What a fix costs
+### What the fix cost (implemented 2026-11-14)
 
-Make the frame requester carry urgency (`schedule_frame_urgent()` beside the two
-existing calls), and have `FrameRateLimiter` keep a *separate* floor for urgent
-requests — e.g. `URGENT_FRAME_INTERVAL` ~2 ms, matching miyu's burst window.
-The keys to change are small: `frame.rs` (limiter + requester), and
-`tui/view.rs::schedule_for_key` to pick the urgent call for a key that edits the
-composer (a plain character, Backspace, Enter) instead of a navigation key that
-only moves a highlight.
+The implemented shape is the one proposed here. `FrameRequest` carries
+`urgent`, `FrameRequester::schedule_frame_urgent()` sits beside the two existing
+calls, and `FrameRateLimiter::clamp_request` picks `URGENT_FRAME_INTERVAL` (2 ms)
+for it; `soonest` already keeps the earliest pending deadline, so the scheduler
+itself only had to pass the request through. `Session::schedule_for_key`
+consults `PasteBurst` **first**, then the pure `app::edits_composer` helper
+(plain characters, Backspace, Delete, Enter) before choosing the urgent call.
+`clamp_deadline` keeps the ordinary 120 fps contract and its locking test;
+the new tests cover the urgent floor, idle, late requests and the pull-forward.
 
-Risks, in the order they would bite:
+Risks, in the order they would bite — all three were satisfied:
 
 - **A held key becomes a 500 Hz repaint.** Terminals send repeats at the OS key
   rate; an urgent floor of 2 ms caps it at ~500 fps. `PasteBurst`
@@ -109,7 +118,7 @@ Risks, in the order they would bite:
   saturate a pty; an urgent path that also repaints the *streaming strip* would
   undo that. The urgent call must only be reachable from a keypress.
 
-## Cause 2 — the composer's wrap is O(draft) and is recomputed 4–5× per frame
+## Cause 2 — the composer's wrap was O(draft) and copied 4–5× per frame (fixed in part)
 
 Independent of scheduling, a long draft makes each frame cost real time. The
 `TextArea` drops its `wrap_cache` on every edit (`forget_geometry`), and one
@@ -127,18 +136,28 @@ which is pure overhead when the caller only reads.
 machine is the 6 ms a loaded laptop would show — and it is the *only* path where
 the content of the draft, rather than the scheduling, decides the latency.
 
-Three fixes, cheapest first:
+Three fixes, cheapest first (1 and 2 done 2026-11-14):
 
 1. **Borrow instead of clone.** Return `Rc<[Range<usize>]>` (or an `&[..]` with
    a lifetime tied to the `RefCell` borrow) from the cache; the render path
-   never needs an owned copy.
+   never needs an owned copy. **Done:** `WrapCache.rows` is an
+   `Arc<[Range<usize>]>` (`Arc` keeps `TextArea` `Send`), with
+   `wrapped_rows_shared()` handing out an O(1) clone and `wrapped_rows()`
+   keeping the owned `Vec` for the tests. `display_rows`, `row_count`,
+   `cursor_row_col`, `cached_rows` and `InputBox.row_ranges` all read the shared
+   handle, so a frame copies the ranges **zero** times. Locked by
+   `textarea::tests::wrapped_rows_shared_reuses_one_cache_instead_of_copying_it`.
 2. **Compute the wrap once per frame.** `render_live` already builds an
    `InputBox` carrying `rows`/`row_ranges`; `live_height` and `cursor_position`
-   could read that instead of re-deriving. This is the same "one source of
-   truth" the live-region row counts already use (`ui::LiveRows`).
-3. **Incremental re-wrap.** An edit touches one logical line; only that line's
-   rows change (prefix-stable, like `StreamRender`'s frozen lines). Recompute
-   from the edited line onward and splice, instead of the whole draft.
+   could read that instead of re-deriving. **Done in the cheaper form:** every
+   caller now hits the same shared cache, so re-deriving costs one `Arc` clone
+   rather than an O(draft) copy. Plumbing one `InputBox` into `live_height` and
+   `cursor_position` would remove even that, but needs signature changes across
+   the boundary for a few hundred nanoseconds.
+3. **Incremental re-wrap — still open.** An edit touches one logical line; only
+   that line's rows change (prefix-stable, like `StreamRender`'s frozen lines).
+   Recompute from the edited line onward and splice, instead of the whole draft.
+   This is the one remaining O(draft) cost (the wrap pass itself).
 
 There is also no cap on the composer's text: `paste.rs`'s
 `LARGE_PASTE_CHAR_THRESHOLD` (1000 chars) only applies to **bracketed pastes**.
@@ -149,7 +168,7 @@ thousands of rows". miyu folds anything over 10 lines / 800 chars into a
 small. Folding on recall (`app/input_history.rs::recall_input`) would close the
 same hole here.
 
-## Cause 3 — the per-frame row sums are recomputed two or three times
+## Cause 3 — the per-frame row sums were recomputed two or three times (fixed)
 
 Not the keystroke path, but it compounds it under load. `live_rows`,
 `non_preview_rows` and `live_height` each re-derive the same eight counts, and
@@ -162,6 +181,16 @@ Not the keystroke path, but it compounds it under load. `live_rows`,
 already memoized — the remaining cost is the *sum*, called from
 `preview_budget` and again from `live_height`. One `LiveRows` built once per
 frame and handed down (as `ui::strip_paint_rows` already does) removes it.
+
+**Fixed (2026-11-14):** `ui::layout::RowCounts` derives the seven counts once,
+and both `live_rows` and `fitted_preview_rows` fit the preview from that one
+set; `strip_other_rows` and `RowCounts::non_preview` share a single spelling of
+the strip's sum, so nothing can drift. The second derivation inside `live_rows`
+is gone, pinned by
+`ui::tests::layout::live_rows_shares_one_set_of_counts_with_the_public_fit`.
+Passing one `LiveRows` across `strip_paint_rows` / `view_flow` / the boundary
+would also remove the remaining cross-function derivation, but that is a
+signature change with no measured payoff yet.
 
 ## What is not the problem
 
@@ -176,21 +205,23 @@ frame and handed down (as `ui::strip_paint_rows` already does) removes it.
 
 ## What to do, in order
 
-1. **Urgent frames** (Cause 1). The only change that moves the number the
-   benchmark measures, because it is a scheduling constant and not a rendering
-   cost. Needs `docs/design.md`'s frame-scheduler paragraph and
-   `docs/architecture/async-rewrite.md`'s *Why* note updated to say the floor is no longer
-   uniform.
-2. **Borrow the wrap cache** (Cause 2, item 1). One file, no behaviour change,
-   ~200 unit tests already beside it.
-3. **One wrap per frame** (Cause 2, item 2) — requires the same "one source of
-   truth" plumbing the row counts need (Cause 3), so do them together.
+1. **Urgent frames — done (2026-11-14).** The only change that moves the number
+   the benchmark measures, because it is a scheduling constant and not a
+   rendering cost. `docs/design.md`'s frame-scheduler paragraph and
+   `docs/architecture/async-rewrite.md`'s *Why* note now say the floor is no longer
+   uniform, and `frame.rs`'s locking tests cover both floors.
+2. **Borrow the wrap cache — done (2026-11-14).** `Arc<[Range<usize>]>` +
+   `wrapped_rows_shared`; every render-path reader uses it, locked by two new
+   `textarea::tests`.
+3. **One set of row counts per frame — done (2026-11-14).** `RowCounts` feeds
+   both `live_rows` and the public fit; `ui::tests::layout` pins the
+   equivalence.
 4. **Fold long recalls** (Cause 2, the cap). A product decision as much as an
    engineering one: does recalling a 40 KB message show it whole, or a block?
 5. **A frame-time log.** miyu has `MIYU_TUI_FRAME_LOG` writing
    `elapsed prep total` per frame plus a per-section breakdown over
    `slow_frame_ms`; it is how its own checkups found what to fix. We have no
-   equivalent (there is no `ALTER_ZERO_*` frame knob), which is why this
+   equivalent (there is no `ZEROTH_*` frame knob), which is why this
    document's numbers came from a probe that had to be written and then thrown
    away.
 
@@ -203,4 +234,7 @@ time `insert_char` + `ui::render_live` into a `Buffer` for each draft size. The
 `cursor_row_col` directly.
 
 `cargo run --release --example ink_probe` — the release profile matters: a debug
-build is 10–30× slower here and measures nothing real.
+build is 10–30× slower here and measures nothing real. The tables above predate
+the urgent-frame fix; a post-fix measurement needs the same probe driven during
+a streaming turn (or the frame-time log in item 5), since the 8.33 ms wait was
+scheduling, not rendering cost.

@@ -18,6 +18,30 @@ release heading when a version is cut.
 
 ### Added
 
+- **Typing on a long draft no longer copies its wrapping every frame.** The
+  composer's wrap cache now hands out a shared `Arc<[Range<usize>]>`;
+  `display_rows`, `row_count`, `cursor_row_col`, vertical motion and the
+  renderer's `InputBox` read it instead of cloning the whole `Vec` four to six
+  times a frame. `live_rows` also derives the live region's eight row counts
+  once instead of twice (measured 13 µs twice per frame on a palette-open
+  queue). Incremental re-wrap and a cap on recalled drafts remain open
+  (`docs/architecture/input-latency.md`, `docs/design.md`).
+
+- **The smoke suite is portable again on macOS.** `smoke_now_ms` replaces the
+  GNU-only `date +%s%N` / `+%s%3N` / `+%s.%N` in six phases, and
+  `smoke_braille_cells` replaces a byte-range `grep` that BSD/toybox grep
+  rejects; both are pinned by `scripts/smoke/selftest.sh`. Phases 6, 32, 48,
+  110, 133 and 134 now pass on a Mac (`docs/ops/smoke.md`).
+
+- **Typing stays responsive while a reply streams.** A key that edits the
+  composer no longer waits behind the 120 fps frame floor: the frame scheduler
+  now gives it its own 2 ms urgent floor and pulls an already-queued animation
+  frame earlier, so a streaming reply, the status shimmer or an open band can no
+  longer hold a keystroke for a whole 8.33 ms beat. Paste-burst characters are
+  still detected first and keep the relaxed path, and navigation keys, streamed
+  text and resizes keep the ordinary 120 fps coalescing
+  (`docs/architecture/input-latency.md`, `docs/design.md`).
+
 - **Tabs on the command page: Commands and Skills.** A bare `/` now opens a
   page whose active tab is a plain underlined label (`Commands  Skills`); the
   bar only appears when the session actually has skills, so a fresh install
@@ -206,6 +230,18 @@ release heading when a version is cut.
   a symlink cannot point out; `master` still bypasses).
 
 ### Changed
+
+- **The remaining `alter-zero` names are gone — a breaking rename.** Every
+  `ALTER_ZERO_*` override is now `ZEROTH_*` with no fallback: scripts, hooks
+  and CI using an old variable must switch names. The session temp root is
+  `{tmp}/zeroth-{uid}/{session}/scratchpad` (an older session's scratchpad is
+  no longer exempt from the write permission prompt), clipboard staging files
+  use `.zeroth-paste-`, and the telemetry User-Agent is `zeroth/{version}`.
+  Docs, smoke phases and fixtures now spell `Zeroth` in the header, help and
+  callback pages, matching `APP_NAME`. Upstream links, `NOTICE`, the fork's
+  history, the one-time `~/.alter-zero/` home migration and the published
+  `@linuztx/alter-zero` npm package name stay as historical references
+  (`docs/architecture/naming.md`).
 
 - **Project-level config now lives in `.zeroth/`.** The project layer reads
   `{root}/.zeroth/{skills,agents,hooks.json,mcp.json}` (plus the

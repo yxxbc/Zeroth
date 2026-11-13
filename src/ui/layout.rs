@@ -6,6 +6,8 @@
 //! (`docs/ui/status-indicator.md`), the bands (`docs/ui/shortcuts.md`,
 //! `docs/input/file-search.md`) and the footer (`docs/ui/footer.md`).
 
+use std::sync::Arc;
+
 use super::agent::agent_preview_rows;
 use super::live::preview_tool_lines;
 use super::theme::*;
@@ -171,21 +173,14 @@ pub fn preview_budget(app: &App, width: u16, height: u16) -> u16 {
 /// recalled multi-megabyte paste wraps to tens of thousands of rows), and a
 /// saturated total simply means no budget at all.
 ///
-/// It re-derives rows its callers often have in hand rather than taking ten
-/// arguments, because a second spelling of this sum is a sum that can drift.
-/// Measured: 53 ns on an ordinary frame, and 13 µs on one whose palette is
-/// open over a four-message queue (`queued_lines` renders each message) —
-/// against a 8.3 ms frame budget, and beside the three calls the draw already
-/// makes to the same helpers. If it ever matters, memoize `queued_lines`,
-/// which every one of those call sites would gain from too.
+/// It is the one spelling of this sum, fed by [`RowCounts`] so the draw's
+/// several readers cannot derive it twice. Measured before that change: 53 ns
+/// on an ordinary frame, and 13 µs on one whose palette is open over a
+/// four-message queue (`queued_lines` renders each message) — twice per frame
+/// because `live_rows` re-derived every count it had just summed
+/// (`docs/architecture/input-latency.md` Cause 3).
 fn non_preview_rows(app: &App, width: u16) -> u16 {
-    let band = band_rows(app, width);
-    strip_other_rows(app, width)
-        .saturating_add(INPUT_CHROME_ROWS)
-        .saturating_add(u16::try_from(app.input.row_count(field_width(width))).unwrap_or(u16::MAX))
-        .saturating_add(band)
-        .saturating_add(footer_rows(app, band))
-        .saturating_add(agent_list_rows(app))
+    RowCounts::of(app, width).non_preview(app, width)
 }
 
 /// The strip's own rows **besides** the preview slot: the status line and its
@@ -194,9 +189,59 @@ fn non_preview_rows(app: &App, width: u16) -> u16 {
 /// preview slot; `render_strip_above` subtracts it from the rows
 /// [`view_split`] left the strip.
 pub(super) fn strip_other_rows(app: &App, width: u16) -> u16 {
-    strip_rows(strip_has_status(app), 0, hang_rows(app, width))
-        .saturating_add(queued_rows(app, width))
-        .saturating_add(toast_rows(app))
+    strip_other_rows_from(
+        strip_has_status(app),
+        hang_rows(app, width),
+        queued_rows(app, width),
+        toast_rows(app),
+    )
+}
+
+fn strip_other_rows_from(has_status: bool, hang: u16, queued: u16, toast: u16) -> u16 {
+    strip_rows(has_status, 0, hang)
+        .saturating_add(queued)
+        .saturating_add(toast)
+}
+
+/// The eight row counts a live-region frame is built from, derived **once**.
+/// `live_rows` used to derive them twice — once inside `fitted_preview_rows`'s
+/// [`non_preview_rows`], then again for the [`LiveRows`] fields — which is the
+/// second 13 µs `docs/architecture/input-latency.md` Cause 3 measured.
+struct RowCounts {
+    has_status: bool,
+    hang: u16,
+    queued: u16,
+    toast: u16,
+    band: u16,
+    footer: u16,
+    agent: u16,
+}
+
+impl RowCounts {
+    fn of(app: &App, width: u16) -> Self {
+        let band = band_rows(app, width);
+        Self {
+            has_status: strip_has_status(app),
+            hang: hang_rows(app, width),
+            queued: queued_rows(app, width),
+            toast: toast_rows(app),
+            band,
+            footer: footer_rows(app, band),
+            agent: agent_list_rows(app),
+        }
+    }
+
+    /// Every row the live region owes besides the preview slot.
+    fn non_preview(&self, app: &App, width: u16) -> u16 {
+        strip_other_rows_from(self.has_status, self.hang, self.queued, self.toast)
+            .saturating_add(INPUT_CHROME_ROWS)
+            .saturating_add(
+                u16::try_from(app.input.row_count(field_width(width))).unwrap_or(u16::MAX),
+            )
+            .saturating_add(self.band)
+            .saturating_add(self.footer)
+            .saturating_add(self.agent)
+    }
 }
 
 /// Rows left for the preview slot inside `height` once `other` — every row
@@ -222,10 +267,17 @@ pub(super) const fn fit_preview_rows(height: u16, want: u16, other: u16) -> u16 
 /// composer.
 #[must_use]
 pub fn fitted_preview_rows(app: &App, width: u16, height: u16) -> u16 {
+    let counts = RowCounts::of(app, width);
+    fitted_preview_for(app, width, height, &counts)
+}
+
+/// [`fitted_preview_rows`] over counts the caller already derived, so
+/// [`live_rows`] pays for the eight counts once per frame.
+fn fitted_preview_for(app: &App, width: u16, height: u16, counts: &RowCounts) -> u16 {
     fit_preview_rows(
         height,
         preview_rows(app, width),
-        non_preview_rows(app, width),
+        counts.non_preview(app, width),
     )
 }
 
@@ -363,16 +415,17 @@ pub(super) struct LiveRows {
 /// [`LiveRows`] for `app` at `width` inside a region of `height` rows — the
 /// one place these eight counts are derived.
 pub(super) fn live_rows(app: &App, width: u16, height: u16) -> LiveRows {
-    let band = band_rows(app, width);
+    let counts = RowCounts::of(app, width);
+    let preview = fitted_preview_for(app, width, height, &counts);
     LiveRows {
-        has_status: strip_has_status(app),
-        preview: fitted_preview_rows(app, width, height),
-        hang: hang_rows(app, width),
-        queued: queued_rows(app, width),
-        toast: toast_rows(app),
-        band,
-        footer: footer_rows(app, band),
-        agent: agent_list_rows(app),
+        has_status: counts.has_status,
+        preview,
+        hang: counts.hang,
+        queued: counts.queued,
+        toast: counts.toast,
+        band: counts.band,
+        footer: counts.footer,
+        agent: counts.agent,
     }
 }
 
@@ -796,8 +849,11 @@ pub(super) struct InputBox {
     /// Every wrapped input row's displayed text (always at least one, possibly empty).
     pub(super) rows: Vec<String>,
     /// Each row's byte range into the input text (parallel to `rows`) — what
-    /// maps the Ctrl+R search-highlight byte ranges onto row columns.
-    pub(super) row_ranges: Vec<Range<usize>>,
+    /// maps the Ctrl+R search-highlight byte ranges onto row columns. Shared
+    /// with the `TextArea`'s wrap cache: the render path only reads it, so it
+    /// never needs an O(draft) copy of the ranges
+    /// (`docs/architecture/input-latency.md` Cause 2).
+    pub(super) row_ranges: Arc<[Range<usize>]>,
     /// The cursor's wrapped-row index and display column (from the [`TextArea`]).
     cursor_row: usize,
     cursor_col: usize,
@@ -832,7 +888,7 @@ pub(super) fn input_box(
     let text = frame.inner(Margin::new(0, 1)); // inset past the top & bottom rules
     let field = field_width(area.width);
     let rows = input.display_rows(field);
-    let row_ranges = input.wrapped_rows(field);
+    let row_ranges = input.wrapped_rows_shared(field);
     let (cursor_row, cursor_col) = input.cursor_row_col(field);
     let scroll = input_scroll(rows.len(), cursor_row, text.height as usize);
     InputBox {

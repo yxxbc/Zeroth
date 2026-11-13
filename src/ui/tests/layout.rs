@@ -1344,3 +1344,41 @@ fn live_layout_never_evicts_the_box() {
         );
     }
 }
+
+#[test]
+fn live_rows_shares_one_set_of_counts_with_the_public_fit() {
+    // docs/architecture/input-latency.md Cause 3: `live_rows` derives the eight
+    // counts once per frame. Its preview must still equal the public fit, and
+    // the height built from its fields must equal the same sum spelled out —
+    // so the shared `RowCounts` cannot drift from either source.
+    use crate::ui::layout::{live_height_for, live_rows};
+
+    let mut app = App::new();
+    app.input = TextArea::from_text("a draft that wraps across several rows at twenty columns");
+    for (width, height) in [(20u16, 24u16), (80, 40), (8, 10)] {
+        let rows = live_rows(&app, width, height);
+        assert_eq!(
+            rows.preview,
+            fitted_preview_rows(&app, width, height),
+            "the shared counts must fit the same preview at {width}x{height}"
+        );
+        let spelled_out = live_height(
+            &app.input,
+            width,
+            height,
+            rows.has_status,
+            rows.preview,
+            rows.hang,
+            rows.queued,
+            rows.toast,
+            rows.band,
+            rows.footer,
+            rows.agent,
+        );
+        assert_eq!(
+            live_height_for(&app.input, width, height, &rows),
+            spelled_out,
+            "LiveRows must be the same sum at {width}x{height}"
+        );
+    }
+}

@@ -28,7 +28,7 @@ in `rust-toolchain.toml`, and rustup installs it for you — don't override it, 
 floating `stable` is exactly what the pin exists to prevent.
 
 ```bash
-git clone https://github.com/linuztx/alter-zero.git
+git clone https://github.com/yxxbc/zeroth.git
 cd zeroth
 cargo run
 ```
@@ -107,7 +107,7 @@ export PATH="/opt/homebrew/opt/util-linux/bin:$PATH"
 | --- | --- |
 | `tmux` | `scripts/smoke.sh` — the only automated coverage of the terminal I/O boundary |
 | `shellcheck` | `install.sh` and `scripts/release/*.sh`, which CI lints |
-| `python3` | `scripts/build_timings.py` |
+| `python3` | `scripts/build_timings.py`, the smoke suite's clock/braille helpers |
 | `Xvfb` | The Linux clipboard's X11 paste read (`cargo test --test clipboard_linux -- --ignored`) |
 
 </details>
@@ -265,7 +265,7 @@ which is exactly what a BSD-`sed` incompatibility did until it was caught. CI
 runs it under GNU `sed` in the smoke job and under BSD `sed` on macOS.
 
 Each phase gets its own tmux server, config home, sessions root, `$HOME` and temp
-tree, and sanitizes the environment (every `*_API_KEY`, every `ALTER_ZERO_*`,
+tree, and sanitizes the environment (every `*_API_KEY`, every `ZEROTH_*`,
 `OLLAMA_HOST`, `NO_COLOR`, the display variables) before its first launch. That
 is what makes running phases in parallel correct — and what keeps a run off your
 real clipboard, config and `/resume` list.

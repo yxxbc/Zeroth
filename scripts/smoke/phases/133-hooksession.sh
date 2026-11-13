@@ -71,8 +71,8 @@ cat >"$HS_HOOKS" <<HOOKS
   "SessionEnd": [{"hooks": [{"type": "command", "command": "$hs_record"}]}]
 }}
 HOOKS
-HS_ENV="$CFG_ENV_NOHIST ALTER_ZERO_HOOKS=1 ALTER_ZERO_HOOKS_FILE=$HS_HOOKS"
-HS_REAL="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $HS_ENV ALTER_ZERO_PROVIDERS_FILE=$HS_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+HS_ENV="$CFG_ENV_NOHIST ZEROTH_HOOKS=1 ZEROTH_HOOKS_FILE=$HS_HOOKS"
+HS_REAL="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $HS_ENV ZEROTH_PROVIDERS_FILE=$HS_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 
 # hs_events — the logged events, one `Event:qualifier:session_id` per line.
 hs_events() {
@@ -104,11 +104,11 @@ hs_has() { hs_events | grep -q "^$1"; }
 hs_at_least() { [ "$(hs_events | grep -c "^$1")" -ge "$2" ]; }
 
 S133="${S}_hooksession"
-hs_launch_started="$(date +%s%N)"
+hs_launch_started="$(smoke_now_ms)"
 # The first frame is the startup review asking about these hooks
 # (docs/state/config-review.md).
 launch -w "Esc to continue without trusting" "$S133" 100 30 "$HS_REAL"
-hs_first_frame_ms=$((($(date +%s%N) - hs_launch_started) / 1000000))
+hs_first_frame_ms=$(( $(smoke_now_ms) - hs_launch_started ))
 note "first frame after ${hs_first_frame_ms} ms (SessionStart sleeps 2 s)"
 if [ "$hs_first_frame_ms" -ge 1900 ]; then
 	fail "the first frame waited on the SessionStart hook (${hs_first_frame_ms} ms)"

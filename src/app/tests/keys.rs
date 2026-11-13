@@ -1702,3 +1702,55 @@ fn conversation_scroll_keys_belong_to_the_screen_owning_mode() {
         Action::ScrollBottom
     );
 }
+
+#[test]
+fn edits_composer_names_the_keys_that_must_not_wait_behind_an_animation() {
+    // docs/architecture/input-latency.md: a key that edits the composer gets an
+    // urgent frame; everything else keeps the 120 fps floor, so a held key or a
+    // paste cannot saturate the pty.
+    for code in [
+        KeyCode::Char('a'),
+        KeyCode::Char('Z'),
+        KeyCode::Backspace,
+        KeyCode::Delete,
+        KeyCode::Enter,
+    ] {
+        assert!(
+            crate::app::edits_composer(&key(code)),
+            "{code:?} edits the composer"
+        );
+    }
+    assert!(
+        crate::app::edits_composer(&KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT)),
+        "a shifted character is still text"
+    );
+}
+
+#[test]
+fn edits_composer_leaves_navigation_and_modified_keys_ordinary() {
+    for code in [
+        KeyCode::Esc,
+        KeyCode::Tab,
+        KeyCode::Left,
+        KeyCode::Up,
+        KeyCode::PageUp,
+        KeyCode::F(1),
+    ] {
+        assert!(
+            !crate::app::edits_composer(&key(code)),
+            "{code:?} only moves a highlight"
+        );
+    }
+    assert!(
+        !crate::app::edits_composer(&ctrl('c')),
+        "Ctrl+C is not typed text"
+    );
+    assert!(
+        !crate::app::edits_composer(&alt(KeyCode::Char('b'))),
+        "Alt+B is not typed text"
+    );
+    assert!(
+        !crate::app::edits_composer(&KeyEvent::new(KeyCode::Char('s'), KeyModifiers::SUPER)),
+        "Cmd+S is not typed text"
+    );
+}

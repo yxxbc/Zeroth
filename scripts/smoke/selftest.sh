@@ -22,8 +22,9 @@
 # So these cases are fixtures, not the checkout's phases: a known file name and
 # a known header block, asserted reader by reader — an em dash title and a
 # hyphen one, a tags line, a header below the first line, and a file with no
-# header at all. Needs only bash, sed and grep, which the suite already
-# requires.
+# header at all. The reader cases need only bash, sed and grep; the portable
+# clock and braille helpers pinned at the bottom need python3, which both CI
+# runners carry (and which the suite already uses elsewhere).
 set -uo pipefail
 # shellcheck source-path=SCRIPTDIR
 # shellcheck disable=SC1091
@@ -166,7 +167,7 @@ printf '0123456789' >"$FIX"
 chmod 640 "$FIX"
 # A second file standing in for the binary the phases resolve to an absolute
 # path: an ordinary absolute path must come back unchanged.
-BIN_SELFTEST="$T/alter-zero"
+BIN_SELFTEST="$T/zeroth"
 : >"$BIN_SELFTEST"
 expect_eq "a file's size in bytes" "10" "$(smoke_file_size "$FIX")"
 expect_eq "a file's permission bits in octal" "640" "$(smoke_file_mode "$FIX")"
@@ -175,14 +176,14 @@ expect_eq "a file's permission bits in octal" "640" "$(smoke_file_mode "$FIX")"
 #   dir, a `$HOME`, a phase's temp root), so `/var/...` and `/private/var/...`
 #   cannot be two names for one directory;
 # - `smoke_abs_path` for the BINARY, which must keep the name it was given —
-#   with mbx, `target/` is a symlink into the build cache, and `alter-zero
+#   with mbx, `target/` is a symlink into the build cache, and `zeroth
 #   update` tells a checkout's build from an install by the `target/…/debug`
 #   in the path it was handed. Resolving it there made Phase 116 read the
 #   checkout's own build as an installed release and install over it.
-LINK="$T/alter-zero-link"
+LINK="$T/zeroth-link"
 ln -s "$BIN_SELFTEST" "$LINK"
 case "$(smoke_abs_path "$LINK")" in
-*/alter-zero-link) pass "the binary's path keeps the name it was given" ;;
+*/zeroth-link) pass "the binary's path keeps the name it was given" ;;
 *) flunk "the binary's path was resolved — got '$(smoke_abs_path "$LINK")'" ;;
 esac
 expect_eq "the real path resolves the leaf" "$(realpath "$LINK")" "$(smoke_real_path "$LINK")"
@@ -191,9 +192,9 @@ expect_eq "the real path resolves a directory" "$(realpath "$T")" "$(smoke_real_
 # before a launch runs in a temp cwd. The path it resolves through is the
 # platform's business (`/var` is a symlink to `/private/var` on macOS), so the
 # case asserts the shape: rooted, and ending at the file that was asked for.
-REL_ABS="$(cd "$T" && smoke_abs_path ./alter-zero)"
+REL_ABS="$(cd "$T" && smoke_abs_path ./zeroth)"
 case "$REL_ABS" in
-/*/alter-zero) pass "a relative path becomes absolute ($REL_ABS)" ;;
+/*/zeroth) pass "a relative path becomes absolute ($REL_ABS)" ;;
 *) flunk "a relative path becomes absolute — got '$REL_ABS'" ;;
 esac
 # `sed -i` takes its backup suffix differently on GNU and BSD, so a phase that
@@ -204,6 +205,33 @@ expect_eq "an in-place rewrite needs no sed -i" 'last_ping_version: "0.0.0"' "$(
 smoke_sed_in_place 's/nothing-matches/x/' "$FIX"
 expect_eq "an in-place rewrite leaves a file it does not match alone" \
 	'last_ping_version: "0.0.0"' "$(cat "$FIX")"
+
+# ---------------------------------------------------------------------------
+# The portable primitives. GNU `date +%s%N` prints a literal "N" (or nothing)
+# under BSD date, and a byte-range `LC_ALL=C grep` is rejected outright by
+# BSD/toybox grep — either one turns a timing or structural assertion into a
+# false pass or a red run on macOS. Pin the replacements over the shapes the
+# phases actually feed them.
+# ---------------------------------------------------------------------------
+section "the portable clock and braille counter"
+smoke_ms_1="$(smoke_now_ms)"
+smoke_ms_2="$(smoke_now_ms)"
+case "$smoke_ms_1" in
+''|*[!0-9]*) flunk "smoke_now_ms is not an integer: '$smoke_ms_1'" ;;
+*)
+	if [ "$smoke_ms_2" -ge "$smoke_ms_1" ]; then
+		pass "smoke_now_ms is a non-decreasing integer clock"
+	else
+		flunk "smoke_now_ms went backwards: $smoke_ms_1 -> $smoke_ms_2"
+	fi
+	;;
+esac
+expect_eq "eight braille cells among prose" "8" \
+	"$(smoke_braille_cells '  → gravity   ⣀⣀⣀⣀⣀⣘⣃⣀ ✓    A ball hopping')"
+expect_eq "no braille cells in prose" "0" \
+	"$(smoke_braille_cells 'plain ascii and — an em dash')"
+expect_eq "braille cells read from stdin" "2" \
+	"$(printf '⠋ ⠙\n' | smoke_braille_cells)"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAILED"
 [ "$FAILED" -eq 0 ]
