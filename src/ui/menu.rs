@@ -119,16 +119,16 @@ fn placeholder_line(text: &str) -> Line<'static> {
 
 /// One palette entry's rows: the [`MENU_MARKER`] on the selected entry (the
 /// others open on [`MENU_INDENT`], its width in spaces, so every name starts in
-/// one column), `/name` padded out to [`MENU_DESC_COL`], then its description
-/// **word-wrapped** to the room past that column — a description wider than the
-/// terminal continues on rows indented to the same column instead of being
-/// silently cut (nothing the palette says is lost at a narrow width). The
-/// selected entry also lights up whole in cyan, continuation rows included
-/// (name bold), the others dimmed grey — the marker saying which row Enter
-/// runs where the colour cannot. No background bar. A width with no
+/// one column), `{sigil}{name}` padded out to [`MENU_DESC_COL`], then its
+/// description **word-wrapped** to the room past that column — a description
+/// wider than the terminal continues on rows indented to the same column
+/// instead of being silently cut (nothing the palette says is lost at a narrow
+/// width). The selected entry also lights up whole in cyan, continuation rows
+/// included (name bold), the others dimmed grey — the marker saying which row
+/// Enter runs where the colour cannot. No background bar. A width with no
 /// description room at all degrades to the marker and the name alone.
-fn menu_row_lines(cmd: &SlashCommand, selected: bool, width: u16) -> Vec<Line<'static>> {
-    let name = format!("/{}", cmd.name);
+fn menu_row_lines(item: &PaletteItem, selected: bool, width: u16) -> Vec<Line<'static>> {
+    let name = format!("{}{}", item.sigil(), item.name());
     // Name and description share one colour per entry, for consistency.
     let color = if selected {
         menu_selected_color()
@@ -161,7 +161,7 @@ fn menu_row_lines(cmd: &SlashCommand, selected: bool, width: u16) -> Vec<Line<'s
             Span::styled(super::wrap::ellipsize(&name, room), name_style),
         ])];
     }
-    let mut rows = wrap_text(&cmd.description, desc_width as u16).into_iter();
+    let mut rows = wrap_text(item.description(), desc_width as u16).into_iter();
     let first = rows.next().unwrap_or_default();
     let mut lines = vec![Line::from(vec![
         marker_span,
@@ -176,6 +176,43 @@ fn menu_row_lines(cmd: &SlashCommand, selected: bool, width: u16) -> Vec<Line<'s
         ])
     }));
     lines
+}
+
+/// The page's tab bar: plain labels separated by [`MENU_TAB_GAP`], the active
+/// one accent, bold and underlined, the rest dim. One row; a terminal too
+/// narrow for the whole bar falls back to the active label alone rather than
+/// wrapping or clipping a category name. `None` when only one tab exists —
+/// the page then keeps the old flat palette's look.
+fn tab_bar_line(tabs: &[CommandTab], active: CommandTab, width: u16) -> Option<Line<'static>> {
+    if tabs.len() < 2 {
+        return None;
+    }
+    let all: Vec<(&str, usize)> = tabs
+        .iter()
+        .map(|tab| (tab.label(), cols(tab.label())))
+        .collect();
+    let total: usize =
+        all.iter().map(|(_, w)| *w).sum::<usize>() + cols(MENU_TAB_GAP) * (all.len() - 1);
+    let shown: Vec<&str> = if total <= usize::from(width) {
+        all.iter().map(|(label, _)| *label).collect()
+    } else {
+        vec![active.label()]
+    };
+    let mut spans = Vec::new();
+    for (i, label) in shown.into_iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::raw(MENU_TAB_GAP));
+        }
+        let style = if label == active.label() {
+            Style::new()
+                .fg(menu_selected_color())
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else {
+            Style::new().fg(menu_dim_color())
+        };
+        spans.push(Span::styled(label.to_string(), style));
+    }
+    Some(Line::from(spans))
 }
 
 /// The palette's dim `(n/total)` counter: which match the highlight is on,
@@ -216,34 +253,45 @@ pub fn command_menu_lines(app: &App, width: u16) -> Vec<Line<'static>> {
     let Some(menu) = &app.command_menu else {
         return Vec::new();
     };
-    let Some(query) = command_query(app.input.text()) else {
+    if command_query(app.input.text()).is_none() {
         return Vec::new();
-    };
-    let commands = app.commands();
-    let matches = matching_commands(&commands, query);
-    if matches.is_empty() {
-        return vec![placeholder_line(MENU_NO_MATCH)];
     }
-    // The commands' rows: the band's ceiling less the counter's row.
-    let max_rows = usize::from(MENU_MAX_ROWS) - 1;
-    let blocks: Vec<Vec<Line<'static>>> = matches
+    let tabs = app.command_tabs();
+    let items = app.palette_items();
+    let tab_row = usize::from(tabs.len() > 1);
+    let mut lines: Vec<Line<'static>> = tab_bar_line(&tabs, menu.active, width)
+        .into_iter()
+        .collect();
+    if items.is_empty() {
+        let placeholder = if menu.active == CommandTab::Skills {
+            MENU_NO_MATCH_SKILLS
+        } else {
+            MENU_NO_MATCH
+        };
+        lines.push(placeholder_line(placeholder));
+        return lines;
+    }
+    // The rows' ceiling: the band's cap less the tab row and the counter row.
+    let max_rows = usize::from(MENU_MAX_ROWS) - 1 - tab_row;
+    let selected = menu.selected().min(items.len() - 1);
+    let blocks: Vec<Vec<Line<'static>>> = items
         .iter()
         .enumerate()
-        .map(|(i, cmd)| menu_row_lines(cmd, i == menu.selected, width))
+        .map(|(i, item)| menu_row_lines(item, i == selected, width))
         .collect();
     let heights: Vec<usize> = blocks.iter().map(Vec::len).collect();
-    let (start, end) = centered_window_rows(&heights, menu.selected, max_rows, MENU_MAX_COMMANDS);
+    let (start, end) = centered_window_rows(&heights, selected, max_rows, MENU_MAX_COMMANDS);
     // `take(max_rows)` only ever bites on a lone entry taller than the whole
     // budget (a degenerately narrow terminal): its first rows show.
-    let mut lines: Vec<Line<'static>> = blocks
-        .into_iter()
-        .skip(start)
-        .take(end.saturating_sub(start))
-        .flatten()
-        .take(max_rows)
-        .collect();
-    let selected = menu.selected.min(matches.len() - 1);
-    lines.extend(menu_counter_line(selected, matches.len(), width));
+    lines.extend(
+        blocks
+            .into_iter()
+            .skip(start)
+            .take(end.saturating_sub(start))
+            .flatten()
+            .take(max_rows),
+    );
+    lines.extend(menu_counter_line(selected, items.len(), width));
     lines
 }
 

@@ -432,7 +432,7 @@ fn down_drives_the_palette_not_the_cursor_when_it_is_open() {
     let before = app.input.cursor();
     app.on_key(key(KeyCode::Down));
     assert_eq!(
-        app.command_menu.as_ref().unwrap().selected,
+        app.command_menu.as_ref().unwrap().selected(),
         1,
         "palette moved"
     );
@@ -543,13 +543,13 @@ fn arrow_keys_move_the_palette_selection_wrapping_at_the_ends() {
     let n = COMMANDS.len();
     app.on_key(key(KeyCode::Up));
     assert_eq!(
-        app.command_menu.as_ref().unwrap().selected,
+        app.command_menu.as_ref().unwrap().selected(),
         n - 1,
         "Up from the first command wraps to the last"
     );
     app.on_key(key(KeyCode::Down));
     assert_eq!(
-        app.command_menu.as_ref().unwrap().selected,
+        app.command_menu.as_ref().unwrap().selected(),
         0,
         "Down from the last command wraps back to the first"
     );
@@ -557,7 +557,7 @@ fn arrow_keys_move_the_palette_selection_wrapping_at_the_ends() {
         app.on_key(key(KeyCode::Down));
     }
     assert_eq!(
-        app.command_menu.as_ref().unwrap().selected,
+        app.command_menu.as_ref().unwrap().selected(),
         0,
         "a full lap of Downs comes back around"
     );
@@ -583,12 +583,72 @@ fn enter_runs_the_quit_command() {
 }
 
 #[test]
-fn tab_runs_the_highlighted_command_like_enter() {
+fn tab_cycles_the_command_page_tabs_and_never_runs_a_command() {
+    // Enter runs the highlighted row; Tab belongs to the tab bar while the
+    // page is open. With one tab (no skills) it is a no-op, so the plain-Tab
+    // follow-up/accept arms never see a palette key.
     let mut app = App::new();
     app.record_user_message("old message");
     type_str(&mut app, "/clear");
-    assert_eq!(app.on_key(key(KeyCode::Tab)), Action::Clear);
-    assert!(app.history.is_empty(), "Tab ran the command, like Enter");
+    assert_eq!(app.on_key(key(KeyCode::Tab)), Action::None);
+    assert_eq!(app.history.len(), 1, "Tab did not run /clear");
+    assert!(app.command_menu.is_some(), "the page is still open");
+    assert_eq!(app.on_key(key(KeyCode::Enter)), Action::Clear);
+}
+
+#[test]
+fn tab_switches_to_skills_and_enter_inserts_the_mention() {
+    use crate::skills::SkillMetadata;
+
+    let skill = |name: &str| SkillMetadata {
+        name: name.to_string(),
+        description: format!("the {name} skill"),
+        dir: std::path::PathBuf::from("/skills").join(name),
+        path: std::path::PathBuf::from("/skills")
+            .join(name)
+            .join(crate::skills::SKILL_FILE_NAME),
+    };
+    let mut app = App::new();
+    app.set_skills(vec![skill("review"), skill("search")]);
+    type_str(&mut app, "/");
+    assert_eq!(app.on_key(key(KeyCode::Tab)), Action::None);
+    let menu = app.command_menu.as_ref().expect("page open");
+    assert_eq!(menu.active, crate::app::CommandTab::Skills);
+    assert_eq!(menu.selected(), 0);
+    assert_eq!(app.on_key(key(KeyCode::Enter)), Action::None);
+    assert_eq!(app.input.text(), "$review ");
+    assert!(app.command_menu.is_none());
+}
+
+#[test]
+fn each_tab_keeps_its_own_highlight_and_enter_cannot_reach_the_other() {
+    use crate::skills::SkillMetadata;
+
+    let skill = |name: &str| SkillMetadata {
+        name: name.to_string(),
+        description: format!("the {name} skill"),
+        dir: std::path::PathBuf::from("/skills").join(name),
+        path: std::path::PathBuf::from("/skills")
+            .join(name)
+            .join(crate::skills::SKILL_FILE_NAME),
+    };
+    let mut app = App::new();
+    app.set_skills(vec![skill("review"), skill("search")]);
+    type_str(&mut app, "/c");
+    // Two /c commands: move to the second one.
+    app.on_key(key(KeyCode::Down));
+    let command_pick = app.highlighted_command().expect("a /c command").name;
+    app.on_key(key(KeyCode::Tab)); // Skills: its own query (/c) matches none
+    assert!(
+        app.highlighted_palette_item().is_none(),
+        "no skill matches /c"
+    );
+    app.on_key(key(KeyCode::BackTab)); // back to Commands
+    assert_eq!(
+        app.highlighted_command().expect("still a command").name,
+        command_pick,
+        "the Commands highlight survived the round trip"
+    );
 }
 
 #[test]
@@ -1592,14 +1652,14 @@ fn ctrl_p_and_ctrl_n_move_the_cursor_in_an_edited_draft() {
 fn ctrl_p_and_ctrl_n_navigate_the_palette() {
     let mut app = App::new();
     type_chars(&mut app, "/");
-    let start = app.command_menu.as_ref().expect("palette open").selected;
+    let start = app.command_menu.as_ref().expect("palette open").selected();
     app.on_key(ctrl('n'));
     assert_eq!(
-        app.command_menu.as_ref().map(|m| m.selected),
+        app.command_menu.as_ref().map(|m| m.selected()),
         Some(start + 1)
     );
     app.on_key(ctrl('p'));
-    assert_eq!(app.command_menu.as_ref().map(|m| m.selected), Some(start));
+    assert_eq!(app.command_menu.as_ref().map(|m| m.selected()), Some(start));
 }
 
 #[test]

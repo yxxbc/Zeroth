@@ -24,11 +24,11 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::app::{
-    App, BackgroundShell, BackgroundView, DeviceLogin, DeviceStatus, HistoryItem, HistorySearch,
-    KeyOnboarding, KeyStep, LiveTail, ModelLoad, ModelPicker, PathDisplay, QueuedTurn,
-    ResumeControl, ResumeFilter, ResumePicker, ResumeSort, Role, SearchState, SigninKind,
-    SlashCommand, ToastKind, TokenArrow, ToolCall, ToolStatus, TurnStatus, TurnSummary,
-    command_query, matching_commands,
+    App, BackgroundShell, BackgroundView, CommandTab, DeviceLogin, DeviceStatus, HistoryItem,
+    HistorySearch, KeyOnboarding, KeyStep, LiveTail, ModelLoad, ModelPicker, PaletteItem,
+    PathDisplay, QueuedTurn, ResumeControl, ResumeFilter, ResumePicker, ResumeSort, Role,
+    SearchState, SigninKind, ToastKind, TokenArrow, ToolCall, ToolStatus, TurnStatus, TurnSummary,
+    command_query,
 };
 use crate::file_search::FileMatch;
 use crate::highlight;

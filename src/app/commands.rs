@@ -316,13 +316,117 @@ pub const COMMANDS: &[SlashCommand] = &[
     SlashCommand::builtin("quit", "Exit the app", CommandEffect::Quit),
 ];
 
-/// The open slash-command palette: which match row is highlighted. The matches
-/// themselves are derived from the input on demand ([`matching_commands`]); only
-/// the highlight is stored. `None` on [`App`] means the palette is closed.
+/// A category the command page can show. Commands always exists; Skills is
+/// only listed when the session has skills to offer, so a fresh install keeps
+/// the flat palette it had before.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CommandTab {
+    /// Slash commands ([`COMMANDS`] plus the model's speed tiers).
+    #[default]
+    Commands,
+    /// The enabled skills, the same snapshot the `$` picker uses.
+    Skills,
+}
+
+impl CommandTab {
+    /// Every tab, in bar order.
+    pub const ALL: [Self; 2] = [Self::Commands, Self::Skills];
+
+    /// The tab bar's label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Commands => "Commands",
+            Self::Skills => "Skills",
+        }
+    }
+
+    const fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// What one palette row is: a command to run, or a skill to insert.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PaletteItem {
+    /// A slash command.
+    Command(SlashCommand),
+    /// An enabled skill; Enter inserts its `$name` mention.
+    Skill(crate::skills::SkillMetadata),
+}
+
+impl PaletteItem {
+    /// The row's sigil, so the two categories stay distinguishable in a
+    /// capture and the inserted text is what the composer will read.
+    #[must_use]
+    pub fn sigil(&self) -> char {
+        match self {
+            Self::Command(_) => '/',
+            Self::Skill(_) => crate::skills::SKILL_MENTION_PREFIX,
+        }
+    }
+
+    /// The name without its sigil.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Command(command) => &command.name,
+            Self::Skill(skill) => &skill.name,
+        }
+    }
+
+    /// The one-line pitch drawn beside the name.
+    #[must_use]
+    pub fn description(&self) -> &str {
+        match self {
+            Self::Command(command) => &command.description,
+            Self::Skill(skill) => &skill.description,
+        }
+    }
+}
+
+/// The open command page: which tab is active and each tab's own highlight.
+/// The matches themselves are derived from the input on demand; only the
+/// highlights are stored, **per tab**, so switching can never move the
+/// highlight the other tab had. `None` on [`App`] means the page is closed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandMenu {
-    /// Index of the highlighted command within the current filtered matches.
-    pub selected: usize,
+    /// The tab the rows below the bar come from.
+    pub active: CommandTab,
+    /// One highlight per [`CommandTab`], in [`CommandTab::ALL`] order.
+    selections: [usize; CommandTab::ALL.len()],
+}
+
+impl Default for CommandMenu {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
+impl CommandMenu {
+    /// A page opened on Commands with the given command highlight.
+    #[must_use]
+    pub fn new(selected: usize) -> Self {
+        Self {
+            active: CommandTab::Commands,
+            selections: [selected, 0],
+        }
+    }
+
+    /// The active tab's highlighted row.
+    #[must_use]
+    pub fn selected(&self) -> usize {
+        self.selections[self.active.index()]
+    }
+
+    fn selected_mut(&mut self) -> &mut usize {
+        &mut self.selections[self.active.index()]
+    }
+
+    /// The highlight the tab remembered, clamped to `matches` rows.
+    fn clamp(&mut self, tab: CommandTab, matches: usize) {
+        self.selections[tab.index()] = self.selections[tab.index()].min(matches.saturating_sub(1));
+    }
 }
 
 /// The slash-command query in `input`, if it is a **bare command token**: a
@@ -382,12 +486,58 @@ impl App {
         commands
     }
 
+    /// The tabs the page shows: Commands always, Skills only when the
+    /// session actually has skills. A one-tab page draws no bar, so a fresh
+    /// install looks exactly like the flat palette before tabs existed.
+    #[must_use]
+    pub fn command_tabs(&self) -> Vec<CommandTab> {
+        let mut tabs = vec![CommandTab::Commands];
+        if !self.skills.is_empty() {
+            tabs.push(CommandTab::Skills);
+        }
+        tabs
+    }
+
+    /// The rows of one tab whose name starts with `query` (case-insensitive),
+    /// in source order. Each tab filters **its own** source; the shared query
+    /// is re-interpreted, never carried across as a result.
+    #[must_use]
+    pub fn palette_matches(&self, tab: CommandTab, query: &str) -> Vec<PaletteItem> {
+        match tab {
+            CommandTab::Commands => matching_commands(&self.commands(), query)
+                .into_iter()
+                .cloned()
+                .map(PaletteItem::Command)
+                .collect(),
+            CommandTab::Skills => {
+                let q = query.to_lowercase();
+                self.skills
+                    .iter()
+                    .filter(|skill| skill.name.to_lowercase().starts_with(&q))
+                    .cloned()
+                    .map(PaletteItem::Skill)
+                    .collect()
+            }
+        }
+    }
+
+    /// The active tab's rows for the current query.
+    #[must_use]
+    pub fn palette_items(&self) -> Vec<PaletteItem> {
+        let (Some(menu), Some(query)) =
+            (self.command_menu.as_ref(), command_query(self.input.text()))
+        else {
+            return Vec::new();
+        };
+        self.palette_matches(menu.active, query)
+    }
+
     /// Re-derive the palette after an edit. Opens it when the input *becomes* a
-    /// command token, clamps the highlight when the filter narrows, and closes it
-    /// when the input stops being a command token. The `had_query` flag (the state
-    /// *before* the edit) makes Esc sticky: once dismissed, editing within the same
-    /// token won't reopen the palette — only leaving and re-entering command mode
-    /// (a None→Some transition) does.
+    /// command token, clamps each tab's highlight when the filter narrows, and
+    /// closes it when the input stops being a command token. The `had_query`
+    /// flag (the state *before* the edit) makes Esc sticky: once dismissed,
+    /// editing within the same token won't reopen the palette — only leaving
+    /// and re-entering command mode (a None→Some transition) does.
     pub(super) fn refresh_command_menu(&mut self, had_query: bool) {
         // In shell mode the whole draft is a literal command — a leading `/`
         // there (e.g. `!/usr/bin/env`) is a path, never the palette.
@@ -396,56 +546,125 @@ impl App {
             return;
         }
 
-        match command_query(self.input.text()) {
-            None => self.command_menu = None,
-            Some(query) => {
-                let matches = matching_commands(&self.commands(), query).len();
-                match &mut self.command_menu {
-                    Some(menu) => menu.selected = menu.selected.min(matches.saturating_sub(1)),
-                    // Just entered command mode → open at the top.
-                    None if !had_query => self.command_menu = Some(CommandMenu { selected: 0 }),
-                    // Dismissed earlier and still in the same token → stay closed.
-                    None => {}
-                }
+        let Some(query) = command_query(self.input.text()) else {
+            self.command_menu = None;
+            return;
+        };
+        let tabs = self.command_tabs();
+        let matches: Vec<(CommandTab, usize)> = tabs
+            .iter()
+            .map(|tab| (*tab, self.palette_matches(*tab, query).len()))
+            .collect();
+        let Some(mut menu) = self.command_menu.take() else {
+            if had_query {
+                return; // dismissed earlier in this token → stay closed
             }
+            self.command_menu = Some(CommandMenu::new(0));
+            return;
+        };
+        // Skills can disappear under an open page (a mid-session rescan);
+        // Commands always exists, so this is the only fallback needed.
+        if !tabs.contains(&menu.active) {
+            menu.active = CommandTab::Commands;
         }
+        for (tab, count) in matches {
+            menu.clamp(tab, count);
+        }
+        self.command_menu = Some(menu);
     }
 
-    /// Move the palette highlight one step over the current matches, wrapping
-    /// at the ends (`wrap_step` — ↓ past the last command comes back to the
-    /// first, ↑ from the first to the last).
+    /// Move the active tab's highlight one step over its current matches,
+    /// wrapping at the ends (`wrap_step` — ↓ past the last row comes back to
+    /// the first, ↑ from the first to the last). The other tab's highlight is
+    /// untouched.
     pub(super) fn move_command_selection(&mut self, delta: isize) {
         let Some(query) = command_query(self.input.text()) else {
             return;
         };
-        let matches = matching_commands(&self.commands(), query).len();
+        let Some(menu) = &self.command_menu else {
+            return;
+        };
+        let tab = menu.active;
+        let matches = self.palette_matches(tab, query).len();
+        let menu = self.command_menu.as_mut().expect("checked above");
+        let selected = wrap_step(menu.selected(), matches, delta);
+        *menu.selected_mut() = selected;
+    }
+
+    /// Cycle the page's tabs, keeping each tab's own highlight. A no-op when
+    /// there is only one tab, so the plain-Tab arm never fires for a page that
+    /// has nothing to switch to.
+    pub(super) fn cycle_command_tab(&mut self, delta: isize) {
+        let Some(query) = command_query(self.input.text()) else {
+            return;
+        };
+        let tabs = self.command_tabs();
+        if tabs.len() < 2 {
+            return;
+        }
+        let Some(menu) = &self.command_menu else {
+            return;
+        };
+        let current = tabs.iter().position(|tab| *tab == menu.active).unwrap_or(0);
+        let next = tabs[(current as isize + delta).rem_euclid(tabs.len() as isize) as usize];
+        if next == menu.active {
+            return;
+        }
+        // One immutable pass first: switching must not run or mutate a row,
+        // only repaint the other list (the isolation contract).
+        let matches = self.palette_matches(next, query).len();
         if let Some(menu) = &mut self.command_menu {
-            menu.selected = wrap_step(menu.selected, matches, delta);
+            menu.active = next;
+            menu.clamp(next, matches);
         }
     }
 
-    /// The command currently highlighted in the palette, if one is (the palette is
-    /// open and the query matches at least one command) — its own copy, since
-    /// a tier row is built per call ([`App::commands`]).
+    /// The row highlighted in the active tab, if one is. The page is open and
+    /// the query matches at least one row; commands are returned as their own
+    /// copy since a tier row is built per call ([`App::commands`]).
     #[must_use]
-    pub fn highlighted_command(&self) -> Option<SlashCommand> {
+    pub fn highlighted_palette_item(&self) -> Option<PaletteItem> {
         let menu = self.command_menu.as_ref()?;
         let query = command_query(self.input.text())?;
-        matching_commands(&self.commands(), query)
-            .get(menu.selected)
-            .map(|command| (*command).clone())
+        self.palette_matches(menu.active, query)
+            .into_iter()
+            .nth(menu.selected())
     }
 
-    /// Run the highlighted command: consume the input, close the palette, and
-    /// dispatch its effect as an [`Action`] for the loop. `Action::None` if no
-    /// command is highlighted (an empty query).
+    /// The highlighted **command**, or `None` on the Skills tab. Kept for the
+    /// call sites that mean "a command is about to run"; Enter uses
+    /// [`highlighted_palette_item`](Self::highlighted_palette_item) so a skill
+    /// row can insert its mention.
+    #[must_use]
+    pub fn highlighted_command(&self) -> Option<SlashCommand> {
+        match self.highlighted_palette_item()? {
+            PaletteItem::Command(command) => Some(command),
+            PaletteItem::Skill(_) => None,
+        }
+    }
+
+    /// Run the highlighted row: consume the input and close the page. A
+    /// command dispatches its effect as an [`Action`]; a skill leaves its
+    /// `$name` mention in the composer for the model to load (the `$` picker's
+    /// own contract), so it returns [`Action::None`].
     pub(super) fn run_selected_command(&mut self) -> Action {
-        let Some(cmd) = self.highlighted_command() else {
+        let Some(item) = self.highlighted_palette_item() else {
             return Action::None;
         };
-        let effect = cmd.effect;
         self.input.clear();
         self.command_menu = None;
+        let cmd = match item {
+            PaletteItem::Command(cmd) => cmd,
+            PaletteItem::Skill(skill) => {
+                self.input.set_text(&format!(
+                    "{}{} ",
+                    crate::skills::SKILL_MENTION_PREFIX,
+                    skill.name
+                ));
+                return Action::None;
+            }
+        };
+        let effect = cmd.effect;
         match effect {
             CommandEffect::Diff => Action::OpenDiffReview,
             CommandEffect::Clear => {

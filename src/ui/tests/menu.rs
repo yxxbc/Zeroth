@@ -563,7 +563,7 @@ fn the_palette_lists_the_active_models_speed_tiers_after_model() {
     );
     // A query narrows to the tier rows like any other command.
     app.input = TextArea::from_text("/ultra");
-    app.command_menu = Some(crate::app::CommandMenu { selected: 0 });
+    app.command_menu = Some(crate::app::CommandMenu::new(0));
     let narrowed = command_rows(&command_menu_lines(&app, 100));
     assert_eq!(narrowed.len(), 1, "{narrowed:?}");
     assert!(narrowed[0].starts_with("→ /ultrafast"), "{narrowed:?}");
@@ -771,7 +771,7 @@ fn cursor_stays_in_the_box_when_the_palette_opens() {
         ),
     );
     let closed = cursor_position(closed_area, &app);
-    app.command_menu = Some(crate::app::CommandMenu { selected: 0 });
+    app.command_menu = Some(crate::app::CommandMenu::new(0));
     let menu = menu_rows(&app, 40);
     let open_area = Rect::new(
         0,
@@ -2189,4 +2189,80 @@ fn the_skill_entry_is_an_ordinary_grid_slot() {
             .count();
         assert_eq!(listed, 1, "listed once at {width} columns");
     }
+}
+
+// --- the command page's tabs (docs/ui/command-tabs.md) ---
+
+fn palette_skill(name: &str, description: &str) -> crate::skills::SkillMetadata {
+    crate::skills::SkillMetadata {
+        name: name.to_string(),
+        description: description.to_string(),
+        dir: std::path::PathBuf::from("/skills").join(name),
+        path: std::path::PathBuf::from("/skills")
+            .join(name)
+            .join(crate::skills::SKILL_FILE_NAME),
+    }
+}
+
+#[test]
+fn the_tab_bar_is_a_plain_underlined_row_only_when_a_second_tab_exists() {
+    // A fresh install has no skills: the page keeps the flat palette's look,
+    // and the first row is a command, not a bar.
+    let mut app = palette("/", 0);
+    let bare = command_menu_lines(&app, 80);
+    assert!(plain(&bare[0]).starts_with(MENU_MARKER), "{bare:?}");
+
+    app.set_skills(vec![
+        palette_skill("review", "Review the working tree"),
+        palette_skill("search", "Search the codebase"),
+    ]);
+    let lines = command_menu_lines(&app, 80);
+    assert_eq!(plain(&lines[0]).trim_end(), "Commands  Skills");
+    let bar = &lines[0];
+    let [commands, _gap, skills] = bar.spans.as_slice() else {
+        panic!("commands, gap, skills: {:?}", bar.spans);
+    };
+    assert_eq!(commands.content, "Commands");
+    assert!(
+        commands.style.add_modifier.contains(Modifier::UNDERLINED),
+        "the active tab is underlined: {commands:?}"
+    );
+    assert_eq!(commands.style.fg, Some(menu_selected_color()));
+    assert_eq!(skills.content, "Skills");
+    assert_eq!(skills.style.fg, Some(menu_dim_color()));
+    assert!(
+        !skills.style.add_modifier.contains(Modifier::UNDERLINED),
+        "the inactive tab is not underlined: {skills:?}"
+    );
+}
+
+#[test]
+fn the_skills_tab_rows_wear_the_dollar_sigil_and_keep_the_command_marks() {
+    let mut app = palette("/", 0);
+    app.set_skills(vec![
+        palette_skill("review", "Review the working tree"),
+        palette_skill("search", "Search the codebase"),
+    ]);
+    app.command_menu.as_mut().expect("open").active = crate::app::CommandTab::Skills;
+    let lines = command_menu_lines(&app, 80);
+    assert_eq!(plain(&lines[0]).trim_end(), "Commands  Skills");
+    assert_eq!(lines[1].spans[0].content, MENU_MARKER);
+    assert!(plain(&lines[1]).starts_with("→ $review"), "{lines:?}");
+    assert!(plain(&lines[2]).starts_with("  $search"), "{lines:?}");
+}
+
+#[test]
+fn a_narrow_tab_bar_falls_back_to_the_active_label() {
+    let mut app = palette("/", 0);
+    app.set_skills(vec![palette_skill("review", "Review the working tree")]);
+    let lines = command_menu_lines(&app, 8);
+    assert_eq!(plain(&lines[0]), "Commands");
+    assert!(
+        lines[0].spans[0]
+            .style
+            .add_modifier
+            .contains(Modifier::UNDERLINED),
+        "{:?}",
+        lines[0]
+    );
 }

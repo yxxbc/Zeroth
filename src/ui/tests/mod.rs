@@ -290,7 +290,7 @@ pub(super) fn tool(name: &str, args: &str, status: ToolStatus, output: &str) -> 
 pub(super) fn palette(input: &str, selected: usize) -> App {
     let mut app = App::new();
     app.input = TextArea::from_text(input);
-    app.command_menu = Some(crate::app::CommandMenu { selected });
+    app.command_menu = Some(crate::app::CommandMenu::new(selected));
     app
 }
 

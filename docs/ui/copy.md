@@ -73,10 +73,10 @@ assistant message → `None` (the nothing-to-copy path). Pure and unit-tested.
   and closing the palette like every command. The *decision* (what text, or
   nothing) stays in the pure core; the loop only does the I/O + commits the
   notice — the same split as `Action::Notice`/`PasteImage`.
-- **Runs mid-turn.** The palette's `Enter`/`Tab` arms (`menu_open`) are matched
+- **Runs mid-turn.** The palette's `Enter` arm (`menu_open`) is matched
   *before* the queue/stream branch in `on_key`, so a `/copy` typed during a turn
   dispatches immediately instead of queuing — codex's "available during a task"
-  for free.
+  for free. Tab cycles the page's tabs while it is open; it never queues either.
 
 ### Keybinding — deliberately omitted
 

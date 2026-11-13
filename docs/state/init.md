@@ -55,9 +55,9 @@ The port mirrors that shape exactly; every piece rides existing machinery.
   - mid-turn → `Action::Toast(INIT_BUSY_NOTICE)` ("/init is disabled while
     a task is in progress") — codex's `available_during_task = false`,
     expressed in our `/resume`/`/compact` busy-toast pattern
-    (`docs/ui/toast.md`). Tab (the palette's other accept key) takes the same
-    arm — mid-turn it must not fall through to the queue-as-new-batch Tab,
-    which would send the literal `/init` to the model as text.
+    (`docs/ui/toast.md`). Enter takes that arm; Tab cycles the command page's
+    tabs while it is open and must not fall through to the queue-as-new-batch
+    Tab either — both menu arms win over the queue.
 - **Esc in the pre-stream window** — the generic interrupt-undo returns an
   output-less turn's submission to the composer (`docs/input/interrupt.md`). For
   an `/init` turn that text is the canned prompt the composer never held,

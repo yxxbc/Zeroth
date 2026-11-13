@@ -907,7 +907,7 @@ fn size_sweep_apps() -> Vec<(&'static str, App)> {
     let menu = {
         let mut app = base();
         app.input = TextArea::from_text("/");
-        app.command_menu = Some(crate::app::CommandMenu { selected: 0 });
+        app.command_menu = Some(crate::app::CommandMenu::new(0));
         app
     };
     let shortcuts = {
@@ -1206,7 +1206,7 @@ fn the_preview_budget_pays_the_band_before_the_preview() {
     let (width, height) = (51, 24);
     let bare = preview_budget(&app, width, height);
     app.input = TextArea::from_text("/");
-    app.command_menu = Some(crate::app::CommandMenu { selected: 0 });
+    app.command_menu = Some(crate::app::CommandMenu::new(0));
     let band = band_rows(&app, width);
     assert!(band > 0, "the palette is open");
     assert_eq!(
@@ -1231,7 +1231,7 @@ fn a_forming_table_under_the_palette_keeps_the_composer() {
     let mut app = forming_table(30);
     let (width, height) = (51u16, 24u16);
     app.input = TextArea::from_text("/");
-    app.command_menu = Some(crate::app::CommandMenu { selected: 0 });
+    app.command_menu = Some(crate::app::CommandMenu::new(0));
     let band = band_rows(&app, width);
     let footer = footer_rows(&app, band);
     let preview = fitted_preview_rows(&app, width, height);

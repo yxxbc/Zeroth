@@ -1,10 +1,34 @@
 # The command page — tabs, and keeping their state apart
 
-**Status: proposed.** Nothing here is implemented; the palette is the flat
-`/token` list described below (`docs/ui/markdown.md`, `src/app/commands.rs`,
-`src/ui/menu.rs`).
+**Status: Commands + Skills shipped.** `CommandMenu` carries an `active` tab
+and one highlight per tab (`src/app/commands.rs`); the bar and rows are drawn
+by `ui::menu::command_menu_lines` (`src/ui/menu.rs`). The Agents tab is the
+next phase; `/mcp` keeps its own manager page.
 
-## Today
+## Shipped look: underline tabs
+
+The bar is one plain row of labels — no box, no background pills — so it
+belongs to the same flat band as the rows under it:
+
+```
+Commands  Skills
+‾‾‾‾‾‾‾‾
+→ /clear                   Clear the conversation
+  /copy                    Copy the last response to the clipboard
+  /export                  Copy or save the conversation as plain text
+  (1/48)
+```
+
+The active label is accent-coloured, bold and underlined; the inactive one is
+dim. A terminal too narrow for the whole bar falls back to the active label
+alone. **The bar is only drawn when a second tab exists** — a session with no
+skills keeps the exact flat palette it had before tabs.
+
+Tab and Shift+Tab cycle the tabs while the page is open; Enter runs the active
+tab's highlighted row. Tab no longer runs a command (Enter always did), and
+the plain-Tab follow-up/accept arms return as soon as the page closes.
+
+## Before tabs
 
 Typing a bare `/` opens the palette above the composer. Every entry comes from
 one registry — `COMMANDS` plus the active model's speed tiers spliced after
@@ -38,38 +62,35 @@ shortcuts: `/` opens on Commands, `$` on Skills, `@` stays the file picker.
 
 ## Design space
 
-### A. Tabs inside one palette (recommended)
+### A. Tabs inside one palette (shipped)
 
 ```
-┌ Commands ─ Skills ─ Agents ─────────────────────┐
-│ › /clear    Clear the conversation              │
-│   /compact  Summarize the conversation          │
-│   /copy     Copy the last response              │
-└─────────────────────────────────────────────────┘
-  (3/48)                                  tab ↹
+Commands  Skills
+‾‾‾‾‾‾‾‾
+→ /clear    Clear the conversation
+  /compact  Summarize the conversation
+  /copy     Copy the last response
+  (3/48)
 ```
 
-- `CommandMenu` grows from one number to
-  `{ active: Tab, tabs: [TabState; 3] }`, `TabState { selected: usize }`.
+- `CommandMenu` carries `{ active: CommandTab, selections: [usize; 2] }`.
   The composer text is still the one query string; each tab filters **its own
   source** with that query, and each keeps its own highlight. Switching tabs
-  restores that tab's `selected`, clamped to its current matches.
+  restores that tab's selection, clamped to its current matches.
 - **Tab / Shift+Tab cycle tabs while the palette is open.** The plain Tab arms
   (accept a highlighted `@` file / `$` skill, queue a follow-up turn) return
   the moment the palette closes; the menu's own Tab arm wins only when
   `command_menu.is_some()`, so no existing binding changes.
 - **Enter runs the active tab's item.** Commands dispatch their
-  `CommandEffect`; a skill row inserts `$name` into the composer (the model
-  decides to load it, the `$` picker's own contract); an agent row is
-  read-only in v1 (Enter shows its description; launching is the model's
-  `agent` tool, not a command).
-- **Tab bar** costs one band row; `band_rows`/`menu_rows` add it, and the
-  counter moves under the rows. A tab with no matches shows the existing
-  placeholder row, not an empty band.
-- **Isolation** is structural: each tab owns its filtered list, its selected
-  index, and its scroll window. The shared query is the only cross-tab input,
-  and it is re-interpreted per source, never carried as “the first match from
-  the other tab”.
+  `CommandEffect`; a skill row inserts `$name ` into the composer (the model
+  decides to load it, the `$` picker's own contract). An agent row is phase 2
+  (read-only; launching is the model's `agent` tool, not a command).
+- **Tab bar** costs one band row when shown; `menu_rows` is still the built
+  line count, so the layout needs no special case. A tab with no matches shows
+  its own placeholder row (`No matching skills`), not an empty band.
+- **Isolation** is structural: each tab owns its selected index; the filtered
+  list is re-derived per source from the shared query, never carried as “the
+  first match from the other tab”.
 
 ### B. Separate pages (`/commands`, `/skills`, `/agents`)
 
@@ -93,12 +114,12 @@ band gets too tall.
 
 | piece | file | change |
 | --- | --- | --- |
-| catalogue | `src/app/commands.rs` | `Tab`, `TabState`, `CommandMenu { active, tabs }`; per-tab match lists; `run_selected_command` dispatches by `active` |
-| sources | `src/skills.rs`, `src/subagents.rs` | a read-only listing accessor each (name, description, path) — what `/skills`' menu already has |
-| keys | `src/app/keys.rs` | Tab/Shift+Tab cycle only while `command_menu.is_some()`; Up/Down keep moving within the active tab |
-| render | `src/ui/menu.rs` | tab bar + active-tab rows + counter; `menu_rows` gains one |
-| layout | `src/ui/layout.rs` | `band_rows` includes the tab row |
-| tests | `src/app/tests/commands.rs`, `src/ui/tests/menu.rs` | per-tab selection/filter isolation; Tab cycles; Enter cannot reach an inactive tab; empty category hides its tab |
+| catalogue | `src/app/commands.rs` | `CommandTab`, `PaletteItem`, `CommandMenu { active, selections }`; `palette_matches` per tab; `run_selected_command` dispatches by `active` |
+| sources | `src/skills.rs`, `src/subagents.rs` | `App::skills` (the `$` picker's snapshot) now also feeds the Skills tab; agent types await phase 2 |
+| keys | `src/app/keys.rs` | Tab/Shift+Tab cycle only while `command_menu.is_some()`; Enter accepts; Up/Down keep moving within the active tab |
+| render | `src/ui/menu.rs` | the underline bar (only with 2+ tabs), active-tab rows, per-tab placeholder, counter |
+| layout | `src/ui/menu.rs` | `menu_rows` is the built line count, so the tab row needs no separate layout change |
+| tests | `src/app/tests/keys.rs`, `src/ui/tests/menu.rs` | per-tab selection/filter isolation; Tab cycles; Enter cannot reach an inactive tab; one tab hides the bar; a narrow bar folds to the active label |
 
 ## Isolation rules (the contract)
 
@@ -108,35 +129,33 @@ band gets too tall.
    a row is only ever drawn and run from its own tab.
 3. Switching tabs does not run, dispatch, or mutate any item; it only changes
    which list is painted.
-4. Closing the palette discards nothing in history; reopening starts on the
-   tab the last `/` opened (Commands), or the sigil that opened it.
+4. Closing the palette discards nothing in history; reopening starts on
+   Commands (`CommandMenu::new`), the tab `/` opens.
 5. A command that is unavailable mid-turn (`/clear`, `/resume`, `/compact` …)
    keeps its existing toast/rejection path — the tab changes nothing about
    availability.
 
 ## Phasing
 
-1. **Commands + Skills tabs**, per-tab selection, Tab/Shift+Tab; skills rows
-   insert `$name`. Tests for isolation and the Tab-key routing.
-2. **Agents tab** (read-only), tab hiding for empty categories, counter/height
-   polish.
+1. **Commands + Skills tabs** — shipped: per-tab selection, Tab/Shift+Tab,
+   skills rows insert `$name `, the bar hides when only Commands exists, and
+   a narrow bar folds to the active label.
+2. **Agents tab** (read-only), and the `/skills` snapshot's agent-type
+   listing if it earns a slot.
 3. **MCP** if it earns a slot (its manager page already exists); otherwise
    leave it to `/mcp`.
 4. **Per-tab query memory** only if users ask: switching tabs would then save/
    restore the token — a textarea sync we deliberately avoid in v1.
 
-## Open questions
+## Resolved questions
 
-- Does Enter on a skill insert `$name` (model decides) or call the `Skill`
-  tool directly? The palette is pure `App`; a direct load is an `Action` and
-  would bypass the model's “load once” bookkeeping. Insert is the smaller
-  contract and matches `$` mentions.
-- Should the tab bar survive a resize below its minimum width by folding to
-  sigils (`/ $ @`)? The band already has a no-room path; use it.
-- Keep `Tab` for cycling, or `Ctrl+Tab`? Tab is free **only while the palette
-  is open**, and the palette's rows are the one place a Tab press has no text
-  meaning; Shift+Tab keeps its permission-mode binding when the palette is
-  closed.
+- **Enter on a skill inserts `$name `**; it does not call the `Skill` tool.
+  The palette is pure `App`; a direct load is an `Action` and would bypass the
+  model's “load once” bookkeeping. Insert is the smaller contract and matches
+  `$` mentions.
+- **Tab cycles; Enter accepts.** Tab is free only while the palette is open.
+- **A narrow bar shows only the active label** — no wrapping, no sigil
+  fallback; the row never grows.
 
 ## Non-goals
 

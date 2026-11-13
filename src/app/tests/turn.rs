@@ -920,22 +920,24 @@ fn esc_undo_of_an_init_turn_restores_the_command_not_the_prompt() {
 }
 
 #[test]
-fn init_mid_turn_tab_is_rejected_like_enter() {
-    // Tab is the palette's other accept key, and mid-turn it is also the
-    // queue-as-new-batch key — the menu_open arm must keep winning, or
-    // Tab on "/init" would silently queue the literal text as a message
-    // for the model. Both accept keys reject with the busy toast.
+fn init_mid_turn_tab_cycles_instead_of_queueing_literal() {
+    // Tab belongs to the tab bar while the palette is open, and mid-turn it
+    // is also the queue-as-new-batch key — the menu_open arm must keep
+    // winning, or Tab on "/init" would silently queue the literal text as a
+    // message for the model. Enter is the accept key and rejects with the
+    // busy toast.
     let mut app = App::new();
     app.record_user_message("hello");
     app.begin_stream();
     type_str(&mut app, "/init");
-    assert_eq!(
-        app.on_key(key(KeyCode::Tab)),
-        Action::Toast(INIT_BUSY_NOTICE.to_string()),
-    );
+    assert_eq!(app.on_key(key(KeyCode::Tab)), Action::None);
     assert!(
         app.queued.is_empty(),
         "the literal \"/init\" was not queued as a message"
+    );
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::Toast(INIT_BUSY_NOTICE.to_string()),
     );
 }
 

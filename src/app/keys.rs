@@ -324,6 +324,18 @@ impl App {
             // kitty protocol can report Tab+SHIFT — both bind (the Shift+Enter
             // pattern), and the Tab+SHIFT arm sits before every plain-Tab arm
             // so a shifted Tab never queues or completes.
+            // While the command page is open, Tab cycles its tabs (Enter runs
+            // the row): the one place a Tab press has no text meaning. The
+            // plain-Tab arms below keep their follow-up/accept meanings the
+            // moment the page closes.
+            KeyCode::Tab if menu_open => {
+                self.cycle_command_tab(1);
+                Action::None
+            }
+            KeyCode::BackTab if menu_open => {
+                self.cycle_command_tab(-1);
+                Action::None
+            }
             KeyCode::BackTab => self.toggle_permission_mode(),
             KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
                 self.toggle_permission_mode()
@@ -372,7 +384,7 @@ impl App {
                 Action::None
             }
             KeyCode::Enter if menu_open => {
-                if self.highlighted_command().is_some() {
+                if self.highlighted_palette_item().is_some() {
                     self.run_selected_command()
                 } else {
                     // A query that matches nothing isn't a message — swallow Enter

@@ -1079,7 +1079,7 @@ fn the_palette_over_a_streaming_table_keeps_the_composer_on_screen() {
     app.push_chunk(STREAMING_TABLE);
     app.set_status_times(Duration::from_secs(9), None);
     app.input = TextArea::from_text("/");
-    app.command_menu = Some(crate::app::CommandMenu { selected: 0 });
+    app.command_menu = Some(crate::app::CommandMenu::new(0));
 
     let buf = paint_live_region(&mut app, STREAMING_TABLE, width, term_height);
     let rows: Vec<String> = (0..buf.area.height).map(|y| row(&buf, y, width)).collect();
@@ -1142,7 +1142,7 @@ fn every_band_and_terminal_size_keeps_the_composer() {
                 app.set_status_times(Duration::from_secs(9), None);
                 app.input = TextArea::from_text(band);
                 match band {
-                    "/" => app.command_menu = Some(crate::app::CommandMenu { selected: 0 }),
+                    "/" => app.command_menu = Some(crate::app::CommandMenu::new(0)),
                     "?" => app.shortcuts_open = true,
                     "@src" => {
                         app.file_search = Some(FileSearch {

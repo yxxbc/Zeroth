@@ -4307,7 +4307,7 @@ fn live_streamed_table_never_squeezes_the_composer() {
             app.set_status_times(std::time::Duration::from_secs(9), None);
             app.input = zeroth::textarea::TextArea::from_text(band_key);
             match band_key {
-                "/" => app.command_menu = Some(zeroth::app::CommandMenu { selected: 0 }),
+                "/" => app.command_menu = Some(zeroth::app::CommandMenu::new(0)),
                 "?" => app.shortcuts_open = true,
                 _ => {}
             }

@@ -33,6 +33,12 @@ impl App {
         self.skills = skills;
         if self.skills.is_empty() {
             self.skill_picker = None;
+            // The Skills tab disappears with them: an open command page falls
+            // back to Commands rather than painting a tab the bar no longer
+            // shows.
+            if let Some(menu) = &mut self.command_menu {
+                menu.active = CommandTab::Commands;
+            }
         }
     }
 

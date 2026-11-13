@@ -130,7 +130,7 @@ fn typing_a_slash_opens_the_command_palette_at_the_top() {
     let mut app = App::new();
     app.on_key(key(KeyCode::Char('/')));
     let menu = app.command_menu.as_ref().expect("the palette is open");
-    assert_eq!(menu.selected, 0);
+    assert_eq!(menu.selected(), 0);
     assert_eq!(
         app.highlighted_command().map(|c| c.name.into_owned()),
         Some("clear".to_string()),

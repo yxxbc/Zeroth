@@ -2675,6 +2675,10 @@ pub(super) const MENU_MARKER: &str = "→ ";
 /// start at the same column on every row.
 pub(super) const MENU_INDENT: &str = "  ";
 
+/// The gap between the command page's tab labels. Two spaces, the palette's
+/// own rhythm: the bar stays a plain row of words, not buttons.
+pub(super) const MENU_TAB_GAP: &str = "  ";
+
 /// Cyan — the **selected** row: its `/name` *and* description share this colour
 /// (for consistency); the name is additionally bold.
 pub(super) fn menu_selected_color() -> Color {
@@ -2688,6 +2692,10 @@ pub(super) fn menu_dim_color() -> Color {
 
 /// The palette's single placeholder row when the `/token` matches no command.
 pub(super) const MENU_NO_MATCH: &str = "No matching commands";
+
+/// The placeholder when the Skills tab has no row for the same token — the
+/// command placeholder's sibling, so the tab never shows an empty band.
+pub(super) const MENU_NO_MATCH_SKILLS: &str = "No matching skills";
 
 // --- The `@` file picker. A file list pinned **below the input box** (the
 // palette's slot — the bands never show together), opened by an `@token` under

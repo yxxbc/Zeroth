@@ -627,14 +627,14 @@ fn typing_filters_and_clamps_the_selection() {
         "/clear, /copy, /compact, /context"
     );
     app.on_key(key(KeyCode::Down)); // highlight /copy (index 1)
-    assert_eq!(app.command_menu.as_ref().unwrap().selected, 1);
+    assert_eq!(app.command_menu.as_ref().unwrap().selected(), 1);
     type_str(&mut app, "l"); // "/cl" — only /clear matches now
     assert_eq!(
         matching_commands(&app.commands(), "cl").len(),
         1,
         "only /clear matches"
     );
-    assert_eq!(app.command_menu.as_ref().unwrap().selected, 0, "clamped");
+    assert_eq!(app.command_menu.as_ref().unwrap().selected(), 0, "clamped");
     assert_eq!(
         app.highlighted_command().map(|c| c.name.into_owned()),
         Some("clear".to_string()),

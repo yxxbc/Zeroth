@@ -431,8 +431,8 @@ The `tab to queue next turn` binding is listed in the `?` shortcuts band
   we keep our standard `Conversation interrupted` notice, then send whatever the
   turn never read — the interrupt honestly happened.
 - **Slash commands aren't queued.** A bare `/token` runs inline via the palette;
-  only plain text queues. (The palette's own Tab still runs the highlighted
-  command — it wins over the queue Tab.)
+  only plain text queues. (The palette's own Tab cycles its tabs and Enter
+  runs the row — both menu arms win over the queue Tab.)
 - **Idle Tab is a no-op.** Codex's idle Tab submits like Enter (and inserts a tab
   in a `!` bang draft); ours does nothing — Tab only queues against a running
   turn, which is all the user asked for. In an agent session view "running"

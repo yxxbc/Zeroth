@@ -18,6 +18,16 @@ release heading when a version is cut.
 
 ### Added
 
+- **Tabs on the command page: Commands and Skills.** A bare `/` now opens a
+  page whose active tab is a plain underlined label (`Commands  Skills`); the
+  bar only appears when the session actually has skills, so a fresh install
+  keeps the old flat palette. Tab/Shift+Tab cycle tabs, Enter runs the active
+  row, and each tab remembers its own highlight — a filter or a selection in
+  one never leaks into the other. A skill row inserts `$name ` into the
+  composer (the model loads it, the `$` picker's contract). A narrow bar folds
+  to the active label. Enter is now the only accept key; Tab cycles
+  (`docs/ui/command-tabs.md`).
+
 - **`frontend-design`, an Apache-2.0 built-in skill.** Anthropic's official
   design-guidance skill is embedded and seeded like the other built-ins,
   with its `LICENSE.txt` beside the `SKILL.md`; `prompts/skills/README.md`
