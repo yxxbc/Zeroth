@@ -66,7 +66,11 @@ api_base = "http://127.0.0.1:$M_PORT/beta/v1"
 TOML
 launch "$S154" 90 24 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_PROVIDERS_FILE=$M_PROVIDERS STUB_API_KEY=smoke-138 $APP"
 submit "$S154" "/model"
-grouped="$(wait_pane 10 "$S154" -F "beta/model-00")"
+# Providers load concurrently. Seeing beta's first row does not mean alpha's
+# response has arrived yet, so wait for both headings before asserting the
+# merged view.
+wait_pane 10 "$S154" -E '^  alpha *$' >/dev/null
+grouped="$(wait_pane 10 "$S154" -E '^  beta *$')"
 echo "==== Phase 154: /model over two providers ===="
 printf '%s\n' "$grouped"
 expect_has "$grouped" -E '^  alpha *$' "/model lost the alpha heading"
