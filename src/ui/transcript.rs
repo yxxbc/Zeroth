@@ -67,6 +67,20 @@ fn transcript_build(app: &App, width: u16) -> (Vec<Line<'static>>, Option<Range<
 /// The second value is `Some(message-row count)` for a **user** message — the
 /// span the Esc-Esc backtrack preview reverses (its timestamp line below stays
 /// normal; see `docs/input/backtrack.md`) — `None` for everything else.
+/// One history item rendered **expanded**, exactly as the Ctrl+O transcript
+/// shows it — the target of the full-screen mode's click-to-expand
+/// (`docs/ui/full-screen.md`): a tool's whole output, a thought's chain, a
+/// group's members, a compaction's summary. The trailing spacer is included,
+/// so the caller does not add one.
+#[must_use]
+pub fn expanded_item_lines(
+    item: &HistoryItem,
+    width: u16,
+    paths: &PathDisplay,
+) -> Vec<Line<'static>> {
+    transcript_item_lines(item, width, paths).0
+}
+
 fn transcript_item_lines(
     item: &HistoryItem,
     width: u16,

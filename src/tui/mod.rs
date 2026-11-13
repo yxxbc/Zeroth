@@ -190,6 +190,16 @@ pub(crate) struct Session<'t> {
     /// The tail index of the first painted conversation row — how screen rows
     /// map back to `full_select`/`full_tail`.
     full_start: usize,
+    /// History items the user expanded by clicking in the screen-owning mode
+    /// (`docs/ui/full-screen.md`): rendered in their Ctrl+O form.
+    full_expanded: std::collections::HashSet<usize>,
+    /// Expandable tail rows as `(start line, line count, history index)`,
+    /// already offset past the banner — what a click maps back to an item.
+    full_items: Vec<(usize, usize, usize)>,
+    /// A just-toggled item as `(item's first tail line, the content row it
+    /// should keep)` — the next rebuild pins it there so the cell does not
+    /// jump under the pointer.
+    full_anchor: Option<(usize, usize)>,
     /// Tail indices of each user message's first line, for the pinned prompt
     /// header: the latest one above the top of the window is drawn on a
     /// reserved row so the question stays with its answer while the reply is

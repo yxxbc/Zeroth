@@ -33,9 +33,11 @@ release heading when a version is cut.
   Streaming, tool cells, resizes, Ctrl+O and the full-screen pages work;
   PageUp/PageDown, Ctrl+Home/End and the wheel scroll the conversation, with
   the user message that owns the window's top pinned above its scrolled reply;
-  mouse capture adds link hover/click (through the system opener) and
-  drag-select/copy. Click-to-expand, link cards and editor handoff are the next
-  phases. The inline viewport remains the default (`docs/ui/full-screen.md`).
+  mouse capture adds link hover/click (through the system opener),
+  drag-select/copy, **click-to-expand** of a tool call/thought/group (its
+  Ctrl+O form, pinned in place) and **click-to-place the composer's caret**.
+  Link cards and editor handoff are the next phases. The inline viewport
+  remains the default (`docs/ui/full-screen.md`).
 
 - **A parallel tool batch now runs — and streams — several calls at once in
   the TUI.** Every call-scoped stream event (`ToolStart`, `ToolEnd`,

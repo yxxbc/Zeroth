@@ -19,7 +19,9 @@ use super::tool::{
     ctrl_b_hint, is_command_tool, live_tool_lines, result_row, running_command_lines,
     shell_running_line,
 };
+use super::wrap::cols;
 use super::*;
+use unicode_width::UnicodeWidthChar;
 
 /// Split one wrapped input row into spans, styling the parts inside
 /// `highlights` with [`SEARCH_HIGHLIGHT`] — the Ctrl+R match preview
@@ -659,6 +661,55 @@ fn render_strip_above(
         "preview_rows() must equal the drawn preview_lines()"
     );
     render_strip(strip, buf, app, stream_preview, preview_n);
+}
+
+/// The composer's caret offset for a click at screen `(col, row)`, in
+/// **bytes into `app.input`** — the screen-owning mode's click-to-place-caret
+/// (`docs/ui/full-screen.md`). `area` is the live region (the bottom
+/// `live_region_height` rows). `None` when the cell is not on the composer's
+/// text rows; a click on the prompt/indent seats the row's start.
+///
+/// It rebuilds the same [`input_box`] layout the frame paints with, so the
+/// drawn rows and the hit test cannot drift. Wrapped rows are mapped back to
+/// their source ranges; a wide glyph counts its columns. Tabs are rare in a
+/// draft and the renderer expands them, so a click past a tab lands on the
+/// nearest source column.
+pub fn composer_cursor_at(area: Rect, app: &App, col: u16, row: u16) -> Option<usize> {
+    // Pickers and pages replace the composer's frame with their own body; the
+    // coordinates no longer describe the text box.
+    if app.ask().is_some() || app.permission().is_some() || app.config_review.is_some() {
+        return None;
+    }
+    let band = band_rows(app, area.width);
+    let queued = queued_rows(app, area.width);
+    let toast = toast_rows(app);
+    let footer = footer_rows(app, band);
+    let agent_rows = agent_list_rows(app);
+    let preview_n = fitted_preview_rows(app, area.width, area.height);
+    let has_status = strip_has_status(app);
+    let hang_n = super::layout::hang_rows(app, area.width);
+    let bx = input_box(
+        area, &app.input, has_status, preview_n, hang_n, queued, toast, band, footer, agent_rows,
+    );
+    if col < bx.text.x || col >= bx.text.right() || row < bx.text.y || row >= bx.text.bottom() {
+        return None;
+    }
+    let visual = bx.scroll + usize::from(row - bx.text.y);
+    let range = bx.row_ranges.get(visual)?.clone();
+    let prompt = u16::try_from(cols(PROMPT)).unwrap_or(0);
+    let column = col.saturating_sub(bx.text.x).saturating_sub(prompt);
+    let source = &app.input.text()[range.clone()];
+    let mut width = 0u16;
+    let mut offset = range.start;
+    for (index, ch) in source.char_indices() {
+        if width >= column {
+            offset = range.start + index;
+            break;
+        }
+        width = width.saturating_add(u16::try_from(ch.width().unwrap_or(0)).unwrap_or(0));
+        offset = range.start + index + ch.len_utf8();
+    }
+    Some(offset)
 }
 
 /// [`render_live`], but with the streaming strip's assistant-preview line(s)

@@ -220,16 +220,22 @@ still applies.
   opener (`open`/`xdg-open`/`cmd start`), a left drag selects and copies (the
   app's own selection, since capture takes the terminal's; Shift+drag remains
   the terminal's escape hatch), and Shift is not required. Wheel scrolls.
+  A click with no link **toggles the expandable cell under it**
+  (`full_items` → `conversation_lines_expanded`): a tool call, thought, task
+  call, agent group or hook report switches between its collapsed inline form
+  and the Ctrl+O form, with the item's first line pinned to the row it
+  occupied (`full_anchor`). A left click in the composer's text rows places
+  the caret there (`ui::composer_cursor_at` + `TextArea::set_cursor`).
   Links are the carriers already painted — OSC 8 URLs, file-tool headers and
   the prose/code file paths `links::find_paths` now marks — so a click opens
   a URL or a file through the same platform opener.
 - Ctrl+O, the context view and every full-screen page paint over the frame
   through the existing overlay path; leaving a page repaints the frame. A
   resize re-wraps from history at the new width.
-- **Not yet:** click-to-expand a single cell/group, character-precise selection
-  (the highlight is span-level), pointer interactions on the live region
-  (composer/options), link cards, suspend (`Ctrl+Z`) / editor handoff, and
-  agent-view parity beyond the transcript tail. They are the phases below.
+- **Not yet:** character-precise selection (the highlight is span-level),
+  pointer clicks on the live region's options/pickers (the composer's caret is
+  in), link cards, suspend (`Ctrl+Z`) / editor handoff, and agent-view parity
+  beyond the transcript tail. They are the phases below.
 
 ## Mode selection and rollout
 
@@ -279,11 +285,12 @@ still applies.
 2. **Parity — next.** Agents/agent view, prompts, pickers, images, toasts,
    queue, backtrack, resume/clear, Ctrl+O, resize anchors; the parity checklist
    green.
-3. **Mouse and scrolling — skeleton done.** Capture, hit map, hover, click
-   links, wheel, PageUp/PageDown/Ctrl+Home/End and drag-select/copy all work;
-   still open here: click-to-expand a single event, character-precise selection
-   and mouse on the live region (composer/options).
-4. **Rich links.** Bare paths everywhere; cards inline; the preview policy.
+3. **Mouse and scrolling — done except cards/selection polish.** Capture, hit
+   map, hover, click links, click-to-expand, wheel,
+   PageUp/PageDown/Ctrl+Home/End, drag-select/copy, and the composer's
+   click-to-place caret all work; still open here: character-precise selection
+   and mouse on picker/option rows.
+4. **Rich links.** Preview cards inline; the preview policy.
 5. **Default decision.** Flip the default, keep `--inline`, evaluate removal.
 
 ## Open questions

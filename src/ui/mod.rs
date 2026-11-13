@@ -105,8 +105,8 @@ pub use self::context_view::{
     ContextCache, DebugBody, context_body, context_lines, render_context_view,
 };
 pub use self::conversation::{
-    banner_tail, committed_history, conversation_lines, conversation_lines_tracked, repaint_lines,
-    repaint_tail,
+    banner_tail, committed_history, conversation_lines, conversation_lines_expanded,
+    conversation_lines_tracked, is_expandable, repaint_lines, repaint_tail,
 };
 pub use self::diff_view::{diff_body_rows, render_diff_view};
 pub use self::donate_view::{donate_picker_height, donate_view_lines, render_donate_picker};
@@ -130,7 +130,7 @@ pub use self::layout::{
     overlay_cursor_seat, permission_height, preview_budget, preview_rows, region_is_modal, repin,
     restore_cursor_row, stream_preview_max_rows, strip_has_status,
 };
-pub use self::live::{render_live, render_live_with_preview};
+pub use self::live::{composer_cursor_at, render_live, render_live_with_preview};
 pub use self::login_view::render_key_onboarding;
 pub use self::mascot_view::{mascot_picker_height, render_mascot_picker};
 pub use self::mcp_view::{mcp_menu_height, mcp_view_lines, render_mcp_menu};
@@ -162,8 +162,8 @@ pub use self::tool::{held_run_len, resolved_tools_commit_lines, tool_commit_line
 pub use self::tool_group::tool_group_lines;
 pub use self::transcript::{
     TranscriptCache, agent_transcript_lines, backtrack_scroll, backtrack_scroll_for,
-    render_tool_view, tool_view_body_rows, tool_view_max_scroll, tool_view_max_scroll_for,
-    transcript_lines, transcript_selection,
+    expanded_item_lines, render_tool_view, tool_view_body_rows, tool_view_max_scroll,
+    tool_view_max_scroll_for, transcript_lines, transcript_selection,
 };
 pub use self::usage_view::{render_usage_page, usage_page_height, usage_view_lines};
 pub use self::view_flow::{ViewFlow, view_body_skip, view_flow, view_flow_signature};

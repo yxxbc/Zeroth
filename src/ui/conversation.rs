@@ -66,6 +66,23 @@ pub fn conversation_lines_tracked(
     width: u16,
     paths: &PathDisplay,
     verbose: bool,
+    built: impl FnMut(usize, usize, usize),
+) -> Vec<Line<'static>> {
+    conversation_lines_expanded(history, width, paths, verbose, |_| false, built)
+}
+
+/// [`conversation_lines_tracked`] that can render selected items **expanded**
+/// — the Ctrl+O form ([`super::transcript::expanded_item_lines`]) instead of
+/// their collapsed inline cell. What the screen-owning mode's click-to-expand
+/// toggles (`docs/ui/full-screen.md`); an item the predicate does not select,
+/// or one with no fuller form ([`is_expandable`]), renders as usual.
+#[must_use]
+pub fn conversation_lines_expanded(
+    history: &[HistoryItem],
+    width: u16,
+    paths: &PathDisplay,
+    verbose: bool,
+    expanded: impl Fn(usize) -> bool,
     mut built: impl FnMut(usize, usize, usize),
 ) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
@@ -91,48 +108,71 @@ pub fn conversation_lines_tracked(
         let item_index = index;
         let start = lines.len();
         index += 1;
-        match item {
-            // A task tool call renders NOTHING inline — no cell, no spacer:
-            // the live checklist is its display, and the record expands only
-            // in the Ctrl+O transcript (docs/tools/task-tools.md).
-            HistoryItem::TaskCall(_) => continue,
-            // What the hooks said is their `● Ran 1 Stop hook` cell; a
-            // note no hook said anything about — a continuation prompt, a
-            // note recorded before reports — is cell-less inline, the Ctrl+O
-            // transcript its record (docs/tools/hooks.md *The hook-run cell*).
-            HistoryItem::HookNote(note) => match &note.report {
-                Some(report) => lines.extend(hook_report_lines(report, width)),
-                None => continue,
-            },
-            HistoryItem::Message(m) => lines.extend(message_lines_with_paths(
-                m.role,
-                &m.text,
-                width,
-                Some(paths),
-            )),
-            HistoryItem::Tool(t) => lines.extend(tool_lines(t, width, paths)),
-            HistoryItem::Summary(s) => lines.extend(summary_lines(s, width)),
-            HistoryItem::Background(n) => lines.extend(background_notice_lines(n, width)),
-            HistoryItem::AgentGroup(g) => lines.extend(agent_group_lines(g, width)),
-            HistoryItem::AgentNotice(n) => lines.extend(agent_notice_lines(n, width)),
-            HistoryItem::Compaction(c) => lines.extend(compaction_lines(c, width)),
-            // Collapsed: only the `Thought for …` line reaches scrollback —
-            // the chain-of-thought expands in Ctrl+O (docs/ui/thinking-stream.md).
-            HistoryItem::Reasoning(r) => lines.extend(reasoning_lines(r, width)),
+        let expanded_item = expanded(item_index) && is_expandable(item);
+        if expanded_item {
+            lines.extend(super::transcript::expanded_item_lines(item, width, paths));
+        } else {
+            match item {
+                // A task tool call renders NOTHING inline — no cell, no spacer:
+                // the live checklist is its display, and the record expands only
+                // in the Ctrl+O transcript (docs/tools/task-tools.md).
+                HistoryItem::TaskCall(_) => continue,
+                // What the hooks said is their `● Ran 1 Stop hook` cell; a
+                // note no hook said anything about — a continuation prompt, a
+                // note recorded before reports — is cell-less inline, the Ctrl+O
+                // transcript its record (docs/tools/hooks.md *The hook-run cell*).
+                HistoryItem::HookNote(note) => match &note.report {
+                    Some(report) => lines.extend(hook_report_lines(report, width)),
+                    None => continue,
+                },
+                HistoryItem::Message(m) => lines.extend(message_lines_with_paths(
+                    m.role,
+                    &m.text,
+                    width,
+                    Some(paths),
+                )),
+                HistoryItem::Tool(t) => lines.extend(tool_lines(t, width, paths)),
+                HistoryItem::Summary(s) => lines.extend(summary_lines(s, width)),
+                HistoryItem::Background(n) => lines.extend(background_notice_lines(n, width)),
+                HistoryItem::AgentGroup(g) => lines.extend(agent_group_lines(g, width)),
+                HistoryItem::AgentNotice(n) => lines.extend(agent_notice_lines(n, width)),
+                HistoryItem::Compaction(c) => lines.extend(compaction_lines(c, width)),
+                // Collapsed: only the `Thought for …` line reaches scrollback —
+                // the chain-of-thought expands in Ctrl+O (docs/ui/thinking-stream.md).
+                HistoryItem::Reasoning(r) => lines.extend(reasoning_lines(r, width)),
+            }
+            // A picture the item carries — an image `read`'s result, a message's
+            // Ctrl+V attachments — hangs below the cell, one blank row apart and
+            // flush at the left margin (`docs/ui/images.md`). Empty for everything
+            // else, and for every session where images are off.
+            lines.extend(super::image::image_block_lines(item, width));
         }
-        // A picture the item carries — an image `read`'s result, a message's
-        // Ctrl+V attachments — hangs below the cell, one blank row apart and
-        // flush at the left margin (`docs/ui/images.md`). Empty for everything
-        // else, and for every session where images are off.
-        lines.extend(super::image::image_block_lines(item, width));
         built(item_index, start, lines.len() - start);
         // Blank spacer after every item — except a shell command's header:
-        // its cell stays flush ([`is_shell_header`]).
-        if !is_shell_header(item) {
+        // its cell stays flush ([`is_shell_header`]). The expanded path already
+        // carries its own spacer ([`super::transcript::expanded_item_lines`]).
+        if !expanded_item && !is_shell_header(item) {
             lines.push(Line::default());
         }
     }
     lines
+}
+
+/// Whether an item has a fuller form than its inline cell: a tool call's whole
+/// output, a thought's chain, a compaction's summary body, an agent group's
+/// members, a hook report, a task call's hidden record. Messages, notices and
+/// summaries are already whole inline.
+#[must_use]
+pub fn is_expandable(item: &HistoryItem) -> bool {
+    matches!(
+        item,
+        HistoryItem::Tool(_)
+            | HistoryItem::TaskCall(_)
+            | HistoryItem::Reasoning(_)
+            | HistoryItem::Compaction(_)
+            | HistoryItem::AgentGroup(_)
+            | HistoryItem::HookNote(_)
+    )
 }
 
 /// The last `max_rows` lines of the conversation — i.e. the tail that fits on

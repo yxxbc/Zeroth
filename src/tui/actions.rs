@@ -23,6 +23,7 @@ use ratatui::crossterm::event::{Event, KeyEventKind, MouseButton, MouseEvent, Mo
 use zeroth::app::{Action, CHECKPOINT_REWOUND_NOTICE, COPY_OK_NOTICE, ToastKind, View};
 use zeroth::checkpoint;
 use zeroth::clipboard;
+use zeroth::ui;
 
 use super::turn::TurnInput;
 use super::{Session, workers};
@@ -425,6 +426,25 @@ impl Session<'_> {
         if !self.term.fullscreen() || self.app.view != View::Conversation || self.app.modal_open() {
             return Ok(());
         }
+        // A left click in the composer places the caret there — the one
+        // live-region click the mode supports so far (`docs/ui/full-screen.md`).
+        if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+            let screen = self.term.screen();
+            let height = self.live_region_height();
+            let live = ratatui::layout::Rect::new(
+                0,
+                screen.height.saturating_sub(height),
+                screen.width,
+                height.min(screen.height),
+            );
+            if let Some(cursor) = ui::composer_cursor_at(live, &self.app, mouse.column, mouse.row) {
+                self.app.input.set_cursor(cursor);
+                self.full_press = None;
+                self.full_select = None;
+                self.frame.schedule_frame();
+                return Ok(());
+            }
+        }
         match mouse.kind {
             MouseEventKind::ScrollUp => {
                 self.full_press = None;
@@ -477,12 +497,38 @@ impl Session<'_> {
                     && let Some(url) = self.full_link_at(mouse.column, row)
                 {
                     self.open_full_link(&url);
+                } else if clicked && let Some(row) = self.content_row(&mouse) {
+                    self.toggle_full_item(row);
                 }
                 self.frame.schedule_frame();
             }
             _ => {}
         }
         Ok(())
+    }
+
+    /// Toggle the expandable history item under a conversation row: its cell
+    /// switches between the collapsed inline form and the Ctrl+O form, and the
+    /// next rebuild pins the item's first line where it was so the click does
+    /// not move the text under the pointer (`docs/ui/full-screen.md`).
+    fn toggle_full_item(&mut self, content_row: u16) {
+        let line = self.full_start + usize::from(content_row);
+        let Some(&(item_start, _, index)) = self
+            .full_items
+            .iter()
+            .find(|(start, count, _)| line >= *start && line < start + count)
+        else {
+            return;
+        };
+        if !self.full_expanded.remove(&index) {
+            self.full_expanded.insert(index);
+        }
+        let item_screen_row =
+            usize::from(content_row).saturating_sub(line.saturating_sub(item_start));
+        self.full_anchor = Some((item_start, item_screen_row));
+        self.full_tail = None;
+        self.full_hover = None;
+        self.frame.schedule_frame();
     }
 
     /// A mouse event's cell as a **tail** position, when it lands in the

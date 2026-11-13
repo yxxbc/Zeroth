@@ -263,6 +263,14 @@ impl Session<'_> {
             let screen = self.term.screen();
             let live_h = usize::from(height.min(screen.height));
             let conv_area = usize::from(screen.height).saturating_sub(live_h);
+            // A click-to-expand rebuild pins the toggled item's first line to
+            // the screen row it occupied, so the cell does not jump under the
+            // pointer (`docs/ui/full-screen.md`).
+            if let Some((line, screen_row)) = self.full_anchor.take() {
+                let max_top = tail.len().saturating_sub(conv_area);
+                let top = line.saturating_sub(screen_row).min(max_top);
+                self.full_top = (top < max_top).then_some(top);
+            }
             let window_start = |content_h: usize| {
                 let max_top = tail.len().saturating_sub(content_h);
                 self.full_top.map_or(max_top, |top| top.min(max_top))
@@ -347,6 +355,9 @@ impl Session<'_> {
             self.full_hover = None;
             self.full_press = None;
             self.full_select = None;
+            self.full_expanded.clear();
+            self.full_items.clear();
+            self.full_anchor = None;
         }
         if let Some((agent, g, w, s, t, lines)) = &self.full_tail
             && *agent == viewing_agent
@@ -357,7 +368,7 @@ impl Session<'_> {
         {
             return lines.clone();
         }
-        let (mut lines, mut user_starts) = match self.app.viewed_agent() {
+        let (mut lines, mut user_starts, mut items) = match self.app.viewed_agent() {
             Some(run) => {
                 // An agent's session view keeps a cell per call: its cells are
                 // keyed on the records its own run makes
@@ -365,38 +376,50 @@ impl Session<'_> {
                 let history = ui::committed_history(&run.history, &run.tool_queue, None).to_vec();
                 recheck_pictures(&history);
                 let mut starts = Vec::new();
-                let mut lines = ui::conversation_lines_tracked(
+                let mut items = Vec::new();
+                let expanded = &self.full_expanded;
+                let mut lines = ui::conversation_lines_expanded(
                     &history,
                     width,
                     self.app.path_display(),
                     true,
-                    |index, start, _| {
+                    |index| expanded.contains(&index),
+                    |index, start, count| {
                         if matches!(
                             &history[index],
                             HistoryItem::Message(message) if message.role == Role::User
                         ) {
                             starts.push(start);
                         }
+                        if ui::is_expandable(&history[index]) {
+                            items.push((start, count, index));
+                        }
                     },
                 );
                 if let Some(text) = run.streaming.as_deref().filter(|text| !text.is_empty()) {
                     lines.extend(self.agent_render.committed_rows(text, width));
                 }
-                (lines, starts)
+                (lines, starts, items)
             }
             None => {
                 let mut starts = Vec::new();
-                let mut lines = ui::conversation_lines_tracked(
+                let mut items = Vec::new();
+                let expanded = &self.full_expanded;
+                let mut lines = ui::conversation_lines_expanded(
                     &self.app.history,
                     width,
                     self.app.path_display(),
                     self.app.settings().verbose,
-                    |index, start, _| {
+                    |index| expanded.contains(&index),
+                    |index, start, count| {
                         if matches!(
                             &self.app.history[index],
                             HistoryItem::Message(message) if message.role == Role::User
                         ) {
                             starts.push(start);
+                        }
+                        if ui::is_expandable(&self.app.history[index]) {
+                            items.push((start, count, index));
                         }
                     },
                 );
@@ -408,14 +431,17 @@ impl Session<'_> {
                         Some(self.app.path_display()),
                     ));
                 }
-                (lines, starts)
+                (lines, starts, items)
             }
         };
         let banner = ui::header_lines(&self.app, width);
         // `banner_tail` puts the banner and one blank row above the
-        // conversation; the user-message offsets follow it.
+        // conversation; the user-message and item offsets follow it.
         let offset = banner.len() + 1;
         for start in &mut user_starts {
+            *start += offset;
+        }
+        for (start, _, _) in &mut items {
             *start += offset;
         }
         lines = ui::banner_tail(banner, lines);
@@ -427,6 +453,7 @@ impl Session<'_> {
             lines.extend(flow.lines);
         }
         self.full_user_starts = user_starts;
+        self.full_items = items;
         self.full_tail = Some((
             viewing_agent,
             generation,

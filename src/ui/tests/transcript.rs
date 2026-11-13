@@ -1149,3 +1149,26 @@ fn ctrl_o_shows_a_queued_writes_whole_file() {
         "every line, past the inline peek: {texts:#?}"
     );
 }
+
+#[test]
+fn an_expanded_item_uses_its_transcript_form() {
+    // docs/ui/full-screen.md: clicking a collapsed tool cell renders the item
+    // through `expanded_item_lines`, the Ctrl+O form — the whole output.
+    let history = vec![HistoryItem::Tool(tool(
+        "Bash",
+        "printf",
+        ToolStatus::Ok,
+        "one\ntwo\nthree\nfour\nfive\nsix\n",
+    ))];
+    let paths = crate::app::PathDisplay::VERBATIM;
+    let collapsed = conversation_lines(&history, 60, &paths, false);
+    let expanded = conversation_lines_expanded(&history, 60, &paths, false, |_| true, |_, _, _| {});
+    let shows_tail =
+        |lines: &[ratatui::text::Line<'static>]| lines.iter().any(|row| plain(row).contains("six"));
+    assert!(!shows_tail(&collapsed), "the collapsed peek hides the tail");
+    assert!(
+        shows_tail(&expanded),
+        "the expanded cell shows the whole output"
+    );
+    assert!(is_expandable(&history[0]));
+}

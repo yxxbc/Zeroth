@@ -103,6 +103,24 @@ impl TextArea {
         self.dirty();
     }
 
+    /// Seat the cursor at byte `cursor` **without touching the text** — the
+    /// screen-owning mode's click-to-place-caret (`docs/ui/full-screen.md`).
+    /// Clamped to the draft and snapped back a grapheme boundary if it lands
+    /// inside a cluster; the wrap cache stays valid because the text did not
+    /// change.
+    pub fn set_cursor(&mut self, cursor: usize) {
+        let mut pos = cursor.min(self.text.len());
+        while pos > 0 && !self.text.is_char_boundary(pos) {
+            pos -= 1;
+        }
+        let mut gc = GraphemeCursor::new(pos, self.text.len(), true);
+        if !matches!(gc.is_boundary(&self.text, 0), Ok(true)) {
+            pos = prev_grapheme(&self.text, pos);
+        }
+        self.cursor = pos;
+        self.preferred_col = None;
+    }
+
     /// Replace the whole draft, seating the cursor at byte `cursor` — clamped
     /// to the text's end and snapped back to a grapheme boundary if it lands
     /// inside a cluster. For rewrites that must not teleport the cursor to the
@@ -1279,5 +1297,20 @@ mod tests {
         ta.move_up();
         assert_ne!(ta.cursor(), 10, "↑ must move off the boundary");
         assert!(ta.cursor() < 10, "and keeps climbing");
+    }
+
+    #[test]
+    fn set_cursor_seats_a_mouse_click_without_touching_the_text() {
+        let mut ta = TextArea::from_text("hello world");
+        ta.set_cursor(5);
+        assert_eq!(ta.cursor(), 5);
+        ta.insert_str("X");
+        assert_eq!(ta.text(), "helloX world");
+        // Past the end clamps; inside a multi-byte grapheme snaps back.
+        ta.set_cursor(usize::MAX);
+        assert_eq!(ta.cursor(), ta.text().len());
+        let mut wide = TextArea::from_text("aé b");
+        wide.set_cursor(2); // inside `é`
+        assert!(wide.text().is_char_boundary(wide.cursor()));
     }
 }
