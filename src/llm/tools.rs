@@ -2908,6 +2908,28 @@ mod tests {
     }
 
     #[test]
+    fn the_web_tools_wire_names_survive_the_display_round_trip() {
+        // The bug this pins: `wire_tool_name` (src/context.rs) lowercases the
+        // display name, so `WebFetch` came back as `webfetch` while the wire
+        // name is `web_fetch`. A live call worked and a *replayed* one — the
+        // next turn's context — read "unknown tool: webfetch". The tool was
+        // there and unusable on the second turn, which is the shape of bug a
+        // single-turn test cannot see.
+        for (wire, display) in [
+            (WEB_SEARCH_TOOL, WEB_SEARCH_DISPLAY),
+            (WEB_FETCH_TOOL, WEB_FETCH_DISPLAY),
+        ] {
+            assert_eq!(display_name(wire), display);
+            assert_ne!(
+                display.to_ascii_lowercase(),
+                wire,
+                "{display} must not be assumed to lowercase to {wire}"
+            );
+            assert_eq!(crate::context::wire_tool_name(display), wire);
+        }
+    }
+
+    #[test]
     fn the_companions_are_one_word_each_like_the_task_tools() {
         // `bashsend`, not `bash_send`: the task tools' convention, and the
         // display name lowercases to the wire name, so the context replay

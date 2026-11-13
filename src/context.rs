@@ -321,11 +321,13 @@ pub(crate) fn wire_tool_name(display: &str) -> String {
         "Read" => "read".to_string(),
         "Write" => "write".to_string(),
         "Edit" => "edit".to_string(),
-        // The one wire name with an underscore, so the lowercase fallback
-        // would miss it (docs/tools/interactive-shell.md).
+        // The wire names with an underscore, which the lowercase fallback
+        // would miss (docs/tools/interactive-shell.md, docs/tools/web-search.md).
         crate::llm::tools::BASH_SESSION_TOOL_DISPLAY => {
             crate::llm::tools::BASH_SESSION_TOOL_NAME.to_string()
         }
+        crate::llm::tools::WEB_SEARCH_DISPLAY => crate::llm::tools::WEB_SEARCH_TOOL.to_string(),
+        crate::llm::tools::WEB_FETCH_DISPLAY => crate::llm::tools::WEB_FETCH_TOOL.to_string(),
         other => other.to_ascii_lowercase(),
     }
 }
