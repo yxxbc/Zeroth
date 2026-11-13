@@ -57,10 +57,7 @@ fn header_shows_mascot_title_cwd_and_hint() {
         text.contains(&format!("(v{})", env!("CARGO_PKG_VERSION"))),
         "version: {text:?}"
     );
-    assert!(
-        text.contains("~/alter-zero"),
-        "cwd from the session: {text:?}"
-    );
+    assert!(text.contains("~/zeroth"), "cwd from the session: {text:?}");
     for token in ["/ commands", "@ files", "? shortcuts"] {
         assert!(text.contains(token), "hint token {token}: {text:?}");
     }
@@ -84,7 +81,7 @@ fn header_rows_compose_art_beside_the_metadata() {
         plain(&lines[0]),
         format!("{}Zeroth (v{})", pad(art[0]), env!("CARGO_PKG_VERSION"))
     );
-    assert_eq!(plain(&lines[1]), format!("{}~/alter-zero", pad(art[1])));
+    assert_eq!(plain(&lines[1]), format!("{}~/zeroth", pad(art[1])));
     assert_eq!(
         plain(&lines[2]),
         format!("{}/ commands   @ files   ? shortcuts", pad(art[2]))
@@ -167,7 +164,7 @@ fn header_cwd_wears_the_footers_path_colour_and_hint_is_cyan() {
     let cwd = lines[1]
         .spans
         .iter()
-        .find(|s| s.content.contains("~/alter-zero"))
+        .find(|s| s.content.contains("~/zeroth"))
         .expect("the cwd span");
     assert_eq!(cwd.style.fg, Some(crate::ui::theme::header_cwd_color()));
     assert_eq!(
@@ -425,7 +422,7 @@ fn telemetry_card_uses_the_active_theme_for_title_border_and_commands() {
                     .add_modifier
                     .contains(Modifier::BOLD)
             );
-            for command in ["/settings", "ALTER_ZERO_TELEMETRY=0"] {
+            for command in ["/settings", "ZEROTH_TELEMETRY=0"] {
                 assert_eq!(span_for(command).style.fg, Some(header_accent_color()));
             }
         });
@@ -526,7 +523,7 @@ fn update_card_uses_the_active_theme_for_title_border_and_commands() {
             );
             // The wrapper splits a code span at its space, so the command's
             // second word stands for it; the title's `Update` is capitalised.
-            for command in ["update", "/settings", "ALTER_ZERO_UPDATE_CHECK=0"] {
+            for command in ["update", "/settings", "ZEROTH_UPDATE_CHECK=0"] {
                 assert_eq!(span_for(command).style.fg, Some(header_accent_color()));
             }
         });

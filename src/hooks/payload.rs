@@ -354,12 +354,9 @@ mod tests {
             "no scratchpad, no field"
         );
         let mut c = ctx();
-        c.scratchpad_dir = Some("/tmp/alter-zero-1000/s1/scratchpad".into());
+        c.scratchpad_dir = Some("/tmp/zeroth-1000/s1/scratchpad".into());
         let v = parse(&stop_payload(&c, false, ""));
-        assert_eq!(
-            v["scratchpad_dir"],
-            json!("/tmp/alter-zero-1000/s1/scratchpad")
-        );
+        assert_eq!(v["scratchpad_dir"], json!("/tmp/zeroth-1000/s1/scratchpad"));
     }
 
     #[test]

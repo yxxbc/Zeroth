@@ -12,7 +12,7 @@ smoke_begin
 # swaps the composer, never the running turn). A 2s startup delay widens the
 # pre-stream pause so the turn is reliably active when the mid-turn keys land.
 S33="${S}_toast"
-launch "$S33" 80 24 "env $CFG_ENV ALTER_ZERO_STARTUP_DELAY_MS=2000 $BIN"
+launch "$S33" 80 24 "env $CFG_ENV ZEROTH_STARTUP_DELAY_MS=2000 $BIN"
 # Get a finished reply into history so /copy has something to confirm.
 submit "$S33" "hello there"
 toast_prev=""

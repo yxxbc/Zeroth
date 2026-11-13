@@ -9,7 +9,7 @@
 //! full text expands in the Ctrl+O transcript.
 //!
 //! The feature's on/off gate lives entirely at the I/O boundary
-//! (`ALTER_ZERO_SHOW_THINKING`): with it off nothing ever calls
+//! (`ZEROTH_SHOW_THINKING`): with it off nothing ever calls
 //! [`App::begin_reasoning`], so no buffer opens, [`App::push_thinking`] only
 //! counts (exactly as before), and no cell is ever recorded.
 

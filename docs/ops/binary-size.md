@@ -36,7 +36,7 @@ Every knob was tried as a profile defined on the command line, so Cargo.toml
 did not change until the numbers were in:
 
 ```bash
-cargo build --locked --profile x --bin alter-zero \
+cargo build --locked --profile x --bin zeroth \
   --config 'profile.x.inherits="release"' --config 'profile.x.incremental=false' \
   --config 'profile.x.lto="fat"' --config 'profile.x.codegen-units=1'
 ```
@@ -60,7 +60,7 @@ The code by crate (`cargo bloat`, of 13.4 MiB of `.text`):
 
 | crate | size | share |
 | --- | --- | --- |
-| `alter_zero` | 6.4 MiB | 47.4% |
+| `zeroth` | 6.4 MiB | 47.4% |
 | `std` | 1.7 MiB | 12.5% |
 | `reqwest` | 465 KiB | 3.4% |
 | `rustls` | 440 KiB | 3.2% |
@@ -173,7 +173,7 @@ extra two minutes fall on the release workflow, not on a developer. So
 `scripts/release.sh build` is `cargo build --profile dist --locked --target T`. The binary lands in
 `target/{T}/dist/` (`target/dist/` without `--target`), which
 `update::is_cargo_build_dir` also knows for a build directory, so
-`alter-zero update` refuses to overwrite one (`docs/ops/update.md`).
+`zeroth update` refuses to overwrite one (`docs/ops/update.md`).
 
 The cross-compiles need nothing new: rustc runs the LTO itself, before the
 link, so `aarch64-linux-gnu-gcc` and Apple's linker are handed ordinary
@@ -317,7 +317,7 @@ before; `cargo install --path . --profile dist` installs the shipped build.
 
 ```bash
 scripts/release.sh build                                    # the shipped binary, into dist/
-B=target/$(rustc -vV | sed -n 's/^host: //p')/dist/alter-zero
+B=target/$(rustc -vV | sed -n 's/^host: //p')/dist/zeroth
 ls -l "$B" dist/*.tar.gz && gzip -n -9 -c "$B" | wc -c      # the file and its download
 readelf -S -W "$B"                                          # where the bytes are
 CARGO_PROFILE_RELEASE_INCREMENTAL=false cargo bloat --release --crates -n 30   # whose code

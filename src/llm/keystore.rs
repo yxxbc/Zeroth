@@ -466,7 +466,7 @@ mod tests {
         // the store from the checkout, which is exactly what the old
         // in-place write never did.
         let dir = tempfile::tempdir().unwrap();
-        let target = dir.path().join("secrets").join("alter-zero.env");
+        let target = dir.path().join("secrets").join("zeroth.env");
         std::fs::create_dir_all(target.parent().unwrap()).unwrap();
         std::fs::write(&target, "OTHER=keep\n").unwrap();
         let link = dir.path().join(".env");
@@ -488,7 +488,7 @@ mod tests {
         assert!(
             std::fs::read_dir(dir.path())
                 .unwrap()
-                .all(|entry| entry.unwrap().file_name() != "alter-zero.env"),
+                .all(|entry| entry.unwrap().file_name() != "zeroth.env"),
             "nothing was written beside the link"
         );
     }

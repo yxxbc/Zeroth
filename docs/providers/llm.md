@@ -73,7 +73,7 @@ a normal text turn.
 
 `reqwest` honours `HTTPS_PROXY` from the environment; the
 agent proxy's custom CA is loaded at runtime from `SSL_CERT_FILE` (or
-`ALTER_ZERO_CA_FILE`) and added as an extra trust root, so `rustls` keeps the
+`ZEROTH_CA_FILE`) and added as an extra trust root, so `rustls` keeps the
 build free of system OpenSSL.
 
 ### Retrying a failed request (`llm::retry`)
@@ -162,7 +162,7 @@ and `venice`, Venice's own API behind it, `docs/providers/venice.md`; `openroute
 the user's own `~/.zeroth/providers.toml` **laid over** them: a block with
 a new id adds a provider, one naming a shipped provider changes only the keys
 it sets, and every problem in the file is a toast rather than a silence
-(`docs/providers/user-providers.md`). `ALTER_ZERO_PROVIDERS_FILE` instead names a file
+(`docs/providers/user-providers.md`). `ZEROTH_PROVIDERS_FILE` instead names a file
 that stands **alone**, none of the built-ins beside it. A `providers.toml` in
 the working directory is never read: a checkout could otherwise point a
 stored key at a host of its choosing.
@@ -178,26 +178,26 @@ directory's entry being only what a *new* session starts on
 
 | env var | meaning | default |
 | --- | --- | --- |
-| `ALTER_ZERO_DUMMY` | truthy (`1`/`true`/`yes`) forces the dummy backend | unset |
-| `ALTER_ZERO_PROVIDER` | active provider id | saved selection, then first in the file |
-| `ALTER_ZERO_MODEL` | active model id | saved selection, then unset → dummy |
-| `ALTER_ZERO_API_KEY` | generic API key (fallback) | unset |
+| `ZEROTH_DUMMY` | truthy (`1`/`true`/`yes`) forces the dummy backend | unset |
+| `ZEROTH_PROVIDER` | active provider id | saved selection, then first in the file |
+| `ZEROTH_MODEL` | active model id | saved selection, then unset → dummy |
+| `ZEROTH_API_KEY` | generic API key (fallback) | unset |
 | `<PROVIDER>_API_KEY` | per-provider key, e.g. `OPENROUTER_API_KEY` | unset |
 | `ZEROTH_CONFIG_DIR` | the config home (holds `.env` + `config.json`, and the user's own `providers.toml`) | `~/.zeroth` |
-| `ALTER_ZERO_PROVIDERS_FILE` | a provider file that stands **alone** — only its providers, none of the built-ins (`docs/providers/user-providers.md`) | the built-ins + `{config_home}/providers.toml` |
+| `ZEROTH_PROVIDERS_FILE` | a provider file that stands **alone** — only its providers, none of the built-ins (`docs/providers/user-providers.md`) | the built-ins + `{config_home}/providers.toml` |
 | `ZEROTH_ENV_FILE` | the `.env` key store `/login` reads and writes (and where a rotated ChatGPT refresh token is written back — `docs/providers/chatgpt.md`) | `{config_home}/.env` |
-| `ALTER_ZERO_OPENAI_ISSUER` | the auth server ChatGPT Codex's browser and device-code sign-ins talk to — a fork's own, or the smoke suite's local stub (`docs/providers/chatgpt.md`) | `https://auth.openai.com` |
-| `ALTER_ZERO_CLINE_AUTH_BASE` / `ALTER_ZERO_CLINE_API_BASE` | the two hosts Cline's account sign-in talks to — WorkOS and Cline's own API — a fork's own, or the smoke suite's local stub (`docs/providers/cline.md`) | `https://api.workos.com` / `https://api.cline.bot` |
+| `ZEROTH_OPENAI_ISSUER` | the auth server ChatGPT Codex's browser and device-code sign-ins talk to — a fork's own, or the smoke suite's local stub (`docs/providers/chatgpt.md`) | `https://auth.openai.com` |
+| `ZEROTH_CLINE_AUTH_BASE` / `ZEROTH_CLINE_API_BASE` | the two hosts Cline's account sign-in talks to — WorkOS and Cline's own API — a fork's own, or the smoke suite's local stub (`docs/providers/cline.md`) | `https://api.workos.com` / `https://api.cline.bot` |
 | `OLLAMA_HOST` / `OLLAMA_HOST_API_KEY` / `OLLAMA_CONTEXT_LENGTH` | the `ollama` provider's host (pointing at it is what configures it), that server's optional bearer, and the mirrored server default window (`docs/providers/ollama.md`) | unset |
 | `OLLAMA_API_KEY` | `ollama_cloud`'s key alone — the two Ollama providers read two variables, so one does not configure the other (`docs/providers/ollama.md`) | unset |
 | `LMSTUDIO_HOST` / `LM_API_TOKEN` | the `lmstudio` provider's address (a bare `localhost:1234` is completed to its `/v1`; pointing at it is what configures it, and `/login` → Sign in with a local model writes it once the connection test passes) and the token LM Studio's server wants when set to require one (`docs/providers/local-models.md`) | unset |
-| `ALTER_ZERO_TEMPERATURE` | sampling temperature | provider/omit |
-| `ALTER_ZERO_TOOLS` | falsy (`0`/`false`/`no`/`off`) disables the `bash`/`read`/`write`/`edit` tools (see `docs/tools/tools.md`) | tools on |
-| `ALTER_ZERO_SYSTEM_PROMPT` | override the "Alter Zero" persona; empty sends no system prompt. Any non-empty prompt still gets the runtime environment context (date/os/user/cwd, `docs/architecture/environment.md`) folded on | persona in `prompts/zeroth.md` |
-| `SSL_CERT_FILE` / `ALTER_ZERO_CA_FILE` | extra CA bundle for the proxy | unset |
+| `ZEROTH_TEMPERATURE` | sampling temperature | provider/omit |
+| `ZEROTH_TOOLS` | falsy (`0`/`false`/`no`/`off`) disables the `bash`/`read`/`write`/`edit` tools (see `docs/tools/tools.md`) | tools on |
+| `ZEROTH_SYSTEM_PROMPT` | override the "Zeroth" persona; empty sends no system prompt. Any non-empty prompt still gets the runtime environment context (date/os/user/cwd, `docs/architecture/environment.md`) folded on | persona in `prompts/zeroth.md` |
+| `SSL_CERT_FILE` / `ZEROTH_CA_FILE` | extra CA bundle for the proxy | unset |
 
 **The dummy is the fallback, never a surprise.** The real backend activates only
-when `ALTER_ZERO_DUMMY` is unset **and** a provider, a model, and an API key all
+when `ZEROTH_DUMMY` is unset **and** a provider, a model, and an API key all
 resolve — the key being optional for a provider whose `auth` says so (a local
 Ollama, `docs/providers/ollama.md`). Otherwise the app uses `DummyAi`. `smoke.sh` sets none of these, so it
 always gets the dummy — the canned replies, the `dummy_model_name` footer, and the
@@ -230,8 +230,8 @@ and `~/.zeroth` does not, the app copies **only** `config.json`,
 (`tui::config::migrate_from_alter_zero`). Sessions, history, image caches,
 skills, agents, looks and trust stay behind, and the old directory is never
 modified — the previous app keeps working from it. An explicit
-`ZEROTH_CONFIG_DIR` (or its `ALTER_ZERO_CONFIG_DIR` alias) disables the
-migration, since the user manages that path.
+`ZEROTH_CONFIG_DIR` disables the migration, since the user manages that
+path.
 
 ### Where a key comes from: `.env` persistence
 

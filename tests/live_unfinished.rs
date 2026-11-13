@@ -11,16 +11,16 @@
 //! purpose with a real sign-in, never committed — read from the environment:
 //!
 //! ```sh
-//! ANTHROPIC_CONSOLE_REFRESH_TOKEN=sk-ant-ort01-… ALTER_ZERO_LIVE_TOKEN_STORE=/tmp/live.env \
+//! ANTHROPIC_CONSOLE_REFRESH_TOKEN=sk-ant-ort01-… ZEROTH_LIVE_TOKEN_STORE=/tmp/live.env \
 //!     cargo test --test live_unfinished -- --ignored --nocapture
 //! ```
 //!
 //! The Console refresh token **rotates**, so these refuse to run without
-//! `ALTER_ZERO_LIVE_TOKEN_STORE`, the `live_caching` rule: the mint may retire
+//! `ZEROTH_LIVE_TOKEN_STORE`, the `live_caching` rule: the mint may retire
 //! the token it was given, and the rotated one is written back only to a
 //! store path. After a run, the value under that file's
 //! `ANTHROPIC_CONSOLE_REFRESH_TOKEN` key is the one to keep.
-//! `ALTER_ZERO_LIVE_ANTHROPIC_MODEL` overrides the model.
+//! `ZEROTH_LIVE_ANTHROPIC_MODEL` overrides the model.
 
 use zeroth::context::{ContextMessage, ContextRole};
 use zeroth::llm::agent::{CUT_OFF_LABEL, CUT_OFF_NOTE, EMPTY_REPLY_NOTE, MAX_CONTINUATIONS};
@@ -33,11 +33,9 @@ const REFRESH_VAR: &str = "ANTHROPIC_CONSOLE_REFRESH_TOKEN";
 /// The store a rotated refresh token is written back to. Required — see the
 /// module docs.
 fn token_store() -> std::path::PathBuf {
-    std::env::var_os("ALTER_ZERO_LIVE_TOKEN_STORE")
+    std::env::var_os("ZEROTH_LIVE_TOKEN_STORE")
         .map(std::path::PathBuf::from)
-        .expect(
-            "set ALTER_ZERO_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to",
-        )
+        .expect("set ZEROTH_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to")
 }
 
 /// Seed the store with the environment's token when it holds none yet, so the
@@ -81,7 +79,7 @@ fn credential() -> String {
 fn console_backend(output_cap: Option<u64>) -> LlmBackend {
     seed_store();
     zeroth::llm::claude::set_store_path(token_store());
-    let model = std::env::var("ALTER_ZERO_LIVE_ANTHROPIC_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_ANTHROPIC_MODEL")
         .unwrap_or_else(|_| "claude-haiku-4-5".to_string());
     let mut cfg = ProvidersFile::builtin()
         .model_config(&Selection {
@@ -148,7 +146,7 @@ fn notes(events: &[StreamEvent]) -> Vec<(String, String)> {
 }
 
 #[test]
-#[ignore = "hits the network; needs ANTHROPIC_CONSOLE_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE; costs well under a cent"]
+#[ignore = "hits the network; needs ANTHROPIC_CONSOLE_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE; costs well under a cent"]
 fn live_anthropic_console_continues_a_reply_cut_off_at_the_output_cap() {
     // A cap far under the reply's length: the first round stops at it with
     // `stop_reason: "max_tokens"`, the loop keeps what it said and asks for
@@ -195,7 +193,7 @@ fn live_anthropic_console_continues_a_reply_cut_off_at_the_output_cap() {
 }
 
 #[test]
-#[ignore = "hits the network; needs ANTHROPIC_CONSOLE_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE; costs well under a cent"]
+#[ignore = "hits the network; needs ANTHROPIC_CONSOLE_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE; costs well under a cent"]
 fn live_anthropic_console_answers_the_request_an_empty_reply_is_continued_with() {
     // An empty reply is never sent back, so the request after one is the
     // question and the prompt side by side — two text blocks in one user

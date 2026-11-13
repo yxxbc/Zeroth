@@ -12,7 +12,7 @@ smoke_begin
 # SCREEN for hundreds of milliseconds instead of one animation frame, and a
 # row committed to scrollback has all that time to be contradicted by the
 # strip above the box. The dummy's markdown tour streams every block kind in
-# token-sized pieces (`stream::tokens`) at the pace `ALTER_ZERO_CHUNK_DELAY_MS`
+# token-sized pieces (`stream::tokens`) at the pace `ZEROTH_CHUNK_DELAY_MS`
 # sets, and this phase watches the whole turn three ways:
 #   1. the terminal's SCROLLBACK is append-only — every sample of it is a
 #      prefix of the next (a committed row never changes or moves);
@@ -81,8 +81,8 @@ duplicated_markers() { # CONTENT → the duplicated markers, or nothing
 		{ for (i = 1; i <= n; i++) if (index($0, m[i])) c[i]++ }
 		END { for (i = 1; i <= n; i++) if (c[i] > 1) printf "|%s(%d)", m[i], c[i] }' "$MARKERS121" -
 }
-launch "$S121" 80 24 "env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ALTER_ZERO_CHUNK_DELAY_MS=${SMOKE_SLOW_CHUNK_MS:-90} $BIN"
-launch "$S121N" 40 12 "env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ALTER_ZERO_CHUNK_DELAY_MS=${SMOKE_NARROW_CHUNK_MS:-45} $BIN"
+launch "$S121" 80 24 "env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_CHUNK_DELAY_MS=${SMOKE_SLOW_CHUNK_MS:-90} $BIN"
+launch "$S121N" 40 12 "env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_CHUNK_DELAY_MS=${SMOKE_NARROW_CHUNK_MS:-45} $BIN"
 tmux pipe-pane -t "$S121" -o "cat > $RAW121"
 submit "$S121" "$SLOW_PROMPT"
 submit "$S121N" "$SLOW_PROMPT"

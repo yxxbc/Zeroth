@@ -122,7 +122,7 @@ Resolves the path, loads at startup, appends per loop iteration — best-effort,
 swallowing every error (recording must never kill the TUI, like `SessionRecorder`
 and `save_settings`):
 
-- **Path**: `ALTER_ZERO_HISTORY_FILE` override, else `{config_home}/history.jsonl`
+- **Path**: `ZEROTH_HISTORY_FILE` override, else `{config_home}/history.jsonl`
   (`~/.zeroth/history.jsonl` — beside `config.json`/`.env`/`sessions/`;
   `ZEROTH_CONFIG_DIR` already redirects it, which is how the smoke test
   isolates it). `None` (no HOME, no override) disables persistence.
@@ -186,6 +186,6 @@ and `save_settings`):
   `record` (a messy/concurrent file seeds a clean buffer).
 - `src/tui/` (smoke, Phase 37): submit a message in one process, quit, **append an
   invalid-UTF-8 line to the file**, start a **second** process against the same
-  `ALTER_ZERO_HISTORY_FILE`, and confirm ↑ recalls the previous session's message
+  `ZEROTH_HISTORY_FILE`, and confirm ↑ recalls the previous session's message
   and Ctrl+R finds it — cross-session persistence end to end, and a corrupt tail
   line doesn't wipe the history (the lossy load skips only the bad line).

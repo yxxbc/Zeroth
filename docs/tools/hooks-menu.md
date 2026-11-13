@@ -50,12 +50,12 @@ A tiny stack machine (`app::HooksLevel`), Esc popping one frame at a time:
    any hook is not trusted (`2 hooks are not trusted and do not run — open
    one and press Enter to trust it`), the info line (`ℹ Open a hook to trust
    it, or to stop trusting it. To add or modify hooks, edit hooks.json
-   directly or ask alter-zero. See docs/tools/hooks.md`), and the **fourteen**
+   directly or ask zeroth. See docs/tools/hooks.md`), and the **fourteen**
    [`HookEvent`]s as numbered rows — `{n}.  {Event} ({count})` with the
    count in the selection accent (dropped at zero, Claude Code's shape) and
    the event's one-line summary in an aligned description column. When the
    file holds runnable hooks but the session has them off (`/settings`,
-   `ALTER_ZERO_HOOKS=0`), a red-ish note says so — the reference's
+   `ZEROTH_HOOKS=0`), a red-ish note says so — the reference's
    "restricted by policy" slot.
 2. **Matchers** — `{Event} - Matchers` over the event's multi-line
    description (stdin payload + exit-code semantics, **as this runner
@@ -101,7 +101,7 @@ exactly as Claude Code draws it.
 
 Drilling into an event with nothing configured still descends — the list is
 replaced by the reference's two dim lines (`No hooks configured for this
-event.` / `To add hooks, edit hooks.json directly or ask alter-zero.`) — so
+event.` / `To add hooks, edit hooks.json directly or ask zeroth.`) — so
 the description text (what *would* fire, and how) stays reachable for every
 event, hooks or none.
 

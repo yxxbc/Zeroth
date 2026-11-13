@@ -61,10 +61,10 @@ pub const CLIPBOARD_IMAGE_MAX_BYTES: u64 = 256 * 1024 * 1024;
 const STREAM_BUF_BYTES: usize = 64 * 1024;
 
 /// The prefix of a paste's hidden **staging** file inside its folder,
-/// `.alter-zero-paste-{random}.{ext}`: the dot keeps a half-written picture
+/// `.zeroth-paste-{random}.{ext}`: the dot keeps a half-written picture
 /// out of a directory listing, and the non-numeric stem keeps it out of
 /// [`next_image_number`]'s count.
-const STAGING_PREFIX: &str = ".alter-zero-paste-";
+const STAGING_PREFIX: &str = ".zeroth-paste-";
 
 /// How many taken numbers a paste steps past before giving up — a bound on
 /// the loop, not a limit anyone reaches: the scan starts at the first free
@@ -106,8 +106,8 @@ pub fn next_image_number<'a>(names: impl IntoIterator<Item = &'a str>) -> u32 {
 /// has it, and dropping its pictures after N days would break one that is
 /// still perfectly good while there is disk to spare. Here nothing is
 /// deleted until the store actually gets big, and then only the oldest.
-/// `ALTER_ZERO_IMAGE_CACHE_MAX_BYTES` overrides it, `0` meaning no limit
-/// (the `ALTER_ZERO_CHECKPOINT_MAX_BYTES` convention).
+/// `ZEROTH_IMAGE_CACHE_MAX_BYTES` overrides it, `0` meaning no limit
+/// (the `ZEROTH_CHECKPOINT_MAX_BYTES` convention).
 pub const IMAGE_CACHE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
 /// Which session folders under the image cache to delete so the store fits
@@ -945,12 +945,7 @@ mod tests {
         // Only numbered names count — an in-flight staging file, a stray
         // note, a dotfile — so nothing else in the folder can shift them.
         assert_eq!(
-            next_image_number([
-                ".alter-zero-paste-Ab12.png",
-                "notes.txt",
-                "2.png",
-                ".DS_Store"
-            ]),
+            next_image_number([".zeroth-paste-Ab12.png", "notes.txt", "2.png", ".DS_Store"]),
             3
         );
     }
@@ -1071,7 +1066,7 @@ mod tests {
 
     #[test]
     fn a_cap_of_zero_means_no_limit() {
-        // The `ALTER_ZERO_CHECKPOINT_MAX_BYTES` convention: 0 disables the
+        // The `ZEROTH_CHECKPOINT_MAX_BYTES` convention: 0 disables the
         // bound rather than evicting everything.
         let entries = folders(&[("a", 900, 90), ("b", 900, 2)]);
         assert_eq!(

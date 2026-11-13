@@ -28,7 +28,7 @@ const WAIT_POLL: Duration = Duration::from_millis(50);
 /// typing never runs it out: ten minutes covers a glance back from another
 /// window or a short break, and past it the user is away — every further
 /// minute is the agent idling for nobody. The `/settings` **Ask timeout** row
-/// and `ALTER_ZERO_ASK_TIMEOUT_SECS` change it, `0` meaning never.
+/// and `ZEROTH_ASK_TIMEOUT_SECS` change it, `0` meaning never.
 pub const DEFAULT_ASK_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 /// The schema's bounds: how many questions one call may ask, and how many
@@ -363,7 +363,7 @@ pub enum AskClock {
 /// no thread and no terminal.
 ///
 /// It keeps **when the wait started**, never a deadline, so no wait is ever
-/// added to an `Instant`: a `ALTER_ZERO_ASK_TIMEOUT_SECS` no clock can reach
+/// added to an `Instant`: a `ZEROTH_ASK_TIMEOUT_SECS` no clock can reach
 /// reads as running rather than overflowing. One clock covers every waiting
 /// question, open or queued behind another modal, because what it measures is
 /// the **user's** absence: it starts at the first reading with one waiting,
@@ -904,7 +904,7 @@ mod tests {
 
     #[test]
     fn an_enormous_wait_never_overflows_the_clock() {
-        // `ALTER_ZERO_ASK_TIMEOUT_SECS` takes any number: a wait no `Instant`
+        // `ZEROTH_ASK_TIMEOUT_SECS` takes any number: a wait no `Instant`
         // can be pushed out by must read as running, never panic.
         let start = std::time::Instant::now();
         let mut timer = AskTimer::new();

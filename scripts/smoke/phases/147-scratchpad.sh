@@ -8,25 +8,25 @@ smoke_begin
 # writes a game into the session's scratchpad — the `write` generated the way
 # a live model generates one, its arguments in token-sized pieces — then
 # changes one line of it, and replies. This launch drops the suite's
-# ALTER_ZERO_VERBOSE=1, so the session comes up collapsed:
+# ZEROTH_VERBOSE=1, so the session comes up collapsed:
 #   - while the write streams, the group's live line counts its lines over
 #     the file's path — `● Making 1 scratchpad edit +N…` — and the write has
 #     no cell of its own;
 #   - once the reply closes the group, one settled line, `Made 2 scratchpad
 #     edits +26 -1 (ctrl+o to expand)`, and no cell for either call;
 #   - Ctrl+O still shows both calls whole.
-# The scratchpad is ALTER_ZERO_SCRATCHPAD_DIR's, off the usual
-# `alter-zero-{uid}/{session}/scratchpad` layout, so the group can only know
+# The scratchpad is ZEROTH_SCRATCHPAD_DIR's, off the usual
+# `zeroth-{uid}/{session}/scratchpad` layout, so the group can only know
 # it from the session that has it.
 S147="${S}_scratchpad"
 PAD147="$(mktemp -d)/pad"
-APP147="env ${CFG_ENV_NOHIST/ ALTER_ZERO_VERBOSE=1/} ALTER_ZERO_SCRATCHPAD_DIR=$PAD147 ALTER_ZERO_CHUNK_DELAY_MS=15 ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP147="env ${CFG_ENV_NOHIST/ ZEROTH_VERBOSE=1/} ZEROTH_SCRATCHPAD_DIR=$PAD147 ZEROTH_CHUNK_DELAY_MS=15 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 LINE147="Made 2 scratchpad edits +26 -1 (ctrl+o to expand)"
 case "$APP147" in
-*ALTER_ZERO_VERBOSE*) fail "the launch string still sets ALTER_ZERO_VERBOSE: $APP147" ;;
+*ZEROTH_VERBOSE*) fail "the launch string still sets ZEROTH_VERBOSE: $APP147" ;;
 esac
 
-launch "$S147" 100 40 "env -u ALTER_ZERO_VERBOSE ${APP147#env }"
+launch "$S147" 100 40 "env -u ZEROTH_VERBOSE ${APP147#env }"
 submit "$S147" "draft a game in your scratchpad"
 
 # The write streaming into the group's line. Its bullet blinks, so the row is

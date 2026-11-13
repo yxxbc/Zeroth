@@ -8,7 +8,7 @@
 //! including on a redirect. The page's `og:image` cover is downloaded under
 //! the same host/redirect policy (2 MiB, `image/*`) into the card cache, so a
 //! card survives a restart and the same URL is never fetched twice.
-//! `ALTER_ZERO_LINK_CARDS` (default on; a falsy value disables it) turns the
+//! `ZEROTH_LINK_CARDS` (default on; a falsy value disables it) turns the
 //! whole feature off — no request, no card.
 
 use std::collections::HashMap;
@@ -30,10 +30,10 @@ const COVER_CACHE_BYTES: u64 = 32 * 1024 * 1024;
 /// A redirect chain longer than this is refused.
 const REDIRECTS: usize = 3;
 
-/// Whether cards are enabled for this process (`ALTER_ZERO_LINK_CARDS`).
+/// Whether cards are enabled for this process (`ZEROTH_LINK_CARDS`).
 #[must_use]
 pub(crate) fn enabled() -> bool {
-    enabled_value(std::env::var("ALTER_ZERO_LINK_CARDS").ok().as_deref())
+    enabled_value(std::env::var("ZEROTH_LINK_CARDS").ok().as_deref())
 }
 
 /// [`enabled`]'s pure half: a falsy value (`0`, `false`, `no`) disables;

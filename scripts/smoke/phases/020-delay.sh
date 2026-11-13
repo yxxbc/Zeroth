@@ -14,7 +14,7 @@ S17="${S}_delay"
 DELAY_MSG="count my input tokens"
 # 21 chars → responses[0], which opens with this phrase.
 DELAY_REPLY="Sure thing"
-launch "$S17" 80 24 "env $CFG_ENV ALTER_ZERO_STARTUP_DELAY_MS=2000 $BIN"
+launch "$S17" 80 24 "env $CFG_ENV ZEROTH_STARTUP_DELAY_MS=2000 $BIN"
 submit "$S17" "$DELAY_MSG"
 sleep 0.9 # mid-pause: the 2s startup delay is still running
 delay_pause="$(tmux capture-pane -t "$S17" -p)"

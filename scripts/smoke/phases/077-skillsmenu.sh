@@ -10,7 +10,7 @@ smoke_begin
 # each one toggled with Space or Enter and its value led by a `✔`/`◯` mark,
 # the rows' `→` under the search line's `❯`. Drive it
 # end to end against a REAL skill directory (the rest of the suite runs
-# skill-free, so this phase points ALTER_ZERO_SKILLS_DIR at one it plants):
+# skill-free, so this phase points ZEROTH_SKILLS_DIR at one it plants):
 # open it from the palette, check the header, the rows and the value column,
 # disable one, confirm the toast, the flipped value and the count, and prove
 # it PERSISTED — a second process against the same config home must open the
@@ -33,7 +33,7 @@ description: The second demo skill, for the smoke suite only
 ---
 Beta body.
 SKILL
-APP_SK="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$SK_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_SKILLS_DIR=$SK_DIR ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_SK="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$SK_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_SKILLS_DIR=$SK_DIR ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 launch "$S77" 90 32 "$APP_SK"
 # The palette lists it (a bare `/skil` token filters to it).
 tmux send-keys -t "$S77" -l "/skil"

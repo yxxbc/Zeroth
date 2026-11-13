@@ -4,7 +4,7 @@
 //! Usage:
 //! ```bash
 //! OPENROUTER_API_KEY=sk-... \
-//!   ALTER_ZERO_CA_FILE=/root/.ccr/ca-bundle.crt \
+//!   ZEROTH_CA_FILE=/root/.ccr/ca-bundle.crt \
 //!   cargo run --example tool_smoke -- [model] ["prompt"]
 //! ```
 //! Defaults to `openai/gpt-4o-mini` and a prompt that forces a `bash` call.

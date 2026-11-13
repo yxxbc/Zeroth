@@ -1,17 +1,17 @@
 # CLI — `--help`, the `[PROMPT]` shortcut, `--continue`, `--resume [id]`, and the exit hint
 
 Claude Code's session CLI, ported onto the `/resume` rollout files
-(`docs/state/resume.md`): `alter-zero --continue` reopens the newest conversation
-recorded in the current directory, `alter-zero --resume {id}` reopens a
-specific session from anywhere, a bare `alter-zero --resume` opens the
+(`docs/state/resume.md`): `zeroth --continue` reopens the newest conversation
+recorded in the current directory, `zeroth --resume {id}` reopens a
+specific session from anywhere, a bare `zeroth --resume` opens the
 `/resume` picker as the very first screen — and quitting a session that
 recorded anything prints the copy-paste command that brings it back. On top
-of those, **a quoted message is a `[PROMPT]`** — `alter-zero "fix the
-failing test"` boots straight into that turn, and `alter-zero --resume {id}
+of those, **a quoted message is a `[PROMPT]`** — `zeroth "fix the
+failing test"` boots straight into that turn, and `zeroth --resume {id}
 "and now the docs"` sends it into the reopened conversation — and `--help`
 is a titled, sectioned page in the app's own colour. (The same pre-TUI
-boundary also answers the `mcp` subcommand family — `alter-zero mcp
-add/add-json/remove/get/list`, `docs/cli/mcp-cli.md` — and `alter-zero
+boundary also answers the `mcp` subcommand family — `zeroth mcp
+add/add-json/remove/get/list`, `docs/cli/mcp-cli.md` — and `zeroth
 update`, which installs the newest release over this binary through the
 one-line installer, `docs/ops/update.md`; each is routed by its first argument
 before the flag grammar below applies.) **`-p` runs the same session with no
@@ -20,19 +20,19 @@ its own section on the page; the run itself is `docs/cli/headless.md`, and this
 page covers only its grammar.
 
 ```
-$ alter-zero --help
-Alter Zero
+$ zeroth --help
+Zeroth
 
 Starts an interactive session by default; with -p, answers once and exits.
 
-Usage: alter-zero [OPTIONS] [PROMPT]
-       alter-zero -p [OPTIONS] [PROMPT]
-       alter-zero mcp <COMMAND>
-       alter-zero update
+Usage: zeroth [OPTIONS] [PROMPT]
+       zeroth -p [OPTIONS] [PROMPT]
+       zeroth mcp <COMMAND>
+       zeroth update
 
 Commands:
   mcp                            Manage MCP servers in the user config file —
-                                 see alter-zero mcp --help
+                                 see zeroth mcp --help
   update                         Install the newest release over this binary,
                                  if one is out (the checksum-verified installer)
 
@@ -68,7 +68,7 @@ Print mode:
   dummy_model_name · ~/repo
 
 Resume this session with:
-alter-zero --resume 18a9f2c33d41e5b6-1a2b
+zeroth --resume 18a9f2c33d41e5b6-1a2b
 ```
 
 ## What Claude Code does (findings)
@@ -118,7 +118,7 @@ about the on-disk format changes; the id merely becomes *addressable*:
 
 ### The `[PROMPT]` shortcut
 
-`alter-zero "…"` is Enter without the composer: the message is recorded
+`zeroth "…"` is Enter without the composer: the message is recorded
 into the ↑ input history (it *was* submitted), committed as the `❯`
 bubble under the banner, and the turn spawns on it — the boundary's
 `Session::submit_startup_prompt` (`src/tui/turn.rs`, beside every other
@@ -133,15 +133,15 @@ a fast Enter would paint them.
 
 The grammar (`cli::parse`):
 
-- **One positional, anywhere among the flags.** `alter-zero "p" -c` and
-  `alter-zero -c "p"` are the same invocation. A second positional is a
+- **One positional, anywhere among the flags.** `zeroth "p" -c` and
+  `zeroth -c "p"` are the same invocation. A second positional is a
   usage error naming it — `unexpected argument: bug (quote the prompt so
-  the shell passes it as one argument)` — rather than a join: `alter-zero
+  the shell passes it as one argument)` — rather than a join: `zeroth
   write a -c program` would otherwise read `-c` as `--continue`, and a
   prompt that silently loses a word is worse than one that has to be
   quoted. Claude Code errors here too.
 - **`--` ends the flags**; what follows must be exactly that one prompt, so
-  a message that starts with a dash is reachable (`alter-zero --
+  a message that starts with a dash is reachable (`zeroth --
   "-flags first, then prose"`).
 - **A blank prompt is a usage error** (`the prompt is empty`): an empty
   string is what a shell hands over when a variable was unset, and Enter
@@ -149,14 +149,14 @@ The grammar (`cli::parse`):
 - **The prompt is a message, verbatim.** A leading `!` or `/` is sent to
   the model as text, not run as a shell command or a slash command — the
   composer's `!`/`/` grammars are keystroke grammars, and a script has
-  `alter-zero mcp …` for the one thing it might have wanted `/mcp` for.
+  `zeroth mcp …` for the one thing it might have wanted `/mcp` for.
 - **`--resume` keeps taking the next non-dash argument as its id**, so
-  `alter-zero --resume "fix the bug"` resolves `fix the bug` as an id and
+  `zeroth --resume "fix the bug"` resolves `fix the bug` as an id and
   fails with `No session found for id: fix the bug` (Claude Code's
   behaviour; the lookup's hint names the picker). To send a prompt into a
   reopened session, name the session: `--resume {id} "prompt"`, or
   `--continue "prompt"` for the newest one here.
-- **A prompt with the bare picker is refused** — `alter-zero "p" --resume`
+- **A prompt with the bare picker is refused** — `zeroth "p" --resume`
   is `--resume needs a session id to send a prompt into (or use
   --continue)`. The picker is interactive and dismissable, and a prompt
   parked behind it would either start a fresh conversation on Esc or have
@@ -176,10 +176,10 @@ description, the `Usage:` lines, and the sections' rows — and render it
 the way clap and cargo do, so a reader who knows any Rust CLI knows where
 to look:
 
-- **The title is `Alter Zero`** — `crate::APP_NAME`, the one place the
+- **The title is `Zeroth`** — `crate::APP_NAME`, the one place the
   app's name lives — on the first line, wearing the *heading* style: the
-  page names the product, and `alter-zero` below it names the binary. The
-  `mcp` page is titled by its command, `alter-zero mcp`, in the same style.
+  page names the product, and `zeroth` below it names the binary. The
+  `mcp` page is titled by its command, `zeroth mcp`, in the same style.
 - **The description** is the line under it, and it describes the
   *invocation*, not the product: `Starts an interactive session by
   default; with -p, answers once and exits.` Both references write this
@@ -191,9 +191,9 @@ to look:
   One line, since it is the first thing read and a paragraph there is a
   paragraph skipped, and under 80 columns like everything else
   (`main_help_fits_eighty_columns` pins it).
-- **`Usage:`** is inline, the way clap prints it — `Usage: alter-zero
+- **`Usage:`** is inline, the way clap prints it — `Usage: zeroth
   [OPTIONS] [PROMPT]` — with each further form on its own line indented to
-  the first (seven spaces). The command words (`alter-zero`, `mcp`) are
+  the first (seven spaces). The command words (`zeroth`, `mcp`) are
   *literals*; the bracketed and angled parts are *placeholders*.
 - **Sections** — `Commands:`, `Arguments:`, `Options:` — each a heading
   over rows of `  {literal}{placeholder}   {description}`: two columns of
@@ -223,10 +223,10 @@ A **usage error** is clap's shape, not the old whole-page dump:
 ```
 error: unrecognized argument: --frob
 
-Usage: alter-zero [OPTIONS] [PROMPT]
-       alter-zero -p [OPTIONS] [PROMPT]
-       alter-zero mcp <COMMAND>
-       alter-zero update
+Usage: zeroth [OPTIONS] [PROMPT]
+       zeroth -p [OPTIONS] [PROMPT]
+       zeroth mcp <COMMAND>
+       zeroth update
 
 For more information, try '--help'.
 ```
@@ -260,7 +260,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
   `-` on the next argument means "bare `--resume`, then that flag" (so
   `--resume --help` doesn't eat `--help` as an id).
 - The headless flags (`docs/cli/headless.md`): `-p`/`--print` is a switch, so
-  the prompt stays the one positional (`alter-zero -p "…"`, or none at all
+  the prompt stays the one positional (`zeroth -p "…"`, or none at all
   when stdin carries it); `--output-format text|json|stream-json`,
   `--max-turns <N>` (a count above 0) and `--verbose` need `-p` and are
   refused without it;
@@ -278,7 +278,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
 - `resume_hint(bin, id)` — the exit hint exactly as shown above (two lines,
   no indent). `bin_name(arg0)` derives the printed program name from how the
   user actually invoked it (a renamed or symlinked install echoes the name
-  that was run), falling back to `alter-zero`.
+  that was run), falling back to `zeroth`.
 
 ### The boundary (src/tui/startup.rs, main.rs)
 
@@ -324,7 +324,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
     `adopt` (same file accumulates, torn-tail repair included), **the
     session's model restored** from the file's newest `model` record
     (`docs/state/session-model.md` — the directory's `config.json` entry seeds a
-    *new* session only; an `ALTER_ZERO_MODEL`/`ALTER_ZERO_PROVIDER` pin
+    *new* session only; an `ZEROTH_MODEL`/`ZEROTH_PROVIDER` pin
     still outranks the record for the run) — then
     commits the loaded conversation to scrollback at the boundary: the
     header banner, a blank, and `ui::repaint_lines(history, width,
@@ -379,9 +379,9 @@ page's grammar errors take the same shape over its six usage lines. Exit
   hint; a blank prompt refused; a prompt with the bare picker refused;
   `--resume "x y"` still an id. The help — the plain main page pinned
   line for line, every line under 80 columns with no trailing blanks, the
-  title `Alter Zero` first, the `mcp` page's title and six usage lines;
+  title `Zeroth` first, the `mcp` page's title and six usage lines;
   the ANSI rendering stripped of escapes equal to the plain one, the
-  title/headings carrying the heading escape and `alter-zero` the bold
+  title/headings carrying the heading escape and `zeroth` the bold
   one; `usage_error`'s three-part shape; `colour_enabled`'s three rules;
   `resume_hint` matches the printed shape; `bin_name` basenames a path and
   falls back on `None`/empty.
@@ -392,7 +392,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
 - `tests/cli_help.rs` (the real binary, `CARGO_BIN_EXE_zeroth`,
   offline): a piped `--help` is byte-for-byte `help(Main, Plain)` — no
   escapes off a tty — and `mcp --help` the `Mcp` page; `--version` prints
-  `alter-zero {version}`; a grammar error exits 2 with the `error:` shape
+  `zeroth {version}`; a grammar error exits 2 with the `error:` shape
   on stderr and an empty stdout; two positionals name the second with the
   quote hint; a prompt with the bare picker is refused.
 - `scripts/smoke.sh` Phase 61 (the I/O boundary): quitting a session that
@@ -401,12 +401,12 @@ page's grammar errors take the same shape over its six usage lines. Exit
   into the old conversation (no picker) and appends to the same file;
   `--resume {id}` does the same by id; bare `--resume` boots into the
   picker; quitting an *empty* session prints no hint; `--continue` in a
-  fresh cwd fails fast with exit 1 and no TUI. **Phase 108**: `alter-zero
+  fresh cwd fails fast with exit 1 and no TUI. **Phase 108**: `zeroth
   "hello there"` boots straight into the turn — the `❯` bubble, the
   streamed reply and `Done for` with no key pressed — and its quit prints
   the hint; `--resume {id} "again please"` reloads the transcript and runs
   the prompt as the next turn in the same rollout file; `-c "…"` likewise;
-  `--help` on the pane's tty opens on `Alter Zero`, carries `[PROMPT]`,
+  `--help` on the pane's tty opens on `Zeroth`, carries `[PROMPT]`,
   and is coloured (the raw pane holds the bold-cyan escape) while the same
   page through a pipe holds none; a usage error prints the clap-shaped
   trailer and exits 2.

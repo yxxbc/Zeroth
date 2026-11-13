@@ -23,9 +23,9 @@ api_model_base = "http://127.0.0.1:9/v1"
 [providers.deadend.kwargs]
 api_base = "http://127.0.0.1:9/v1"
 PROVIDERS
-# A key resolves for the provider, but ALTER_ZERO_MODEL is unset — so the
+# A key resolves for the provider, but ZEROTH_MODEL is unset — so the
 # session falls back to the dummy while `active_model` is "dummy_model_name".
-APP_CD="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$CD_DIR/cfg ALTER_ZERO_SESSIONS_DIR=$CD_DIR/sessions ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_PROVIDERS_FILE=$CD_DIR/providers.toml ALTER_ZERO_API_KEY=not-a-real-key ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_CD="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$CD_DIR/cfg ZEROTH_SESSIONS_DIR=$CD_DIR/sessions ZEROTH_HISTORY_FILE=/dev/null ZEROTH_CHECKPOINTS=0 ZEROTH_PROVIDERS_FILE=$CD_DIR/providers.toml ZEROTH_API_KEY=not-a-real-key ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 launch "$S65" 80 24 "$APP_CD"
 compact_dummy_footer="$(tmux capture-pane -t "$S65" -p)"
 # One real turn, settled (every dummy reply ends on the hand-off paragraph).

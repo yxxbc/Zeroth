@@ -33,7 +33,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-APP="env ALTER_ZERO_CONFIG_DIR=$CFG ALTER_ZERO_STARTUP_DELAY_MS=200 $BIN"
+APP="env ZEROTH_CONFIG_DIR=$CFG ZEROTH_STARTUP_DELAY_MS=200 $BIN"
 
 tmux new-session -d -s "$S" -x 80 -y 24 "$APP"
 sleep 0.5

@@ -108,7 +108,7 @@ fn the_description_follows_the_highlight_and_names_the_file_and_the_directory() 
         "the file row names the file's shape: {file:?}"
     );
     assert!(
-        file.iter().any(|t| t.contains("~/alter-zero")),
+        file.iter().any(|t| t.contains("~/zeroth")),
         "the file row names the directory: {file:?}"
     );
     assert!(
@@ -369,8 +369,8 @@ fn export_text_opens_with_the_startup_banner() {
         !lines[0].trim().is_empty(),
         "the export opens on the banner's first row: {lines:?}"
     );
-    assert!(pos("Zeroth (v") < pos("~/alter-zero"), "{lines:?}");
-    assert!(pos("~/alter-zero") < pos("/ commands   @ files   ? shortcuts"));
+    assert!(pos("Zeroth (v") < pos("~/zeroth"), "{lines:?}");
+    assert!(pos("~/zeroth") < pos("/ commands   @ files   ? shortcuts"));
     let hello = pos("❯ hello");
     assert!(pos("/ commands   @ files   ? shortcuts") < hello);
     assert_eq!(

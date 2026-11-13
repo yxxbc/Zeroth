@@ -12,14 +12,14 @@
 //!
 //! ```sh
 //! GITHUB_COPILOT_TOKEN=ghu_…   cargo test --test live_usage -- --ignored --nocapture live_copilot
-//! CHATGPT_CODEX_REFRESH_TOKEN=rt.1.… ALTER_ZERO_LIVE_TOKEN_STORE=/tmp/live.env \
+//! CHATGPT_CODEX_REFRESH_TOKEN=rt.1.… ZEROTH_LIVE_TOKEN_STORE=/tmp/live.env \
 //!                              cargo test --test live_usage -- --ignored --nocapture live_chatgpt
-//! CLINE_ACCOUNT_REFRESH_TOKEN=… ALTER_ZERO_LIVE_TOKEN_STORE=/tmp/live.env \
+//! CLINE_ACCOUNT_REFRESH_TOKEN=… ZEROTH_LIVE_TOKEN_STORE=/tmp/live.env \
 //!                              cargo test --test live_usage -- --ignored --nocapture live_clinepass
 //! ```
 //!
 //! The two sign-ins whose refresh token **rotates** refuse to run without
-//! `ALTER_ZERO_LIVE_TOKEN_STORE`, the `live_caching` rule: the mint may
+//! `ZEROTH_LIVE_TOKEN_STORE`, the `live_caching` rule: the mint may
 //! retire the token it was given, and the rotated one is written back only
 //! to a store path. After such a run, the value under that file's
 //! `*_REFRESH_TOKEN` key is the one to keep.
@@ -51,7 +51,7 @@ fn config(provider_id: &str, key: String) -> ModelConfig {
 /// the process environment, then the token store a rotation writes to, so a
 /// second run picks up the rotated token rather than the retired one.
 fn credential(var: &str) -> String {
-    if let Some(store) = std::env::var_os("ALTER_ZERO_LIVE_TOKEN_STORE")
+    if let Some(store) = std::env::var_os("ZEROTH_LIVE_TOKEN_STORE")
         && let Ok(text) = std::fs::read_to_string(store)
         && let Some(value) = text
             .lines()
@@ -65,11 +65,9 @@ fn credential(var: &str) -> String {
 }
 
 fn token_store() -> std::path::PathBuf {
-    std::env::var_os("ALTER_ZERO_LIVE_TOKEN_STORE")
+    std::env::var_os("ZEROTH_LIVE_TOKEN_STORE")
         .map(std::path::PathBuf::from)
-        .expect(
-            "set ALTER_ZERO_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to",
-        )
+        .expect("set ZEROTH_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to")
 }
 
 /// Seed the store with the environment's token when it holds none yet, so the
@@ -108,7 +106,7 @@ fn live_copilot_reports_its_quota_snapshots() {
 }
 
 #[test]
-#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE"]
+#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE"]
 fn live_chatgpt_reports_its_plan_and_windows() {
     seed_store("CHATGPT_CODEX_REFRESH_TOKEN");
     zeroth::llm::chatgpt::set_store_path(token_store());
@@ -124,7 +122,7 @@ fn live_chatgpt_reports_its_plan_and_windows() {
 }
 
 #[test]
-#[ignore = "hits the network; needs CLINE_ACCOUNT_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE"]
+#[ignore = "hits the network; needs CLINE_ACCOUNT_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE"]
 fn live_clinepass_reports_its_windows() {
     seed_store("CLINE_ACCOUNT_REFRESH_TOKEN");
     zeroth::llm::cline::set_store_path(token_store());

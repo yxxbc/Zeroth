@@ -12,7 +12,7 @@ smoke_begin
 # escape renders as nothing, so the assertion reads the RAW byte stream
 # (pipe-pane, captured before tmux interprets it); the link-id carrier must
 # never leak as a real underline colour (SGR 58); and a falsy
-# ALTER_ZERO_HYPERLINKS must emit no escape while the visible wrap stays
+# ZEROTH_HYPERLINKS must emit no escape while the visible wrap stays
 # identical.
 S87="${S}_links"
 LINKS_RAW="$(mktemp "$SMOKE_TMP/links.XXXXXX")"
@@ -56,10 +56,10 @@ if grep -aqF $'\x1b[58;' "$LINKS_RAW"; then
 fi
 tmux kill-session -t "$S87" 2>/dev/null
 
-# The env gate: ALTER_ZERO_HYPERLINKS=0 emits no escapes — and the visible
+# The env gate: ZEROTH_HYPERLINKS=0 emits no escapes — and the visible
 # wrap is identical, so turning links off can never change the layout.
 LINKS_RAW_OFF="$(mktemp "$SMOKE_TMP/links.XXXXXX")"
-tmux new-session -d -s "$S87" -x 26 -y 40 "env ALTER_ZERO_HYPERLINKS=0 $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+tmux new-session -d -s "$S87" -x 26 -y 40 "env ZEROTH_HYPERLINKS=0 $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux pipe-pane -t "$S87" -o "cat >> $LINKS_RAW_OFF"
 sleep 0.4
 submit "$S87" "$USER_MSG"
@@ -68,7 +68,7 @@ echo "==== Phase 87: gate off — same wrap, no escapes ===="
 printf '%s\n' "$links_off_pane" | tail -12
 expect_has "$links_off_pane" -F "https://github.com/linuz" "the wrapped URL is missing with the gate off"
 if grep -aqF "]8;" "$LINKS_RAW_OFF"; then
-	fail "ALTER_ZERO_HYPERLINKS=0 still emitted OSC 8"
+	fail "ZEROTH_HYPERLINKS=0 still emitted OSC 8"
 fi
 if grep -aqF $'\x1b[58;' "$LINKS_RAW_OFF"; then
 	fail "the carrier leaked as SGR 58 with the gate off"

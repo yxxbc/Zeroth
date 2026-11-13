@@ -330,11 +330,11 @@ fn a_store_inside_its_own_work_tree_never_stages_itself() {
     if !git_available() {
         return;
     }
-    // The mechanism behind the reported 2 GB `~/.alter-zero`: with the
+    // The mechanism behind the reported 2 GB `~/.zeroth`: with the
     // checkpoints root *under* the cwd, every `git add -A` re-stages the
     // previous snapshots' object files and the tracked set compounds turn
     // after turn. The root deliberately avoids the names CHECKPOINT_EXCLUDES
-    // already covers — this has to hold for any ALTER_ZERO_CHECKPOINTS_DIR a
+    // already covers — this has to hold for any ZEROTH_CHECKPOINTS_DIR a
     // user points into their project.
     let work = tempfile::tempdir().unwrap();
     let work = work.path();

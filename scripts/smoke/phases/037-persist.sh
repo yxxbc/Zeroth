@@ -6,12 +6,12 @@ smoke_begin
 
 # the input history PERSISTS across sessions (docs/input/history-persistence.md).
 # Submit a distinctive message in one process — written to an isolated
-# ALTER_ZERO_HISTORY_FILE — then launch a SECOND process against the same file:
+# ZEROTH_HISTORY_FILE — then launch a SECOND process against the same file:
 # ↑ recalls the previous session's message and Ctrl+R finds it. Proves both the
 # ↑/↓ recall and the Ctrl+R search span sessions (the seed loads the file into
 # InputHistory::entries, which both read).
 HISTFILE="$(mktemp -u "$SMOKE_TMP/hist.XXXXXX").jsonl"
-HAPP="env $CFG_ENV ALTER_ZERO_HISTORY_FILE=$HISTFILE ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+HAPP="env $CFG_ENV ZEROTH_HISTORY_FILE=$HISTFILE ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 PMSG="persist_across_sessions_42"
 S37="${S}_persist"
 launch "$S37" 80 24 "$HAPP"

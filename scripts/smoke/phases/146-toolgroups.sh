@@ -5,7 +5,7 @@
 smoke_begin
 
 # The collapsed read/search group (docs/ui/tool-groups.md). Every other phase
-# runs with ALTER_ZERO_VERBOSE=1 exported, so its per-call cells stay; this
+# runs with ZEROTH_VERBOSE=1 exported, so its per-call cells stay; this
 # launch drops it, so the session comes up in the DEFAULT, where a run of
 # reads, searches and listings is one cell. The offline `explore` demo lists
 # the folder, thinks, searches and reads in one parallel round, thinks again,
@@ -31,13 +31,13 @@ smoke_begin
 #     one line — never a line for the listing and another for the reads after
 #     the switch.
 S146="${S}_toolgroups"
-APP146="env ${CFG_ENV_NOHIST/ ALTER_ZERO_VERBOSE=1/} ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP146="env ${CFG_ENV_NOHIST/ ZEROTH_VERBOSE=1/} ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 GROUP146="Searched for 1 pattern, read 2 files, listed 1 directory (ctrl+o to expand)"
 case "$APP146" in
-*ALTER_ZERO_VERBOSE*) fail "the launch string still sets ALTER_ZERO_VERBOSE: $APP146" ;;
+*ZEROTH_VERBOSE*) fail "the launch string still sets ZEROTH_VERBOSE: $APP146" ;;
 esac
 
-launch "$S146" 100 44 "env -u ALTER_ZERO_VERBOSE ${APP146#env }"
+launch "$S146" 100 44 "env -u ZEROTH_VERBOSE ${APP146#env }"
 submit "$S146" "explore the project for me"
 
 # The live cell, caught a second into the thought between the rounds — long
@@ -163,7 +163,7 @@ wait_gone 10 "$S146" || fail "the app did not quit on Ctrl+C"
 # output*): the listing already committed as a cell, and the rebuild the row
 # triggers has to hold it as the open group for the reads after it to join.
 S146b="${S}_toolgroups_midturn"
-launch "$S146b" 100 44 "env ${CFG_ENV_NOHIST} ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+launch "$S146b" 100 44 "env ${CFG_ENV_NOHIST} ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 submit "$S146b" "explore the project for me"
 wait_for 15 "$S146b" -F "Thinking…" ||
 	fail "the second run never reached its thought between the rounds"

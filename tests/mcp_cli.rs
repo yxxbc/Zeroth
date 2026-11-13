@@ -1,7 +1,7 @@
 //! Integration proof of the `mcp` CLI subcommand family (`docs/cli/mcp-cli.md`)
 //! against the **real built binary** (the `detached_exec.rs` pattern —
 //! cargo hands the path as `CARGO_BIN_EXE_zeroth`), with
-//! `ALTER_ZERO_MCP_FILE` pointed into a per-test temp dir. Offline and
+//! `ZEROTH_MCP_FILE` pointed into a per-test temp dir. Offline and
 //! deterministic: nothing connects; the commands are file surgery + print.
 
 use std::path::PathBuf;
@@ -15,9 +15,7 @@ fn bin() -> PathBuf {
 /// A per-test scratch dir (unique per test name, wiped at entry) and the
 /// mcp.json path inside it.
 fn scratch(test: &str) -> (PathBuf, PathBuf) {
-    let dir = std::env::temp_dir()
-        .join("alter-zero-mcp-cli-tests")
-        .join(test);
+    let dir = std::env::temp_dir().join("zeroth-mcp-cli-tests").join(test);
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("create scratch dir");
     let file = dir.join("mcp.json");
@@ -29,7 +27,7 @@ fn mcp(file: &PathBuf, args: &[&str]) -> Output {
     Command::new(bin())
         .arg("mcp")
         .args(args)
-        .env("ALTER_ZERO_MCP_FILE", file)
+        .env("ZEROTH_MCP_FILE", file)
         .output()
         .expect("binary runs")
 }

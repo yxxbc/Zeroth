@@ -1,6 +1,6 @@
 # Resident memory: what the app holds, and what `/model` used to cost
 
-Alter Zero is a long-lived foreground process in the user's terminal, so its
+Zeroth is a long-lived foreground process in the user's terminal, so its
 resident set is a feature: it sits idle between turns and whatever it holds it
 holds for the whole session. Startup is **~16 MB**. Opening `/model` once used
 to take that to **25 MB** and leave it there — climbing past 26 MB on repeat
@@ -581,7 +581,7 @@ implicit-border diff table and existing buffer growth remain in place.
 Build a release binary, then run:
 
 ```sh
-python3 scripts/codegen_mem.py target/release/alter-zero --lines 5000 --turns 4
+python3 scripts/codegen_mem.py target/release/zeroth --lines 5000 --turns 4
 ```
 
 The Linux/tmux harness starts an isolated loopback Chat Completions provider

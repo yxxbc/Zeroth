@@ -1,6 +1,6 @@
 # Checkpoints — reset the code, not just the transcript
 
-alter-zero is a coding agent: its `write`/`edit`/`bash` tools change files in the
+zeroth is a coding agent: its `write`/`edit`/`bash` tools change files in the
 working directory. But the two "go back in time" gestures only ever rewound the
 *conversation* — the **`/resume`** picker (`docs/state/resume.md`) reloaded an old
 transcript, and the **Esc-Esc backtrack** (`docs/input/backtrack.md`) truncated history
@@ -106,7 +106,7 @@ The **session-start** snapshot (`after == 0`) still runs synchronously before
 the first frame: its cost guard (`cwd_scope` + the snapshot budget) already
 bounds it, and a backtrack to the first message must find it in the chain.
 
-The timing is measurable without a debugger: `ALTER_ZERO_TIMING=<path>` (or
+The timing is measurable without a debugger: `ZEROTH_TIMING=<path>` (or
 `=1` for `<tmp>/zeroth-timing.log`) appends `turn-end`, `checkpoint.snapshot`
 and `checkpoint.dispatch-wait` lines. The TUI writes to a file rather than
 stderr so a log line can never corrupt the inline viewport.
@@ -128,7 +128,7 @@ Split the repo's usual way — a **pure core** (unit-tested) and a **boundary**
   of `git add -A` (the shadow store reads them like any git command); this is the
   backstop for dirs without one, and — above all — the user's real `.git`, which
   a restore's `git clean` must never delete.
-- `enabled_by_env` — the `ALTER_ZERO_CHECKPOINTS` gate (the `ALTER_ZERO_TOOLS`
+- `enabled_by_env` — the `ZEROTH_CHECKPOINTS` gate (the `ZEROTH_TOOLS`
   pattern: off for `0`/`false`/`no`/`off`).
 - `cwd_scope(cwd, env)` / `CheckpointRefusal` / `CheckpointEnv` — the
   **project-scope guard**, below.
@@ -159,9 +159,9 @@ that were never this session's to touch. Refused, each with its own
 
 - **`FilesystemRoot`** — `/`, a drive root, or an empty unknowable cwd.
 - **`HomeDirectory`** — the home directory itself or an ancestor of it
-  (`/home`): the user's entire tree (the original "alter-zero hangs in `~`"
+  (`/home`): the user's entire tree (the original "zeroth hangs in `~`"
   bug).
-- **`StateDirectory`** — alter-zero's own `~/.zeroth` **and everything
+- **`StateDirectory`** — zeroth's own `~/.zeroth` **and everything
   under it**: it holds the rollouts, the input history, and every project's
   checkpoint store, so a restore's `git clean -fd` there deletes other
   sessions' records. A cwd that merely *contains* this session's store is
@@ -197,7 +197,7 @@ the tracked set compounds turn after turn — measured on a 40 MB state dir:
 59 → 130 → 269 → 528 tracked files over four snapshots, store 41 MB → 165 MB.
 
 `CHECKPOINT_EXCLUDES` cannot cover it: those are *name* patterns, and the root
-is whatever path `ALTER_ZERO_CHECKPOINTS_DIR` points at. So
+is whatever path `ZEROTH_CHECKPOINTS_DIR` points at. So
 `store_exclude_line(work_tree, root)` derives an extra `info/exclude` line
 whenever the root strips as a prefix of the work tree — **anchored** with a
 leading `/` so it matches that directory at the work tree's root and not a
@@ -254,9 +254,9 @@ suffix, and each taking **`0` as no limit** (the `/settings` **Max tool calls**
 convention):
 
 ```
-ALTER_ZERO_CHECKPOINT_MAX_FILES=50000
-ALTER_ZERO_CHECKPOINT_MAX_BYTES=2g
-ALTER_ZERO_CHECKPOINT_MAX_BYTES=0     # no byte ceiling
+ZEROTH_CHECKPOINT_MAX_FILES=50000
+ZEROTH_CHECKPOINT_MAX_BYTES=2g
+ZEROTH_CHECKPOINT_MAX_BYTES=0     # no byte ceiling
 ```
 
 ### Saying so
@@ -265,7 +265,7 @@ Every refusal raises a one-row `Checkpoints off — {reason}` toast on the first
 frame (`CheckpointRefusal`'s `Display`), and `/settings` shows **Checkpoints**
 as `false (unavailable)`. The toast is suppressed when the user had already
 turned checkpoints off — a refusal is only news when it took something away.
-Disabling itself in silence is what made this hard to place: "alter-zero takes
+Disabling itself in silence is what made this hard to place: "zeroth takes
 seconds to boot in `/tmp`" and "checkpoints do nothing here" were the same
 fact seen from two sides.
 
@@ -331,12 +331,12 @@ store-local file), no prompts, all stdio detached.
 
 - **Store + pristine snapshot** are created next to the `SessionRecorder`
   (`tui::bootstrap`), gated by
-  `checkpoint::enabled_by_env(ALTER_ZERO_CHECKPOINTS)` **and**
+  `checkpoint::enabled_by_env(ZEROTH_CHECKPOINTS)` **and**
   `checkpoint::cwd_scope(cwd, env)` — the categorical guard above, fed `$HOME`,
   `config::config_home()`, `config::checkpoints_root()` and `config::tmp_dir()`
   — **and** a `git` binary being present (probed last, so a refused cwd never
-  even spawns git). Root: `ALTER_ZERO_CHECKPOINTS_DIR`, else
-  `~/.zeroth/checkpoints` (the `ALTER_ZERO_SESSIONS_DIR` pattern; the smoke
+  even spawns git). Root: `ZEROTH_CHECKPOINTS_DIR`, else
+  `~/.zeroth/checkpoints` (the `ZEROTH_SESSIONS_DIR` pattern; the smoke
   test points it at a temp dir).
 - **The pre-flight probe** then runs in `seed_checkpoints`, between `init` and
   the pristine snapshot — the last moment before the first frame at which the
@@ -381,16 +381,16 @@ per working directory (`docs/state/per-directory-state.md`) and defaults to `fal
 — the session-start snapshot is a whole-cwd `git add -A` before the first
 frame, which is not something to run in a tree you did not choose it for.
 Cycling the knob on in a directory records `"checkpoints": true` there;
-`ALTER_ZERO_CHECKPOINTS=1` turns it on for a run without saving anything (and
+`ZEROTH_CHECKPOINTS=1` turns it on for a run without saving anything (and
 `=0`, or `false`/`no`/`off`, off). Either way it runs only when a `git` binary
 is present **and the cwd is a project worth snapshotting** (both halves of the
 guard above); a missing git or no writable root disables it silently.
 
-Both guards are **unconditional** — an explicit `ALTER_ZERO_CHECKPOINTS=1`
+Both guards are **unconditional** — an explicit `ZEROTH_CHECKPOINTS=1`
 doesn't override either, because they are answers to "can this run without
 wrecking the session?", not preferences. The cost ceiling is the one with a
-dial: raise or remove `ALTER_ZERO_CHECKPOINT_MAX_FILES` /
-`ALTER_ZERO_CHECKPOINT_MAX_BYTES` to checkpoint a tree bigger than the default
+dial: raise or remove `ZEROTH_CHECKPOINT_MAX_FILES` /
+`ZEROTH_CHECKPOINT_MAX_BYTES` to checkpoint a tree bigger than the default
 budget. For the categorical refusals the answer is to run in a project
 directory.
 
@@ -400,7 +400,7 @@ backtrack behave exactly as they did before this feature — transcript only.
 > **Running the test suite:** `scripts/smoke.sh` drives the real binary *inside
 > this repo's working directory*, and a restore's `git clean` would delete files
 > not captured in a snapshot. So the suite runs every repo-cwd phase with
-> `ALTER_ZERO_CHECKPOINTS=0` and enables checkpoints only in the phases that run
+> `ZEROTH_CHECKPOINTS=0` and enables checkpoints only in the phases that run
 > in a throwaway temp directory (Phases 46–47, 49, 71). Keep that gating if you
 > add phases that resume/backtrack.
 
@@ -426,7 +426,7 @@ backtrack behave exactly as they did before this feature — transcript only.
   So the byte cap is the knob that decides how bad that one launch may get,
   and it cannot be calibrated as a time: at 256 MiB this machine spends ten
   seconds where an SSD spends under one. Lower
-  `ALTER_ZERO_CHECKPOINT_MAX_BYTES` on slow storage. The only thing that would
+  `ZEROTH_CHECKPOINT_MAX_BYTES` on slow storage. The only thing that would
   *remove* the pause rather than bound it is moving the cold snapshot to a
   worker thread (the Ctrl+V image pipeline's shape) — still future work, and
   it needs care: a background `git add -A` must never overlap a restore's
@@ -475,10 +475,10 @@ backtrack behave exactly as they did before this feature — transcript only.
   backtrack reverts a `!`-mutated working file to its pristine checkpoint; a
   `/resume` restores a working file to the saved session's final checkpoint even
   after it was diverged on disk between launches. Phase 49: launched with
-  cwd == `$HOME` (even under an explicit `ALTER_ZERO_CHECKPOINTS=1`) the store
+  cwd == `$HOME` (even under an explicit `ZEROTH_CHECKPOINTS=1`) the store
   is never created, while a project dir under that same home still snapshots.
   Phase 71: launching in `/tmp` or in the state dir never creates the store and
-  toasts the reason; a tree past a forced-tiny `ALTER_ZERO_CHECKPOINT_MAX_BYTES`
+  toasts the reason; a tree past a forced-tiny `ZEROTH_CHECKPOINT_MAX_BYTES`
   toasts "too big to snapshot per turn" and leaves the store with no commit;
   the same directory under the default budget snapshots with no toast.
 

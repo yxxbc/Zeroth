@@ -15,7 +15,7 @@
 #   bin       target/debug/zeroth
 #   WxH       1920x1080 (the served picture)
 #   pastes    3
-#   protocol  halfblocks | kitty | sixel | iterm2 (ALTER_ZERO_IMAGE_PROTOCOL)
+#   protocol  halfblocks | kitty | sixel | iterm2 (ZEROTH_IMAGE_PROTOCOL)
 #   send      0 | 1 — also send each pasted picture in a turn
 #
 # `PASTE_MEM_DISPLAY` picks the X display (default :99).
@@ -59,7 +59,7 @@ trap cleanup EXIT
 "$OWNER" "$W" "$H" >/dev/null 2>&1 &
 OWNER_PID=$!
 sleep 1.5
-ENV="ALTER_ZERO_CONFIG_DIR=$CFG ALTER_ZERO_DUMMY=1 ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_IMAGE_PROTOCOL=$PROTO ALTER_ZERO_IMAGE_CELL_SIZE=10x20 ALTER_ZERO_STARTUP_DELAY_MS=100 DISPLAY=$DISPLAY"
+ENV="ZEROTH_CONFIG_DIR=$CFG ZEROTH_DUMMY=1 ZEROTH_CHECKPOINTS=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_IMAGE_PROTOCOL=$PROTO ZEROTH_IMAGE_CELL_SIZE=10x20 ZEROTH_STARTUP_DELAY_MS=100 DISPLAY=$DISPLAY"
 tmux new-session -d -s "$S" -x 140 -y 45 "env $ENV $BIN"
 sleep 1.5
 PANE_PID="$(tmux list-panes -t "$S" -F '#{pane_pid}')"

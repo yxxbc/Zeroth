@@ -1,6 +1,6 @@
 # herdr support — the pane's state, reported by the agent itself
 
-**Run alter-zero in a [herdr](https://herdr.dev) pane and the sidebar tells
+**Run zeroth in a [herdr](https://herdr.dev) pane and the sidebar tells
 the truth about it: working while a turn runs, blocked the moment a
 permission prompt or a question waits on you — or a turn has failed — idle,
 "done" until you look, when the turn ends, and back where it was after a
@@ -10,7 +10,7 @@ local socket on its own.
 
 herdr is a terminal multiplexer for coding agents. It recognises the agents it
 ships rules for by their process and their screen; it has none for
-alter-zero, and a third-party agent cannot add screen rules (herdr's manifest
+zeroth, and a third-party agent cannot add screen rules (herdr's manifest
 overrides key on the agents it already knows). What it offers instead is
 self-reporting — herdr's *Add Herdr support* page — and a self-reporting agent
 is the pane's only authority: no screen scraping, no hooks file, no
@@ -88,10 +88,10 @@ sent because the docs ask for it, and costs a few bytes.
 Every report carries the command that brings the session back:
 
 ```
-alter-zero --resume 18dbf0f64f371a36-4473
+zeroth --resume 18dbf0f64f371a36-4473
 ```
 
-once the conversation has a rollout file (the first message), and `alter-zero`
+once the conversation has a rollout file (the first message), and `zeroth`
 alone before that and after a `/clear` — the fresh session the pane was.
 herdr keeps the newest such command per pane and, after a **cold restart** of
 its server (with `resume_agents_on_restore`, the default), types it into the
@@ -125,13 +125,13 @@ speaking **one request per connection**: one compact JSON line ending in
 dropped unanswered.
 
 ```json
-{"id":"alter-zero:1791290217491819","method":"pane.report_agent","params":{"pane_id":"w1:p3","source":"alter-zero","agent":"alter-zero","state":"working","seq":1791290217491819,"resume_argv":["alter-zero","--resume","18dbf0f64f371a36-4473"]}}
-{"id":"alter-zero:1791290262462611","method":"pane.release_agent","params":{"pane_id":"w1:p3","source":"alter-zero","agent":"alter-zero","seq":1791290262462611}}
+{"id":"zeroth:1791290217491819","method":"pane.report_agent","params":{"pane_id":"w1:p3","source":"zeroth","agent":"zeroth","state":"working","seq":1791290217491819,"resume_argv":["zeroth","--resume","18dbf0f64f371a36-4473"]}}
+{"id":"zeroth:1791290262462611","method":"pane.release_agent","params":{"pane_id":"w1:p3","source":"zeroth","agent":"zeroth","seq":1791290262462611}}
 ```
 
 The reply is `{"id":…,"result":{"type":"ok"}}` or `{"id":…,"error":{"code":…,
 "message":…}}` (`pane_not_found`, `invalid_resume_argv`, …). `source` and
-`agent` are both `alter-zero`: herdr's own sources are `herdr:`-prefixed,
+`agent` are both `zeroth`: herdr's own sources are `herdr:`-prefixed,
 and an agent name herdr knows (or an alias of one) would be rewritten into
 that agent and judged by its rules. Keys the app does not know are left out,
 never sent as `null`; herdr ignores keys it does not know, so a newer field
@@ -149,7 +149,7 @@ shell hooks count nanoseconds, which is fine because the mark is per source)
 and steps one past the last value when the clock has not moved on or went
 back; a relaunch outranks the process before it because the clock has moved
 on, and the unit must never become a coarser one, or the old mark would
-outrank every new request. The id is `alter-zero:{seq}`, unique for free.
+outrank every new request. The id is `zeroth:{seq}`, unique for free.
 
 Every turn, then, is a handful of requests — `working`, maybe `blocked` and
 `working` again, `idle` — and a quit is one `release`, which tells herdr to
@@ -202,10 +202,10 @@ built to it:
 Every process in a herdr pane inherits its variables. An agent run *by* the
 session — `claude -p` or `codex exec` in a `bash` call, a hook that asks
 another model for a review, an MCP server that is an agent itself (`codex
-mcp-server`), another alter-zero — would report into this pane under them,
+mcp-server`), another zeroth — would report into this pane under them,
 and one of herdr's official integrations doing so is not a fight over the
 state but the end of it: its session report makes that agent the pane's
-session owner, after which herdr drops every report alter-zero sends —
+session owner, after which herdr drops every report zeroth sends —
 answering `ok` — for as long as the pane lives, a relaunch included (herdr's
 `current_session_owner_conflicts`; reproduced against a real herdr with the
 Claude and Codex integrations). A third-party source cannot claim the pane
@@ -218,7 +218,7 @@ not the session's own terminal), every pipe-run child — the `!` shell, the
 hooks, a `bash` call with no terminal to be had (`subprocess::command_in`) —
 and the MCP stdio servers (`StdioTransport`, where a server's own config
 naming the variable still wins). Every herdr integration requires a pane id,
-so they all stand down, and so does a nested alter-zero, whose `herdr::pane`
+so they all stand down, and so does a nested zeroth, whose `herdr::pane`
 needs one too.
 
 Why the pane id and not `HERDR_ENV`, which every integration also requires
@@ -237,12 +237,12 @@ TUI itself.
 ## Pictures in a pane
 
 Separate from the state reports, and needing no setup either: a herdr pane
-draws alter-zero's pictures (a pasted screenshot, an image `read`) as kitty
+draws zeroth's pictures (a pasted screenshot, an image `read`) as kitty
 graphics. herdr's emulator is libghostty, which speaks the kitty graphics
 protocol, unicode placeholders included, but a pane's environment names none
 of it — `TERM=xterm-256color`, `TERM_PROGRAM=herdr`, and the outer terminal's
 `KITTY_WINDOW_ID` stripped — so detection by environment alone fell to
-half-blocks there. Where the environment names nothing, alter-zero asks the
+half-blocks there. Where the environment names nothing, zeroth asks the
 terminal inside its startup cursor query, and herdr answers `OK` and calls
 itself `libghostty` (`docs/ui/images.md` *Asking the terminal*). herdr's
 `terminal.kitty_graphics` setting has been on by default since 0.9.0; with it
@@ -250,11 +250,11 @@ off, a pane's terminal has no kitty graphics to answer for, says nothing, and
 the pictures stay half-blocks. herdr then draws the picture on its own outer
 terminal, so what an outer terminal without kitty graphics shows is herdr's
 call; `terminal.kitty_graphics = false` in herdr's config, or
-`ALTER_ZERO_IMAGE_PROTOCOL=halfblocks` in the pane, keeps half-blocks there.
+`ZEROTH_IMAGE_PROTOCOL=halfblocks` in the pane, keeps half-blocks there.
 
 ## Turning it off
 
-`ALTER_ZERO_HERDR=0` (`false`/`no`/`off`, the usual grammar) turns it off for
+`ZEROTH_HERDR=0` (`false`/`no`/`off`, the usual grammar) turns it off for
 a run: no reporter is started, nothing is sent, and herdr treats the pane as
 an unknown program. There is no `/settings` row — outside herdr the feature
 does nothing, and inside it the reports are the point of running there.
@@ -279,17 +279,17 @@ surfaced, a silent server costing its timeout, a missing socket failing at
 once, a symlink to a live socket refused, a plain file never written.
 `pty::spawn`, `subprocess` and the MCP transport each pin the `HERDR_PANE_ID`
 drop. `smoke.sh` Phase 132 drives the real binary against a stub socket that
-logs what it is sent: the launch's `idle` with `alter-zero` as its resume
+logs what it is sent: the launch's `idle` with `zeroth` as its resume
 command, a turn's `idle working blocked working idle` with the prompt's
-message, `alter-zero --resume {id}` on every report from the first message
+message, `zeroth --resume {id}` on every report from the first message
 on, strictly climbing `seq`s, a `!` command seeing no pane id but herdr's
 marker and socket, the release as a quit's last request, a `--resume`
 relaunch carrying its command on its first report and outranking the old
-release, nothing at all with `ALTER_ZERO_HERDR=0`, a dead socket costing a
+release, nothing at all with `ZEROTH_HERDR=0`, a dead socket costing a
 turn and a quit nothing — and, through the real backend against a stub
 provider that refuses every request, a failed turn reporting `blocked` with
 `Turn failed: …` and holding it until a `/clear`, whose report goes back to
-`idle` with the bare `alter-zero`. The fixture unsets every `HERDR_*`
+`idle` with the bare `zeroth`. The fixture unsets every `HERDR_*`
 variable, so a suite run from a herdr pane never reports to the real one.
 
 ## Limits

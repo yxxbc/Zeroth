@@ -33,7 +33,9 @@ prints one line per required tool (the pinned toolchain, rustfmt/clippy, `mbx`,
 | `scripts/smoke/lib.sh`, `scripts/smoke.sh` | `bash scripts/smoke/selftest.sh` |
 | `scripts/smoke/phases/` | `cargo build && scripts/smoke.sh <ids>` |
 | `scripts/`, `install.sh` | that subtree's suite (CONTRIBUTING *Testing*), not `cargo test` |
-| `prompts/`, `docs/`, `CHANGELOG.md` | nothing; prose has no gate |
+| `prompts/`, `CHANGELOG.md` | nothing; prose has no gate |
+| a page that has a `.zh.md` beside it | `python3 scripts/docs/zh_parity.py [path]` — fences, code spans, link targets, heading levels vs the English original |
+| `scripts/docs/` | `python3 -m unittest discover -s scripts/docs -p 'test_*.py'` |
 
 Filters are substrings: a module path selects everything under it, so
 `app::tests` covers every area and costs the same as one file. When the areas

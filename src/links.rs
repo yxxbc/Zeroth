@@ -580,7 +580,7 @@ fn push_percent_encoded(out: &mut String, segment: &str) {
 /// Environment gate: a falsy value turns OSC 8 emission off for a terminal
 /// that misbehaves (the carrier is still stripped — it must never paint as a
 /// colour). Default on.
-pub const HYPERLINKS_ENV: &str = "ALTER_ZERO_HYPERLINKS";
+pub const HYPERLINKS_ENV: &str = "ZEROTH_HYPERLINKS";
 
 /// Whether hyperlink emission should be **off**, given [`HYPERLINKS_ENV`]'s
 /// value: the standard falsy spellings (`0`/`false`/`no`/`off`,

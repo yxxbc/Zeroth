@@ -13,7 +13,7 @@ how it rides the request, and how it persists.
 ```
   ❯ ask something…
 ────────────────────────────────────────────────
-  qwen3-5-35b-a3b medium · ~/alter-zero            (footer: {model} {mode} · {cwd})
+  qwen3-5-35b-a3b medium · ~/zeroth            (footer: {model} {mode} · {cwd})
 ```
 
 Pressing Ctrl+T cycles `off → low → medium → high → off …` (whatever the
@@ -168,7 +168,7 @@ runs (`docs/providers/llm.md`'s testing notes).
   `minimal`/`xhigh`/`max` are not offered there even where a model might
   accept them. OpenRouter models use their exact advertised list.
 - The probe only covers the startup model; a model switched to via
-  `ALTER_ZERO_MODEL` mid-flight (impossible — env is read once) needs no more
+  `ZEROTH_MODEL` mid-flight (impossible — env is read once) needs no more
   than that.
 - `ThinkingMode::On` sends nothing, so an effort-less reasoner's actual
   thinking depends on the model's own default (Venice's Claude models think

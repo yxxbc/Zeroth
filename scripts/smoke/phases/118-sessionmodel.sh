@@ -9,7 +9,7 @@ smoke_begin
 # model it actually runs on (a `model` sidecar line, the newest winning), and
 # a resume brings THAT back. Two instances in one directory: (a) the first
 # runs the directory's entry and records it; (b) the second, pinned to
-# another model by ALTER_ZERO_MODEL, records its own — and the pin never
+# another model by ZEROTH_MODEL, records its own — and the pin never
 # reaches config.json. (c) The entry then moves, as a /model pick in a third
 # instance would move it — but first, (b2) `--resume {path}` of the first
 # conversation while the entry still IS its model restores nothing and
@@ -42,7 +42,7 @@ PROVIDERS
 cat >"$SM_CFG/config.json" <<'CONFIG'
 { "provider": "deadend", "model": "model-a" }
 CONFIG
-SM_ENV="ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_UPDATE_CHECK=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$SM_CFG ALTER_ZERO_SESSIONS_DIR=$SM_CFG/sessions ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_SKILLS_DIR=$SMOKE_SKILLS ALTER_ZERO_AGENTS_DIR=$SMOKE_AGENTS ALTER_ZERO_PROVIDERS_FILE=$SM_CFG/providers.toml ALTER_ZERO_API_KEY=not-a-real-key ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
+SM_ENV="ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$SM_CFG ZEROTH_SESSIONS_DIR=$SM_CFG/sessions ZEROTH_HISTORY_FILE=/dev/null ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_PROVIDERS_FILE=$SM_CFG/providers.toml ZEROTH_API_KEY=not-a-real-key ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
 APP_SM="env $SM_ENV $BIN_ABS"
 
 # sm_quit SESSION — /quit the instance and drop its tmux session.
@@ -75,11 +75,11 @@ sm_model_lines "$SM_F1"
 expect_has "$(sm_model_lines "$SM_F1")" -F '"provider":"deadend","model":"model-a"' "instance 1's rollout does not record its model"
 
 # (b) A second instance in the SAME directory, pinned to another model.
-launch -c "$SM_DIR" "$S118" 100 30 "env ALTER_ZERO_MODEL=model-b $APP_SM"
+launch -c "$SM_DIR" "$S118" 100 30 "env ZEROTH_MODEL=model-b $APP_SM"
 sm_b="$(wait_pane 5 "$S118" -F "model-b")"
 note "instance 2 pinned to model-b in the same directory"
 printf '%s\n' "$sm_b"
-expect_has "$sm_b" -F "model-b" "instance 2 did not start on the ALTER_ZERO_MODEL pin"
+expect_has "$sm_b" -F "model-b" "instance 2 did not start on the ZEROTH_MODEL pin"
 submit "$S118" "!echo second"
 sm_b_turn="$(wait_pane 10 "$S118" -E "⎿ +second")"
 expect_has "$sm_b_turn" -E "⎿ +second" "instance 2's shell turn never ran"
@@ -160,11 +160,11 @@ expect_has "$sm_f2" -F "! echo first" "the /resume picker did not load the first
 sm_quit "$S118"
 
 # (g) An environment pin outranks the record — the startup precedence.
-launch -c "$SM_DIR" "$S118" 100 30 "env ALTER_ZERO_MODEL=model-p $APP_SM --resume $SM_F1"
+launch -c "$SM_DIR" "$S118" 100 30 "env ZEROTH_MODEL=model-p $APP_SM --resume $SM_F1"
 sm_g="$(wait_pane 5 "$S118" -F "model-p")"
-note "--resume under an ALTER_ZERO_MODEL pin"
+note "--resume under an ZEROTH_MODEL pin"
 printf '%s\n' "$sm_g"
-expect_has "$sm_g" -F "model-p" "an ALTER_ZERO_MODEL pin did not outrank the session's recorded model"
+expect_has "$sm_g" -F "model-p" "an ZEROTH_MODEL pin did not outrank the session's recorded model"
 sm_quit "$S118"
 expect_eq "$(sm_model_lines "$SM_F1" | wc -l | tr -d ' ')" "1" "a pinned run wrote the pin into the session's record (env never sticks)"
 

@@ -5,7 +5,7 @@
 smoke_begin
 
 # /resume SESSION RECORDING + PICKER (docs/state/resume.md). Every
-# conversation records to a rollout JSONL file under ALTER_ZERO_SESSIONS_DIR
+# conversation records to a rollout JSONL file under ZEROTH_SESSIONS_DIR
 # (created lazily on the first user message — the session_meta line first). A
 # second launch's /resume opens the full-screen session picker (the
 # slash-tiled R E S U M E title, a "Type to search" line, the saved session's
@@ -15,7 +15,7 @@ smoke_begin
 # message must land in a second rollout, the resumed one untouched.
 S31="${S}_resume"
 RESUME_DIR="$(mktemp -d "$SMOKE_TMP/sessions.XXXXXX")"
-RAPP="env $CFG_ENV ALTER_ZERO_SESSIONS_DIR=$RESUME_DIR ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+RAPP="env $CFG_ENV ZEROTH_SESSIONS_DIR=$RESUME_DIR ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 launch "$S31" 80 24 "$RAPP"
 submit "$S31" "$USER_MSG"
 wait_summaries 20.1 "$S31" 1 -S -40 >/dev/null # instance 1, turn 1 settles

@@ -39,7 +39,7 @@ use crate::stream::{
 /// swap personas). Kept short to save tokens. The boundary folds the runtime
 /// **environment context** (date/os/user/cwd) onto this at startup so the
 /// agent has context awareness — see [`augment_with_environment`] and
-/// `docs/architecture/environment.md`. Override the persona with `ALTER_ZERO_SYSTEM_PROMPT`.
+/// `docs/architecture/environment.md`. Override the persona with `ZEROTH_SYSTEM_PROMPT`.
 pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../../prompts/zeroth.md");
 
 /// A real OpenAI-compatible backend. Holds the streaming client (carrying the
@@ -97,7 +97,7 @@ pub struct LlmBackend {
     /// The shared tool-permission gate, when the boundary attached one — makes
     /// every `write`/`edit`/`bash` call ask before it runs
     /// (`docs/state/permissions.md`). Without it (an embedder, the live tests,
-    /// `ALTER_ZERO_PERMISSIONS` off) tools run unasked, as they always did.
+    /// `ZEROTH_PERMISSIONS` off) tools run unasked, as they always did.
     permissions: Option<PermissionGate>,
     /// The shared ask gate, when the boundary attached one — **enables the
     /// `askuserquestion` tool** (`docs/tools/ask.md`): the model can raise the
@@ -198,8 +198,8 @@ impl LlmBackend {
     }
 
     /// Build a backend with an explicit system prompt (`None` sends no system
-    /// message). The boundary passes `ALTER_ZERO_SYSTEM_PROMPT` through here.
-    /// Tools are enabled unless `ALTER_ZERO_TOOLS` is falsy (see `docs/tools/tools.md`).
+    /// message). The boundary passes `ZEROTH_SYSTEM_PROMPT` through here.
+    /// Tools are enabled unless `ZEROTH_TOOLS` is falsy (see `docs/tools/tools.md`).
     #[must_use]
     pub fn with_system_prompt(cfg: ModelConfig, system_prompt: Option<String>) -> Self {
         Self::configure(cfg, system_prompt, tools_enabled_from_env())
@@ -313,7 +313,7 @@ impl LlmBackend {
     /// Attach the shared tool-permission gate, so every `write`/`edit`/`bash`
     /// call — this backend's and its subagents' — asks the user first
     /// (`docs/state/permissions.md`). The boundary calls this on the backends it
-    /// builds unless `ALTER_ZERO_PERMISSIONS` is falsy.
+    /// builds unless `ZEROTH_PERMISSIONS` is falsy.
     #[must_use]
     pub fn with_permissions(mut self, gate: PermissionGate) -> Self {
         self.permissions = Some(gate);
@@ -512,9 +512,9 @@ impl LlmBackend {
 }
 
 /// Are the `bash`/`read`/`write`/`edit` tools enabled? On by default; disabled
-/// by a falsy `ALTER_ZERO_TOOLS` (`0`/`false`/`no`/`off`). See `docs/tools/tools.md`.
+/// by a falsy `ZEROTH_TOOLS` (`0`/`false`/`no`/`off`). See `docs/tools/tools.md`.
 fn tools_enabled_from_env() -> bool {
-    match std::env::var("ALTER_ZERO_TOOLS") {
+    match std::env::var("ZEROTH_TOOLS") {
         Ok(v) => !matches!(
             v.trim().to_ascii_lowercase().as_str(),
             "0" | "false" | "no" | "off"
@@ -549,7 +549,7 @@ pub fn render_environment(date: &str, os: &str, user: &str, cwd: &str) -> String
 
 /// Append the environment context to a base system prompt so the agent knows
 /// its date/os/user/cwd (`docs/architecture/environment.md`). A blank base is returned
-/// unchanged so the "empty `ALTER_ZERO_SYSTEM_PROMPT` → no system message"
+/// unchanged so the "empty `ZEROTH_SYSTEM_PROMPT` → no system message"
 /// contract holds (`docs/architecture/context.md`); nothing else is appended — the final
 /// prompt reads persona → environment (the tool schemas carry their own
 /// detail).
@@ -584,7 +584,7 @@ pub fn render_scratchpad(dir: &str) -> String {
 /// temporary files into the session's own directory instead of `/tmp`
 /// (`docs/tools/scratchpad.md`). Composes *after* [`augment_with_environment`], so
 /// the assembled prompt reads persona → environment → scratchpad; a blank base
-/// is returned unchanged, keeping the "empty `ALTER_ZERO_SYSTEM_PROMPT` → no
+/// is returned unchanged, keeping the "empty `ZEROTH_SYSTEM_PROMPT` → no
 /// system message" contract (`docs/architecture/context.md`).
 #[must_use]
 pub fn augment_with_scratchpad(base: &str, dir: &str) -> String {
@@ -603,7 +603,7 @@ const HEADLESS_TEMPLATE: &str = include_str!("../../prompts/headless.md");
 /// one can answer it, that a call needing approval is refused, and that the
 /// run ends with its turn (`docs/cli/headless.md`). Composes *after*
 /// [`augment_with_scratchpad`], the prompt's last block; a blank base is
-/// returned unchanged, keeping the "empty `ALTER_ZERO_SYSTEM_PROMPT` → no
+/// returned unchanged, keeping the "empty `ZEROTH_SYSTEM_PROMPT` → no
 /// system message" contract (`docs/architecture/context.md`).
 #[must_use]
 pub fn augment_with_headless(base: &str) -> String {
@@ -2505,7 +2505,7 @@ mod tests {
     #[test]
     fn backend_surfaces_its_system_prompt_for_the_debug_view() {
         // Tools off so the prompt isn't augmented — deterministic regardless of
-        // the ambient ALTER_ZERO_TOOLS (the augmented case has its own test).
+        // the ambient ZEROTH_TOOLS (the augmented case has its own test).
         let backend = LlmBackend::configure(ModelConfig::fallback(), Some("be nice".into()), false);
         assert_eq!(
             ReplySource::system_prompt(&backend).as_deref(),
@@ -2829,7 +2829,7 @@ mod tests {
 
     #[test]
     fn a_promptless_backend_still_hands_subagents_the_note() {
-        // An empty ALTER_ZERO_SYSTEM_PROMPT drops the main prompt entirely,
+        // An empty ZEROTH_SYSTEM_PROMPT drops the main prompt entirely,
         // but a subagent still needs its framing — the note alone is its
         // prompt (`subagent_config`'s None arm), and the view must show it.
         let backend = LlmBackend::configure(ModelConfig::fallback(), None, false);
@@ -3103,7 +3103,7 @@ mod tests {
 
     #[test]
     fn augment_with_environment_leaves_a_blank_base_unchanged() {
-        // The "empty ALTER_ZERO_SYSTEM_PROMPT → no system message" contract
+        // The "empty ZEROTH_SYSTEM_PROMPT → no system message" contract
         // (docs/architecture/context.md) must survive: a blank base gains no environment
         // block, so `configure` still drops it to `None`.
         assert_eq!(augment_with_environment("   ", "d", "o", "u", "c"), "   ");
@@ -3138,7 +3138,7 @@ mod tests {
         // cwd and its scratchpad.
         let base = augment_with_scratchpad(
             &augment_with_environment("You are Zeroth", "d", "linux", "root", "/repo"),
-            "/tmp/alter-zero-0/s1/scratchpad",
+            "/tmp/zeroth-0/s1/scratchpad",
         );
         let out = augment_with_headless(&base);
         assert!(out.starts_with(&base), "{out}");
@@ -3158,13 +3158,13 @@ mod tests {
 
     #[test]
     fn render_scratchpad_fills_the_dir() {
-        let block = render_scratchpad("/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad");
+        let block = render_scratchpad("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad");
         assert!(
             block.starts_with("## Scratchpad"),
             "the section header leads: {block}"
         );
         assert!(
-            block.contains("/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad"),
+            block.contains("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad"),
             "the dir is in: {block}"
         );
         assert!(
@@ -3183,11 +3183,11 @@ mod tests {
             "root",
             "/repo",
         );
-        let out = augment_with_scratchpad(&base, "/tmp/alter-zero-0/s1/scratchpad");
+        let out = augment_with_scratchpad(&base, "/tmp/zeroth-0/s1/scratchpad");
         let persona = out.find("Zeroth").expect("persona present");
         let env = out.find("/repo").expect("environment present");
         let pad = out
-            .find("/tmp/alter-zero-0/s1/scratchpad")
+            .find("/tmp/zeroth-0/s1/scratchpad")
             .expect("scratchpad present");
         assert!(
             persona < env && env < pad,
@@ -3197,7 +3197,7 @@ mod tests {
 
     #[test]
     fn augment_with_scratchpad_leaves_a_blank_base_unchanged() {
-        // The "empty ALTER_ZERO_SYSTEM_PROMPT → no system message" contract
+        // The "empty ZEROTH_SYSTEM_PROMPT → no system message" contract
         // (docs/architecture/context.md), exactly as the environment block honours it.
         assert_eq!(augment_with_scratchpad("   ", "/tmp/s"), "   ");
         assert_eq!(augment_with_scratchpad("", "/tmp/s"), "");

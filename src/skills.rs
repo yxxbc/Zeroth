@@ -328,7 +328,7 @@ pub fn render_skill_body(dir: &Path, body: &str) -> String {
     let dir = dir.display().to_string();
     let text = body
         .replace("${CLAUDE_SKILL_DIR}", &dir)
-        .replace("${ALTER_ZERO_SKILL_DIR}", &dir);
+        .replace("${ZEROTH_SKILL_DIR}", &dir);
     let rendered =
         format!("Base directory for this skill: {dir}\n\n{SKILL_CONTENT_BOUNDARY}\n\n{text}");
     if rendered.len() <= SKILL_BODY_MAX_BYTES {
@@ -958,7 +958,7 @@ mod tests {
     fn skill_dir_placeholders_expand_to_the_base_directory() {
         let rendered = render_skill_body(
             Path::new("/skills/pdf"),
-            "run ${CLAUDE_SKILL_DIR}/go.py and ${ALTER_ZERO_SKILL_DIR}/x",
+            "run ${CLAUDE_SKILL_DIR}/go.py and ${ZEROTH_SKILL_DIR}/x",
         );
         assert!(
             rendered.contains("run /skills/pdf/go.py and /skills/pdf/x"),

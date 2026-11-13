@@ -48,7 +48,7 @@ directly above.
 The full text is never lost — it expands in the **Ctrl+O transcript** like a
 tool call's output, records into the rollout, and comes back on `/resume`.
 
-Gated by **`ALTER_ZERO_SHOW_THINKING`**: falsy (`0`/`false`/`no`/`off`) restores
+Gated by **`ZEROTH_SHOW_THINKING`**: falsy (`0`/`false`/`no`/`off`) restores
 the old invisible behaviour exactly (the status clause and the token tally stay
 — only the live block and the committed cell go).
 
@@ -281,8 +281,8 @@ rather than each keeping a copy.
 
 ## The flag
 
-`tui::config::show_thinking()` reads `ALTER_ZERO_SHOW_THINKING` with the
-`ALTER_ZERO_PERMISSIONS` grammar — **on unless** the value is `0`, `false`,
+`tui::config::show_thinking()` reads `ZEROTH_SHOW_THINKING` with the
+`ZEROTH_PERMISSIONS` grammar — **on unless** the value is `0`, `false`,
 `no`, or `off` — and `Session` stores it once at bootstrap. The gate is
 entirely at the boundary: when it is off the `Thinking*` arms never open a
 buffer, so `App` has nothing to preview and nothing to record, and every pure
@@ -290,7 +290,7 @@ renderer below simply never sees a reasoning item. There is no second code path
 to keep in step.
 
 Note it does **not** change what is *asked of* the model — the Ctrl+T
-thinking mode (`docs/providers/reasoning.md`) still rides the request. `ALTER_ZERO_SHOW_THINKING=0`
+thinking mode (`docs/providers/reasoning.md`) still rides the request. `ZEROTH_SHOW_THINKING=0`
 hides thinking; `Ctrl+T` to `off` stops it happening.
 
 ## Testing
@@ -303,7 +303,7 @@ the context skip (`context`).
 The boundary wiring is covered by `scripts/smoke.sh` **Phase 66**, which drives
 the real binary in tmux: the live block appears while the dummy "thinks", it is
 replaced by the collapsed cell, the chain-of-thought is **not** in scrollback,
-Ctrl+O expands it back — and the same turn under `ALTER_ZERO_SHOW_THINKING=0`
+Ctrl+O expands it back — and the same turn under `ZEROTH_SHOW_THINKING=0`
 shows neither while still settling to its `Done for Ns` summary.
 
 Two `#[ignore]`d live tests in `tests/live_openrouter.rs` pin the provider end

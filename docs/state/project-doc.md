@@ -102,7 +102,7 @@ The port keeps the project's pure-core / boundary split.
 
 - **`src/project_doc.rs`** — the pure pieces:
   - `PROJECT_DOC_MAX_BYTES` — codex's 32 KiB default; `doc_budget` parses
-    the `ALTER_ZERO_PROJECT_DOC_MAX_BYTES` override (codex's
+    the `ZEROTH_PROJECT_DOC_MAX_BYTES` override (codex's
     `project_doc_max_bytes` config knob in the house env style — a number
     wins, `0` disables loading entirely, anything else is the default).
   - `PROJECT_DOC_FILENAMES` — per directory the first existing candidate
@@ -202,7 +202,7 @@ The port keeps the project's pure-core / boundary split.
   `project_doc_fallback_filenames` and `project_root_markers` are config
   surface we don't have; the candidates (`AGENTS.override.md`,
   `AGENTS.md`) and the `.git` marker are compiled in. The byte budget *is*
-  overridable (`ALTER_ZERO_PROJECT_DOC_MAX_BYTES`, `0` = off) — it doubles
+  overridable (`ZEROTH_PROJECT_DOC_MAX_BYTES`, `0` = off) — it doubles
   as the feature's kill switch.
 - **No history recording** — the instructions are derived context, injected
   per request like the system prompt; they never enter `App::history`, the
@@ -229,7 +229,7 @@ The port keeps the project's pure-core / boundary split.
   the user message, and a mid-turn `/init` is rejected with the busy toast.
   Every other phase runs from this repository's checkout, whose own
   `AGENTS.md` would lead its context, so `scripts/smoke/lib.sh` exports
-  `ALTER_ZERO_PROJECT_DOC_MAX_BYTES=0` for the suite and Phase 52 unsets it
+  `ZEROTH_PROJECT_DOC_MAX_BYTES=0` for the suite and Phase 52 unsets it
   for its temp project.
 - `context::tests` — the block as the leading user entry, its merge with a
   first user message, the listings inside the same block behind the

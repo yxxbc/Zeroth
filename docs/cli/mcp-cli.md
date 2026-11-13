@@ -1,4 +1,4 @@
-# CLI MCP install — `alter-zero mcp add/remove/list/get/add-json`
+# CLI MCP install — `zeroth mcp add/remove/list/get/add-json`
 
 Claude Code and codex both let a script install an MCP server without opening
 the app; this is that surface for the user config file (`docs/tools/mcp.md`),
@@ -6,16 +6,16 @@ resolved and answered **before the TUI boots** like `--continue`/`--resume`
 (`docs/cli/cli.md`):
 
 ```
-$ alter-zero mcp add vercel --url https://mcp.vercel.com
+$ zeroth mcp add vercel --url https://mcp.vercel.com
 Added http MCP server "vercel" (https://mcp.vercel.com)
-File: /home/user/.alter-zero/mcp.json
+File: /home/user/.zeroth/mcp.json
 
-$ alter-zero mcp add everything -e API_KEY=xxx -- npx -y @modelcontextprotocol/server-everything
+$ zeroth mcp add everything -e API_KEY=xxx -- npx -y @modelcontextprotocol/server-everything
 Added stdio MCP server "everything" (npx -y @modelcontextprotocol/server-everything)
-File: /home/user/.alter-zero/mcp.json
+File: /home/user/.zeroth/mcp.json
 
-$ alter-zero mcp list
-MCP servers in /home/user/.alter-zero/mcp.json:
+$ zeroth mcp list
+MCP servers in /home/user/.zeroth/mcp.json:
   vercel: https://mcp.vercel.com (http)
   everything: npx -y @modelcontextprotocol/server-everything (stdio)
 ```
@@ -54,7 +54,7 @@ Claude Code conveniences that fit our config format: `--transport` to name
 `sse` (codex can't say it, our `McpServerConfig` can), `--header` for
 remote servers, `add-json` for README snippets, and the duplicate-name
 error. All of it targets the **user** file only
-(`ALTER_ZERO_MCP_FILE`, else `{config_home}/mcp.json` — the same
+(`ZEROTH_MCP_FILE`, else `{config_home}/mcp.json` — the same
 resolution the TUI uses); the project files are shared with a team and wait
 for the startup review, so a CLI that wrote them would either bypass the
 review or send its servers straight back to it (`docs/state/config-review.md`).
@@ -62,13 +62,13 @@ review or send its servers straight back to it (`docs/state/config-review.md`).
 ### The grammar (pure, `src/cli.rs`)
 
 ```
-alter-zero mcp add <name> --url <URL> [--transport http|sse] [-H|--header "Name: Value"]...
+zeroth mcp add <name> --url <URL> [--transport http|sse] [-H|--header "Name: Value"]...
                    [--client-id <ID> [--client-secret] [--callback-port <N>]]
-alter-zero mcp add <name> [--transport stdio] [-e|--env KEY=VALUE]... [--] <command> [args...]
-alter-zero mcp add-json <name> <json> [--client-secret]
-alter-zero mcp remove <name>
-alter-zero mcp get <name>
-alter-zero mcp list
+zeroth mcp add <name> [--transport stdio] [-e|--env KEY=VALUE]... [--] <command> [args...]
+zeroth mcp add-json <name> <json> [--client-secret]
+zeroth mcp remove <name>
+zeroth mcp get <name>
+zeroth mcp list
 ```
 
 - `mcp` is recognised as the **first** argument only; `parse` peels it off
@@ -130,7 +130,7 @@ alter-zero mcp list
   (exit 0) — `cli::help(HelpPage::Mcp, style)`, the main `--help`'s own
   renderer (`docs/cli/cli.md`): the command as its title in the heading style,
   the description, the six `Usage:` forms, the aligned `Options:` — except
-  after `--`, where tokens are the command's own. Bare `alter-zero mcp` is
+  after `--`, where tokens are the command's own. Bare `zeroth mcp` is
   a usage error naming the subcommands.
 
 ### The writers (pure, `src/mcp/config.rs`)
@@ -167,14 +167,14 @@ key. `parse_server_entry(render_server(config))` round-trips every shape.
 `tui::mcp_cli::run(cmd) -> i32`, exiting with the returned code through
 the same `Err(code)` channel `--help` uses — cooked-mode stdio, no tokio,
 no terminal, before `InlineViewport::init` (`docs/cli/cli.md`'s ordering).
-The file is `config::mcp_user_file_path()` (`ALTER_ZERO_MCP_FILE`, else
+The file is `config::mcp_user_file_path()` (`ZEROTH_MCP_FILE`, else
 `{config_home}/mcp.json`); `None` — no `HOME`, no override — is a hard
 exit 1, unlike the TUI's best-effort writers, because there is nowhere to
 persist. A missing file reads as `{}`; the write is
 `llm::mcp::write_config_file` — the parent created (owner-only) on first
 use, a temp file synced and renamed into place so a failed write leaves the
 old file whole, the file's permissions kept (owner-only for a new one) and
-a symlink followed to the file it names — and its error is surfaced. `ALTER_ZERO_MCP=0` does not gate the CLI —
+a symlink followed to the file it names — and its error is surfaced. `ZEROTH_MCP=0` does not gate the CLI —
 it edits a file, launches nothing; the feature switch keeps governing the
 TUI.
 
@@ -202,7 +202,7 @@ a failed write — one plain stderr line), **0** for success and help.
 
 ## Known divergences from the references
 
-- **No `--scope`**: project files (`.mcp.json`, `.alter-zero/mcp.json`)
+- **No `--scope`**: project files (`.mcp.json`, `.zeroth/mcp.json`)
   are read-only here — they're shared with a team and reviewed before they
   run, so installing into them belongs to an edit and the startup review,
   not a CLI write. Claude Code's `local` scope doesn't exist in our two-scope model.
@@ -236,7 +236,7 @@ a failed write — one plain stderr line), **0** for success and help.
 - `mcp::names`: `validate_server_name` accepts the wire-safe class,
   rejects and names anything else.
 - `tests/mcp_cli.rs` (the `detached_exec.rs` pattern — the real binary
-  via `CARGO_BIN_EXE_zeroth`, `ALTER_ZERO_MCP_FILE` into a temp dir):
+  via `CARGO_BIN_EXE_zeroth`, `ZEROTH_MCP_FILE` into a temp dir):
   add stdio + http + sse + add-json, the file's exact JSON, list order,
   get's masking, remove keeping order, duplicate/missing/invalid-file
   exit codes, help, and the invalid file left byte-identical.

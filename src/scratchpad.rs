@@ -5,7 +5,7 @@
 //! per-user, per-session root:
 //!
 //! ```text
-//! {tmp}/alter-zero-{uid}/{session}/
+//! {tmp}/zeroth-{uid}/{session}/
 //! ├── scratchpad/            the agent's temp files
 //! └── tasks/                 {id}.output — background shells' interim output
 //! ```
@@ -30,11 +30,11 @@ const SCRATCHPAD_LEAF: &str = "scratchpad";
 /// The name of the background-tasks leaf under the session root.
 const TASKS_LEAF: &str = "tasks";
 
-/// This session's temp root: `{temp}/alter-zero-{uid}/{session}` — a stable
+/// This session's temp root: `{temp}/zeroth-{uid}/{session}` — a stable
 /// per-user directory holding one directory per live session.
 #[must_use]
 pub fn session_root(temp: &Path, uid: u32, session: &str) -> PathBuf {
-    temp.join(format!("alter-zero-{uid}")).join(session)
+    temp.join(format!("zeroth-{uid}")).join(session)
 }
 
 /// The agent's scratchpad — `{root}/scratchpad`, the directory the system
@@ -102,7 +102,7 @@ pub fn contains(root: &Path, path: &Path) -> bool {
 }
 
 /// Is `path` a file inside **some** session's scratchpad — the
-/// `{tmp}/alter-zero-{uid}/{session}/scratchpad/…` layout [`session_root`] and
+/// `{tmp}/zeroth-{uid}/{session}/scratchpad/…` layout [`session_root`] and
 /// [`scratchpad_dir`] build — whichever session wrote it?
 ///
 /// Display only (`docs/ui/tool-groups.md` *Scratchpad edits*): a conversation
@@ -130,7 +130,7 @@ pub fn is_session_scratchpad(path: &Path) -> bool {
     names.windows(4).any(|window| {
         let user_root = window[0]
             .to_str()
-            .and_then(|name| name.strip_prefix("alter-zero-"))
+            .and_then(|name| name.strip_prefix("zeroth-"))
             .is_some_and(|uid| !uid.is_empty() && uid.bytes().all(|b| b.is_ascii_digit()));
         user_root && window[2] == SCRATCHPAD_LEAF
     })
@@ -145,7 +145,7 @@ mod tests {
         let root = session_root(Path::new("/tmp"), 1000, "18cea7cc0aee22c0-5d77f");
         assert_eq!(
             root,
-            PathBuf::from("/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f")
+            PathBuf::from("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f")
         );
     }
 
@@ -154,47 +154,44 @@ mod tests {
         let root = session_root(Path::new("/tmp"), 1000, "18cea7cc0aee22c0-5d77f");
         assert_eq!(
             scratchpad_dir(&root),
-            PathBuf::from("/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad")
+            PathBuf::from("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad")
         );
         assert_eq!(
             tasks_dir(&root),
-            PathBuf::from("/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/tasks")
+            PathBuf::from("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/tasks")
         );
         // The downscaled image payloads the backend re-sends each turn
         // (docs/ui/images.md "Memory") live beside them.
         assert_eq!(
             images_dir(&root),
-            PathBuf::from("/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/images")
+            PathBuf::from("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/images")
         );
     }
 
     #[test]
     fn contains_covers_only_absolute_paths_strictly_inside() {
-        let root = Path::new("/tmp/alter-zero-1000/s1/scratchpad");
+        let root = Path::new("/tmp/zeroth-1000/s1/scratchpad");
         assert!(contains(
             root,
-            Path::new("/tmp/alter-zero-1000/s1/scratchpad/notes.md")
+            Path::new("/tmp/zeroth-1000/s1/scratchpad/notes.md")
         ));
         assert!(contains(
             root,
-            Path::new("/tmp/alter-zero-1000/s1/scratchpad/a/b.txt")
+            Path::new("/tmp/zeroth-1000/s1/scratchpad/a/b.txt")
         ));
+        assert!(!contains(root, Path::new("/tmp/zeroth-1000/s1/scratchpad")));
         assert!(!contains(
             root,
-            Path::new("/tmp/alter-zero-1000/s1/scratchpad")
-        ));
-        assert!(!contains(
-            root,
-            Path::new("/tmp/alter-zero-1000/s1/tasks/x.output")
+            Path::new("/tmp/zeroth-1000/s1/tasks/x.output")
         ));
         assert!(!contains(root, Path::new("notes.md")));
         assert!(!contains(
             root,
-            Path::new("/tmp/alter-zero-1000/s1/scratchpad/../../../etc/passwd")
+            Path::new("/tmp/zeroth-1000/s1/scratchpad/../../../etc/passwd")
         ));
         assert!(!contains(
             root,
-            Path::new("/tmp/alter-zero-1000/s1/scratchpad-elsewhere/x")
+            Path::new("/tmp/zeroth-1000/s1/scratchpad-elsewhere/x")
         ));
     }
 
@@ -203,22 +200,22 @@ mod tests {
         // A conversation resumed in a new process has a new scratchpad, so
         // the files its earlier session wrote are found by the layout.
         for path in [
-            "/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad/notes.md",
-            "/var/folders/x1/T/alter-zero-501/a-1/scratchpad/sub/b.py",
+            "/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad/notes.md",
+            "/var/folders/x1/T/zeroth-501/a-1/scratchpad/sub/b.py",
         ] {
             assert!(is_session_scratchpad(Path::new(path)), "{path}");
         }
         for path in [
             // The directory itself, a sibling leaf, no session segment.
-            "/tmp/alter-zero-1000/s1/scratchpad",
-            "/tmp/alter-zero-1000/s1/tasks/x.output",
-            "/tmp/alter-zero-1000/scratchpad/notes.md",
+            "/tmp/zeroth-1000/s1/scratchpad",
+            "/tmp/zeroth-1000/s1/tasks/x.output",
+            "/tmp/zeroth-1000/scratchpad/notes.md",
             // Not this app's per-user root.
-            "/tmp/alter-zero-me/s1/scratchpad/notes.md",
+            "/tmp/zeroth-me/s1/scratchpad/notes.md",
             "/tmp/claude-1000/s1/scratchpad/notes.md",
             // Relative, or climbing out.
-            "alter-zero-1000/s1/scratchpad/notes.md",
-            "/tmp/alter-zero-1000/s1/scratchpad/../../../../etc/passwd",
+            "zeroth-1000/s1/scratchpad/notes.md",
+            "/tmp/zeroth-1000/s1/scratchpad/../../../../etc/passwd",
         ] {
             assert!(!is_session_scratchpad(Path::new(path)), "{path}");
         }

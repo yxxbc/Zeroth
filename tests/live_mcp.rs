@@ -17,7 +17,7 @@
 //! cargo test --test live_mcp -- --ignored --nocapture live_deepwiki_tool_descriptions
 //! ```
 //!
-//! `ALTER_ZERO_LIVE_MODEL` overrides the model (default `openai/gpt-4o-mini`).
+//! `ZEROTH_LIVE_MODEL` overrides the model (default `openai/gpt-4o-mini`).
 
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
@@ -155,7 +155,7 @@ fn live_google_servers_wait_for_sign_in_while_open_ones_connect() {
 
 /// The model under test.
 fn live_model() -> String {
-    std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string())
+    std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string())
 }
 
 /// An OpenRouter backend with the DeepWiki tools attached and permissions

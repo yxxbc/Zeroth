@@ -14,7 +14,7 @@ smoke_begin
 # "User answered Zeroth's questions:" cell; the composer draft typed before
 # the modal must be stashed and handed back.
 S68="${S}_ask"
-APP_ASK="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=800 $BIN"
+APP_ASK="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=800 $BIN"
 launch "$S68" 100 44 "$APP_ASK"
 submit "$S68" "ask me some questions"
 sleep 0.3

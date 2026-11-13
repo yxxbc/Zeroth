@@ -145,7 +145,7 @@ the same threshold — **90% of the model's context window**
   `ModelEntry::context`, riding a `/model` selection and the startup
   capability probe, persisted in `config.json` beside the vision flag, and
   overridable (or supplied for a provider that reports none, and for the
-  dummy) via `ALTER_ZERO_CONTEXT_WINDOW`. Unknown window → no gauge, no
+  dummy) via `ZEROTH_CONTEXT_WINDOW`. Unknown window → no gauge, no
   auto-compact.
 - **The gauge** shows in the footer whenever the window is known:
   `{model} · {cwd} · {used}/{window} ({pct}%)` (e.g. `1.3k/160k (0.8%)` — both
@@ -241,7 +241,7 @@ fully streamed.
   compact branch (`stream.rs`), `Session::start_compact_turn` (`turn.rs`,
   shared with the loop-bottom auto trigger in `bootstrap.rs`),
   `ModelSession::compact_backend` + its `real_backend` gate (`models.rs`), and
-  the `ALTER_ZERO_CONTEXT_WINDOW` override (`config.rs`) with the window's
+  the `ZEROTH_CONTEXT_WINDOW` override (`config.rs`) with the window's
   seeding/persistence.
 - `src/llm/models.rs` / `src/llm/settings.rs` — `ModelEntry::context`
   (`context_length` sniffing) and its `config.json` persistence.

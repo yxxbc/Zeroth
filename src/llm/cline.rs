@@ -74,11 +74,11 @@ const DEFAULT_API_BASE: &str = "https://api.cline.bot";
 /// the smoke suite's local stand-in (Phase 137), or a fork's own. Read at
 /// the boundary and handed in once through [`set_auth_base`], the
 /// `set_issuer` pattern: the pure builders never read the environment.
-pub const AUTH_BASE_ENV: &str = "ALTER_ZERO_CLINE_AUTH_BASE";
+pub const AUTH_BASE_ENV: &str = "ZEROTH_CLINE_AUTH_BASE";
 
 /// The environment variable that points register/refresh at another Cline
 /// API host — Phase 137's stub again, or a fork's own.
-pub const API_BASE_ENV: &str = "ALTER_ZERO_CLINE_API_BASE";
+pub const API_BASE_ENV: &str = "ZEROTH_CLINE_API_BASE";
 
 /// The paths the four calls live on.
 const DEVICE_AUTHORIZE_PATH: &str = "/user_management/authorize/device";
@@ -2084,7 +2084,7 @@ mod tests {
     #[test]
     fn a_rotation_write_back_never_overwrites_a_newer_sign_in() {
         let path = std::env::temp_dir().join(format!(
-            "alter-zero-cline-rotation-{}-{:?}.env",
+            "zeroth-cline-rotation-{}-{:?}.env",
             std::process::id(),
             std::thread::current().id()
         ));

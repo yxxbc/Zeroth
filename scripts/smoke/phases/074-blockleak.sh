@@ -15,7 +15,7 @@ smoke_begin
 # the red notice survives both.
 S74="${S}_blockleak"
 BL_DIR="$(mktemp -d "$SMOKE_TMP/blockleak.XXXXXX")"
-BLAPP="env $CFG_ENV_NOHIST ALTER_ZERO_SESSIONS_DIR=$BL_DIR ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+BLAPP="env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$BL_DIR ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux new-session -d -s "$S74" -x 100 -y 30 "$BLAPP; echo CLI_APP_EXITED; sleep 60"
 sleep 0.5
 # A real turn first: --continue resumes conversations, and a session whose

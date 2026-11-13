@@ -15,7 +15,7 @@ file is in an accepted format, a PNG otherwise) — and drops a compact
 Cmd+V**: the chord never reaches the program (*Cmd+V (macOS)*, below). The real file path is remembered
 off to the side and handed to the backend, alongside the message text, when
 the turn is sent — and the model is **told** it: on the wire the placeholder
-reads `[Image #1: /home/me/.alter-zero/image-cache/773c1c6cb321/1.png]`, so
+reads `[Image #1: /home/me/.zeroth/image-cache/773c1c6cb321/1.png]`, so
 the model knows where the picture it is looking at was saved and can `read` it
 again or hand the path to a tool (*Where a paste is saved*, below). This is a
 focused port
@@ -41,7 +41,7 @@ is refused **before anything is probed** (`require_display`, step 0 below):
 ```
 Failed to paste image: no desktop clipboard in this session (neither DISPLAY
 nor WAYLAND_DISPLAY is set). Save the image file where this session can reach
-it, then ask Alter Zero to read its path.
+it, then ask Zeroth to read its path.
 ```
 
 It used to fall through to `arboard`, whose probe for an X server could stall
@@ -281,7 +281,7 @@ answers NULL in the others. `macos::require_gui_session` asks, and refuses with
 ```
 Failed to paste image: no desktop clipboard in this session (it is not a GUI
 login, so `NSPasteboard` has nothing to read). Save the image file where this
-session can reach it, then ask Alter Zero to read its path
+session can reach it, then ask Zeroth to read its path
 ```
 
 The rule itself is pure — `is_desktop_session(name)` and
@@ -302,7 +302,7 @@ it:
 Failed to paste image: macOS has not allowed this terminal to read the
 clipboard. Allow it in System Settings → Privacy & Security → Automation, then
 try again — or save the image file where this session can reach it and ask
-Alter Zero to read its path
+Zeroth to read its path
 ```
 
 Every other `osascript` failure keeps AppleScript's own wording, which is more
@@ -346,7 +346,7 @@ name whose stem is a number counts — so pastes read in paste order, `1.png`,
 `2.png`, `3.jpg`, and a paste can never take a name the folder already holds.
 
 **Every path stages first.** The bytes go to a hidden
-`.alter-zero-paste-*.{ext}` file *inside* the folder (`clipboard::store_image`
+`.zeroth-paste-*.{ext}` file *inside* the folder (`clipboard::store_image`
 for the streamed, copied and reader-based paths, the PNG encoder writing into
 one directly): inside, so the final move is a same-filesystem rename; hidden,
 so a half-written picture stays out of a listing and its non-numeric stem out
@@ -403,7 +403,7 @@ deletes what `clipboard::evictable_paste_dirs` names: every **empty** folder,
 which is what a paste that failed after creating its directory leaves and
 whose deletion loses nothing, and then the **oldest** folders one at a time
 until the store fits `IMAGE_CACHE_MAX_BYTES` (512 MiB;
-`ALTER_ZERO_IMAGE_CACHE_MAX_BYTES` overrides, `0` means no limit). The live
+`ZEROTH_IMAGE_CACHE_MAX_BYTES` overrides, `0` means no limit). The live
 session's own folder is never a candidate.
 
 A **size** rule rather than an age one, which is where this parts company
@@ -661,13 +661,13 @@ lets a headless box drive the real clipboard path:
 ```
 Xvfb :99 -screen 0 1280x800x24 &
 cargo build && cargo build --example clipboard_owner
-scripts/paste_mem.sh target/debug/alter-zero 1920x1080 3 halfblocks 1
+scripts/paste_mem.sh target/debug/zeroth 1920x1080 3 halfblocks 1
 ```
 
 `scripts/turn_mem.sh` is its sibling for the turns *after* the paste — one
 paste, one send, then N text follow-ups that each re-send the picture, with
 the same samples after every step (`LIVE=1` drives a real provider from
-`ALTER_ZERO_PROVIDER`/`ALTER_ZERO_MODEL`); its numbers are `docs/architecture/memory.md`'s
+`ZEROTH_PROVIDER`/`ZEROTH_MODEL`); its numbers are `docs/architecture/memory.md`'s
 *Every turn re-sent the picture* tables, and `examples/image_turn_probe.rs`
 replays the request build alone, with no network, for the per-stage cost.
 

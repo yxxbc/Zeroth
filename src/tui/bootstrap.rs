@@ -170,7 +170,7 @@ impl<'t> Session<'t> {
         // session's scratchpad and task output by the id it was handed.
         let session_id = host::session_id();
         // This session's own temp tree (docs/tools/scratchpad.md):
-        // `{tmp}/alter-zero-{uid}/{session}/` holding `scratchpad/` — where the
+        // `{tmp}/zeroth-{uid}/{session}/` holding `scratchpad/` — where the
         // system prompt sends every temporary file — beside the `tasks/` dir
         // the background shells tee into. The scratchpad is created here,
         // before the prompt is assembled: `None` back means the agent is told
@@ -208,7 +208,7 @@ impl<'t> Session<'t> {
         // dir so the model can `read` progress mid-run.
         let (bg_tx, bg_rx) = tokio::sync::mpsc::unbounded_channel::<BgEvent>();
         // The interim files sit in the session's own temp tree —
-        // `{tmp}/alter-zero-{uid}/{session}/tasks/{id}.output`, beside the
+        // `{tmp}/zeroth-{uid}/{session}/tasks/{id}.output`, beside the
         // agent's `scratchpad/` (the pure `scratchpad::tasks_dir` over the
         // root resolved above; the uid/session injected at the boundary).
         // Short deliberately: the model reads these paths back out of every
@@ -276,7 +276,7 @@ impl<'t> Session<'t> {
 
         // The ask gate (docs/tools/ask.md): the `AskUserQuestion` modal's answers
         // post here, waking the blocked tool thread. Always built — asking is
-        // not a permission, so it doesn't follow ALTER_ZERO_PERMISSIONS.
+        // not a permission, so it doesn't follow ZEROTH_PERMISSIONS.
         let ask = zeroth::ask::AskGate::new();
 
         // The shared task list (docs/tools/task-tools.md): the executor mutates it
@@ -318,7 +318,7 @@ impl<'t> Session<'t> {
         // so this very walk finds it — a skill that appeared only on the
         // *second* launch would be missing from exactly the session that just
         // installed the app. Never clobbers an edited copy, and skipped
-        // entirely when ALTER_ZERO_SKILLS_DIR replaced the roots.
+        // entirely when ZEROTH_SKILLS_DIR replaced the roots.
         let (found_skills, skill_errors) = match host {
             Some(host) => (host.skills.clone(), host.skill_errors.clone()),
             None => {
@@ -371,7 +371,7 @@ impl<'t> Session<'t> {
 
         // What the startup review decides over (docs/state/config-review.md): the
         // user's lifecycle hooks (`~/.zeroth/hooks.json`, or
-        // `ALTER_ZERO_HOOKS_FILE`), the project's `.alter-zero` layer
+        // `ZEROTH_HOOKS_FILE`), the project's `.zeroth` layer
         // (docs/state/project-config.md) and trust.json — each read once, here,
         // BEFORE the MCP manager and the hooks setup, both of which run only
         // what the user trusts. A malformed hooks.json is deliberately loud —
@@ -398,7 +398,7 @@ impl<'t> Session<'t> {
 
         // The `/settings` knobs (docs/state/settings.md), per working directory
         // (docs/state/per-directory-state.md): this directory's saved entry — else
-        // the file's seed — with each `ALTER_ZERO_*` override applied on top.
+        // the file's seed — with each `ZEROTH_*` override applied on top.
         // Resolved BEFORE the backend, which is built around three of them
         // (tools, retries, temperature).
         let settings_path = config::settings_json_path();
@@ -432,7 +432,7 @@ impl<'t> Session<'t> {
         // manager built over them — always, so the `/settings` **MCP** row
         // can turn it on mid-session. Then every enabled server's connect is
         // kicked off on worker threads, never blocking the first frame — or,
-        // with the row off in this directory (or `ALTER_ZERO_MCP` falsy for
+        // with the row off in this directory (or `ZEROTH_MCP` falsy for
         // the run), nothing connects at all. The event channel is a select!
         // source like the background shells'.
         let (mcp_tx, mcp_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -469,8 +469,8 @@ impl<'t> Session<'t> {
             file: std::sync::Arc::new(trust.runner_hooks()),
             session_id: session_id.clone(),
             cwd: cwd.clone(),
-            // `$ALTER_ZERO_PROJECT_DIR`: the root the project layer reads
-            // `.alter-zero/` from, so a project hook reaching its own
+            // `$ZEROTH_PROJECT_DIR`: the root the project layer reads
+            // `.zeroth/` from, so a project hook reaching its own
             // scripts finds them from any subdirectory (docs/tools/hooks.md).
             project_dir: zeroth::trust::hooks_project_dir(
                 &cwd,
@@ -482,7 +482,7 @@ impl<'t> Session<'t> {
             // The same tty-detach helper every other shell child gets.
             detach_helper: std::env::current_exe().ok(),
             // The **Hooks** row — on until a directory turns it off, with
-            // `ALTER_ZERO_HOOKS` already merged over it for this run.
+            // `ZEROTH_HOOKS` already merged over it for this run.
             enabled: settings.hooks,
             handles: hook_handles,
             // Claude Code's `scratchpad_dir` (docs/tools/hooks.md): how a hook
@@ -576,7 +576,7 @@ impl<'t> Session<'t> {
         // blocks the raw-mode terminal for seconds while duplicating itself into
         // the store. `seed_checkpoints` then puts a cost *ceiling* on whatever
         // survives the scope check. Whether it *does* snapshot is the
-        // `/settings` **Checkpoints** knob, which `ALTER_ZERO_CHECKPOINTS` seeds
+        // `/settings` **Checkpoints** knob, which `ZEROTH_CHECKPOINTS` seeds
         // (docs/state/settings.md) — applied right after, and flippable mid-session.
         let store_root = config::checkpoints_root();
         let state_dir = config::config_home();

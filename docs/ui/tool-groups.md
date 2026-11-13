@@ -25,7 +25,7 @@ while it runs, and once something that is not a read arrives:
 Searched for 1 pattern, read 2 files, listed 1 directory (ctrl+o to expand)
 
 ● Bash(python3 about.py)
-  ⎿  alter-zero — an autonomous AI agent that lives in your terminal
+  ⎿  zeroth — an autonomous AI agent that lives in your terminal
 ```
 
 Every call is still recorded whole: the **Ctrl+O** transcript expands each one
@@ -40,7 +40,7 @@ the two views, and it is **off by default** — the collapsed view, Claude
 Code's default too. On, nothing groups at all: every call keeps the cell it
 always had, byte for byte, so the row is a way back to the old design rather
 than a third one. Cycling it purge-rebuilds the conversation, so what is
-already in scrollback changes shape at once; `ALTER_ZERO_VERBOSE` seeds it for
+already in scrollback changes shape at once; `ZEROTH_VERBOSE` seeds it for
 a run (the smoke suite exports `1`, so its phases keep the per-call cells they
 assert on).
 
@@ -233,7 +233,7 @@ too, as a clause of its own, and so does this:
 
 ```
 ● Making 1 scratchpad edit +25… (ctrl+o to expand)
-  ⎿  /tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad/guess_the_numbe
+  ⎿  /tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad/guess_the_numbe
      r.py
 ```
 
@@ -265,9 +265,9 @@ Made 2 scratchpad edits +26 -1 (ctrl+o to expand)
   running it reports the diff.
 
 **What counts as the scratchpad** (`PathDisplay::in_scratchpad`): this
-session's own directory, wherever `ALTER_ZERO_SCRATCHPAD_DIR` put it — the
+session's own directory, wherever `ZEROTH_SCRATCHPAD_DIR` put it — the
 policy the boundary injects beside the cwd and `$HOME` — and **any** session's
-by its layout, `{tmp}/alter-zero-{uid}/{session}/scratchpad/…`
+by its layout, `{tmp}/zeroth-{uid}/{session}/scratchpad/…`
 (`scratchpad::is_session_scratchpad`), because a conversation resumed in a new
 process has a scratchpad of its own while its records name the one the earlier
 process wrote into (`docs/tools/scratchpad.md` *Known limitations*), and its line
@@ -410,4 +410,4 @@ same line, and **Verbose output** unfolding it. Phase 147 plays the second —
 the live `Making 1 scratchpad edit +N…` line counting up over the file's path
 while the write streams, no `Write(` cell anywhere, one settled
 `Made 2 scratchpad edits +26 -1` line, and Ctrl+O expanding both calls. Every
-other phase runs with `ALTER_ZERO_VERBOSE=1`.
+other phase runs with `ZEROTH_VERBOSE=1`.

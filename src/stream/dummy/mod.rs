@@ -69,13 +69,13 @@ pub fn turn_events(prompt: &str, image_count: usize) -> Vec<StreamEvent> {
 /// draw loop re-arms a frame every 32ms while a turn is active (see `main.rs`),
 /// and an Esc reaps the thread promptly (the wait is an interruptible
 /// `nap`). Configurable per backend via [`DummyAi::with_startup_delay`] (the
-/// app reads `ALTER_ZERO_STARTUP_DELAY_MS`; tests use a short delay).
+/// app reads `ZEROTH_STARTUP_DELAY_MS`; tests use a short delay).
 pub const STARTUP_DELAY: Duration = Duration::from_secs(3);
 
 /// Delay between streamed chunks. Small enough to feel responsive, large
 /// enough that the word-by-word reveal is visible. The default of
 /// [`DummyAi::with_chunk_delay`], which the app overrides from
-/// `ALTER_ZERO_CHUNK_DELAY_MS` to mimic a slow model (`docs/ui/slow-stream.md`).
+/// `ZEROTH_CHUNK_DELAY_MS` to mimic a slow model (`docs/ui/slow-stream.md`).
 pub const CHUNK_DELAY: Duration = Duration::from_millis(45);
 
 /// How long a dummy tool "runs" — the pause between its `ToolStart` and
@@ -99,11 +99,11 @@ pub const THINK_CHUNK_DELAY: Duration = Duration::from_millis(150);
 pub struct DummyAi {
     /// Pause before the first streamed event so the status indicator shows
     /// first ([`STARTUP_DELAY`] by default; the app overrides it from
-    /// `ALTER_ZERO_STARTUP_DELAY_MS`, tests use a short value).
+    /// `ZEROTH_STARTUP_DELAY_MS`, tests use a short value).
     startup_delay: Duration,
     /// Pause after every streamed piece of reply text (and each live tool
     /// output line) — [`CHUNK_DELAY`] by default; the app overrides it from
-    /// `ALTER_ZERO_CHUNK_DELAY_MS`, which is how the offline backend mimics
+    /// `ZEROTH_CHUNK_DELAY_MS`, which is how the offline backend mimics
     /// a model streaming a few tokens a second (`docs/ui/slow-stream.md`).
     chunk_delay: Duration,
     /// The shared tool-permission gate, when the app attached one — lets the
@@ -161,7 +161,7 @@ impl DummyAi {
     }
 
     /// A dummy with a custom pre-stream pause — the app threads
-    /// `ALTER_ZERO_STARTUP_DELAY_MS` through here, and tests pass a short delay.
+    /// `ZEROTH_STARTUP_DELAY_MS` through here, and tests pass a short delay.
     #[must_use]
     pub fn with_startup_delay(startup_delay: Duration) -> Self {
         Self {
@@ -171,7 +171,7 @@ impl DummyAi {
     }
 
     /// A dummy pacing its reply at `chunk_delay` per streamed piece — the app
-    /// threads `ALTER_ZERO_CHUNK_DELAY_MS` through here so the demo streams
+    /// threads `ZEROTH_CHUNK_DELAY_MS` through here so the demo streams
     /// as slowly as a struggling model, and the smoke suite drives the
     /// inline pipeline at that pace (`docs/ui/slow-stream.md`).
     #[must_use]

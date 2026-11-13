@@ -6113,7 +6113,7 @@ mod tests {
         static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!(
-            "alter-zero-agents-route-test-{}-{seq}",
+            "zeroth-agents-route-test-{}-{seq}",
             std::process::id()
         ));
         let board = crate::background::BackgroundRegistry::new(tx, dir).with_agents(agents.clone());
@@ -7014,7 +7014,7 @@ mod tests {
     #[test]
     fn a_report_marks_where_each_follow_up_arrived() {
         let mut done = snapshot(
-            AgentState::Done("alter-zero.".into()),
+            AgentState::Done("zeroth.".into()),
             &["Bash(curl one)", "Bash(curl two)"],
         );
         done.follow_ups = vec![FollowUp::lead(1), FollowUp::lead(2)];

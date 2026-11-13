@@ -14,11 +14,11 @@
 `main.rs` 是第三个这样的文件 —— 5,304 行，一个 2,058 行的 `run()` —— 现在它是
 `src/main.rs`（77 行）加上 `src/tui/`，20 个按同样模式构建的领域模块。那次拆分
 需要另外两次不需要的东西：循环的状态必须先变成 struct，代码才能搬移。参见
-[`src/tui/` —— 终端外壳](#srctui--the-terminal-shell)。
+[`src/tui/` —— 终端外壳](#srctui--终端外壳)。
 
 `stream.rs` 是第四个 —— 2,459 行，其中每个真实模型都实现的那个后端*接缝*
 （seam）约 250 行，而离线 demo 后端有 1,100 行。参见
-[`src/stream/` —— 后端接缝](#srcstream--the-backend-seam)。
+[`src/stream/` —— 后端接缝](#srcstream--后端接缝)。
 
 ## 各部分住在哪里
 
@@ -140,7 +140,7 @@
 | `config.rs` | 读取环境：provider、key、按目录的 `/model` 选择与 `/settings` 旋钮（`docs/state/per-directory-state.md`）、权限规则、按用户的 `telemetry.json`（`TELEMETRY.md`）、`update.json`（`docs/ops/update.md`）与 `tips.json`（`docs/ui/tips.md`）、各条路径。 |
 | `bootstrap.rs` | `Session::bootstrap` / `shutdown` / `after_iteration` —— 装配、拆除、循环底部的工作。 |
 | `startup.rs` | `--continue`/`--resume`/`[PROMPT]` 的参数解析、`-C` 的 `chdir`、带样式的 `--help` / usage 错误打印，以及 `mcp` / `update` 子命令分发（`docs/cli/cli.md`）。 |
-| `headless.rs` | `alter-zero -p`：在 runtime 之前从参数和 stdin 读取的 prompt、无屏幕地运行同一个 `Session` 的循环、信号、各条流、退出状态（`docs/cli/headless.md`）。 |
+| `headless.rs` | `zeroth -p`：在 runtime 之前从参数和 stdin 读取的 prompt、无屏幕地运行同一个 `Session` 的循环、信号、各条流、退出状态（`docs/cli/headless.md`）。 |
 | `recorder.rs` | `SessionRecorder`：把历史镜像到 rollout 文件（`docs/state/resume.md`）。 |
 | `resume.rs` | 在磁盘上寻找已录制的 session，以及 `/resume` + 回溯的分支。 |
 | `history_store.rs` | `InputHistoryStore`（`docs/input/history-persistence.md`）。 |
@@ -154,7 +154,7 @@
 | `usage.rs` | `/usage` 页面的读取：每个已登录订阅一个 worker、它们所回答的那一轮、其倒计时所依的墙钟、分钟刷新、空态 toast、`c` 写剪贴板（`docs/providers/usage.md`）。 |
 | `telemetry.rs` | 每天一次的匿名用量 ping（更新当天再多一次）：install id 的铸造、横幅下方的一次性提示、分离式发送，以及对已送达日期与版本的记录（`TELEMETRY.md`）。 |
 | `update.rs` | 每天一次的更新检查：对仓库最新 release 的分离式 `HEAD`、横幅下方的 `Update available` 卡片（有回合在流式输出时暂缓）、尝试与提示的日期记在 `update.json`（`docs/ops/update.md`）。 |
-| `update_cli.rs` | `alter-zero update` 子命令：同样的检查，然后把单行安装器取到临时文件，并在这个二进制自身所在目录上运行（`docs/ops/update.md`）。 |
+| `update_cli.rs` | `zeroth update` 子命令：同样的检查，然后把单行安装器取到临时文件，并在这个二进制自身所在目录上运行（`docs/ops/update.md`）。 |
 | `herdr.rs` | 向它所运行的 herdr 窗格报告 session 的状态：循环底部同步进库里的 `herdr::Tracker` 与 `herdr::Reporter` worker、失败回合的保持、resume 命令中经 `PATH` 检查的第一个词、退出时的释放（`docs/architecture/herdr.md`）。 |
 | `shell.rs` | `!` 命令运行器及其 drain/cap 单元测试（`docs/input/shell-command.md`）。 |
 | `workers.rs` | 线程外的文件搜索 / 剪贴板 / 模型列表 / 设备登录 / usage / telemetry ping / update 检查任务。 |

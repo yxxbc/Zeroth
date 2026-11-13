@@ -1,35 +1,35 @@
 # CLI — `--help`、`[PROMPT]` 快捷方式、`--continue`、`--resume [id]` 与退出提示
 
 Claude Code 的 session CLI，移植到 `/resume` 的 rollout 文件之上
-（`docs/state/resume.md`）：`alter-zero --continue` 重新打开当前目录记录的最新
-对话，`alter-zero --resume {id}` 可以在任何地方重新打开某个指定的 session，
-而单写一个 `alter-zero --resume` 会把 `/resume` 选择器作为第一个屏幕打开 ——
+（`docs/state/resume.md`）：`zeroth --continue` 重新打开当前目录记录的最新
+对话，`zeroth --resume {id}` 可以在任何地方重新打开某个指定的 session，
+而单写一个 `zeroth --resume` 会把 `/resume` 选择器作为第一个屏幕打开 ——
 并且在退出一个记录过内容的 session 时，会打印出把它带回来的那条可复制粘贴的
 命令。在此之上，**一个带引号的消息就是一个 `[PROMPT]`** ——
-`alter-zero "fix the failing test"` 直接启动进入这个 turn，而
-`alter-zero --resume {id} "and now the docs"` 把它送进重新打开的对话 —— 并且
+`zeroth "fix the failing test"` 直接启动进入这个 turn，而
+`zeroth --resume {id} "and now the docs"` 把它送进重新打开的对话 —— 并且
 `--help` 是应用自身配色下的一个有标题、分节的一页。（同一个 pre-TUI 边界还
-应答 `mcp` 子命令族 —— `alter-zero mcp add/add-json/remove/get/list`，
-`docs/cli/mcp-cli.md` —— 以及 `alter-zero update`，它通过一行安装脚本把最新
+应答 `mcp` 子命令族 —— `zeroth mcp add/add-json/remove/get/list`，
+`docs/cli/mcp-cli.md` —— 以及 `zeroth update`，它通过一行安装脚本把最新
 release 安装到这个二进制上，`docs/ops/update.md`；每一个都由其第一个参数在下面
 的 flag 语法生效之前路由。）**`-p` 在无屏幕的情况下运行同一个 session** ——
 一个 prompt 进去，答复在 stdout 上，退出状态出来 —— 在页面上有它自己的小节；
 运行本身见 `docs/cli/headless.md`，本页只涵盖它的语法。
 
 ```
-$ alter-zero --help
-Alter Zero
+$ zeroth --help
+Zeroth
 
 Starts an interactive session by default; with -p, answers once and exits.
 
-Usage: alter-zero [OPTIONS] [PROMPT]
-       alter-zero -p [OPTIONS] [PROMPT]
-       alter-zero mcp <COMMAND>
-       alter-zero update
+Usage: zeroth [OPTIONS] [PROMPT]
+       zeroth -p [OPTIONS] [PROMPT]
+       zeroth mcp <COMMAND>
+       zeroth update
 
 Commands:
   mcp                            Manage MCP servers in the user config file —
-                                 see alter-zero mcp --help
+                                 see zeroth mcp --help
   update                         Install the newest release over this binary,
                                  if one is out (the checksum-verified installer)
 
@@ -44,6 +44,8 @@ Options:
                                  prints — or pick it from a list, given no ID
   -C, --cwd <DIR>                Run in DIR instead of the current directory
       --permission-mode <MODE>   manual, edit, auto or master, for this run only
+      --fullscreen               Run the terminal UI on the alternate screen
+                                 (experimental; ZEROTH_TUI=full does the same)
   -h, --help                     Print help
   -V, --version                  Print version
 
@@ -63,7 +65,7 @@ Print mode:
   dummy_model_name · ~/repo
 
 Resume this session with:
-alter-zero --resume 18a9f2c33d41e5b6-1a2b
+zeroth --resume 18a9f2c33d41e5b6-1a2b
 ```
 
 ## Claude Code 的做法（调研结论）
@@ -107,7 +109,7 @@ id 就是记录器本就生成的那个（`docs/state/resume.md`）：
 
 ### `[PROMPT]` 快捷方式
 
-`alter-zero "…"` 就是没有 composer 的 Enter：该消息被记录进 ↑ 输入历史（它
+`zeroth "…"` 就是没有 composer 的 Enter：该消息被记录进 ↑ 输入历史（它
 *确实*被提交过），在横幅下方作为 `❯` 气泡提交，turn 便从它开始 —— 边界处的
 `Session::submit_startup_prompt`（`src/tui/turn.rs`，与每一个其他开启 turn 的
 方式并列）先运行 `App::input_history.record`，然后跑 `Submit` 键分支所调用的
@@ -119,28 +121,32 @@ Enter 会绘制出的样子。
 
 语法（`cli::parse`）：
 
-- **一个位置参数，可以出现在 flag 之间的任何位置。** `alter-zero "p" -c` 与
-  `alter-zero -c "p"` 是同一次调用。第二个位置参数是一个点名它的用法错误 ——
+- **一个位置参数，可以出现在 flag 之间的任何位置。** `zeroth "p" -c` 与
+  `zeroth -c "p"` 是同一次调用。第二个位置参数是一个点名它的用法错误 ——
   `unexpected argument: bug (quote the prompt so the shell passes it as one argument)`
-  —— 而不是拼接：否则 `alter-zero write a -c program` 会把 `-c` 读成
+  —— 而不是拼接：否则 `zeroth write a -c program` 会把 `-c` 读成
   `--continue`，而一个悄悄少了一个词的 prompt 比一个必须加引号的 prompt 更糟。
   Claude Code 在这里也报错。
 - **`--` 结束 flag**；其后必须恰好是那一个 prompt，因此以短横线开头的消息也
-  可达（`alter-zero -- "-flags first, then prose"`）。
+  可达（`zeroth -- "-flags first, then prose"`）。
 - **空白 prompt 是用法错误**（`the prompt is empty`）：空字符串正是变量未设置
   时 shell 递过来的东西，而 Enter 同样拒绝空草稿。
 - **prompt 是一条消息，逐字对待。** 开头的 `!` 或 `/` 作为文本送给模型，而
   不是当作 shell 命令或斜杠命令执行 —— composer 的 `!`/`/` 语法是按键语法，
-  而脚本有 `alter-zero mcp …` 来满足它本来可能想用 `/mcp` 的那件事。
+  而脚本有 `zeroth mcp …` 来满足它本来可能想用 `/mcp` 的那件事。
 - **`--resume` 仍然把下一个非短横线参数当作自己的 id**，所以
-  `alter-zero --resume "fix the bug"` 会把 `fix the bug` 当作 id 解析，并以
+  `zeroth --resume "fix the bug"` 会把 `fix the bug` 当作 id 解析，并以
   `No session found for id: fix the bug` 失败（Claude Code 的行为；查找的提示
   会点名选择器）。要把 prompt 送进一个重新打开的 session，就点名那个 session：
   `--resume {id} "prompt"`，或者对这里最新的那个用 `--continue "prompt"`。
-- **与裸选择器同给的 prompt 会被拒绝** —— `alter-zero "p" --resume` 得到的是
+- **与裸选择器同给的 prompt 会被拒绝** —— `zeroth "p" --resume` 得到的是
   `--resume needs a session id to send a prompt into (or use --continue)`。选择器
   是交互式的且可被关闭，一个停在它后面的 prompt 要么在按 Esc 时开启一段新对话，
   要么不得不被丢弃：一个 flag 带来两种意外结局，所以语法一开始就说不。
+- **`--fullscreen`** 选用实验性的、自己拥有一块屏幕的 TUI
+  （`docs/ui/full-screen.md`）：对话被画在备用屏上，而不是提交进 scrollback。
+  `ZEROTH_TUI=full` 从环境里做同一件事，而与 `-p` 同用时这个 flag 被拒绝 ——
+  一次 print 运行没有屏幕可供它拥有。
 
 ### `--help` 页面
 
@@ -149,9 +155,9 @@ Enter 会绘制出的样子。
 `Usage:` 各行，以及各节的行 —— 并按 clap 与 cargo 的方式渲染，这样任何熟悉
 Rust CLI 的读者都知道该往哪里看：
 
-- **标题是 `Alter Zero`** —— `crate::APP_NAME`，应用名字唯一所在之处 ——
-  在第一行，穿着 *heading* 样式：页面点出产品名，而它下面的 `alter-zero` 点出
-  二进制名。`mcp` 页面以其命令 `alter-zero mcp` 为题，样式相同。
+- **标题是 `Zeroth`** —— `crate::APP_NAME`，应用名字唯一所在之处 ——
+  在第一行，穿着 *heading* 样式：页面点出产品名，而它下面的 `zeroth` 点出
+  二进制名。`mcp` 页面以其命令 `zeroth mcp` 为题，样式相同。
 - **描述**是它下面那行，描述的是*调用方式*，而不是产品：`Starts an interactive
   session by default; with -p, answers once and exits.` 两个参考实现都同样写这
   一行 —— codex 的 *"If no subcommand is specified, options will be forwarded to
@@ -160,9 +166,9 @@ Rust CLI 的读者都知道该往哪里看：
   为了弄清怎么运行某个东西，而不是为了被推销它；应用*是什么*属于 README。
   只有一行，因为它是最先被读到的东西，而那里放一段话就等于一段话被跳过；并且
   像其他一切一样在 80 列以内（`main_help_fits_eighty_columns` 钉住它）。
-- **`Usage:`** 是内联的，正如 clap 的打印方式 —— `Usage: alter-zero [OPTIONS]
+- **`Usage:`** 是内联的，正如 clap 的打印方式 —— `Usage: zeroth [OPTIONS]
   [PROMPT]` —— 之后每一个形式各占一行，缩进对齐到第一个（七个空格）。命令词
-  （`alter-zero`、`mcp`）是*字面量*；方括号和尖括号里的部分是*占位符*。
+  （`zeroth`、`mcp`）是*字面量*；方括号和尖括号里的部分是*占位符*。
 - **各节** —— `Commands:`、`Arguments:`、`Options:` —— 每节是一个标题，下面是
   `  {literal}{placeholder}   {description}` 的行：两列缩进、该节最宽的字面量
   单元格、再三个列，然后是描述；多行描述在同列处续写。渲染时不换行 —— 每段
@@ -186,10 +192,10 @@ Rust CLI 的读者都知道该往哪里看：
 ```
 error: unrecognized argument: --frob
 
-Usage: alter-zero [OPTIONS] [PROMPT]
-       alter-zero -p [OPTIONS] [PROMPT]
-       alter-zero mcp <COMMAND>
-       alter-zero update
+Usage: zeroth [OPTIONS] [PROMPT]
+       zeroth -p [OPTIONS] [PROMPT]
+       zeroth mcp <COMMAND>
+       zeroth update
 
 For more information, try '--help'.
 ```
@@ -219,7 +225,7 @@ For more information, try '--help'.
   个参数以 `-` 开头意味着"裸 `--resume`，然后是那个 flag"（所以
   `--resume --help` 不会把 `--help` 当作 id 吃掉）。
 - headless 的 flag（`docs/cli/headless.md`）：`-p`/`--print` 是一个开关，因此
-  prompt 仍是那个唯一的位置参数（`alter-zero -p "…"`，或者当 stdin 携带它时
+  prompt 仍是那个唯一的位置参数（`zeroth -p "…"`，或者当 stdin 携带它时
   一个也不给）；`--output-format text|json|stream-json`、`--max-turns <N>`
   （大于 0 的计数）和 `--verbose` 需要 `-p`，没有它会被拒绝；
   `--permission-mode manual|edit|auto|master` 和 `-C`/`--cwd <DIR>` 在两种运行
@@ -233,7 +239,7 @@ For more information, try '--help'.
   任一样式；`colour_enabled(no_color, term)` 是颜色规则。
 - `resume_hint(bin, id)` —— 与上面所示完全一致的退出提示（两行，无缩进）。
   `bin_name(arg0)` 从用户实际调用它的方式推导出打印的程序名（改名或软链接的
-  安装会回显被运行的那个名字），否则回退到 `alter-zero`。
+  安装会回显被运行的那个名字），否则回退到 `zeroth`。
 
 ### 边界（src/tui/startup.rs、main.rs）
 
@@ -272,7 +278,7 @@ For more information, try '--help'.
     `docs/state/checkpoint.md`）、`app.load_session(items)`、记录器 `adopt`
     （同一文件累积，含断裂尾部修复）、**从文件里最新的 `model` 记录恢复该
     session 的模型**（`docs/state/session-model.md` —— 目录 `config.json` 中的
-    条目只为*新* session 播种；`ALTER_ZERO_MODEL`/`ALTER_ZERO_PROVIDER` 的钉定
+    条目只为*新* session 播种；`ZEROTH_MODEL`/`ZEROTH_PROVIDER` 的钉定
     在这次运行中仍优先于那条记录）—— 然后在边界处把已加载的对话提交到
     scrollback：标题横幅、一个空行，以及通过正常的 `insert_before` 管线执行的
     `ui::repaint_lines(history, width, RESIZE_REFLOW_MAX_ROWS)`。启动时**不
@@ -316,9 +322,9 @@ For more information, try '--help'.
   之前和之后、在 `--` 之后（以短横线开头的）、与 `-c` 和 `-r {id}` 同给；
   第二个位置参数作为携带引号提示的错误；空白 prompt 被拒；prompt 与裸选择器
   同给被拒；`--resume "x y"` 仍是一个 id。help —— 纯文本主页逐行钉住、
-  每一行都在 80 列以内且无行尾空白、`Alter Zero` 标题在最前、`mcp` 页面的
+  每一行都在 80 列以内且无行尾空白、`Zeroth` 标题在最前、`mcp` 页面的
   标题和六行 usage；ANSI 渲染剥掉转义后与纯文本版相等、标题/各节标题携带
-  heading 转义而 `alter-zero` 携带粗体转义；`usage_error` 的三段式形状；
+  heading 转义而 `zeroth` 携带粗体转义；`usage_error` 的三段式形状；
   `colour_enabled` 的三条规则；`resume_hint` 与打印形状一致；`bin_name` 对
   路径取 basename，并在 `None`/空时回退。
 - `session`：`rollout_file_id` 与 `rollout_rel_path` 内嵌的 id 往返一致（含带
@@ -326,7 +332,7 @@ For more information, try '--help'.
   挑出最新的 `updated_secs`，否则 `None`。
 - `tests/cli_help.rs`（真实二进制，`CARGO_BIN_EXE_zeroth`，离线）：管道化的
   `--help` 与 `help(Main, Plain)` 逐字节相同 —— tty 之外没有转义 ——
-  而 `mcp --help` 等于 `Mcp` 页面；`--version` 打印 `alter-zero {version}`；
+  而 `mcp --help` 等于 `Mcp` 页面；`--version` 打印 `zeroth {version}`；
   语法错误以 `error:` 形状打印到 stderr、stdout 为空，退出 2；两个位置参数会
   点名第二个并给出引号提示；prompt 与裸选择器同给被拒。
 - `scripts/smoke.sh` Phase 61（I/O 边界）：退出一个记录过 turn 的 session 会
@@ -334,11 +340,11 @@ For more information, try '--help'.
   rollout 文件；`--continue` 直接重启进入旧对话（无选择器）并追加到同一文件；
   `--resume {id}` 按 id 做同样的事；裸 `--resume` 启动进入选择器；退出一个
   *空* session 不打印提示；在不含会话的新 cwd 里 `--continue` 快速失败，退出 1
-  且无 TUI。**Phase 108**：`alter-zero "hello there"` 直接启动进入这个 turn ——
+  且无 TUI。**Phase 108**：`zeroth "hello there"` 直接启动进入这个 turn ——
   `❯` 气泡、streaming 的回复和 `Done for`，无需按任何键 —— 并且它的退出会
   打印提示；`--resume {id} "again please"` 重新加载 transcript，并把 prompt
   作为同一 rollout 文件里的下一个 turn 运行；`-c "…"` 同理；窗格 tty 上的
-  `--help` 以 `Alter Zero` 开头、带有 `[PROMPT]`、并且是着色的（原始窗格中含
+  `--help` 以 `Zeroth` 开头、带有 `[PROMPT]`、并且是着色的（原始窗格中含
   粗体青色转义），而同一页面经管道则不含任何转义；用法错误打印 clap 形状的
   尾部信息并退出 2。
 - `scripts/live_smoke.sh` Phase L4：对一个真实 provider，prompt 快捷方式的

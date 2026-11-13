@@ -89,7 +89,7 @@ impl PermissionMode {
     }
 }
 
-/// The mode `ALTER_ZERO_PERMISSION_MODE` seeds a run with, given its value —
+/// The mode `ZEROTH_PERMISSION_MODE` seeds a run with, given its value —
 /// the `checkpoint::enabled_by_env` pattern: the boundary reads the variable
 /// and this decides. Unset or blank seeds nothing, leaving it to the
 /// project's saved mode or the default ([`PermissionsFile::starting_mode`]);
@@ -1136,9 +1136,9 @@ impl PermissionsFile {
     }
 
     /// The mode a session in `dir` starts in: the run's `seed`
-    /// (`ALTER_ZERO_PERMISSION_MODE`, [`mode_by_env`]) when there is one, else
+    /// (`ZEROTH_PERMISSION_MODE`, [`mode_by_env`]) when there is one, else
     /// the mode the project saved, else the default — auto. The seed outranks
-    /// the file the way every `ALTER_ZERO_*` override does, and is never
+    /// the file the way every `ZEROTH_*` override does, and is never
     /// written back ([`record_commands`](Self::record_commands)).
     #[must_use]
     pub fn starting_mode(&self, dir: &str, seed: Option<PermissionMode>) -> PermissionMode {
@@ -1634,20 +1634,20 @@ mod tests {
         let gate = PermissionGate::new();
         let inside = request(
             PermissionKind::Write,
-            "/tmp/alter-zero-0/s1/scratchpad/notes.md",
+            "/tmp/zeroth-0/s1/scratchpad/notes.md",
         );
         assert!(
             !gate.scratchpad_covers(&inside),
             "no scratchpad attached, no exemption"
         );
         gate.set_scratchpad(Some(std::path::PathBuf::from(
-            "/tmp/alter-zero-0/s1/scratchpad",
+            "/tmp/zeroth-0/s1/scratchpad",
         )));
         assert!(gate.scratchpad_covers(&inside), "a write inside is covered");
         assert!(
             gate.scratchpad_covers(&request(
                 PermissionKind::Edit,
-                "/tmp/alter-zero-0/s1/scratchpad/deep/b.txt"
+                "/tmp/zeroth-0/s1/scratchpad/deep/b.txt"
             )),
             "an edit inside is covered"
         );
@@ -1655,7 +1655,7 @@ mod tests {
         // happens to name — only the two file tools have a target we can trust.
         assert!(!gate.scratchpad_covers(&request(
             PermissionKind::Bash,
-            "rm -rf /tmp/alter-zero-0/s1/scratchpad"
+            "rm -rf /tmp/zeroth-0/s1/scratchpad"
         )));
         assert!(!gate.scratchpad_covers(&request(PermissionKind::Mcp, "mcp__fs__write")));
         // Outside it, relative to the project, or escaping through `..`: ask.
@@ -1665,11 +1665,11 @@ mod tests {
         assert!(!gate.scratchpad_covers(&request(PermissionKind::Write, "notes.md")));
         assert!(!gate.scratchpad_covers(&request(
             PermissionKind::Write,
-            "/tmp/alter-zero-0/s1/scratchpad/../../../etc/passwd"
+            "/tmp/zeroth-0/s1/scratchpad/../../../etc/passwd"
         )));
         assert!(!gate.scratchpad_covers(&request(
             PermissionKind::Write,
-            "/tmp/alter-zero-0/s1/tasks/bvyo7tkbe.output"
+            "/tmp/zeroth-0/s1/tasks/bvyo7tkbe.output"
         )));
     }
 
@@ -2498,7 +2498,7 @@ mod tests {
     #[test]
     fn a_command_rule_is_saved_without_touching_the_mode() {
         // The live rules carry the mode the run started in — a seed from
-        // `ALTER_ZERO_PERMISSION_MODE` included — so saving a rule moves the
+        // `ZEROTH_PERMISSION_MODE` included — so saving a rule moves the
         // allowlist across and nothing else: a seed never reaches the file.
         let mut file = PermissionsFile::parse(
             r#"{"projects":{"/proj":{"allow_commands":["ls *"],"mode":"edit"}}}"#,
@@ -2576,7 +2576,7 @@ mod tests {
 
     #[test]
     fn the_env_seed_reads_any_mode_name_and_degrades_to_manual() {
-        // `ALTER_ZERO_PERMISSION_MODE`: unset and blank seed nothing…
+        // `ZEROTH_PERMISSION_MODE`: unset and blank seed nothing…
         assert_eq!(mode_by_env(None), None);
         assert_eq!(mode_by_env(Some("")), None);
         assert_eq!(mode_by_env(Some("  ")), None);

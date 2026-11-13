@@ -165,7 +165,7 @@ both against each other is what decides the shape here.
 | unknown keys | **reported**: `providers.groq.descripton is not a known key`, with a fix hint for the spellings other tools use | **refused**: `deny_unknown_fields`, the whole document fails to load |
 | errors | collected into `Vec<String>` issues, surfaced as a toast, the session still runs on the built-ins | one `RulesError`, the tool answers `not-ready` for the process's lifetime |
 | semantics checked | per-block: bad URL, unknown `auth`/`wire_api`, key in the file | cross-field: `order` names an unknown source, `needs = "address"` without a `url`, `fetch.order` names a kind that cannot fetch, a zero count |
-| overrides | `ALTER_ZERO_PROVIDERS_FILE` stands alone; `ZEROTH_CONFIG_DIR` moves the user file | `#[cfg(test)]`-only setters; no env override |
+| overrides | `ZEROTH_PROVIDERS_FILE` stands alone; `ZEROTH_CONFIG_DIR` moves the user file | `#[cfg(test)]`-only setters; no env override |
 | what it cannot do | express a list whose **order matters** — a `BTreeMap` sorts, so `order` would have to be a key | merge: a user cannot add one source to the shipped set |
 
 Neither wins outright. The overlay is right — it is why a fix to a shipped
@@ -276,9 +276,9 @@ entry that is merely wrong is reported and skipped.
 ### The switch
 
 Preferred source is the `/settings` row **Web source** (`auto`, plus one row per
-`sources` entry), persisted like every other setting; `ALTER_ZERO_WEB_SOURCE`
-overrides it for one run, and `ALTER_ZERO_SEARCH_FILE` makes a file stand alone
-(the `ALTER_ZERO_PROVIDERS_FILE` rule: the only shape a hermetic smoke run can
+`sources` entry), persisted like every other setting; `ZEROTH_WEB_SOURCE`
+overrides it for one run, and `ZEROTH_SEARCH_FILE` makes a file stand alone
+(the `ZEROTH_PROVIDERS_FILE` rule: the only shape a hermetic smoke run can
 have). Keys are **not** in this file — they are secrets, below.
 
 ## The walk

@@ -418,7 +418,7 @@ fn a_scripted_run_settles_with_its_end_unless_a_stop_came_first() {
 #[test]
 fn dummy_ai_paces_its_chunks_by_the_configured_chunk_delay() {
     // A slow model streams a few tokens a second, and the whole point of
-    // `ALTER_ZERO_CHUNK_DELAY_MS` is to make the dummy do the same, so the
+    // `ZEROTH_CHUNK_DELAY_MS` is to make the dummy do the same, so the
     // TUI can be watched — and smoke-tested — at that pace
     // (`docs/ui/slow-stream.md`). Play a text-only turn with a deliberate
     // per-chunk pause and assert successive chunks are at least that far

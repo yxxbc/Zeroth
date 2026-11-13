@@ -9,7 +9,7 @@ as the conversation grows — exactly like Claude Code's welcome banner.
 ## What it shows
 
 ```
- ▙▄▙▄▟▄▟   Alter Zero (v0.1.0)
+ ▙▄▙▄▟▄▟   Zeroth (v0.1.0)
 ▝▜▄███▄▛▘  ~/inline-tui
   ▘▘ ▝▝    / commands   @ files   ? shortcuts
 ```
@@ -21,7 +21,7 @@ as the conversation grows — exactly like Claude Code's welcome banner.
   `#61AFEF` under `/theme onedark`; `docs/ui/theme.md`) keyed by display column
   across the art block's width. Borderless, so the art breathes and no box
   rule is drawn (see *Why borderless* below).
-- **Title** — `Alter Zero` **bold**, then `(v{CARGO_PKG_VERSION})` dim.
+- **Title** — `Zeroth` **bold**, then `(v{CARGO_PKG_VERSION})` dim.
 - **cwd** — the same `~`-relative display string the footer uses
   (`App::session.cwd`, produced by `ui::display_cwd` at the boundary), in the
   footer's path colour too — the theme's success green
@@ -44,7 +44,7 @@ is exactly the metadata's height *with* a session; the live case is the
 
 ```
  ▙▄▙▄▟▄▟
-▝▜▄███▄▛▘  Alter Zero (v0.1.0)
+▝▜▄███▄▛▘  Zeroth (v0.1.0)
   ▘▘ ▝▝    / commands   @ files   ? shortcuts
 ```
 
@@ -56,9 +56,9 @@ column. Every row is clamped to the width with a trailing `…`, exactly like
 ## Responsive fallback
 
 The banner never overflows: when the terminal can't seat the art beside the
-full title (`art width + gap + "Alter Zero (v…)"`), `header_lines` drops to a
-one-line **text badge** — the gradient `Alter Zero` + an accent `v…` — over
-the same clamped cwd/hint rows. Both tiers carry the literal `Alter Zero`,
+full title (`art width + gap + "Zeroth (v…)"`), `header_lines` drops to a
+one-line **text badge** — the gradient `Zeroth` + an accent `v…` — over
+the same clamped cwd/hint rows. Both tiers carry the literal `Zeroth`,
 which is what the smoke suite keys on (Phase 45's tier-independent marker).
 
 ## It is chrome, not history
@@ -157,7 +157,7 @@ kept clear of the strings other phases key on (`for commands`,
   the banner + a spacer before the history walk.
 - `ui/tests/wrap.rs`: the mascot tier still fits at the smoke suite's 50-col
   resize width, and no width in a broad sweep overflows.
-- `scripts/smoke.sh` Phase 45: the header shows at startup (the `Alter Zero`
+- `scripts/smoke.sh` Phase 45: the header shows at startup (the `Zeroth`
   marker), survives a resize (still present after 80×24 → 50×24 → 80×24),
   re-shows after `/clear`, tops the Ctrl+O transcript (empty and with a real
   conversation), and **survives the Ctrl+O round-trip**; Phase 3 pins the

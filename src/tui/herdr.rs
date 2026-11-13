@@ -23,7 +23,7 @@ pub(crate) struct HerdrReporter {
 
 impl HerdrReporter {
     /// The reporter for the herdr pane this process runs in, its worker
-    /// started — `None` outside herdr, with `ALTER_ZERO_HERDR` off, off Unix,
+    /// started — `None` outside herdr, with `ZEROTH_HERDR` off, off Unix,
     /// or when the thread cannot be started.
     pub(crate) fn start() -> Option<Self> {
         if !cfg!(unix) {

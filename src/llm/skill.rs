@@ -73,9 +73,9 @@ const BUILTIN_SKILL_FILES: [(&str, &str); 8] = [
 /// The skill directories, in precedence order — the **first** root to claim a
 /// name wins, so a project can shadow a personal skill of the same name.
 ///
-/// `override_dir` (`ALTER_ZERO_SKILLS_DIR`) **replaces** the whole list, the
+/// `override_dir` (`ZEROTH_SKILLS_DIR`) **replaces** the whole list, the
 /// convention every other `*_DIR`/`*_FILE` override here follows
-/// (`ALTER_ZERO_CHECKPOINTS_DIR`, `ALTER_ZERO_HOOKS_FILE`) — and the only
+/// (`ZEROTH_CHECKPOINTS_DIR`, `ZEROTH_HOOKS_FILE`) — and the only
 /// shape that gives a test run a hermetic set, since a merely-prepended root
 /// would still leave the developer's own `~/.claude/skills` in every session.
 ///
@@ -136,7 +136,7 @@ fn project_dirs(dir: &Path) -> Vec<PathBuf> {
 
 /// The root [`seed_builtin_skills`] writes into: `{config_home}/skills`, the
 /// personal root the walk reads at row 5 — and **`None`** whenever
-/// `ALTER_ZERO_SKILLS_DIR` replaced the root list.
+/// `ZEROTH_SKILLS_DIR` replaced the root list.
 ///
 /// That refusal is the difference from the agent definitions, which seed into
 /// their override ([`super::subagent::user_agents_dir`]): a built-in agent
@@ -157,7 +157,7 @@ pub fn builtin_skills_dir(
     config_home.map(|home| home.join("skills"))
 }
 
-/// [`builtin_skills_dir`] with the `ALTER_ZERO_SKILLS_DIR` read applied — the
+/// [`builtin_skills_dir`] with the `ZEROTH_SKILLS_DIR` read applied — the
 /// boundary's entry point, sharing `override_dir` with
 /// [`resolved_skill_roots`] so the variable is still read in one place.
 #[must_use]
@@ -272,7 +272,7 @@ pub fn discover_skills(roots: &[PathBuf]) -> (Vec<SkillMetadata>, Vec<SkillError
 }
 
 /// [`discover_skills`] over the roots this environment resolves to —
-/// `ALTER_ZERO_SKILLS_DIR` alone when it is set, else the project's, the
+/// `ZEROTH_SKILLS_DIR` alone when it is set, else the project's, the
 /// config home's, and `$HOME`'s. `config_home` is passed in rather than read
 /// here so the override that moves it (`ZEROTH_CONFIG_DIR`) resolves once,
 /// at the boundary, the way `llm::hooks::hooks_file_path` takes it.
@@ -285,7 +285,7 @@ pub fn load_skills(
 }
 
 /// The roots this environment resolves to — [`skill_roots`] with the two
-/// environment reads (`$HOME`, `ALTER_ZERO_SKILLS_DIR`) and the `.git`
+/// environment reads (`$HOME`, `ZEROTH_SKILLS_DIR`) and the `.git`
 /// walk-up applied.
 ///
 /// The **one** place those reads happen, so the `/skills` menu can name
@@ -305,11 +305,11 @@ pub fn resolved_skill_roots(cwd: &Path, config_home: Option<&Path>) -> Vec<PathB
     )
 }
 
-/// `ALTER_ZERO_SKILLS_DIR`, empty read as unset — the **one** place the
+/// `ZEROTH_SKILLS_DIR`, empty read as unset — the **one** place the
 /// variable is read, shared by [`resolved_skill_roots`] (which it replaces the
 /// roots of) and [`resolved_builtin_skills_dir`] (which it switches off).
 fn override_dir() -> Option<PathBuf> {
-    std::env::var_os("ALTER_ZERO_SKILLS_DIR")
+    std::env::var_os("ZEROTH_SKILLS_DIR")
         .map(PathBuf::from)
         .filter(|dir| !dir.as_os_str().is_empty())
 }
@@ -511,7 +511,7 @@ mod tests {
             None,
         );
         assert!(
-            !roots.contains(&PathBuf::from("/home/u/.alter-zero/skills")),
+            !roots.contains(&PathBuf::from("/home/u/.zeroth/skills")),
             "{roots:?}"
         );
         assert_eq!(
@@ -525,8 +525,8 @@ mod tests {
 
     #[test]
     fn an_explicit_skills_dir_replaces_every_default_root() {
-        // `*_DIR` overrides REPLACE here (ALTER_ZERO_CHECKPOINTS_DIR,
-        // ALTER_ZERO_HOOKS_FILE) — and only a replacing override gives the
+        // `*_DIR` overrides REPLACE here (ZEROTH_CHECKPOINTS_DIR,
+        // ZEROTH_HOOKS_FILE) — and only a replacing override gives the
         // smoke suite a hermetic run, since a merely-prepended one still
         // leaves the developer's own ~/.claude/skills in every session.
         let roots = skill_roots(
@@ -1443,7 +1443,7 @@ mod tests {
 
     #[test]
     fn an_override_root_is_never_seeded_into() {
-        // ALTER_ZERO_SKILLS_DIR means "these are the skills, and only these":
+        // ZEROTH_SKILLS_DIR means "these are the skills, and only these":
         // writing one of ours into it would both edit a directory the user
         // curates and un-hermetic every run that points the variable at an
         // empty temp dir.

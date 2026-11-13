@@ -14,10 +14,10 @@ fn session_info_is_unset_by_default() {
 #[test]
 fn set_session_info_stores_the_display_strings() {
     let mut app = App::new();
-    app.set_session_info("dummy_model_name", "~/alter-zero");
+    app.set_session_info("dummy_model_name", "~/zeroth");
     let session = app.session.as_ref().expect("session info stored");
     assert_eq!(session.model, "dummy_model_name");
-    assert_eq!(session.cwd, "~/alter-zero");
+    assert_eq!(session.cwd, "~/zeroth");
 }
 
 #[test]

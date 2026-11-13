@@ -207,7 +207,7 @@ fn shift_tab_cycles_the_permission_mode_from_the_composer() {
 
 #[test]
 fn shift_tab_with_permissions_disabled_explains_instead() {
-    // ALTER_ZERO_PERMISSIONS=0 → no gate, nothing ever asks, no mode to
+    // ZEROTH_PERMISSIONS=0 → no gate, nothing ever asks, no mode to
     // toggle. A silent no-op would read as a broken key; the toast says why
     // (the cycle_thinking pattern for a non-reasoning model).
     let mut app = App::new();

@@ -29,7 +29,7 @@ A value lives in exactly three places:
 
 Beyond the store, a value reaches disk only where a tool puts it on the
 user's behalf: a file the agent wrote it into (the point of `.env`), and the
-session's raw task logs (`{tmp}/alter-zero-{uid}/{session}/tasks/*.output`),
+session's raw task logs (`{tmp}/zeroth-{uid}/{session}/tasks/*.output`),
 which keep a command's output as it was printed — `read` back through the
 tool, a log comes out redacted like any other output. Those logs are created
 owner-only (`0600`), since a temp directory's default mode would let every

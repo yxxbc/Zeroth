@@ -543,7 +543,7 @@ fn the_empty_state_skill_paths_wrap_instead_of_clipping() {
         vec![],
         Default::default(),
         true,
-        vec!["~/.config/some/deeply/nested/alter-zero/project/skills".to_string()],
+        vec!["~/.config/some/deeply/nested/zeroth/project/skills".to_string()],
     );
     let lines = crate::ui::skills_view::skills_view_lines(&app, 40, TALL);
     let all = lines

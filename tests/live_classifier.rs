@@ -2,8 +2,8 @@
 //!
 //! Run with `A0_VENICE_API_KEY` in the environment:
 //! `cargo test --test live_classifier -- --ignored --nocapture`.
-//! `ALTER_ZERO_LIVE_VENICE_MODEL` overrides the default model, and the runtime's
-//! `ALTER_ZERO_CLASSIFIER_MODEL` override is honoured too. Requests below are
+//! `ZEROTH_LIVE_VENICE_MODEL` overrides the default model, and the runtime's
+//! `ZEROTH_CLASSIFIER_MODEL` override is honoured too. Requests below are
 //! synthetic command text sent only to `SafetyClassifier::classify`; no agent
 //! turn, shell command, or tool execution is started.
 
@@ -21,7 +21,7 @@ use zeroth::ui::classifier_lines;
 fn live_venice_classifier_prompt_view_and_synthetic_verdicts() {
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the Venice classifier smoke test");
-    let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
     let cfg = ProvidersFile::builtin()
         .model_config(&Selection {

@@ -402,7 +402,7 @@ impl ProvidersFile {
     }
 
     /// A provider file standing **alone** — only its providers, none of the
-    /// built-ins (`ALTER_ZERO_PROVIDERS_FILE`, which is what keeps a smoke run
+    /// built-ins (`ZEROTH_PROVIDERS_FILE`, which is what keeps a smoke run
     /// from fetching every shipped provider beside its stub). Its blocks are
     /// checked, and `in_use` kept, as [`Self::with_user_layer`] does.
     ///
@@ -721,7 +721,7 @@ fn unread_key_issue(id: &str, key: &str) -> String {
 }
 
 /// The fix a `model` key is told, in a block or beside them: the model is
-/// the picker's to choose (or `ALTER_ZERO_MODEL`'s), never the file's.
+/// the picker's to choose (or `ZEROTH_MODEL`'s), never the file's.
 const MODEL_FIX: &str = " — choose a model with /model";
 
 /// What becomes of the running session's provider when a re-read can't give
@@ -1604,12 +1604,12 @@ api_base = "https://a/v1"
             provider_id: "openrouter".to_string(),
             model: "openai/gpt-4o-mini".to_string(),
             api_key: Some("k".to_string()),
-            cache_key: Some("alter-zero-42".to_string()),
+            cache_key: Some("zeroth-42".to_string()),
             service_tier: None,
             ..Default::default()
         };
         let cfg = file.model_config(&sel).expect("resolves");
-        assert_eq!(cfg.cache_key.as_deref(), Some("alter-zero-42"));
+        assert_eq!(cfg.cache_key.as_deref(), Some("zeroth-42"));
         assert_eq!(ModelConfig::fallback().cache_key, None);
     }
 
@@ -2390,7 +2390,7 @@ api_base = "http://localhost:20128/v1"
 
     #[test]
     fn a_standalone_file_is_the_whole_table() {
-        // `ALTER_ZERO_PROVIDERS_FILE`'s "only these" — what keeps a smoke run
+        // `ZEROTH_PROVIDERS_FILE`'s "only these" — what keeps a smoke run
         // from listing every shipped provider beside its stub.
         let (file, issues) = ProvidersFile::standalone(GROQ, None).unwrap();
         assert_eq!(issues, Vec::<String>::new());

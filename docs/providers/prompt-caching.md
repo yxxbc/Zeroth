@@ -321,14 +321,14 @@ OPENROUTER_API_KEY=sk-or-…   cargo test --test live_caching -- --ignored --noc
 ANTHROPIC_API_KEY=sk-ant-…   cargo test --test live_caching -- --ignored --nocapture live_anthropic_api_key
 OLLAMA_API_KEY=…             cargo test --test live_caching -- --ignored --nocapture live_ollama_cloud
 GITHUB_COPILOT_TOKEN=ghu_…   cargo test --test live_caching -- --ignored --nocapture live_copilot
-CHATGPT_CODEX_REFRESH_TOKEN=rt.1.… ALTER_ZERO_LIVE_TOKEN_STORE=/tmp/live.env \
+CHATGPT_CODEX_REFRESH_TOKEN=rt.1.… ZEROTH_LIVE_TOKEN_STORE=/tmp/live.env \
                              cargo test --test live_caching -- --ignored --nocapture live_chatgpt
-ANTHROPIC_CONSOLE_REFRESH_TOKEN=… ALTER_ZERO_LIVE_TOKEN_STORE=/tmp/live.env \
+ANTHROPIC_CONSOLE_REFRESH_TOKEN=… ZEROTH_LIVE_TOKEN_STORE=/tmp/live.env \
                              cargo test --test live_caching -- --ignored --nocapture live_anthropic_console
 ```
 
 The two sign-ins whose refresh token **rotates** refuse to run without
-`ALTER_ZERO_LIVE_TOKEN_STORE`: the mint may retire the token it was given, and
+`ZEROTH_LIVE_TOKEN_STORE`: the mint may retire the token it was given, and
 the rotated one is written back only to a store path — after such a run the
 value under that file's `*_REFRESH_TOKEN` key is the one to keep. The older
 `tests/live_openrouter.rs` cache tests (`live_usage_frame_reaches_the_app`,

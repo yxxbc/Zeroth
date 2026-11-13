@@ -14,7 +14,7 @@ smoke_begin
 S19="${S}_bigoutput"
 # Start from a clean slate so the "no temp file" check sees only what this run
 # would create (the feature is gone, so it should stay zero).
-rm -f /tmp/alter-zero-shell-*.txt 2>/dev/null
+rm -f /tmp/zeroth-shell-*.txt 2>/dev/null
 launch "$S19" 80 24
 # `seq 1 50000` is ~280KB across many lines (well over the 100KB cap) and
 # contains no `…` of its own, so any `…` on screen is the marker.
@@ -26,7 +26,7 @@ bigoutput="$(wait_settled 30 "$S19" -S -40 -- -E '^[[:space:]]+…[[:space:]]*$'
 echo "==== captured pane (huge !output capped in memory, shown whole) ===="
 printf '%s\n' "$bigoutput"
 # No temp file may be created — the full output is never written anywhere now.
-bigoutput_tmpfiles="$(ls /tmp/alter-zero-shell-*.txt 2>/dev/null | wc -l | tr -d ' ')"
+bigoutput_tmpfiles="$(ls /tmp/zeroth-shell-*.txt 2>/dev/null | wc -l | tr -d ' ')"
 echo "bigoutput_tmpfiles=[$bigoutput_tmpfiles]"
 # Open the Ctrl+O view (it opens pinned to the bottom) — its end carries the `…`.
 tmux send-keys -t "$S19" C-o

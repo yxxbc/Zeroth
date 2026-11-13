@@ -489,7 +489,7 @@ fn the_permission_prompt_keeps_the_open_group_above_the_call_it_asks_about() {
 // ===== scratchpad edits (docs/ui/tool-groups.md *Scratchpad edits*) =====
 
 /// A session's scratchpad by the layout, so the verbatim policy knows it.
-const PAD: &str = "/tmp/alter-zero-0/s1/scratchpad";
+const PAD: &str = "/tmp/zeroth-0/s1/scratchpad";
 
 fn pad(name: &str) -> String {
     format!("{PAD}/{name}")
@@ -578,7 +578,7 @@ fn an_open_scratchpad_edit_is_making_over_its_whole_path() {
         texts(&lines),
         [
             "● Making 1 scratchpad edit +55… (ctrl+o to expand)",
-            "  ⎿  /tmp/alter-zero-0/s1/scratchpad/guess_the_number.py",
+            "  ⎿  /tmp/zeroth-0/s1/scratchpad/guess_the_number.py",
         ]
     );
     // Its lines are dim, in the `(ctrl+o to expand)` hint's colour.
@@ -593,18 +593,18 @@ fn an_open_scratchpad_edit_is_making_over_its_whole_path() {
     assert_eq!(
         texts(&live_group_lines(&app, 40, None, true))[1..],
         [
-            "  ⎿  /tmp/alter-zero-0/s1/scratchpad/gue",
-            "     ss_the_number.py",
+            "  ⎿  /tmp/zeroth-0/s1/scratchpad/guess_t",
+            "     he_number.py",
         ]
     );
     // …over as many rows as it takes.
     assert_eq!(
         texts(&live_group_lines(&app, 20, None, true))[1..],
         [
-            "  ⎿  /tmp/alter-zero",
-            "     -0/s1/scratchpa",
-            "     d/guess_the_num",
-            "     ber.py",
+            "  ⎿  /tmp/zeroth-0/s",
+            "     1/scratchpad/gu",
+            "     ess_the_number.",
+            "     py",
         ]
     );
 }
@@ -625,7 +625,7 @@ fn a_write_streaming_into_the_scratchpad_is_the_group_counting_its_lines() {
         texts(&lines),
         [
             "● Making 1 scratchpad edit +3… (ctrl+o to expand)",
-            "  ⎿  /tmp/alter-zero-0/s1/scratchpad/g.py",
+            "  ⎿  /tmp/zeroth-0/s1/scratchpad/g.py",
         ]
     );
 }
@@ -688,7 +688,7 @@ fn a_queued_scratchpad_write_stays_the_group_with_the_lines_it_streamed() {
         texts(&lines),
         [
             "● Making 1 scratchpad edit +2… (ctrl+o to expand)",
-            "  ⎿  /tmp/alter-zero-0/s1/scratchpad/g.py",
+            "  ⎿  /tmp/zeroth-0/s1/scratchpad/g.py",
         ]
     );
 }

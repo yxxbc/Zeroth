@@ -211,7 +211,7 @@ fn session_request(
 /// through to the ordinary prompt below — unless the turn was cancelled out
 /// from under it, which resolves like a reaped gate wait.
 ///
-/// With no `gate` — `ALTER_ZERO_PERMISSIONS` off, or an embedder that built the
+/// With no `gate` — `ZEROTH_PERMISSIONS` off, or an embedder that built the
 /// backend directly — every call is allowed, exactly as before the feature.
 #[must_use]
 #[allow(clippy::too_many_arguments)] // the gate's full seam set (docs/tools/hooks.md)
@@ -675,7 +675,7 @@ mod tests {
         // docs/tools/scratchpad.md: the session's own temp dir is outside the user's
         // project, so a file change there resolves before the prompt is ever
         // raised — visibly, wearing the dim note.
-        let dir = std::env::temp_dir().join("alter-zero-0/s1/scratchpad");
+        let dir = std::env::temp_dir().join("zeroth-0/s1/scratchpad");
         let path = dir.join("notes.md");
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         // Manual: in the modes that let file changes run, the mode covers
@@ -713,7 +713,7 @@ mod tests {
 
     #[test]
     fn a_write_outside_the_scratchpad_still_asks() {
-        let dir = std::env::temp_dir().join("alter-zero-0/s1/scratchpad");
+        let dir = std::env::temp_dir().join("zeroth-0/s1/scratchpad");
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = gate_in(crate::permission::PermissionMode::Manual);
         gate.set_scratchpad(Some(dir));
@@ -758,7 +758,7 @@ mod tests {
         // A PreToolUse hook's `permissionDecision: "ask"` means *a human
         // decides* — it outranks the standing allowlist, and the scratchpad
         // exemption sits right beside it (docs/tools/hooks.md).
-        let dir = std::env::temp_dir().join("alter-zero-0/s1/scratchpad");
+        let dir = std::env::temp_dir().join("zeroth-0/s1/scratchpad");
         let path = dir.join("notes.md");
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = PermissionGate::new();

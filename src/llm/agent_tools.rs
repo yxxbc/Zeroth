@@ -987,7 +987,7 @@ mod tests {
         let (registry, _rx) = registry();
         let (id, _cancel) = registry.register_agent(GENERAL_PURPOSE, "d", "p");
         let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
-        let dir = std::env::temp_dir().join("alter-zero-agent-tools-test");
+        let dir = std::env::temp_dir().join("zeroth-agent-tools-test");
         let background = BackgroundRegistry::new(bg_tx, dir);
         let latch = background.clone();
         let presser = std::thread::spawn(move || {

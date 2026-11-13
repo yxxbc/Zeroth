@@ -13,7 +13,7 @@ smoke_begin
 # must show the changed value — the file persisted it.
 S67="${S}_settings"
 SET_CFG="$(mktemp -d)"
-APP_SET="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$SET_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_SET="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$SET_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 launch "$S67" 90 30 "$APP_SET"
 # The palette lists it (a bare `/set` token filters to it).
 tmux send-keys -t "$S67" -l "/set"

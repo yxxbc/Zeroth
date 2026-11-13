@@ -15,7 +15,7 @@ smoke_begin
 # each message committed exactly once. The startup delay is stretched so
 # Ctrl+O reliably lands in the pre-stream pause, BEFORE the request fires.
 S62="${S}_permoverlay"
-PERMOVERLAY_APP="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=1200 $BIN"
+PERMOVERLAY_APP="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=1200 $BIN"
 launch "$S62" 80 44 "$PERMOVERLAY_APP"
 # Fill the screen so the composer sits flush at the bottom (the bug needs the
 # stranded band to be visible under a full screen).

@@ -10,17 +10,17 @@ smoke_begin
 # of scrollback. Each turn opens on the next tip in the catalog, and the
 # walk's position lives in the per-user tips.json, so a relaunch carries on
 # where the last session left off. `/settings` → Show tips turns the row off
-# and persists that to tips.json (never settings.json); ALTER_ZERO_TIPS
+# and persists that to tips.json (never settings.json); ZEROTH_TIPS
 # seeds the row for a run either way and is never saved.
 #
-# The suite exports ALTER_ZERO_TIPS=0 (lib.sh), so these launches build their
+# The suite exports ZEROTH_TIPS=0 (lib.sh), so these launches build their
 # own string that UNSETS it and let tips.json decide. A long pre-stream pause
 # (6 s) holds each turn still past the delay, so the tip reads off a quiet
 # strip — and an Esc then undoes the turn (nothing streamed yet,
 # docs/input/interrupt.md) instead of leaving a reply to wait out. One turn runs to
 # its summary, for the commit path.
 S125="${S}_tips"
-TIPS_BASE="env -u ALTER_ZERO_TIPS ALTER_ZERO_CONFIG_DIR=$SMOKE_CFG ALTER_ZERO_SESSIONS_DIR=$SMOKE_SESSIONS ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_SKILLS_DIR=$SMOKE_SKILLS ALTER_ZERO_AGENTS_DIR=$SMOKE_AGENTS ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_UPDATE_CHECK=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=6000"
+TIPS_BASE="env -u ZEROTH_TIPS ZEROTH_CONFIG_DIR=$SMOKE_CFG ZEROTH_SESSIONS_DIR=$SMOKE_SESSIONS ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_PROJECT_CONFIG=0 ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=6000"
 APP_TIPS="$TIPS_BASE $BIN"
 TIPS_JSON="$SMOKE_CFG/tips.json"
 TIP_ROW="⎿  Tip: "
@@ -89,10 +89,10 @@ quit_app() {
 }
 
 # ---------------------------------------------------------------------------
-note "ALTER_ZERO_TIPS=0 keeps a turn tipless and tips.json untouched"
-launch "$S125" 100 40 "$TIPS_BASE ALTER_ZERO_TIPS=0 $BIN"
+note "ZEROTH_TIPS=0 keeps a turn tipless and tips.json untouched"
+launch "$S125" 100 40 "$TIPS_BASE ZEROTH_TIPS=0 $BIN"
 submit "$S125" "hello there"
-no_tip_past_delay "$S125" "a turn past the delay with ALTER_ZERO_TIPS=0"
+no_tip_past_delay "$S125" "a turn past the delay with ZEROTH_TIPS=0"
 undo_turn "$S125"
 quit_app "$S125"
 if [ -e "$TIPS_JSON" ]; then
@@ -168,10 +168,10 @@ no_tip_past_delay "$S125" "the relaunch with tips.json off"
 undo_turn "$S125"
 quit_app "$S125"
 
-note "ALTER_ZERO_TIPS=1 seeds the row on for a run, never saved"
-launch "$S125" 100 40 "$TIPS_BASE ALTER_ZERO_TIPS=1 $BIN"
+note "ZEROTH_TIPS=1 seeds the row on for a run, never saved"
+launch "$S125" 100 40 "$TIPS_BASE ZEROTH_TIPS=1 $BIN"
 submit "$S125" "on for this run"
-tip_shown "$S125" 3 "a turn under ALTER_ZERO_TIPS=1"
+tip_shown "$S125" 3 "a turn under ZEROTH_TIPS=1"
 undo_turn "$S125"
 quit_app "$S125"
 expect_file_has "$TIPS_JSON" -F '"enabled": false' "the environment's seed was written to tips.json"

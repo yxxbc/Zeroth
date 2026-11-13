@@ -20,7 +20,7 @@ printf 'pristine\n' >"$WORK46/file.txt"
 # ABSOLUTE path — a relative $BIN would resolve against the temp dir and fail.
 # Re-enable checkpoints here (overriding CFG_ENV's =0) — safe: this runs in a
 # throwaway temp cwd ($WORK46), so a restore's git clean can't touch the repo.
-CKAPP="env $CFG_ENV ALTER_ZERO_CHECKPOINTS=1 ALTER_ZERO_CHECKPOINTS_DIR=$CK_DIR ALTER_ZERO_SESSIONS_DIR=$CK_SESS ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+CKAPP="env $CFG_ENV ZEROTH_CHECKPOINTS=1 ZEROTH_CHECKPOINTS_DIR=$CK_DIR ZEROTH_SESSIONS_DIR=$CK_SESS ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 launch -c "$WORK46" "$S46" 80 24 "$CKAPP"
 submit "$S46" "$USER_MSG"
 wait_for 20.1 "$S46" -S -40 -- -E "$SUMMARY_RE" # text turn 1 settles (checkpoint {pristine})

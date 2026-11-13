@@ -5,8 +5,8 @@
 //! sync, a frame. Writing to stderr from the TUI would corrupt the inline
 //! viewport, so the sink is a file:
 //!
-//! - `ALTER_ZERO_TIMING=<path>` appends to that file;
-//! - `ALTER_ZERO_TIMING=1` appends to `<tmp>/zeroth-timing.log`;
+//! - `ZEROTH_TIMING=<path>` appends to that file;
+//! - `ZEROTH_TIMING=1` appends to `<tmp>/zeroth-timing.log`;
 //! - unset, empty, or `0` writes nothing.
 //!
 //! One line per measured event, flushed immediately, so a run can be timed
@@ -37,9 +37,9 @@ impl Drop for TimingGuard {
     }
 }
 
-/// Append one timing line, if `ALTER_ZERO_TIMING` asks for one.
+/// Append one timing line, if `ZEROTH_TIMING` asks for one.
 pub(crate) fn record(label: &str, elapsed: Duration) {
-    let Ok(target) = std::env::var("ALTER_ZERO_TIMING") else {
+    let Ok(target) = std::env::var("ZEROTH_TIMING") else {
         return;
     };
     if target.is_empty() || target == "0" || target.eq_ignore_ascii_case("false") {

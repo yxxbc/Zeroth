@@ -295,7 +295,7 @@ fn connect_failure(name: &str, server: &str, message: &str) -> String {
     if lower.contains("certificate") {
         return format!(
             "{server}'s certificate is not trusted — it may be self-signed. Point \
-             ALTER_ZERO_CA_FILE at its CA certificate, then test again."
+             ZEROTH_CA_FILE at its CA certificate, then test again."
         );
     }
     // A TLS handshake answered in plain HTTP: rustls reads the reply as a
@@ -646,7 +646,7 @@ mod tests {
         ));
         assert!(text.contains("certificate"), "{text}");
         assert!(text.contains("self-signed"), "{text}");
-        assert!(text.contains("ALTER_ZERO_CA_FILE"), "{text}");
+        assert!(text.contains("ZEROTH_CA_FILE"), "{text}");
     }
 
     #[test]

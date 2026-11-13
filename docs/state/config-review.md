@@ -20,7 +20,7 @@ asks the user to trust each new or changed hook).
 
 | what | where it is read from | the decision | recorded as |
 | ---- | --------------------- | ------------ | ----------- |
-| every hook that can run | the user's `hooks.json` (`~/.zeroth/hooks.json`, or `ALTER_ZERO_HOOKS_FILE`) **and** the project's `{root}/.zeroth/hooks.json` | trust it, or not | the hook itself, per file |
+| every hook that can run | the user's `hooks.json` (`~/.zeroth/hooks.json`, or `ZEROTH_HOOKS_FILE`) **and** the project's `{root}/.zeroth/hooks.json` | trust it, or not | the hook itself, per file |
 | every project MCP server | `{root}/.zeroth/mcp.json`, `{root}/.mcp.json` | enable it, or not | a decision per server, per file, pinned to its entry |
 
 A hook "can run" when the runner would run it: a `command` handler with a
@@ -30,7 +30,7 @@ skipped with a warning whatever the trust says, so asking about them would ask
 about nothing.
 
 Not reviewed: the user's own MCP servers (`~/.zeroth/mcp.json`, written by
-the user or `alter-zero mcp add` — Claude Code does not ask about them
+the user or `zeroth mcp add` — Claude Code does not ask about them
 either), skills and subagent definitions (markdown that runs nothing on load,
 `docs/state/project-config.md`).
 
@@ -39,7 +39,7 @@ either), skills and subagent definitions (markdown that runs nothing on load,
 `{config_home}/trust.json` keeps what the user decided, keyed by the absolute
 path of the file each thing was read from — never inside the project, since a
 checkout that could carry its own approvals would approve itself. The user's
-own file is keyed absolute too: a relative `ALTER_ZERO_HOOKS_FILE` kept as
+own file is keyed absolute too: a relative `ZEROTH_HOOKS_FILE` kept as
 written would be one key for a different file in every directory
 (`config::user_hooks_path`).
 
@@ -146,7 +146,7 @@ first, then the project's MCP servers.
 
   Project · ~/repo/.zeroth/hooks.json
     [✔] PreToolUse · bash
-        ${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh
+        ${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh
 
     Trust selected and continue
     Continue without trusting
@@ -259,11 +259,11 @@ The two action rows and the hint stay on every rung.
 
 ## What is off
 
-- `ALTER_ZERO_HOOKS=0`, or **Hooks** off for the directory: no hooks page —
+- `ZEROTH_HOOKS=0`, or **Hooks** off for the directory: no hooks page —
   nothing would run.
-- **MCP** off for the directory, or `ALTER_ZERO_MCP=0` for the run: no MCP
+- **MCP** off for the directory, or `ZEROTH_MCP=0` for the run: no MCP
   page — nothing would run. Turning the row on asks then.
-- `ALTER_ZERO_PROJECT_CONFIG=0`: no project layer at all; the user's own hooks
+- `ZEROTH_PROJECT_CONFIG=0`: no project layer at all; the user's own hooks
   are still reviewed. The smoke suite sets it in its base environment, and the
   phases that load a `hooks.json` answer the hooks page first.
 - No config home (no `$HOME`, no `ZEROTH_CONFIG_DIR`): decisions hold for

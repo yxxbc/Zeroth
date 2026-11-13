@@ -4,7 +4,7 @@ The `/model` choice is kept **per working directory**
 (`docs/state/per-directory-state.md`): `config.json` holds one entry per cwd, and
 every session launched there starts on it. That answered "which model does
 this *project* use?" and left a second question unanswered — which model
-does this *conversation* use? A directory can hold two alter-zero instances
+does this *conversation* use? A directory can hold two zeroth instances
 at once, one on a frontier model beside one on a cheap local one, and a
 resumed conversation was produced by a particular model whatever the
 directory's entry says today. Both used to lose to the directory:
@@ -84,8 +84,8 @@ nothing: no rebuild, and no second probe for facts a queued one will learn.
 The whole selection is compared, not the pair, so a record carrying another
 Ctrl+T mode still restores. Three cases stop it:
 
-- **An environment pin.** `ALTER_ZERO_MODEL` pins the model for the run
-  whatever the record says, and `ALTER_ZERO_PROVIDER` pins the provider — a
+- **An environment pin.** `ZEROTH_MODEL` pins the model for the run
+  whatever the record says, and `ZEROTH_PROVIDER` pins the provider — a
   saved pair applies only under the provider it was saved with (the startup
   precedence, `docs/providers/llm.md`; the pure `llm::settings::env_outranks` answers
   it). The session keeps the pinned model, silently — the pin is the user's
@@ -128,9 +128,9 @@ Instance A on `x`, instance B on `y`, same cwd:
 1. B picks `y` in `/model`: the directory's entry and the last selection are
    `y`; B's rollout records `y`. A's rollout still records `x`; A keeps
    running `x`.
-2. A quits. `alter-zero --resume {A}` comes back on `x`. `alter-zero
+2. A quits. `zeroth --resume {A}` comes back on `x`. `zeroth
    --continue` reopens the newest conversation here — B's — on `y`. A plain
-   `alter-zero` starts a new session on `y`, the directory's entry.
+   `zeroth` starts a new session on `y`, the directory's entry.
 3. Resuming A while B still runs interleaves nothing: they are two files.
    (Resuming the *same* file from two instances is still the documented
    `docs/state/resume.md` limitation.)
@@ -147,7 +147,7 @@ Instance A on `x`, instance B on `y`, same cwd:
   provider and lets one saved under the same provider apply.
 - `scripts/smoke.sh` Phase 118 (the boundary): two instances in one
   directory, the first on the directory's entry and the second on an
-  `ALTER_ZERO_MODEL` pin, each recording its own `model` line; the
+  `ZEROTH_MODEL` pin, each recording its own `model` line; the
   directory's entry then moved as a `/model` pick elsewhere would move it;
   `--resume {path}` of a conversation on the entry's own model appends no
   redundant line; the entry then moved, `--resume {path}` comes back on the

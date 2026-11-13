@@ -30,7 +30,7 @@ entry — *`mascot.json` and `spinner.json`* below):
 | a directory with no entry starts from | the **last** selection made anywhere — the top-level fields | the **seed** — the top-level keys, which are also the pre-change file |
 | when a directory gets its entry | **at its first launch**: the last selection is pinned as its own right then | **at its first cycled knob**: the seed copied in with that one key moved |
 | what moves the top level | every `/model` switch (it *is* the last selection) | nothing the app does — edit it by hand to change what a new directory starts with |
-| the environment (`ALTER_ZERO_*`) | wins for the run, never written | wins for the run, never written |
+| the environment (`ZEROTH_*`) | wins for the run, never written | wins for the run, never written |
 
 The asymmetry follows from what the top level *is*. The model's "last
 selection" moves with every switch, so a directory that merely *followed* it
@@ -136,7 +136,7 @@ its default has chosen that default.
   (`SessionSettings::copy_value`), keep it as the entry.
 
 That second operation is the write path (`tui::config::save_setting`, from
-`Session::apply_setting`), and it is what keeps an `ALTER_ZERO_*` override
+`Session::apply_setting`), and it is what keeps an `ZEROTH_*` override
 from sticking: the live blob carries the environment, but only the cycled
 key crosses. The re-read file is the base now — the session no longer keeps
 a `saved_settings` copy of its own, since the file's entry for this directory
@@ -215,16 +215,16 @@ the file and the next launch would turn the hooks on again.
 still connecting only once it is enabled — a project's in the startup
 review — and a directory that wants none of them opting out with one cycle,
 recorded as `"mcp": false`, which leaves every server's own `/mcp` switch as
-it was. `ALTER_ZERO_MCP` seeds the row for a run the way `ALTER_ZERO_HOOKS`
+it was. `ZEROTH_MCP` seeds the row for a run the way `ZEROTH_HOOKS`
 seeds Hooks, and is never saved.
 
 Two consequences at the boundary:
 
-- **`ALTER_ZERO_HOOKS` seeds the Hooks row** (`apply_setting_overrides`, the
-  `ALTER_ZERO_TOOLS` pattern) instead of being ANDed over it. The old gate
+- **`ZEROTH_HOOKS` seeds the Hooks row** (`apply_setting_overrides`, the
+  `ZEROTH_TOOLS` pattern) instead of being ANDed over it. The old gate
   could only ever turn hooks *off*; a seed turns them on or off for a run —
-  `smoke.sh`'s hooks phases still set `ALTER_ZERO_HOOKS=1` the way the
-  checkpoint phases set `ALTER_ZERO_CHECKPOINTS=1`, so a directory's saved
+  `smoke.sh`'s hooks phases still set `ZEROTH_HOOKS=1` the way the
+  checkpoint phases set `ZEROTH_CHECKPOINTS=1`, so a directory's saved
   opt-out can never skip them. Like every override it wins for the run and
   is never saved.
 - The checkpoint refusal toast (`Checkpoints off — …`) is silent by default,

@@ -129,7 +129,7 @@ cat >"$SMOKE_CFG/mcp.json" <<MCPJSON
 {"mcpServers": {"fixture": {"type": "stdio", "command": "sh", "args": ["$SMOKE_TMP/server.sh"]}}}
 MCPJSON
 
-C_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ALTER_ZERO_PROJECT_DOC_MAX_BYTES=32768 ALTER_ZERO_PROVIDERS_FILE=$C_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=smoke-144 $BIN_ABS"
+C_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_PROJECT_DOC_MAX_BYTES=32768 ZEROTH_PROVIDERS_FILE=$C_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=smoke-144 $BIN_ABS"
 
 # c_select SESSION LABEL — press ↓ until LABEL's row is the selected one
 # (its detail heading `LABEL · …` beside the legend), printing the page.
@@ -323,7 +323,7 @@ tmux kill-session -t "$S144" 2>/dev/null
 # ---- (e) the dummy, mid-turn: the status line above, the page live ----
 rm -f "$SMOKE_CFG/mcp.json"
 S144D="${S}_contextdummy"
-launch -c "$C_DIR" "$S144D" 100 40 "env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=2500 $BIN_ABS"
+launch -c "$C_DIR" "$S144D" 100 40 "env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=2500 $BIN_ABS"
 submit "$S144D" "$USER_MSG"
 wait_for 5 "$S144D" -F "esc to interrupt" || fail "the dummy's turn never started"
 submit "$S144D" "/context"

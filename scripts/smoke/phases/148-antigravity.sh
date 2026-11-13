@@ -7,7 +7,7 @@ smoke_begin
 # Google Antigravity (docs/providers/antigravity.md) is a browser sign-in, so the
 # browser is played here: the phase reads the `state` off the sign-in page
 # and makes the redirect itself, against the loopback port the page names.
-# Google's token and userinfo hosts are one stub (ALTER_ZERO_GOOGLE_OAUTH_BASE)
+# Google's token and userinfo hosts are one stub (ZEROTH_GOOGLE_OAUTH_BASE)
 # and so is Cloud Code (the provider's base, in a standalone providers
 # file), answering the backend's own wire shapes. What this phase pins:
 #
@@ -148,7 +148,7 @@ api_base = "$AG_BASE"
 EOF
 AG_WORK="$(work_dir)"
 # NO_PROXY keeps a developer's HTTP proxy out of the loopback requests.
-launch -c "$AG_WORK" "$S148" 110 36 "env NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ALTER_ZERO_PROVIDERS_FILE=$AG_PROVIDERS ALTER_ZERO_GOOGLE_OAUTH_BASE=$AG_BASE $BIN_ABS"
+launch -c "$AG_WORK" "$S148" 110 36 "env NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_PROVIDERS_FILE=$AG_PROVIDERS ZEROTH_GOOGLE_OAUTH_BASE=$AG_BASE $BIN_ABS"
 
 # The row, by name; one flow is listed, so Enter opens the browser page.
 submit "$S148" "/login"

@@ -21,9 +21,9 @@
 //! ANTHROPIC_API_KEY=sk-ant-…   cargo test --test live_caching -- --ignored --nocapture live_anthropic_api_key
 //! OLLAMA_API_KEY=…             cargo test --test live_caching -- --ignored --nocapture live_ollama_cloud
 //! GITHUB_COPILOT_TOKEN=ghu_…   cargo test --test live_caching -- --ignored --nocapture live_copilot
-//! ANTHROPIC_CONSOLE_REFRESH_TOKEN=sk-ant-ort01-… ALTER_ZERO_LIVE_TOKEN_STORE=/tmp/live.env \
+//! ANTHROPIC_CONSOLE_REFRESH_TOKEN=sk-ant-ort01-… ZEROTH_LIVE_TOKEN_STORE=/tmp/live.env \
 //!                              cargo test --test live_caching -- --ignored --nocapture live_anthropic_console
-//! CHATGPT_CODEX_REFRESH_TOKEN=rt.1.… ALTER_ZERO_LIVE_TOKEN_STORE=/tmp/live.env \
+//! CHATGPT_CODEX_REFRESH_TOKEN=rt.1.… ZEROTH_LIVE_TOKEN_STORE=/tmp/live.env \
 //!                              cargo test --test live_caching -- --ignored --nocapture live_chatgpt
 //! ```
 //!
@@ -32,7 +32,7 @@
 //! (OpenRouter's Anthropic routing) must read every warm round back; one
 //! whose cache is implicit and best-effort (Venice, ChatGPT) must read the
 //! prefix back on at least one, since only a prefix the app kept unstable
-//! misses on all of them — set `ALTER_ZERO_LIVE_ROUND_PAUSE_MS` to wait
+//! misses on all of them — set `ZEROTH_LIVE_ROUND_PAUSE_MS` to wait
 //! between rounds and measure with the cache given time to settle.
 //!
 //! `live_chatgpt_cache_diagnostics` is the A/B run that found the ChatGPT
@@ -42,17 +42,17 @@
 //!
 //! The two sign-ins whose refresh token **rotates** (Anthropic Console,
 //! ChatGPT — `docs/providers/claude.md`, `docs/providers/chatgpt.md`) refuse to run without
-//! `ALTER_ZERO_LIVE_TOKEN_STORE`: the mint may retire the token it was given,
+//! `ZEROTH_LIVE_TOKEN_STORE`: the mint may retire the token it was given,
 //! and the rotated one is written back only to a store path, so a run without
 //! one would strand the caller with a token the provider no longer honours.
 //! After such a run, the value under that file's `*_REFRESH_TOKEN` key is the
 //! one to keep.
 //!
-//! `ALTER_ZERO_LIVE_VENICE_MODEL` (the proxy and the direct provider alike),
-//! `ALTER_ZERO_LIVE_VENICE_CLAUDE_MODEL`,
-//! `ALTER_ZERO_LIVE_OPENROUTER_MODEL`, `ALTER_ZERO_LIVE_ANTHROPIC_MODEL`,
-//! `ALTER_ZERO_LIVE_CHATGPT_MODEL`, `ALTER_ZERO_LIVE_OLLAMA_CLOUD_MODEL` and
-//! `ALTER_ZERO_LIVE_COPILOT_MODEL` override each provider's default model
+//! `ZEROTH_LIVE_VENICE_MODEL` (the proxy and the direct provider alike),
+//! `ZEROTH_LIVE_VENICE_CLAUDE_MODEL`,
+//! `ZEROTH_LIVE_OPENROUTER_MODEL`, `ZEROTH_LIVE_ANTHROPIC_MODEL`,
+//! `ZEROTH_LIVE_CHATGPT_MODEL`, `ZEROTH_LIVE_OLLAMA_CLOUD_MODEL` and
+//! `ZEROTH_LIVE_COPILOT_MODEL` override each provider's default model
 //! (their catalogs churn).
 
 use zeroth::context::{ContextMessage, ContextRole, ContextToolCall};
@@ -94,7 +94,7 @@ fn config(provider_id: &str, model: &str, key: Option<String>, salt: u64) -> Mod
             vision: None,
             context: None,
             api_base: None,
-            cache_key: Some(format!("alter-zero-live-cache-{salt}")),
+            cache_key: Some(format!("zeroth-live-cache-{salt}")),
             service_tier: None,
         })
         .unwrap_or_else(|| panic!("{provider_id} is a built-in provider"))
@@ -179,7 +179,7 @@ enum CacheReads {
     /// provider that reads *that* back but none of the growing rounds is an
     /// app-side prefix that moved, one that reads neither is not reading
     /// (or reporting) today, which is its business and not the request's.
-    /// `ALTER_ZERO_LIVE_ROUND_PAUSE_MS` waits between rounds for a
+    /// `ZEROTH_LIVE_ROUND_PAUSE_MS` waits between rounds for a
     /// measurement that gives the cache time to settle.
     BestEffort,
 }
@@ -190,7 +190,7 @@ enum CacheReads {
 /// provider. Concurrency and large tool batches are covered by the
 /// deterministic unit stress tests, without charging a live account.
 fn growing_turns_keep_cache(backend: &LlmBackend, reads: CacheReads) {
-    let pause = std::env::var("ALTER_ZERO_LIVE_ROUND_PAUSE_MS")
+    let pause = std::env::var("ZEROTH_LIVE_ROUND_PAUSE_MS")
         .ok()
         .and_then(|ms| ms.parse().ok())
         .map(std::time::Duration::from_millis);
@@ -265,10 +265,7 @@ fn live_venice_growing_conversation_keeps_cache() {
     // with an eight-second pause between rounds — while the
     // identical-request baseline missed alongside them.
     let salt = salt();
-    let model = model_or(
-        "ALTER_ZERO_LIVE_VENICE_MODEL",
-        "openai-gpt-4o-mini-2024-07-18",
-    );
+    let model = model_or("ZEROTH_LIVE_VENICE_MODEL", "openai-gpt-4o-mini-2024-07-18");
     let cfg = config(
         "a0_venice",
         &model,
@@ -286,7 +283,7 @@ fn live_venice_growing_conversation_keeps_cache() {
 fn live_openrouter_growing_conversation_keeps_cache() {
     let salt = salt();
     let model = model_or(
-        "ALTER_ZERO_LIVE_OPENROUTER_MODEL",
+        "ZEROTH_LIVE_OPENROUTER_MODEL",
         "~anthropic/claude-haiku-latest",
     );
     let mut cfg = config(
@@ -317,7 +314,7 @@ fn live_openrouter_marks_the_previous_tool_result_and_reads_it_back() {
     // accepted and read the write it names.
     let salt = salt();
     let model = model_or(
-        "ALTER_ZERO_LIVE_OPENROUTER_MODEL",
+        "ZEROTH_LIVE_OPENROUTER_MODEL",
         "~anthropic/claude-haiku-latest",
     );
     let mut cfg = config(
@@ -366,7 +363,7 @@ fn live_openrouter_marks_the_previous_tool_result_and_reads_it_back() {
 }
 
 #[test]
-#[ignore = "six live requests; needs CHATGPT_CODEX_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE + ALTER_ZERO_LIVE_CHATGPT_MODEL"]
+#[ignore = "six live requests; needs CHATGPT_CODEX_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE + ZEROTH_LIVE_CHATGPT_MODEL"]
 fn live_chatgpt_growing_conversation_keeps_cache() {
     // OpenAI's cache is implicit and best-effort: measured 2026-09-20 on
     // `codex-auto-review`, four of five warm rounds read 5,888 tokens — the
@@ -374,8 +371,8 @@ fn live_chatgpt_growing_conversation_keeps_cache() {
     // than one block — and one round read nothing at all.
     zeroth::llm::chatgpt::set_store_path(token_store());
     let salt = salt();
-    let model = std::env::var("ALTER_ZERO_LIVE_CHATGPT_MODEL")
-        .expect("set ALTER_ZERO_LIVE_CHATGPT_MODEL to a model available to your account");
+    let model = std::env::var("ZEROTH_LIVE_CHATGPT_MODEL")
+        .expect("set ZEROTH_LIVE_CHATGPT_MODEL to a model available to your account");
     let cfg = config(
         "chatgpt_codex",
         &model,
@@ -408,11 +405,9 @@ fn raw_client() -> reqwest::blocking::Client {
 /// The store path the rotating sign-ins write a rotated refresh token back
 /// to. Required for those tests — see the module docs.
 fn token_store() -> std::path::PathBuf {
-    std::env::var_os("ALTER_ZERO_LIVE_TOKEN_STORE")
+    std::env::var_os("ZEROTH_LIVE_TOKEN_STORE")
         .map(std::path::PathBuf::from)
-        .expect(
-            "set ALTER_ZERO_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to",
-        )
+        .expect("set ZEROTH_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to")
 }
 
 // ---------------------------------------------------------------------------
@@ -426,10 +421,7 @@ fn live_venice_second_turn_reads_the_prefix_from_cache() {
     // `prompt_cache_key`; its usage frame carries the cached detail under
     // `prompt_tokens_details` / the top-level Anthropic-style aliases.
     let salt = salt();
-    let model = model_or(
-        "ALTER_ZERO_LIVE_VENICE_MODEL",
-        "openai-gpt-4o-mini-2024-07-18",
-    );
+    let model = model_or("ZEROTH_LIVE_VENICE_MODEL", "openai-gpt-4o-mini-2024-07-18");
     let cfg = config(
         "a0_venice",
         &model,
@@ -455,7 +447,7 @@ fn live_venice_claude_caches_without_our_own_breakpoints() {
     // would say so — turn 1 must report a cache write and turn 2 a read with
     // the crate's marker-free request.
     let salt = salt();
-    let model = model_or("ALTER_ZERO_LIVE_VENICE_CLAUDE_MODEL", "claude-sonnet-4-6");
+    let model = model_or("ZEROTH_LIVE_VENICE_CLAUDE_MODEL", "claude-sonnet-4-6");
     let cfg = config(
         "a0_venice",
         &model,
@@ -487,10 +479,7 @@ fn live_venice_direct_second_turn_reads_the_prefix_from_cache() {
     // the proxy test proves about Venice's implicit cache must hold here
     // without the proxy in between: turn 2 reads the prefix back.
     let salt = salt();
-    let model = model_or(
-        "ALTER_ZERO_LIVE_VENICE_MODEL",
-        "openai-gpt-4o-mini-2024-07-18",
-    );
+    let model = model_or("ZEROTH_LIVE_VENICE_MODEL", "openai-gpt-4o-mini-2024-07-18");
     let cfg = config("venice", &model, Some(credential("VENICE_API_KEY")), salt);
     assert_eq!(cfg.api_base, "https://api.venice.ai/api/v1");
     let backend = LlmBackend::configure(cfg, Some(big_system_prompt(salt)), false);
@@ -517,7 +506,7 @@ fn live_openrouter_latest_alias_id_gets_breakpoints_and_caches() {
     // Turn 1 must write the prefix, turn 2 must read it.
     let salt = salt();
     let model = model_or(
-        "ALTER_ZERO_LIVE_OPENROUTER_MODEL",
+        "ZEROTH_LIVE_OPENROUTER_MODEL",
         "~anthropic/claude-haiku-latest",
     );
     let mut cfg = config(
@@ -560,7 +549,7 @@ fn live_openrouter_latest_alias_id_gets_breakpoints_and_caches() {
 /// reports as `input_tokens`.
 fn anthropic_writes_then_reads(provider_id: &str, key: String) {
     let salt = salt();
-    let model = model_or("ALTER_ZERO_LIVE_ANTHROPIC_MODEL", "claude-haiku-4-5");
+    let model = model_or("ZEROTH_LIVE_ANTHROPIC_MODEL", "claude-haiku-4-5");
     let cfg = config(provider_id, &model, Some(key), salt);
     let backend = LlmBackend::configure(cfg.clone(), Some(big_system_prompt(salt)), false);
     let (first, second) = two_turns(&backend);
@@ -590,7 +579,7 @@ fn live_anthropic_api_key_writes_then_reads_the_prefix() {
 }
 
 #[test]
-#[ignore = "hits the network; needs ANTHROPIC_CONSOLE_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE; costs about a cent"]
+#[ignore = "hits the network; needs ANTHROPIC_CONSOLE_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE; costs about a cent"]
 fn live_anthropic_console_writes_then_reads_the_prefix() {
     zeroth::llm::claude::set_store_path(token_store());
     anthropic_writes_then_reads(
@@ -655,7 +644,7 @@ fn print_raw_anthropic_usage_frames(cfg: &ModelConfig, system: &str) {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE"]
+#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE"]
 fn live_chatgpt_responses_second_turn_reads_the_prefix_from_cache() {
     // The Responses wire (`docs/providers/chatgpt.md`): the system prompt hoisted into
     // `instructions`, `prompt_cache_key` riding every request, the usage
@@ -668,7 +657,7 @@ fn live_chatgpt_responses_second_turn_reads_the_prefix_from_cache() {
     let listed = fetch_models(&probe, &CancelToken::new()).expect("the ChatGPT model listing");
     let ids: Vec<&str> = listed.iter().map(|m| m.id.as_str()).collect();
     println!("ChatGPT models: {ids:?}");
-    let model = std::env::var("ALTER_ZERO_LIVE_CHATGPT_MODEL").unwrap_or_else(|_| {
+    let model = std::env::var("ZEROTH_LIVE_CHATGPT_MODEL").unwrap_or_else(|_| {
         ids.iter()
             .find(|id| id.contains("mini"))
             .or_else(|| ids.first())
@@ -687,7 +676,7 @@ fn live_chatgpt_responses_second_turn_reads_the_prefix_from_cache() {
 }
 
 #[test]
-#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE; diagnostic"]
+#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE; diagnostic"]
 fn live_chatgpt_cache_diagnostics() {
     // Two A/B rounds over the ChatGPT backend, printed rather than asserted:
     // (A) the request exactly as the app sends it, with a pause before the
@@ -698,7 +687,7 @@ fn live_chatgpt_cache_diagnostics() {
     // reports cache reads tells what the backend's routing keys on.
     zeroth::llm::chatgpt::set_store_path(token_store());
     let refresh = credential("CHATGPT_CODEX_REFRESH_TOKEN");
-    let model = model_or("ALTER_ZERO_LIVE_CHATGPT_MODEL", "gpt-5.4-mini");
+    let model = model_or("ZEROTH_LIVE_CHATGPT_MODEL", "gpt-5.4-mini");
     let pause = std::time::Duration::from_secs(12);
     let beta = ("OpenAI-Beta", "responses=experimental");
     // Each variant: a label and the extra headers it adds on top of what the
@@ -745,7 +734,7 @@ fn live_ollama_cloud_reports_usage_but_no_cache_detail() {
     // prompt, both turns); the cached share is honestly zero rather than a
     // guess.
     let salt = salt();
-    let model = model_or("ALTER_ZERO_LIVE_OLLAMA_CLOUD_MODEL", "gpt-oss:20b");
+    let model = model_or("ZEROTH_LIVE_OLLAMA_CLOUD_MODEL", "gpt-oss:20b");
     let cfg = config(
         "ollama_cloud",
         &model,
@@ -780,7 +769,7 @@ fn live_copilot_reports_its_usage_frame() {
     // cached detail is filled in depends on the upstream model. The tally
     // must at least be the provider's number.
     let salt = salt();
-    let model = model_or("ALTER_ZERO_LIVE_COPILOT_MODEL", "gpt-4.1");
+    let model = model_or("ZEROTH_LIVE_COPILOT_MODEL", "gpt-4.1");
     let cfg = config(
         "github_copilot",
         &model,
@@ -794,7 +783,7 @@ fn live_copilot_reports_its_usage_frame() {
 }
 
 #[test]
-#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE"]
+#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE"]
 fn live_chatgpt_fast_mode_is_listed_and_a_priority_request_is_served() {
     // Codex's fast mode on the wire (`docs/providers/fast-mode.md`): the listing names
     // the tier per model, and a request carrying `service_tier: "priority"`
@@ -821,7 +810,7 @@ fn live_chatgpt_fast_mode_is_listed_and_a_priority_request_is_served() {
         .filter(|m| m.service_tiers.iter().any(ServiceTier::is_fast))
         .collect();
     assert!(!fast.is_empty(), "no listed model names a fast tier");
-    let model = std::env::var("ALTER_ZERO_LIVE_CHATGPT_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_CHATGPT_MODEL")
         .ok()
         .or_else(|| {
             fast.iter()

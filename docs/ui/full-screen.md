@@ -232,7 +232,7 @@ still applies.
   in an assistant reply is fetched and replaced by a preview card (site —
   title, dim description, and a cover thumbnail when the page has one and the
   terminal can draw pictures), cached in `~/.zeroth/cache/link-cards.json`
-  (`ALTER_ZERO_LINK_CARDS=0` disables); every text cell carries the link.
+  (`ZEROTH_LINK_CARDS=0` disables); every text cell carries the link.
 - Ctrl+O, the context view and every full-screen page paint over the frame
   through the existing overlay path; leaving a page repaints the frame. A
   resize re-wraps from history at the new width.

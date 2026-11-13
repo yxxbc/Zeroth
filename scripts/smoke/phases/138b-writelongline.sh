@@ -88,7 +88,7 @@ PROVIDERS="$SMOKE_TMP/providers138b.toml"
 printf '[providers.stub]\nname = "Stub"\n\n[providers.stub.kwargs]\napi_base = "http://127.0.0.1:%s/v1"\n' "$PORT" >"$PROVIDERS"
 WORK="$(work_dir longline)"
 # No permission gate: the write and the read run unasked.
-LL_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_PERMISSIONS=0 ALTER_ZERO_PROVIDERS_FILE=$PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+LL_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_PERMISSIONS=0 ZEROTH_PROVIDERS_FILE=$PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 S138B="${S}_writelongline"
 launch -c "$WORK" "$S138B" 100 40 "$LL_APP"
 submit "$S138B" "smoke138b write the notes and read them back"

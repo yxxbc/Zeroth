@@ -8,10 +8,10 @@ Serves DIST's files at /releases/download/TAG/<name>, redirects
 /releases/latest to /releases/tag/TAG the way GitHub does (the installer and
 the app's update check both read the tag off that redirect), answers
 /releases/tag/TAG with a stub page, and — given INSTALLER, a path to
-install.sh — serves it at /install.sh, where `alter-zero update` fetches it
+install.sh — serves it at /install.sh, where `zeroth update` fetches it
 from a non-GitHub base (docs/ops/update.md). Binds an ephemeral port on
 127.0.0.1 and prints it on the first line of stdout; the selftest and the
-smoke suite point ALTER_ZERO_INSTALL_BASE_URL / ALTER_ZERO_UPDATE_URL at it,
+smoke suite point ZEROTH_INSTALL_BASE_URL / ZEROTH_UPDATE_URL at it,
 and `scripts/release.sh download --from`.
 """
 import http.server

@@ -73,7 +73,7 @@ Three small pieces, each the main session's own rule one level down:
   capability probe too — injects both `App::set_agent_model` and
   `App::set_agent_context_window` (`ModelSession::agent_context_window(inherits)`:
   the session's window for an inheriting type, only the
-  `ALTER_ZERO_CONTEXT_WINDOW` override for a pinned one). The footer then names
+  `ZEROTH_CONTEXT_WINDOW` override for a pinned one). The footer then names
   the pinned model in place of the session's — without the session's thinking
   mode, which the launch dropped with the model it replaced — while an
   inheriting type keeps the session's pair. A pinned type with no override
@@ -96,7 +96,7 @@ Three small pieces, each the main session's own rule one level down:
   thinking mode, and an inheriting type keeps `kimi-k3 medium`.
 - `llm::backend`: `agent_model` is the definition's pinned model, `None` for
   the inheriting built-in and for an unknown type.
-- `scripts/smoke.sh` Phase 111: under `ALTER_ZERO_CONTEXT_WINDOW`, the
+- `scripts/smoke.sh` Phase 111: under `ZEROTH_CONTEXT_WINDOW`, the
   agent-stream demo's session view opens on `0/100k (0.0%)` — the agent's true
   zero, never the lead's count — reads a non-zero estimate of its own
   transcript once the agent settles, and the main footer's gauge, a different

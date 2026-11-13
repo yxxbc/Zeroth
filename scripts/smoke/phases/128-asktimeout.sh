@@ -5,7 +5,7 @@
 smoke_begin
 
 # The AskUserQuestion idle timeout (docs/tools/ask.md). With
-# ALTER_ZERO_ASK_TIMEOUT_SECS=8 the dummy's question demo waits eight seconds
+# ZEROTH_ASK_TIMEOUT_SECS=8 the dummy's question demo waits eight seconds
 # of IDLENESS: the modal's closing rule counts down, a key press starts the
 # wait over, and once nothing is touched the question resolves unanswered —
 # the red "User did not finish answering within 8s" cell keeping the one
@@ -13,7 +13,7 @@ smoke_begin
 # composer draft typed before the modal comes back, and Ctrl+D shows the
 # model read the keep-working result rather than a stop-and-wait.
 S128="${S}_asktimeout"
-APP_AT="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=800 ALTER_ZERO_ASK_TIMEOUT_SECS=8 $BIN"
+APP_AT="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=800 ZEROTH_ASK_TIMEOUT_SECS=8 $BIN"
 launch "$S128" 100 44 "$APP_AT"
 submit "$S128" "ask me some questions"
 sleep 0.3

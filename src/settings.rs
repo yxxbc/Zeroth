@@ -4,7 +4,7 @@
 //!
 //! Everything here is data — no environment reads, no filesystem. The boundary
 //! (`tui::config`) reads the file, picks the cwd's entry and applies the
-//! `ALTER_ZERO_*` overrides, and hands the resulting [`SessionSettings`] to
+//! `ZEROTH_*` overrides, and hands the resulting [`SessionSettings`] to
 //! `App`; the picker (`crate::app::SettingsPicker`) renders it and cycles it.
 //! See `docs/state/settings.md`.
 
@@ -49,7 +49,7 @@ pub const TEMPERATURE_DEFAULT_LABEL: &str = "default";
 pub const UNAVAILABLE_SUFFIX: &str = " (unavailable)";
 
 /// What the **Permission mode** row reads when the session has no gate at all
-/// (`ALTER_ZERO_PERMISSIONS=0`) — the mode is not `manual`, it is absent.
+/// (`ZEROTH_PERMISSIONS=0`) — the mode is not `manual`, it is absent.
 pub const PERMISSIONS_DISABLED_LABEL: &str = "disabled";
 
 /// One row of the `/settings` menu. The order here is the order they list.
@@ -603,7 +603,7 @@ impl SessionSettings {
     /// Copy **one** setting's value out of `live` — the read-modify-write the
     /// boundary saves through (`save_permissions`' pattern).
     ///
-    /// This is what keeps an `ALTER_ZERO_*` override from *sticking*: the
+    /// This is what keeps an `ZEROTH_*` override from *sticking*: the
     /// startup blob merges the environment over the file, so writing the whole
     /// merged blob back would silently persist an override the user set for
     /// one run. Instead the boundary keeps the file's own copy and moves
@@ -711,7 +711,7 @@ impl SettingsFile {
 
     /// Record one cycled knob for `project`: take its entry (else the seed),
     /// move across only `key`'s value from the `live` blob
-    /// ([`SessionSettings::copy_value`] — so an `ALTER_ZERO_*` override merged
+    /// ([`SessionSettings::copy_value`] — so an `ZEROTH_*` override merged
     /// in at startup never sticks), and keep the result as the directory's own
     /// entry. The entry stays even when it equals the defaults: dropping it
     /// would let the seed back in, and a directory that cycled a knob back to
@@ -787,7 +787,7 @@ fn temperature_text(t: Option<f32>) -> String {
 
 /// The entry after `current` in `choices`, wrapping — and starting from the
 /// front when `current` isn't one of them (a hand-edited file, or an
-/// `ALTER_ZERO_*` override with a value the menu doesn't offer).
+/// `ZEROTH_*` override with a value the menu doesn't offer).
 fn next_in<T: Copy + PartialEq>(choices: &[T], current: &T) -> T {
     let next = choices
         .iter()

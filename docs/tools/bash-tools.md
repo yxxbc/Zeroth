@@ -266,7 +266,7 @@ also have broken quiet commands. What came with the flip:
 3. **Long output keeps both ends** (`pty::fold::HeadTail`). The first
    [`HEAD_BYTES`] and the last [`TAIL_BYTES`] are kept, and the cut says so on
    a line of its own — `[… 12345 lines omitted — the full output is in
-   /tmp/alter-zero-1000/{session}/tasks/{id}.output]` — naming the log every
+   /tmp/zeroth-1000/{session}/tasks/{id}.output]` — naming the log every
    session already writes (`crate::background`), which the model can `read`
    or search. The log keeps every line: a burst read in one chunk used to
    lose lines from its middle to the transcript's 2000-line retention cap,

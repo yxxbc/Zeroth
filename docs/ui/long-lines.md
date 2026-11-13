@@ -308,7 +308,7 @@ paragraph on line 3 used to stop on its third row at `tool call an…`:
 ```
 ● Write(README.md)
   ⎿  Wrote 11 lines to README.md
-       1 # alter-zero
+       1 # zeroth
        2
        3 An agent harness for coding, cybersecurity and automation that
          runs in your terminal, streams each reply and tool call inline

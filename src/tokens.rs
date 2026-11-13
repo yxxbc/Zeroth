@@ -725,7 +725,7 @@ mod tests {
     #[test]
     fn a_path_or_identifier_is_not_mistaken_for_a_blob() {
         // Long runs of the base64 alphabet that read as words are words.
-        assert!(estimate("/home/user/Projects2024/alter-zero/src") < 15);
+        assert!(estimate("/home/user/Projects2024/zeroth/src") < 15);
         assert!(estimate("unwrap_or_default_for_every_value") < 15);
     }
 
@@ -867,7 +867,7 @@ mod tests {
         (
             "urls and paths",
             "https://github.com/linuztx/alter-zero/blob/main/docs/architecture/compact.md?plain=1#L136\n\
-             /home/user/alter-zero/src/llm/backend.rs:2022:fn stream_round(\n",
+             /home/user/zeroth/src/llm/backend.rs:2022:fn stream_round(\n",
             44,
             44,
         ),

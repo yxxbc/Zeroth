@@ -74,7 +74,7 @@ fn the_footer_pins_the_permission_mode_at_the_right_edge() {
     // With permissions disabled (no mode injected) the row keeps its old
     // shape: nothing asks, so a mode would be a lie.
     let mut app = App::new();
-    app.set_session_info("kimi-k3", "~/Codes/rust/project/alter-zero");
+    app.set_session_info("kimi-k3", "~/Codes/rust/project/zeroth");
     let text = plain(&footer_line(&app, 120));
     assert!(
         !text.contains("manual"),
@@ -84,7 +84,7 @@ fn the_footer_pins_the_permission_mode_at_the_right_edge() {
     let line = footer_line(&app, 120);
     let text = plain(&line);
     assert!(
-        text.starts_with("  kimi-k3 · ~/Codes/rust/project/alter-zero"),
+        text.starts_with("  kimi-k3 · ~/Codes/rust/project/zeroth"),
         "the left chain keeps its old shape: {text}"
     );
     assert!(text.ends_with("manual"), "{text}");
@@ -660,7 +660,7 @@ fn footer_rows_yields_to_an_open_band() {
 #[test]
 fn footer_line_names_the_model_in_the_accent_and_the_cwd_in_green() {
     let line = footer_line(&with_session(), 60);
-    assert_eq!(plain(&line), "  dummy_model_name · ~/alter-zero");
+    assert_eq!(plain(&line), "  dummy_model_name · ~/zeroth");
     // spans = [indent, model, separator, cwd] — codex's status line with
     // theme colours on: the model in the accent, the path in green, the
     // separator dim, the indent unstyled (docs/ui/footer.md).
@@ -703,7 +703,7 @@ fn footer_line_shows_the_thinking_mode_beside_the_model() {
         ThinkingMode::Effort(ReasoningEffort::Medium),
     )));
     let line = footer_line(&app, 60);
-    assert_eq!(plain(&line), "  dummy_model_name medium · ~/alter-zero");
+    assert_eq!(plain(&line), "  dummy_model_name medium · ~/zeroth");
     // The mode wears the status line's thinking colour, so the effort and
     // the `Thinking for` clause it buys read as one fact.
     let mode = line
@@ -718,7 +718,7 @@ fn footer_line_shows_the_thinking_mode_beside_the_model() {
     app.thinking.as_mut().unwrap().mode = ThinkingMode::Off;
     assert_eq!(
         plain(&footer_line(&app, 60)),
-        "  dummy_model_name off · ~/alter-zero"
+        "  dummy_model_name off · ~/zeroth"
     );
 }
 
@@ -823,7 +823,7 @@ fn the_cursor_stays_put_when_the_footer_shows() {
     app.input = TextArea::from_text("hi");
     let bare_h = live_height(&app.input, 40, 24, false, 0, 0, 0, 0, 0, 0, 0);
     let bare = cursor_position(Rect::new(0, 0, 40, bare_h), &app);
-    app.set_session_info("dummy_model_name", "~/alter-zero");
+    app.set_session_info("dummy_model_name", "~/zeroth");
     let footer_h = live_height(&app.input, 40, 24, false, 0, 0, 0, 0, 0, 1, 0);
     let with_footer = cursor_position(Rect::new(0, 0, 40, footer_h), &app);
     assert_eq!(with_footer, bare, "cursor unchanged by the footer row");
@@ -842,7 +842,7 @@ fn search_rows_take_the_footer_slot_even_without_session_info() {
 #[test]
 fn the_search_line_displaces_the_session_footer() {
     let mut app = searching(&["git status"], "git");
-    app.set_session_info("dummy_model_name", "~/alter-zero");
+    app.set_session_info("dummy_model_name", "~/zeroth");
     let h = live_height(&app.input, 60, 24, false, 0, 0, 0, 0, 0, 1, 0);
     let mut buf = buffer(60, h);
     render_live(buf.area, &mut buf, &app);
@@ -929,7 +929,7 @@ fn shell_mode_takes_the_footer_slot_even_without_session_info() {
 #[test]
 fn the_shell_mode_line_displaces_the_session_footer() {
     let mut app = shelling("ls -la");
-    app.set_session_info("dummy_model_name", "~/alter-zero");
+    app.set_session_info("dummy_model_name", "~/zeroth");
     let h = live_height(&app.input, 60, 24, false, 0, 0, 0, 0, 0, 1, 0);
     let mut buf = buffer(60, h);
     render_live(buf.area, &mut buf, &app);
@@ -1153,15 +1153,12 @@ fn footer_line_shows_the_speed_tier_beside_the_thinking_mode() {
     app.set_speed(SpeedState::new(vec![fast], None));
     assert_eq!(
         plain(&footer_line(&app, 60)),
-        "  dummy_model_name medium · ~/alter-zero",
+        "  dummy_model_name medium · ~/zeroth",
         "standard: no tier word"
     );
     app.speed.as_mut().unwrap().toggle("priority");
     let line = footer_line(&app, 60);
-    assert_eq!(
-        plain(&line),
-        "  dummy_model_name medium fast · ~/alter-zero"
-    );
+    assert_eq!(plain(&line), "  dummy_model_name medium fast · ~/zeroth");
     // Both qualifiers — what Ctrl+T and the tier's command turn — wear one
     // colour beside the model's.
     for word in [" medium", " fast"] {
@@ -1176,7 +1173,7 @@ fn footer_line_shows_the_speed_tier_beside_the_thinking_mode() {
     app.set_thinking(None);
     assert_eq!(
         plain(&footer_line(&app, 60)),
-        "  dummy_model_name fast · ~/alter-zero"
+        "  dummy_model_name fast · ~/zeroth"
     );
     // Whatever tier a record lists wears its own name there — the word is
     // the selection's label, so a new tier needs nothing of the footer.
@@ -1190,7 +1187,7 @@ fn footer_line_shows_the_speed_tier_beside_the_thinking_mode() {
     ));
     assert_eq!(
         plain(&footer_line(&app, 60)),
-        "  dummy_model_name ultrafast · ~/alter-zero"
+        "  dummy_model_name ultrafast · ~/zeroth"
     );
 }
 

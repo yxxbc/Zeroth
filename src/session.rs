@@ -1393,7 +1393,7 @@ mod tests {
             role: Role::User,
             text: "[Image #1] what is this?".into(),
             timestamp: "03:20 PM".into(),
-            images: vec![PathBuf::from("/tmp/alter-zero-clipboard-a.png")],
+            images: vec![PathBuf::from("/tmp/zeroth-clipboard-a.png")],
         });
         let (_, parsed) = parse_session(&file_of(std::slice::from_ref(&item))).expect("parses");
         assert_eq!(parsed, vec![item]);

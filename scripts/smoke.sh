@@ -148,7 +148,7 @@ while [ $# -gt 0 ]; do
 done
 
 # --- --sweep-leaked: the rollouts the old suite left in the real sessions dir ---
-# Before the suite pointed ALTER_ZERO_SESSIONS_DIR into its temp tree (and
+# Before the suite pointed ZEROTH_SESSIONS_DIR into its temp tree (and
 # before the app kept sessions under the config home), every phase's turns were
 # recorded into the developer's own `~/.zeroth/sessions` — a few hundred
 # dummy-backend conversations per run, listed by /resume in this checkout. They
@@ -156,7 +156,7 @@ done
 # line (`stream::dummy` and `stream::stall`), which no real provider ever uses.
 # The listing is the default; deleting takes --yes.
 if [ "$SWEEP" -eq 1 ]; then
-	sweep_root="${ALTER_ZERO_SESSIONS_DIR:-${ALTER_ZERO_CONFIG_DIR:-$HOME/.zeroth}/sessions}"
+	sweep_root="${ZEROTH_SESSIONS_DIR:-${ZEROTH_CONFIG_DIR:-$HOME/.zeroth}/sessions}"
 	if [ ! -d "$sweep_root" ]; then
 		echo "smoke: no sessions dir at $sweep_root — nothing to sweep"
 		exit 0

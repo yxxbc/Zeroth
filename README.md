@@ -62,10 +62,10 @@ It picks the build for your machine, verifies its SHA-256 against the checksum p
 <details>
 <summary><strong>Install options</strong></summary>
 
-Set `ALTER_ZERO_INSTALL_DIR` to install somewhere else, or `ALTER_ZERO_VERSION=vX.Y.Z` to pin a release. [`CHANGELOG.md`](CHANGELOG.md) records what changed between versions.
+Set `ZEROTH_INSTALL_DIR` to install somewhere else, or `ZEROTH_VERSION=vX.Y.Z` to pin a release. [`CHANGELOG.md`](CHANGELOG.md) records what changed between versions.
 
 ```bash
-ALTER_ZERO_INSTALL_DIR="$HOME/bin" ALTER_ZERO_VERSION=v0.1.0 \
+ZEROTH_INSTALL_DIR="$HOME/bin" ZEROTH_VERSION=v0.1.0 \
   sh -c "$(curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh)"
 ```
 
@@ -105,11 +105,11 @@ You can also select your provider before launch. Set its API key variable and pr
 
 ```bash
 export OPENROUTER_API_KEY="your-api-key"
-export ALTER_ZERO_PROVIDER=openrouter
+export ZEROTH_PROVIDER=openrouter
 zeroth
 ```
 
-Choose a model with `/model`, or set `ALTER_ZERO_MODEL` to its model ID before launching.
+Choose a model with `/model`, or set `ZEROTH_MODEL` to its model ID before launching.
 
 </details>
 
@@ -319,6 +319,8 @@ Run `zeroth mcp --help` for MCP server management commands, and `zeroth update` 
 Your sign-ins, saved sessions, input history, and per-directory settings live under `~/.zeroth/`. Keep shared extensions there, or add project-specific ones alongside your code.
 
 If `~/.alter-zero/` exists from a previous install, the first launch copies `config.json`, `providers.toml` and `.env` out of it once. Sessions, history, caches, skills and agents stay behind, and the old directory is never modified — the previous app keeps working from it.
+
+Environment overrides are `ZEROTH_*`; scripts still setting the fork's old prefix must be updated. The full rename and its breaking changes are in [`docs/architecture/naming.md`](docs/architecture/naming.md).
 
 <details>
 <summary><strong>Configuration and extension paths</strong></summary>

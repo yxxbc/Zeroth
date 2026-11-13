@@ -161,7 +161,7 @@ pub(crate) fn test_detach_helper() -> Option<&'static Path> {
 
 /// Where cargo leaves the `zeroth` binary for the test binary at
 /// `test_exe`: beside the `deps/` directory the test binary sits in
-/// (`target/debug/deps/zeroth-…` → `target/debug/alter-zero`), else
+/// (`target/debug/deps/zeroth-…` → `target/debug/zeroth`), else
 /// beside the test binary itself.
 #[cfg(test)]
 fn built_binary_beside(test_exe: &Path) -> Option<PathBuf> {
@@ -611,7 +611,7 @@ mod tests {
             tiers(None),
             vec![DetachTier::SetsidBinary, DetachTier::Attached]
         );
-        let helper = Path::new("/opt/bin/alter-zero");
+        let helper = Path::new("/opt/bin/zeroth");
         assert_eq!(
             tiers(Some(helper)),
             vec![
@@ -633,12 +633,12 @@ mod tests {
     fn the_helper_tier_is_the_reexec_protocol() {
         // The spawner side of the argv protocol the main() hook parses:
         // `{helper} {DETACH_ARG} {command}` — one command string, verbatim.
-        let helper = Path::new("/opt/bin/alter-zero");
+        let helper = Path::new("/opt/bin/zeroth");
         let (prog, args) = argv(&command_for(
             &DetachTier::HelperReexec(helper),
             "sudo -v 'a b'",
         ));
-        assert_eq!(prog, "/opt/bin/alter-zero");
+        assert_eq!(prog, "/opt/bin/zeroth");
         assert_eq!(args, [DETACH_ARG, "sudo -v 'a b'"].map(OsString::from));
     }
 
@@ -650,7 +650,7 @@ mod tests {
         // that finds no detach route is refused rather than attached
         // (docs/tools/interactive-shell.md).
         assert_eq!(tty_tiers(None), vec![DetachTier::SetsidBinary]);
-        let helper = Path::new("/opt/bin/alter-zero");
+        let helper = Path::new("/opt/bin/zeroth");
         assert_eq!(
             tty_tiers(Some(helper)),
             vec![DetachTier::SetsidBinary, DetachTier::HelperReexec(helper)]
@@ -670,7 +670,7 @@ mod tests {
     fn the_helper_tty_tier_is_its_own_reexec_protocol() {
         // A second sentinel, so the helper knows to take stdin — the
         // pseudo-terminal — as its controlling terminal after the setsid.
-        let helper = Path::new("/opt/bin/alter-zero");
+        let helper = Path::new("/opt/bin/zeroth");
         let command = tty_command_for(
             &DetachTier::HelperReexec(helper),
             Path::new("sh"),
@@ -678,7 +678,7 @@ mod tests {
         )
         .expect("a tier");
         let (prog, args) = argv(&command);
-        assert_eq!(prog, "/opt/bin/alter-zero");
+        assert_eq!(prog, "/opt/bin/zeroth");
         assert_eq!(args, [DETACH_TTY_ARG, "vim notes.txt"].map(OsString::from));
         assert_ne!(DETACH_TTY_ARG, DETACH_ARG);
     }
@@ -734,7 +734,7 @@ mod tests {
         // (`docs/architecture/herdr.md`). herdr's own marker and socket stay — the
         // environment herdr gives its popups — so its CLI and agent skill
         // still work.
-        for tier in tiers(Some(Path::new("/opt/bin/alter-zero"))) {
+        for tier in tiers(Some(Path::new("/opt/bin/zeroth"))) {
             let command = command_in(&tier, Path::new("sh"), "true");
             let envs: Vec<_> = command.get_envs().collect();
             assert!(
@@ -760,7 +760,7 @@ mod tests {
         assert_eq!(args, ["-c", "echo hi"].map(OsString::from));
         // The helper is told which shell to become — a third argument, which
         // plain `sh` never needs, so the `!` shell's protocol is unchanged.
-        let helper = Path::new("/opt/bin/alter-zero");
+        let helper = Path::new("/opt/bin/zeroth");
         let (_, args) = argv(&command_in(
             &DetachTier::HelperReexec(helper),
             bash,
@@ -789,7 +789,7 @@ mod tests {
             args,
             ["-c", "/usr/bin/bash", "-c", "python3 -q"].map(OsString::from)
         );
-        let helper = Path::new("/opt/bin/alter-zero");
+        let helper = Path::new("/opt/bin/zeroth");
         let command =
             tty_command_for(&DetachTier::HelperReexec(helper), bash, "vim").expect("a tier");
         let (_, args) = argv(&command);

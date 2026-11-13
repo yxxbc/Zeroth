@@ -1478,7 +1478,7 @@ fn the_queue_and_the_shortcuts_band_show_in_their_own_slots() {
 #[test]
 fn the_palette_replaces_the_footer() {
     let mut app = palette("/", 0);
-    app.set_session_info("dummy_model_name", "~/alter-zero");
+    app.set_session_info("dummy_model_name", "~/zeroth");
     let band = menu_rows(&app, 60);
     let h = live_height(
         &app.input,

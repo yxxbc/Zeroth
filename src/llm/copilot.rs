@@ -55,7 +55,7 @@ const DEFAULT_GITHUB_API: &str = "https://api.github.com";
 /// exchange and the quota read — at another host: the smoke suite's local
 /// stand-in, or a fork's own. Read at the boundary and handed in once through
 /// [`set_github_api`], the `chatgpt::set_issuer` pattern.
-pub const GITHUB_API_ENV: &str = "ALTER_ZERO_GITHUB_API_BASE";
+pub const GITHUB_API_ENV: &str = "ZEROTH_GITHUB_API_BASE";
 
 /// The REST API version the quota read asks for — the one VS Code's own
 /// client pins, so the answer has the shape its dashboard reads.

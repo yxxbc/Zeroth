@@ -23,7 +23,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"resultType":"complete","tools"
 sleep 60
 MCPSRV84
 chmod +x "$MCP84_DIR/server.sh"
-mcp84_add="$(env ALTER_ZERO_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp add fixture -- sh "$MCP84_DIR/server.sh" 2>&1)"
+mcp84_add="$(env ZEROTH_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp add fixture -- sh "$MCP84_DIR/server.sh" 2>&1)"
 mcp84_add_exit=$?
 echo "==== Phase 84: mcp add ===="
 printf '%s\n' "$mcp84_add"
@@ -33,11 +33,11 @@ fi
 for expect in 'Added stdio MCP server "fixture"' "File: $MCP84_CFG/mcp.json"; do
 	expect_has "$mcp84_add" -F "$expect" "mcp add output is missing '$expect'"
 done
-mcp84_list="$(env ALTER_ZERO_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp list 2>&1)"
+mcp84_list="$(env ZEROTH_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp list 2>&1)"
 echo "==== Phase 84: mcp list ===="
 printf '%s\n' "$mcp84_list"
 expect_has "$mcp84_list" -F "fixture: sh $MCP84_DIR/server.sh (stdio)" "mcp list does not report the installed server"
-mcp84_dup="$(env ALTER_ZERO_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp add fixture --url https://dup 2>&1)"
+mcp84_dup="$(env ZEROTH_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp add fixture --url https://dup 2>&1)"
 mcp84_dup_exit=$?
 if [ "$mcp84_dup_exit" -ne 1 ]; then
 	fail "a duplicate add exited $mcp84_dup_exit (want 1)"
@@ -45,7 +45,7 @@ fi
 for expect in 'MCP server "fixture" already exists' "mcp remove fixture"; do
 	expect_has "$mcp84_dup" -F "$expect" "the duplicate-add error is missing '$expect'"
 done
-mcp84_bad="$(env ALTER_ZERO_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp add lonely 2>&1)"
+mcp84_bad="$(env ZEROTH_MCP_FILE="$MCP84_CFG/mcp.json" "$BIN" mcp add lonely 2>&1)"
 mcp84_bad_exit=$?
 if [ "$mcp84_bad_exit" -ne 2 ]; then
 	fail "a grammar error exited $mcp84_bad_exit (want 2)"
@@ -62,7 +62,7 @@ expect_lacks "$mcp84_bad" -F "zeroth mcp — manage MCP servers" "a grammar erro
 # --callback-port go into the entry, the secret — read from
 # MCP_CLIENT_SECRET, never the command line — into the owner-only token
 # store and never the file, and `mcp get` says where it is, not what.
-MCP84_ENV="env ALTER_ZERO_MCP_FILE=$MCP84_CFG/mcp.json ALTER_ZERO_CONFIG_DIR=$MCP84_CFG"
+MCP84_ENV="env ZEROTH_MCP_FILE=$MCP84_CFG/mcp.json ZEROTH_CONFIG_DIR=$MCP84_CFG"
 mcp84_oauth="$($MCP84_ENV MCP_CLIENT_SECRET=s3cret-value "$BIN" mcp add calendar --url https://calendar.example/mcp --client-id 123.apps --callback-port 8976 --client-secret 2>&1)"
 mcp84_oauth_exit=$?
 echo "==== Phase 84: mcp add with a pre-registered OAuth client ===="
@@ -88,7 +88,7 @@ for expect in "OAuth client: 123.apps" "Callback port: 8976" "Client secret: kep
 done
 expect_lacks "$mcp84_get" -F "s3cret-value" "mcp get printed the client secret"
 $MCP84_ENV "$BIN" mcp remove calendar >/dev/null 2>&1
-APP_MCP84="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$MCP84_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_MCP84="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$MCP84_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux new-session -d -s "$S84" -x 100 -y 36 "$APP_MCP84"
 sleep 0.8
 tmux send-keys -t "$S84" -l "/mcp"

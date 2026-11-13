@@ -11,9 +11,9 @@ smoke_begin
 # and ClinePass's plan and usage limits — a section each, the one in use
 # first, a bar per limit and when it resets.
 #
-# Against one local stub that plays all three (ALTER_ZERO_PROVIDERS_FILE
-# points ChatGPT at it, ALTER_ZERO_GITHUB_API_BASE GitHub's API, and
-# ALTER_ZERO_CLINE_API_BASE Cline's), the session running on ClinePass:
+# Against one local stub that plays all three (ZEROTH_PROVIDERS_FILE
+# points ChatGPT at it, ZEROTH_GITHUB_API_BASE GitHub's API, and
+# ZEROTH_CLINE_API_BASE Cline's), the session running on ClinePass:
 #   (a) the palette lists /usage; it opens with the three sections, ClinePass
 #       first and tagged in use, every limit's share, the spent weekly window
 #       saying `limit reached` on its row in red over one line of advice,
@@ -203,7 +203,7 @@ U_DIR="$(work_dir usage)"
 # NO_PROXY keeps a developer's HTTP proxy out of the loopback requests; the
 # three tokens are spelled out so a developer's own exported ones never
 # reach the stub — or a real provider.
-U_APP="env -u ANTHROPIC_CONSOLE_REFRESH_TOKEN -u OPENAI_CHATGPT_REFRESH_TOKEN NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ALTER_ZERO_PROVIDERS_FILE=$U_PROVIDERS ALTER_ZERO_OPENAI_ISSUER=$U_BASE ALTER_ZERO_GITHUB_API_BASE=$U_BASE ALTER_ZERO_CLINE_API_BASE=$U_BASE ALTER_ZERO_PROVIDER=cline_pass ALTER_ZERO_MODEL=cline-pass/glm-5.3 CHATGPT_CODEX_REFRESH_TOKEN=rt-145 GITHUB_COPILOT_TOKEN=ghu_smoke145 CLINE_ACCOUNT_REFRESH_TOKEN=clr-145 $BIN_ABS"
+U_APP="env -u ANTHROPIC_CONSOLE_REFRESH_TOKEN -u OPENAI_CHATGPT_REFRESH_TOKEN NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_PROVIDERS_FILE=$U_PROVIDERS ZEROTH_OPENAI_ISSUER=$U_BASE ZEROTH_GITHUB_API_BASE=$U_BASE ZEROTH_CLINE_API_BASE=$U_BASE ZEROTH_PROVIDER=cline_pass ZEROTH_MODEL=cline-pass/glm-5.3 CHATGPT_CODEX_REFRESH_TOKEN=rt-145 GITHUB_COPILOT_TOKEN=ghu_smoke145 CLINE_ACCOUNT_REFRESH_TOKEN=clr-145 $BIN_ABS"
 
 # ---- (a) the palette lists /usage; the page reads all three ----
 launch -c "$U_DIR" "$S145" 110 44 "$U_APP"
@@ -322,7 +322,7 @@ tmux kill-session -t "$S145S" 2>/dev/null
 
 # ---- (g) the dummy, mid-turn, the subscriptions still read ----
 S145D="${S}_usagedummy"
-launch -c "$U_DIR" "$S145D" 110 44 "env -u ANTHROPIC_CONSOLE_REFRESH_TOKEN -u OPENAI_CHATGPT_REFRESH_TOKEN NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_DUMMY=1 ALTER_ZERO_STARTUP_DELAY_MS=2500 ALTER_ZERO_PROVIDERS_FILE=$U_PROVIDERS ALTER_ZERO_OPENAI_ISSUER=$U_BASE ALTER_ZERO_GITHUB_API_BASE=$U_BASE ALTER_ZERO_CLINE_API_BASE=$U_BASE CHATGPT_CODEX_REFRESH_TOKEN=rt-145 GITHUB_COPILOT_TOKEN=ghu_smoke145 CLINE_ACCOUNT_REFRESH_TOKEN=clr-145 $BIN_ABS"
+launch -c "$U_DIR" "$S145D" 110 44 "env -u ANTHROPIC_CONSOLE_REFRESH_TOKEN -u OPENAI_CHATGPT_REFRESH_TOKEN NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_DUMMY=1 ZEROTH_STARTUP_DELAY_MS=2500 ZEROTH_PROVIDERS_FILE=$U_PROVIDERS ZEROTH_OPENAI_ISSUER=$U_BASE ZEROTH_GITHUB_API_BASE=$U_BASE ZEROTH_CLINE_API_BASE=$U_BASE CHATGPT_CODEX_REFRESH_TOKEN=rt-145 GITHUB_COPILOT_TOKEN=ghu_smoke145 CLINE_ACCOUNT_REFRESH_TOKEN=clr-145 $BIN_ABS"
 submit "$S145D" "$USER_MSG"
 wait_for 5 "$S145D" -F "esc to interrupt" || fail "the dummy's turn never started"
 submit "$S145D" "/usage"

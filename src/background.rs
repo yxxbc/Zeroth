@@ -2347,8 +2347,7 @@ mod tests {
         static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        let dir =
-            std::env::temp_dir().join(format!("alter-zero-bg-test-{}-{seq}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("zeroth-bg-test-{}-{seq}", std::process::id()));
         // The helper `main()` installs, so a terminal session starts where
         // there is no `setsid` binary too (macOS).
         let helper = crate::subprocess::test_detach_helper().map(std::path::Path::to_path_buf);
@@ -2763,7 +2762,7 @@ mod tests {
         // the command there and every stop was a SIGKILL (issue #4). The
         // session's terminal names it instead.
         let marker =
-            std::env::temp_dir().join(format!("alter-zero-stopped-session-{}", std::process::id()));
+            std::env::temp_dir().join(format!("zeroth-stopped-session-{}", std::process::id()));
         let mut session = crate::pty::spawn::spawn(
             crate::subprocess::test_detach_helper(),
             &format!(
@@ -3006,9 +3005,8 @@ mod tests {
         // a launch — the chain lands on a working tier either way. The real
         // helper's conduct is covered by tests/detached_exec.rs and smoke.
         let (reg, mut rx) = registry();
-        let reg = reg.with_detach_helper(Some(PathBuf::from(
-            "/definitely/not/a/real/alter-zero-helper",
-        )));
+        let reg =
+            reg.with_detach_helper(Some(PathBuf::from("/definitely/not/a/real/zeroth-helper")));
         let task = reg
             .launch("echo hi", None, true)
             .expect("the chain survives a stale helper");

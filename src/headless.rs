@@ -67,7 +67,7 @@ pub const STDIN_WAIT: Duration = Duration::from_secs(3);
 pub const AGENT_WAIT_DEFAULT: Duration = Duration::from_secs(600);
 
 /// The variable that sets [`agent_wait`]: whole seconds, `0` for no wait.
-pub const AGENT_WAIT_ENV: &str = "ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS";
+pub const AGENT_WAIT_ENV: &str = "ZEROTH_HEADLESS_AGENT_WAIT_SECS";
 
 /// The wait on background subagents, from [`AGENT_WAIT_ENV`]'s value:
 /// whole seconds, `0` for none — anything else is [`AGENT_WAIT_DEFAULT`].
@@ -2190,7 +2190,7 @@ mod tests {
             assert!(
                 lines.contains(
                     &"zeroth: stopped 1 background agent still running: Review the diff \
-                      (ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS sets how long a run waits for them)"
+                      (ZEROTH_HEADLESS_AGENT_WAIT_SECS sets how long a run waits for them)"
                         .to_string()
                 ),
                 "{format:?}: {lines:?}"

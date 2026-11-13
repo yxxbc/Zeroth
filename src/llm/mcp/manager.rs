@@ -96,10 +96,10 @@ pub struct McpSources {
 }
 
 /// The default per-server connect budget (both references use 30 s;
-/// `ALTER_ZERO_MCP_STARTUP_TIMEOUT_MS` overrides).
+/// `ZEROTH_MCP_STARTUP_TIMEOUT_MS` overrides).
 pub const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// The default per-call budget (`ALTER_ZERO_MCP_TOOL_TIMEOUT_MS` overrides).
+/// The default per-call budget (`ZEROTH_MCP_TOOL_TIMEOUT_MS` overrides).
 pub const DEFAULT_TOOL_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The cancel-poll cadence every blocking wait shares with the transports.
@@ -3335,7 +3335,7 @@ done
     fn a_server_that_cannot_start_reads_off_until_mcp_is_on_again() {
         let mut entry = stdio_entry("fix");
         entry.config = McpServerConfig::Stdio {
-            command: "${ALTER_ZERO_TEST_MCP_OFF_NEVER_SET}".to_string(),
+            command: "${ZEROTH_TEST_MCP_OFF_NEVER_SET}".to_string(),
             args: Vec::new(),
             env: Default::default(),
         };
@@ -3349,10 +3349,7 @@ done
         manager.set_active(true);
         match status_of(&manager, "fix") {
             McpServerStatus::Failed(reason) => {
-                assert!(
-                    reason.contains("ALTER_ZERO_TEST_MCP_OFF_NEVER_SET"),
-                    "{reason}"
-                );
+                assert!(reason.contains("ZEROTH_TEST_MCP_OFF_NEVER_SET"), "{reason}");
             }
             other => panic!("expected the reason back, got {other:?}"),
         }
@@ -3845,12 +3842,12 @@ done
     fn variables_expand_before_a_launch() {
         let mut entry = stdio_entry("fix");
         if let McpServerConfig::Stdio { command, .. } = &mut entry.config {
-            *command = "${ALTER_ZERO_TEST_NEVER_SET_SHELL:-sh}".to_string();
+            *command = "${ZEROTH_TEST_NEVER_SET_SHELL:-sh}".to_string();
         }
         let unset = McpServerEntry {
             name: "remote".to_string(),
             config: McpServerConfig::Http {
-                url: "https://${ALTER_ZERO_TEST_NEVER_SET_TENANT}.test/mcp".to_string(),
+                url: "https://${ZEROTH_TEST_NEVER_SET_TENANT}.test/mcp".to_string(),
                 headers: Default::default(),
                 sse_fallback: false,
                 oauth: None,
@@ -3872,13 +3869,13 @@ done
         let snapshot = manager.snapshot();
         let remote = snapshot.iter().find(|s| s.name == "remote").unwrap();
         assert!(
-            matches!(&remote.status, McpServerStatus::Failed(why) if why.contains("ALTER_ZERO_TEST_NEVER_SET_TENANT")),
+            matches!(&remote.status, McpServerStatus::Failed(why) if why.contains("ZEROTH_TEST_NEVER_SET_TENANT")),
             "{:?}",
             remote.status
         );
         assert_eq!(
             remote.config.url(),
-            Some("https://${ALTER_ZERO_TEST_NEVER_SET_TENANT}.test/mcp")
+            Some("https://${ZEROTH_TEST_NEVER_SET_TENANT}.test/mcp")
         );
         manager.shutdown();
     }

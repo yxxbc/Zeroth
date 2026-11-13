@@ -54,7 +54,7 @@ rv_user_hook() {
 rv_user_hook "./guard.sh --strict"
 # The phase runs in a temp cwd (-c "$RV_WORK"), so the binary path must be
 # absolute — the Phase 46 BIN_ABS rule.
-RV_APP="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_UPDATE_CHECK=0 ALTER_ZERO_TIPS=0 ALTER_ZERO_PROJECT_CONFIG=1 ALTER_ZERO_CONFIG_DIR=$RV_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HOOKS=1 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+RV_APP="env ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PROJECT_CONFIG=1 ZEROTH_CONFIG_DIR=$RV_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HOOKS=1 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 rv_open() {
 	tmux send-keys -t "$S83" -l "$1"
 	sleep 0.4
@@ -231,7 +231,7 @@ expect_file_lacks "$RV_CFG/trust.json" -F "server.sh" "trust.json copied a serve
 cat >"$RV_WORK/.zeroth/hooks.json" <<'RVHOOKS2'
 {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./fmt.sh --check"}]}]}}
 RVHOOKS2
-launch -c "$RV_WORK" "$S83" 100 40 "${RV_APP/ALTER_ZERO_HOOKS=1/ALTER_ZERO_HOOKS=0}"
+launch -c "$RV_WORK" "$S83" 100 40 "${RV_APP/ZEROTH_HOOKS=1/ZEROTH_HOOKS=0}"
 expect_lacks "$(tmux capture-pane -t "$S83" -p)" -F "Space to select" "the review asked about hooks with Hooks off"
 rv_open "/settings"
 tmux send-keys -t "$S83" -l "hooks"
@@ -257,7 +257,7 @@ rv_project() {
 	printf '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "%s"}]}]}}\n' "$2" >"$1/.zeroth/hooks.json"
 }
 rv_app_in() {
-	printf '%s' "${RV_APP/ALTER_ZERO_CONFIG_DIR=$RV_CFG/ALTER_ZERO_CONFIG_DIR=$1}"
+	printf '%s' "${RV_APP/ZEROTH_CONFIG_DIR=$RV_CFG/ZEROTH_CONFIG_DIR=$1}"
 }
 
 # --- Two sessions answering at once: each records over trust.json as it is
@@ -332,7 +332,7 @@ mkdir -p "$RV_HOME/.zeroth"
 cat >"$RV_HOME/.zeroth/hooks.json" <<'RVHOME'
 {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./home-fmt.sh"}]}]}}
 RVHOME
-RV_HOME_APP="env HOME=$RV_HOME ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_UPDATE_CHECK=0 ALTER_ZERO_TIPS=0 ALTER_ZERO_PROJECT_CONFIG=1 ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HOOKS=1 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+RV_HOME_APP="env HOME=$RV_HOME ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PROJECT_CONFIG=1 ZEROTH_CHECKPOINTS=0 ZEROTH_HOOKS=1 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 launch -c "$RV_HOME" -w "Esc to continue without trusting" "$S83" 100 40 "$RV_HOME_APP"
 rv_home="$(tmux capture-pane -t "$S83" -p)"
 dump "launched in the home directory" "$rv_home"

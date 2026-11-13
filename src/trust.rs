@@ -76,12 +76,12 @@ pub fn is_project_root(root: &Path, home: Option<&Path>) -> bool {
     home != Some(root)
 }
 
-/// The directory a hook knows as the project — `$ALTER_ZERO_PROJECT_DIR`,
+/// The directory a hook knows as the project — `$ZEROTH_PROJECT_DIR`,
 /// and Claude Code's `$CLAUDE_PROJECT_DIR` — given the session's `cwd` and
 /// the nearest `.git` ancestor-or-self `found` there: that root when it is
 /// one ([`is_project_root`]), else the `cwd`. The root the project layer
 /// reads `.zeroth/` from, so a project's `hooks.json` reaching its own
-/// scripts as `${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/…` finds them
+/// scripts as `${ZEROTH_PROJECT_DIR}/.zeroth/hooks/…` finds them
 /// from any subdirectory (`docs/tools/hooks.md`).
 #[must_use]
 pub fn hooks_project_dir(cwd: &Path, found: Option<&Path>, home: Option<&Path>) -> PathBuf {

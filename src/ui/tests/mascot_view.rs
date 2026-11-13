@@ -157,12 +157,7 @@ fn the_page_is_framed_with_search_rows_preview_and_hint() {
         // The live preview: the highlighted (default crest) banner — its art
         // AND its metadata, built by the same header builder the startup
         // banner uses.
-        for expect in [
-            "▙▄▙▄▟▄▟",
-            "Zeroth (v",
-            "~/alter-zero",
-            "/ commands   @ files",
-        ] {
+        for expect in ["▙▄▙▄▟▄▟", "Zeroth (v", "~/zeroth", "/ commands   @ files"] {
             assert!(
                 texts.iter().any(|t| t.contains(expect)),
                 "the banner preview's {expect:?}: {texts:#?}"
@@ -235,7 +230,7 @@ fn a_wide_terminal_lays_the_preview_beside_the_list() {
     let column = col_of(crest, "Crest");
     for (row, piece) in [
         ("bloom", "A crested hatchling flaring its frill"),
-        ("skiter", "▝▜▄███▄▛▘  ~/alter-zero"),
+        ("skiter", "▝▜▄███▄▛▘  ~/zeroth"),
     ] {
         let text = row_for(&texts, row);
         assert!(text.contains(piece), "{piece:?} beside {row}: {texts:#?}");

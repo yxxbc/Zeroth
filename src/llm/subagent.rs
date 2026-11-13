@@ -38,7 +38,7 @@ const BUILTIN_FILES: [(&str, &str); 2] = [
 /// claim a name wins, so a project can shadow a personal agent of the same
 /// name.
 ///
-/// `override_dir` (`ALTER_ZERO_AGENTS_DIR`) **replaces** the whole list, the
+/// `override_dir` (`ZEROTH_AGENTS_DIR`) **replaces** the whole list, the
 /// convention every other `*_DIR` override here follows — and the only shape
 /// that gives a test run a hermetic set.
 ///
@@ -86,7 +86,7 @@ fn project_dir(dir: &Path) -> PathBuf {
 }
 
 /// The roots this environment resolves to — [`agent_roots`] with the
-/// `ALTER_ZERO_AGENTS_DIR` read and the `.git` walk-up applied. The **one**
+/// `ZEROTH_AGENTS_DIR` read and the `.git` walk-up applied. The **one**
 /// place those happen, so the seeding target and the walk can never disagree.
 #[must_use]
 pub fn resolved_agent_roots(
@@ -111,9 +111,9 @@ pub fn user_agents_dir(config_home: Option<&Path>) -> Option<PathBuf> {
     override_dir().or_else(|| config_home.map(|home| home.join(AGENTS_DIR_NAME)))
 }
 
-/// `ALTER_ZERO_AGENTS_DIR`, empty read as unset.
+/// `ZEROTH_AGENTS_DIR`, empty read as unset.
 fn override_dir() -> Option<PathBuf> {
-    std::env::var_os("ALTER_ZERO_AGENTS_DIR")
+    std::env::var_os("ZEROTH_AGENTS_DIR")
         .map(PathBuf::from)
         .filter(|dir| !dir.as_os_str().is_empty())
 }
@@ -236,7 +236,7 @@ pub fn discover_agents(roots: &[PathBuf]) -> (Vec<AgentDefinition>, Vec<AgentFil
 ///
 /// The `agent` tool's schema names `general-purpose` as its default, so that
 /// type existing is a property the tool depends on: a read-only home, an
-/// `ALTER_ZERO_AGENTS_DIR` pointed somewhere unwritable, or a deleted file
+/// `ZEROTH_AGENTS_DIR` pointed somewhere unwritable, or a deleted file
 /// mid-session must not leave the model with a default type that errors.
 #[must_use]
 pub fn with_builtins(

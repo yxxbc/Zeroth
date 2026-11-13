@@ -6,7 +6,15 @@
 >
 > 译本**落后于原文时以原文为准**。只改英文而忘了同步译本是允许的（原文永远正确）；反过来不行。译文里保留英文术语（tool call、fallback、cooldown、seal 等），因为它们与代码里的标识符一一对应，译成中文反而对不上。
 >
-> 目前有译本的：本页、`cli/` 全四篇、`tools/web-search.md`、`state/permissions.md`、`architecture/module-layout.md`。其余等待按同一格式补齐。
+> **怎么保证译本没跑偏。** 散文本身靠译者；结构不靠。`python3 scripts/docs/zh_parity.py`
+> 逐对比较三样：**围栏代码块连同其 info string 逐字节相同**（命令、help 输出、JSON
+> 载荷一旦漂移比不译更糟——有人会照抄）、**行内 `code span` 一个不少**（它们点名标识符、
+> flag 与文件）、**链接目标集相同**（路径是共用的）。标题的数量与层级也在其列：读得懂
+> 译本的人读不懂原文，所以「结构对不上」这类 bug 只有机器看得见。译文里的纯锚点
+> （`](#标题)`）随标题一起翻译，因此只要求它在本文档内解析得到，不与英文文本比对；
+> 散文的长度与换行随译者。改动任何有译本的页面后跑一次，改动矩阵见 `AGENTS.md`。
+>
+> 目前全站都有译本：`docs/` 十二个分类、`guide/` 与仓库顶层的六个文件，均按同一格式。
 
 ## 从这里开始
 
@@ -27,6 +35,7 @@
 - [`architecture/memory.md`](architecture/memory.md)：常驻内存：应用持有什么，`/model` 曾经贵在哪
 - [`architecture/module-layout.md`](architecture/module-layout.md)：模块布局：`app/`、`ui/`、`tui/` 与 `stream/`
 - [`architecture/multithread-core.md`](architecture/multithread-core.md)：多线程核心 —— 一个进程里的 N 个会话，实测
+- [`architecture/naming.md`](architecture/naming.md)：命名 —— 完成 Zeroth 改名
 - [`architecture/token-estimate.md`](architecture/token-estimate.md)：token 估算，以及 provider 的修正
 - [`architecture/unfinished-replies.md`](architecture/unfinished-replies.md)：回合绝不终结在一个并不完整的回复上
 
@@ -37,9 +46,11 @@
 - [`ui/copy.md`](ui/copy.md)：`/copy` —— 把最后一条回复复制到剪贴板
 - [`ui/diff.md`](ui/diff.md)：`/diff` —— 审阅项目的 Git 改动
 - [`ui/donate.md`](ui/donate.md)：`/donate` —— 加密货币捐赠页
+- [`ui/command-tabs.md`](ui/command-tabs.md)：命令页 —— tab，以及如何让它们各自的状态分开（设计）
 - [`ui/export.md`](ui/export.md)：`/export` —— 把对话导出为纯文本
 - [`ui/flicker.md`](ui/flicker.md)：无闪烁渲染 —— scrollback 提交并入绘制帧
 - [`ui/footer.md`](ui/footer.md)：输入框下方的会话上下文页脚
+- [`ui/full-screen.md`](ui/full-screen.md)：自己拥有一块屏幕的 TUI —— 全屏模式（设计）
 - [`ui/header.md`](ui/header.md)：启动横幅
 - [`ui/images.md`](ui/images.md)：内联图片
 - [`ui/inline-diff.md`](ui/inline-diff.md)：`edit`/`write` 单元格里的字符级差分标记
@@ -48,6 +59,7 @@
 - [`ui/markdown.md`](ui/markdown.md)：助手侧的 markdown 渲染
 - [`ui/mascot.md`](ui/mascot.md)：横幅吉祥物与 `/mascot` 选择器
 - [`ui/overlay-repaint.md`](ui/overlay-repaint.md)：覆盖层重绘 —— 在回合运行期间从 Ctrl+O / Ctrl+D 里抄文字
+- [`ui/rich-links.md`](ui/rich-links.md)：富链接 —— 可点击的路径、预览卡片与屏幕归属（设计）
 - [`ui/shortcuts.md`](ui/shortcuts.md)：`?` 快捷键条 —— 输入框下方的键盘快捷键帮助
 - [`ui/slow-stream.md`](ui/slow-stream.md)：慢速流 —— 每秒几个 token 穿过内联管线
 - [`ui/spinner.md`](ui/spinner.md)：状态 spinner 样式与 `/spinner` 选择器
@@ -89,7 +101,7 @@
 模型能做什么：工具循环、bash 及其终端引擎、MCP、hooks、skills、tasks、后台 shell 与 scratchpad。
 
 - [`tools/ask.md`](tools/ask.md)：`AskUserQuestion` 工具 —— 在回合中途向用户提问
-- [`tools/background.md`](tools/background.md)：后台 shell —— `wait: 0`、等待超时、Ctrl+B 与 ↓ 管理器
+- [`tools/background.md`](tools/background.md)：后台 shell —— `wait: 0`、一次会超时的 `wait`、Ctrl+B 与 ↓ 管理器
 - [`tools/bash-tools.md`](tools/bash-tools.md)：bash 工具 —— 每条命令一个真实终端，每个动作一个工具
 - [`tools/hooks-menu.md`](tools/hooks-menu.md)：`/hooks` 菜单 —— hooks 浏览器
 - [`tools/hooks.md`](tools/hooks.md)：生命周期 hooks
@@ -157,9 +169,9 @@
 TUI 之前的命令行界面：参数、`[PROMPT]` 快捷形式、headless 模式与 `mcp` 子命令族。
 
 - [`cli/cli.md`](cli/cli.md)：CLI —— `--help`、`[PROMPT]` 快捷形式、`--continue`、`--resume [id]` 与退出提示
-- [`cli/headless.md`](cli/headless.md)：Headless 模式 —— `alter-zero -p`
+- [`cli/headless.md`](cli/headless.md)：Headless 模式 —— `zeroth -p`
 - [`cli/batch.md`](cli/batch.md)：批处理模式 —— 一个进程里跑多个 headless 会话
-- [`cli/mcp-cli.md`](cli/mcp-cli.md)：CLI 安装 MCP —— `alter-zero mcp add/remove/list/get/add-json`
+- [`cli/mcp-cli.md`](cli/mcp-cli.md)：CLI 安装 MCP —— `zeroth mcp add/remove/list/get/add-json`
 
 ## Operations
 
@@ -169,7 +181,7 @@ TUI 之前的命令行界面：参数、`[PROMPT]` 快捷形式、headless 模�
 - [`ops/build-time.md`](ops/build-time.md)：构建时间 —— `cargo build --release`
 - [`ops/release.md`](ops/release.md)：发布 —— tag、workflow、产物与发布说明
 - [`ops/smoke.md`](ops/smoke.md)：冒烟套件 —— `scripts/smoke.sh`
-- [`ops/update.md`](ops/update.md)：更新提示 —— 每天一次的版本检查与 `alter-zero update`
+- [`ops/update.md`](ops/update.md)：更新提示 —— 每天一次的版本检查与 `zeroth update`
 
 ## Credits
 

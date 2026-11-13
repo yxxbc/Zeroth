@@ -303,7 +303,7 @@ api_key_env = "STUB_API_KEY"
 [providers.stub.kwargs]
 api_base = "http://127.0.0.1:$M_PORT/v1"
 TOML
-launch "$S139" 90 12 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_PROVIDERS_FILE=$M_PROVIDERS STUB_API_KEY=smoke-138 $APP"
+launch "$S139" 90 12 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_PROVIDERS_FILE=$M_PROVIDERS STUB_API_KEY=smoke-138 $APP"
 submit "$S139" "/model"
 short_model="$(wait_pane 10 "$S139" -F "stub/model-01")"
 echo "==== Phase 139: /model on 12 rows ===="
@@ -319,7 +319,7 @@ sleep 0.4
 tmux kill-session -t "$S139" 2>/dev/null
 # …and on 7 rows the search line sits under the top rule, the name line in
 # the hint's place.
-launch "$S139" 90 7 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_PROVIDERS_FILE=$M_PROVIDERS STUB_API_KEY=smoke-138 $APP"
+launch "$S139" 90 7 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_PROVIDERS_FILE=$M_PROVIDERS STUB_API_KEY=smoke-138 $APP"
 submit "$S139" "/model"
 tiny_model="$(wait_pane 10 "$S139" -F "stub/model-01")"
 echo "==== Phase 139: /model on 7 rows ===="

@@ -12,7 +12,7 @@ tool batch — are in [`multithread-core.md`](multithread-core.md).
 ## The complaint
 
 "A competitor's benchmark has 15 sessions working at once, a 16-thread compile
-in the background, and stays responsive. alter-zero is one session." That is
+in the background, and stays responsive. zeroth is one session." That is
 the observable half. The half worth writing down is **what this design
 deliberately serialises and what it does not**, because several of the
 serialisation points are load-bearing (cancellation, permissions, the transcript
@@ -83,7 +83,7 @@ blocker is `App`: one `history`, one `streaming`, one `queued`, one composer.
 `tui/turn.rs:402::checkpoint_turn_end` → `CheckpointStore::snapshot`
 (`checkpoint.rs:821`) runs **three `git` subprocesses synchronously on the
 loop's thread** at every turn end: `add -A`, `commit`, `rev-parse HEAD`. Enabled
-by default (`ALTER_ZERO_CHECKPOINTS` unset = on). `docs/state/checkpoint.md` records
+by default (`ZEROTH_CHECKPOINTS` unset = on). `docs/state/checkpoint.md` records
 the price: *"a cold snapshot around a second on ordinary hardware and several on
 the slowest"*. Everything the loop owns — input, frames, the spinner, Esc — is
 frozen for that long, **once per turn**.

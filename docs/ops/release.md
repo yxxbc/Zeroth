@@ -17,7 +17,7 @@ is what lets it be cut with confidence rather than by hand.
 
 ```
 scripts/release.sh prepare X.Y.Z     # bump + roll the changelog (a commit's worth of edits)
-git commit … && git tag -a vX.Y.Z -m "alter-zero vX.Y.Z" && git push origin HEAD vX.Y.Z
+git commit … && git tag -a vX.Y.Z -m "zeroth vX.Y.Z" && git push origin HEAD vX.Y.Z
         │
         ▼  .github/workflows/release.yml
    check ──► gate ──► build ×4 ──► publish
@@ -46,13 +46,13 @@ request's included — holds anything that can publish.
 
 | Asset | Platform | Built on |
 | --- | --- | --- |
-| `alter-zero-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz` | Linux x86_64 (glibc ≥ 2.35) | `ubuntu-22.04`, native |
-| `alter-zero-vX.Y.Z-aarch64-unknown-linux-gnu.tar.gz` | Linux arm64 (glibc ≥ 2.35) | `ubuntu-22.04`, cross-compiled with `gcc-aarch64-linux-gnu` |
-| `alter-zero-vX.Y.Z-x86_64-apple-darwin.tar.gz` | macOS Intel | `macos-latest` (arm64), cross-compiled by Apple's clang |
-| `alter-zero-vX.Y.Z-aarch64-apple-darwin.tar.gz` | macOS Apple silicon | `macos-latest`, native |
+| `zeroth-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz` | Linux x86_64 (glibc ≥ 2.35) | `ubuntu-22.04`, native |
+| `zeroth-vX.Y.Z-aarch64-unknown-linux-gnu.tar.gz` | Linux arm64 (glibc ≥ 2.35) | `ubuntu-22.04`, cross-compiled with `gcc-aarch64-linux-gnu` |
+| `zeroth-vX.Y.Z-x86_64-apple-darwin.tar.gz` | macOS Intel | `macos-latest` (arm64), cross-compiled by Apple's clang |
+| `zeroth-vX.Y.Z-aarch64-apple-darwin.tar.gz` | macOS Apple silicon | `macos-latest`, native |
 
 Each archive unpacks to a directory of the same stem holding the
-`alter-zero` binary (mode 755), `LICENSE`, `README.md` and the release's
+`zeroth` binary (mode 755), `LICENSE`, `README.md` and the release's
 `CHANGELOG.md` — nothing else, and `verify` enforces exactly that list.
 Beside every archive sits `{archive}.sha256`, one line in `sha256sum -c`
 form (`<hex>  <filename>`), and `SHA256SUMS` collects every such line so a
@@ -139,19 +139,19 @@ curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh
 `install.sh` at the repository root is the one line the README leads with.
 `REPO` at the top is `yxxbc/zeroth`, and the binary it installs is named
 after that slug — `zeroth` — because a release archive is named after
-Cargo.toml's `name`. `ALTER_ZERO_REPO` overrides the slug (the selftest's
-fixture release is `example/alter-zero`, and the hashes it checks are that
+Cargo.toml's `name`. `ZEROTH_REPO` overrides the slug (the selftest's
+fixture release is `example/zeroth`, and the hashes it checks are that
 release's).
 It maps `uname` to a target triple (refusing Windows, musl, and a glibc
 older than the 2.35 floor with a message that points at building from
 source), reads the latest tag off github.com's `/releases/latest` redirect
 — curl's final URL, or the last `Location:` header wget prints where there
 is no curl; never the API, which is rate-limited per address and knows
-nothing of `ALTER_ZERO_INSTALL_BASE_URL` (`ALTER_ZERO_VERSION=vX.Y.Z` or
+nothing of `ZEROTH_INSTALL_BASE_URL` (`ZEROTH_VERSION=vX.Y.Z` or
 `--version` pins one instead) — downloads the archive **and** the release's
 `SHA256SUMS`, refuses to go on without the checksum file or with one that
 does not list a matching value, extracts,
-copies the binary into `~/.local/bin` (`ALTER_ZERO_INSTALL_DIR` or `--dir`
+copies the binary into `~/.local/bin` (`ZEROTH_INSTALL_DIR` or `--dir`
 for elsewhere) beside any old one and moves it into place so a running
 `zeroth` keeps its mapped file and the new one appears whole, runs the
 installed binary's `--version` as the last check, and ends with what to do
@@ -199,7 +199,7 @@ and the installer resolves the version itself. That also means a fix to the
 installer reaches users without a release. Its offline test double is
 `scripts/release/release_server.py`, a stand-in for github.com's release
 pages — the redirect, the tag page, the download URLs over a directory —
-that the selftest points `ALTER_ZERO_INSTALL_BASE_URL` at, so every path
+that the selftest points `ZEROTH_INSTALL_BASE_URL` at, so every path
 through the installer runs against real archives with no network: the
 latest and a pinned release, a re-install over itself, a release with no
 asset for the machine, a tampered checksum (nothing installed, and the
@@ -208,11 +208,11 @@ one shape bash 3.2 misreads — a bare `$name` touching a non-ASCII byte:
 `$dim` against `·` asked macOS's `/bin/sh` for a variable named `dim` plus
 the first byte of `·`, and `set -u` aborted the install there.
 
-The app drives the same script from inside: `alter-zero update`
+The app drives the same script from inside: `zeroth update`
 (`docs/ops/update.md`) reads the latest tag off the same redirect and, when it is
 newer than the running binary, fetches `install.sh` to a temp file and runs
-it with `ALTER_ZERO_INSTALL_DIR` set to the binary's own directory,
-`ALTER_ZERO_VERSION` to the tag it just read and `ALTER_ZERO_INSTALL_BASE_URL`
+it with `ZEROTH_INSTALL_DIR` set to the binary's own directory,
+`ZEROTH_VERSION` to the tag it just read and `ZEROTH_INSTALL_BASE_URL`
 to the same repository — so the in-app update *is* the one-line install with
 its three variables filled in, and there is no second install path to keep
 correct. `release_server.py` therefore also serves the installer at
@@ -304,8 +304,8 @@ runner) with nothing at stake.
 ```bash
 scripts/release.sh check                       # the tree agrees with itself
 scripts/release.sh selftest                    # the tooling agrees with its fixtures
-scripts/release.sh build                       # dist/alter-zero-vX.Y.Z-<host>.tar.gz (+ .sha256)
-scripts/release.sh verify dist                 # …checksum, layout, CPU, `alter-zero --version`
+scripts/release.sh build                       # dist/zeroth-vX.Y.Z-<host>.tar.gz (+ .sha256)
+scripts/release.sh verify dist                 # …checksum, layout, CPU, `zeroth --version`
 scripts/release.sh notes X.Y.Z dist            # the notes the workflow would publish
 scripts/release.sh publish X.Y.Z dist --dry-run
 ```
@@ -326,13 +326,13 @@ publish X.Y.Z dist` with `gh` signed in (the dry run shows the exact calls).
 scripts/release.sh prepare 0.2.0               # edits Cargo.toml, Cargo.lock, README.md, CHANGELOG.md; runs check
 git add Cargo.toml Cargo.lock README.md CHANGELOG.md
 git commit -m "Release v0.2.0"
-git tag -a v0.2.0 -m "alter-zero v0.2.0"
+git tag -a v0.2.0 -m "zeroth v0.2.0"
 git push origin HEAD v0.2.0
 ```
 
 `v0.1.0` needs no `prepare`: Cargo.toml already says `0.1.0` and
 `CHANGELOG.md` carries its section, so the first release is the tag alone —
-`git tag -a v0.1.0 -m "alter-zero v0.1.0" && git push origin v0.1.0` from
+`git tag -a v0.1.0 -m "zeroth v0.1.0" && git push origin v0.1.0` from
 `main` — ideally after one rehearsal run. The section's date is the day it
 was written; edit it to the tag's day if that differs.
 

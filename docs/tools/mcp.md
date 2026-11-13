@@ -124,20 +124,20 @@ an empty file), the file's own permissions kept (owner-only for a new one,
 since its headers and `env` can hold tokens), and a symlink followed to the
 file it names, so a dotfiles manager's link stays a link.
 
-The **user** file can be edited from the command line — `alter-zero mcp add
+The **user** file can be edited from the command line — `zeroth mcp add
 {name} --url {url}` (and `add-json`/`remove`/`get`/`list`), resolved before
 the TUI boots like `--continue`/`--resume`; see `docs/cli/mcp-cli.md`.
 
-Env knobs: `ALTER_ZERO_MCP` (seeds the `/settings` **MCP** row for the run,
+Env knobs: `ZEROTH_MCP` (seeds the `/settings` **MCP** row for the run,
 never saved — falsy starts the session with MCP off, *MCP off for the
-session* below), `ALTER_ZERO_MCP_FILE` (replaces the
+session* below), `ZEROTH_MCP_FILE` (replaces the
 *user* file path; the project files are still discovered),
-`ALTER_ZERO_PROJECT_CONFIG` (falsy = no project files at all — the project
+`ZEROTH_PROJECT_CONFIG` (falsy = no project files at all — the project
 layer's own kill switch, shared with hooks, and the smoke suite's
 hermeticity mechanism; `docs/state/project-config.md`),
-`ALTER_ZERO_MCP_STARTUP_TIMEOUT_MS` (per-server initialize + tools/list
+`ZEROTH_MCP_STARTUP_TIMEOUT_MS` (per-server initialize + tools/list
 budget, default 30 000 — both references' default),
-`ALTER_ZERO_MCP_TOOL_TIMEOUT_MS` (per `tools/call`, default 120 000).
+`ZEROTH_MCP_TOOL_TIMEOUT_MS` (per `tools/call`, default 120 000).
 
 ## MCP off for the session — the `/settings` **MCP** row
 
@@ -192,7 +192,7 @@ the **Hooks** row's rule (`docs/state/config-review.md`). A config problem the
 startup toast would have named is kept quiet while MCP is off and said when
 the row turns MCP on.
 
-`ALTER_ZERO_MCP` used to remove the manager outright, so `/mcp` could only
+`ZEROTH_MCP` used to remove the manager outright, so `/mcp` could only
 explain itself in a toast and a restart was the only way back. The manager
 is built at every startup now — with the row off it launches nothing — so
 `/settings` turns MCP on without one. `smoke.sh` Phase 152 drives the row
@@ -425,7 +425,7 @@ servers.
 
 Pressing **Authenticate** on a held server with no client configured ends
 with the existing explanation: the provider registers no clients itself,
-so add one as `oauth.clientId` or with `alter-zero mcp add --client-id …
+so add one as `oauth.clientId` or with `zeroth mcp add --client-id …
 --client-secret`. Signing in with such a client is **experimental** — it
 follows Google's published metadata (the trailing-slash issuer, the 401
 whose metadata URL names the tool rather than the server, the parameters
@@ -507,7 +507,7 @@ a scripted `sh` stdio server, `std::net::TcpListener` HTTP servers):
     client bounds the wait for the headers *and* each body read). The
     pooled client's 60 s stall guard used to be the effective limit, so a
     tool taking 61–120 s failed on HTTP while the same tool worked on stdio,
-    and raising `ALTER_ZERO_MCP_TOOL_TIMEOUT_MS` did nothing. A wait that
+    and raising `ZEROTH_MCP_TOOL_TIMEOUT_MS` did nothing. A wait that
     gives up (Esc, the deadline) marks the POST abandoned and the worker
     drops the response at its next line — closing the response stream *is*
     streamable HTTP's cancellation. Each message is bounded at 16 MiB
@@ -725,7 +725,7 @@ a scripted `sh` stdio server, `std::net::TcpListener` HTTP servers):
   was told that one (a native/desktop client, which takes any loopback port
   per RFC 8252, can leave it out); `scopes`, a string or a list, is asked
   for as written in place of what discovery suggests. The secret is best
-  kept out of the file: `alter-zero mcp add … --client-id … --client-secret`
+  kept out of the file: `zeroth mcp add … --client-id … --client-secret`
   keeps it in the token store's `clients` section (`save_client_secret` —
   owner-only, apart from the login so "Clear authentication" leaves it), and
   a `clientSecret` in the entry, `${VAR}`-expanded like the rest of it, is

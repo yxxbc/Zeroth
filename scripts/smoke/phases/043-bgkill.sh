@@ -15,7 +15,7 @@ S43="${S}_bgkill"
 # lands in; the end of the turn's own tool batch then delivers the held note.
 # A short `~/work` cwd, so the footer's `· 1 shell` tail fits (see work_dir).
 tmux new-session -d -s "$S43" -x 80 -y 24 -c "$(work_dir)" \
-	"env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=2500 $BIN_ABS"
+	"env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=2500 $BIN_ABS"
 sleep 0.4
 submit "$S43" '!sleep 300'
 # Wait for the Ctrl+B hint (it appears a few seconds into the run — the delay);

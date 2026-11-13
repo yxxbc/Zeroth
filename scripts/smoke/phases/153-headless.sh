@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Phase 153 — alter-zero -p on a terminal prints the run and leaves the terminal as it was
+# Phase 153 — zeroth -p on a terminal prints the run and leaves the terminal as it was
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 smoke_begin
 
 # Headless mode on a real tty (docs/cli/headless.md). Pipes are cargo test's
 # (tests/headless.rs); what only a terminal can show is that a headless run
-# never touches one. From a tmux pane, `alter-zero -p --verbose` prints the
+# never touches one. From a tmux pane, `zeroth -p --verbose` prints the
 # run's log and its answer and exits 0; the tty's modes are what they were before it
 # (`stty -g` before and after); and the raw byte stream (pipe-pane) holds
 # none of the escapes the TUI's viewport writes — no cursor query (DSR), no
@@ -19,7 +19,7 @@ smoke_begin
 S153="${S}_headless"
 HL_WORK="$(work_dir headless)"
 HL_RAW="$SMOKE_TMP/raw153.txt"
-HL_APP="env $CFG_ENV_NOHIST ALTER_ZERO_DUMMY=1 ALTER_ZERO_STARTUP_DELAY_MS=0 ALTER_ZERO_CHUNK_DELAY_MS=0 $BIN_ABS"
+HL_APP="env $CFG_ENV_NOHIST ZEROTH_DUMMY=1 ZEROTH_STARTUP_DELAY_MS=0 ZEROTH_CHUNK_DELAY_MS=0 $BIN_ABS"
 # The half-second lets pipe-pane attach before the run writes anything.
 tmux new-session -d -s "$S153" -c "$HL_WORK" -x 100 -y 40 \
 	"sleep 0.5; before=\$(stty -g); $HL_APP -p --verbose \"$USER_MSG\"; code=\$?; after=\$(stty -g); \
@@ -28,7 +28,7 @@ tmux new-session -d -s "$S153" -c "$HL_WORK" -x 100 -y 40 \
 tmux pipe-pane -t "$S153" -o "cat > $HL_RAW"
 hl_pane="$(wait_pane 30 "$S153" -S -80 -- -F "HL_EXIT=")" || fail "the headless run never exited"
 tmux pipe-pane -t "$S153"
-dump "alter-zero -p --verbose \"$USER_MSG\" on a tty" "$hl_pane"
+dump "zeroth -p --verbose \"$USER_MSG\" on a tty" "$hl_pane"
 tmux kill-session -t "$S153" 2>/dev/null
 
 # The two flags `-p` shares with the TUI (docs/cli/cli.md): `--permission-mode`
@@ -56,7 +56,7 @@ tmux new-session -d -s "$S153N" -c "$HL_WORK" -x 100 -y 40 \
 hl_nt="$(wait_pane 30 "$S153N" -F "NT_EXIT=")" || fail "the launch with no answering terminal never exited"
 tmux kill-session -t "$S153N" 2>/dev/null
 hl_nt_err="$(cat "$HL_NT_ERR")"
-dump "alter-zero \"$USER_MSG\" with stdout away from the pane (stderr)" "$hl_nt_err"
+dump "zeroth \"$USER_MSG\" with stdout away from the pane (stderr)" "$hl_nt_err"
 
 expect_has "$hl_tui" -E "~/headless +master" "the footer does not show -C's directory beside --permission-mode's mode"
 expect_has "$hl_pane" -F "HL_EXIT=0" "the headless run did not exit 0"

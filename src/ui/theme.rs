@@ -948,7 +948,7 @@ pub(super) const CLASSIFIER_VIEW_NOTE_AUTO: &str =
 pub(super) const CLASSIFIER_VIEW_NOTE_INACTIVE: &str =
     "Recorded every turn; consulted only in auto mode (shift+tab to switch).";
 
-/// …and with the gate off entirely (`ALTER_ZERO_PERMISSIONS=0`), where no
+/// …and with the gate off entirely (`ZEROTH_PERMISSIONS=0`), where no
 /// verdict is ever asked for.
 pub(super) const CLASSIFIER_VIEW_NOTE_OFF: &str =
     "Tool permissions are disabled — no classifier runs.";
@@ -2144,18 +2144,17 @@ pub(super) const HOOKS_DESC_GAP: usize = 3;
 /// info line with our file and assistant names, its docs link swapped for the
 /// format's own doc.
 pub(super) const HOOKS_INFO: &str = "ℹ Open a hook to trust it, or to stop trusting it. To \
-add or modify hooks, edit hooks.json directly or ask alter-zero. See docs/tools/hooks.md";
+add or modify hooks, edit hooks.json directly or ask zeroth. See docs/tools/hooks.md";
 
 /// The note when the file holds hooks but the session has them off
-/// (`/settings`, `ALTER_ZERO_HOOKS=0`) — the reference's restricted-by-policy
+/// (`/settings`, `ZEROTH_HOOKS=0`) — the reference's restricted-by-policy
 /// slot, red because every listed guard is currently not running.
 pub(super) const HOOKS_DISABLED_NOTE: &str =
     "Hooks are disabled this session — enable them in /settings";
 
 /// The empty state (an event with nothing configured), two dim lines.
 pub(super) const HOOKS_EMPTY: &str = "No hooks configured for this event.";
-pub(super) const HOOKS_EMPTY_HINT: &str =
-    "To add hooks, edit hooks.json directly or ask alter-zero.";
+pub(super) const HOOKS_EMPTY_HINT: &str = "To add hooks, edit hooks.json directly or ask zeroth.";
 
 /// The list levels' key hint, and the detail/empty pages' Esc-only one.
 pub(super) const HOOKS_HINT: &str = "Enter to confirm · Esc to cancel";

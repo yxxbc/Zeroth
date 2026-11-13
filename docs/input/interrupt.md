@@ -239,7 +239,7 @@ The old arm called `handle.join()` on that thread on the **single-threaded**
 status animation, keystrokes — blocked for that whole window: the reported
 "press Esc → the spinner freezes for 1–2 s, then unfreezes" bug. Reproduced
 deterministically offline by `stream::StallAi` (a backend that ignores the
-cancel for `ALTER_ZERO_STALL_MS` ms, modelling the wedged read): the stall
+cancel for `ZEROTH_STALL_MS` ms, modelling the wedged read): the stall
 backend streams nothing before the stall, so Esc lands on the **undo** path —
 with the old `join` the status line stays frozen ~`STALL_MS`; with
 `abandon_inflight` it clears (and the message returns to the composer) within a
@@ -397,7 +397,7 @@ no receipt (`docs/agents/agent-tool.md`).
   summary too, requires exactly two, and checks that turn 1's receipt sits
   between its notice and the queued message the Esc sent.
 - `src/tui/` (smoke, Phase 32 — the interrupt-lag regression guard, req 1): with a
-  backend stalled 3 s (`ALTER_ZERO_STALL_MS`, ignoring the cancel and streaming
+  backend stalled 3 s (`ZEROTH_STALL_MS`, ignoring the cancel and streaming
   nothing), Esc **undoes** the turn — the status line clears **within a frame**
   (asserted `< 1.5 s`, well under the stall) and `hello there` returns to the
   composer with **no** `Conversation interrupted` notice — proving the loop

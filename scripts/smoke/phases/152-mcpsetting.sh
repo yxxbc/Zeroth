@@ -17,7 +17,7 @@ smoke_begin
 #      `"mcp": false` in this directory's settings.json entry;
 #   3. relaunched — still off, and nothing launched at startup;
 #   4. cycled back on — the server connects again;
-#   5. ALTER_ZERO_MCP=0 — seeds the row off for the run, starts nothing, and
+#   5. ZEROTH_MCP=0 — seeds the row off for the run, starts nothing, and
 #      saves nothing;
 #   6. a project server new to the startup review, MCP off at launch — the
 #      review does not ask (nothing could run), /mcp lists it waiting, and
@@ -140,20 +140,20 @@ submit "$S152" "/quit"
 wait_gone 10 "$S152" || fail "/quit did not exit"
 launched="$(started)"
 
-# 5. ALTER_ZERO_MCP=0 seeds the row off for one run and saves nothing.
-launch "$S152" 100 36 "env ALTER_ZERO_MCP=0 $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+# 5. ZEROTH_MCP=0 seeds the row off for one run and saves nothing.
+launch "$S152" 100 36 "env ZEROTH_MCP=0 $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 submit "$S152" "/settings"
 wait_for 5 "$S152" -F "Type to search" || fail "/settings did not open"
 type_text "$S152" "mcp"
 env_row="$(wait_pane 5 "$S152" -F "(1/1)")"
-dump "/settings under ALTER_ZERO_MCP=0" "$env_row"
-expect_has "$env_row" -E "MCP +false" "ALTER_ZERO_MCP=0 did not seed the MCP row off"
+dump "/settings under ZEROTH_MCP=0" "$env_row"
+expect_has "$env_row" -E "MCP +false" "ZEROTH_MCP=0 did not seed the MCP row off"
 close_settings "$S152"
 sleep 1
-expect_eq "$(started)" "$launched" "ALTER_ZERO_MCP=0 still launched the server"
+expect_eq "$(started)" "$launched" "ZEROTH_MCP=0 still launched the server"
 submit "$S152" "/quit"
 wait_gone 10 "$S152" || fail "/quit did not exit"
-expect_file_lacks "$SMOKE_CFG/settings.json" -E '"mcp": *false' "ALTER_ZERO_MCP=0 was saved into settings.json"
+expect_file_lacks "$SMOKE_CFG/settings.json" -E '"mcp": *false' "ZEROTH_MCP=0 was saved into settings.json"
 
 # 6. A project server waiting for the review, with MCP off at launch.
 PROJ="$(mktemp -d)"
@@ -170,7 +170,7 @@ cat >"$PROJ/.mcp.json" <<PRJJSON
 {"mcpServers": {"projsrv": {"type": "stdio", "command": "sh", "args": ["$PROJ_DIR/server.sh"]}}}
 PRJJSON
 project_started() { find "$PROJ_DIR" -name 'started.*' | wc -l | tr -d ' '; }
-PROJ_APP="env ALTER_ZERO_MCP=0 ${CFG_ENV_NOHIST/ALTER_ZERO_PROJECT_CONFIG=0/ALTER_ZERO_PROJECT_CONFIG=1} ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+PROJ_APP="env ZEROTH_MCP=0 ${CFG_ENV_NOHIST/ZEROTH_PROJECT_CONFIG=0/ZEROTH_PROJECT_CONFIG=1} ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 launch -c "$PROJ" "$S152" 100 40 "$PROJ_APP"
 first="$(pane "$S152")"
 dump "the first frame with MCP off over a project server" "$first"

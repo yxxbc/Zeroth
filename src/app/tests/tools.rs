@@ -616,7 +616,7 @@ fn the_verbatim_policy_leaves_every_path_as_given() {
 
 #[test]
 fn the_policy_knows_the_sessions_scratchpad_and_any_sessions_layout() {
-    // This session's own, wherever ALTER_ZERO_SCRATCHPAD_DIR put it…
+    // This session's own, wherever ZEROTH_SCRATCHPAD_DIR put it…
     let paths = paths().with_scratchpad(Some("/home/linuztx/scratch".into()));
     assert!(paths.in_scratchpad("/home/linuztx/scratch/guess.py"));
     assert!(!paths.in_scratchpad("/home/linuztx/scratch"));
@@ -627,7 +627,7 @@ fn the_policy_knows_the_sessions_scratchpad_and_any_sessions_layout() {
     );
     // …and any session's by the layout, so a resumed conversation still knows
     // the files an earlier process wrote there.
-    assert!(PathDisplay::VERBATIM.in_scratchpad("/tmp/alter-zero-0/a-1/scratchpad/x.py"));
+    assert!(PathDisplay::VERBATIM.in_scratchpad("/tmp/zeroth-0/a-1/scratchpad/x.py"));
     assert!(!PathDisplay::VERBATIM.in_scratchpad("/tmp/x.py"));
     // A relative directory is no scratchpad at all.
     assert!(

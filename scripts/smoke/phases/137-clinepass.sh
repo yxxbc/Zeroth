@@ -9,7 +9,7 @@ smoke_begin
 # the ACCOUNT sign-in the Cline extension and CLI run: a WorkOS device code,
 # then a registration with Cline's own API whose refresh token the key store
 # keeps. Both hosts are one stub here, reached through
-# ALTER_ZERO_CLINE_AUTH_BASE / ALTER_ZERO_CLINE_API_BASE, answering the
+# ZEROTH_CLINE_AUTH_BASE / ZEROTH_CLINE_API_BASE, answering the
 # reference server's own wire shapes. What this phase pins:
 #
 # - the subscription list offers the Cline sign-in ONCE, as ClinePass (a
@@ -136,7 +136,7 @@ CC_BASE="http://127.0.0.1:$CC_PORT"
 # A short cwd (`~/work`): the footer lays the cwd out ahead of the context
 # gauge this phase reads, and truncates from the right.
 CC_WORK="$(work_dir)"
-launch -c "$CC_WORK" "$S137" 100 32 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_CLINE_AUTH_BASE=$CC_BASE ALTER_ZERO_CLINE_API_BASE=$CC_BASE $APP_ABS"
+launch -c "$CC_WORK" "$S137" 100 32 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_CLINE_AUTH_BASE=$CC_BASE ZEROTH_CLINE_API_BASE=$CC_BASE $APP_ABS"
 
 # Into the subscription half: Cline is ONE row there, ClinePass.
 submit "$S137" "/login"

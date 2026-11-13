@@ -57,7 +57,7 @@ const DEFAULT_PORT: &str = "11434";
 /// an agentic turn overflows on its first file read; the model's own
 /// maximum (128K, 256K) is what OOMs a GPU. 32K is Ollama's own middle
 /// VRAM tier and Cline's default, and it is raised by
-/// `ALTER_ZERO_CONTEXT_WINDOW`. See `docs/providers/ollama.md`.
+/// `ZEROTH_CONTEXT_WINDOW`. See `docs/providers/ollama.md`.
 pub const DEFAULT_NUM_CTX_CAP: u64 = 32_768;
 
 /// The server-side default's own variable, read from this process's

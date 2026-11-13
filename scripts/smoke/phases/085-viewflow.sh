@@ -15,7 +15,7 @@ S85="${S}_viewflow"
 FL_CFG="$(mktemp -d)"
 FL_CMD="echo FLOW_TOP_OF_COMMAND $(printf 'lorem-ipsum-filler-%03d ' $(seq 1 220))FLOW_DEEP_MARKER_85 done"
 printf '{ "hooks": { "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "%s" } ] } ] } }' "$FL_CMD" >"$FL_CFG/hooks.json"
-APP_FL="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$FL_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_FL="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$FL_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 # The startup review asks about the hook first, its screen-tall command cut
 # to fit rather than flowed at the first frame (docs/state/config-review.md).
 launch -n "$S85" 100 24 "$APP_FL"

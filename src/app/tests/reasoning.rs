@@ -41,7 +41,7 @@ fn reasoning_deltas_accumulate_in_the_buffer_and_the_tally() {
 
 #[test]
 fn deltas_without_an_open_phase_only_count() {
-    // ALTER_ZERO_SHOW_THINKING=0: the boundary never opens a buffer, so the
+    // ZEROTH_SHOW_THINKING=0: the boundary never opens a buffer, so the
     // pure core keeps exactly the pre-feature behaviour — counted, not kept.
     let mut app = App::new();
     app.begin_stream();

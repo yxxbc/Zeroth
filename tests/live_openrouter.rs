@@ -10,10 +10,10 @@
 //! OPENROUTER_API_KEY=sk-or-… cargo test --test live_openrouter -- --ignored --nocapture
 //! ```
 //!
-//! `ALTER_ZERO_LIVE_MODEL` overrides the model (default `openai/gpt-4o-mini`,
+//! `ZEROTH_LIVE_MODEL` overrides the model (default `openai/gpt-4o-mini`,
 //! which is cheap and supports vision). The prompt-caching / usage tests
 //! (`docs/providers/prompt-caching.md`) live here too; the Venice ones need
-//! `A0_VENICE_API_KEY` (and `ALTER_ZERO_LIVE_VENICE_MODEL` to override that
+//! `A0_VENICE_API_KEY` (and `ZEROTH_LIVE_VENICE_MODEL` to override that
 //! provider's churning model ids).
 //!
 //! The streaming-render contract (CLAUDE.md invariant 2) and the live
@@ -71,11 +71,11 @@ fn backend_for(model: String, thinking: Option<ThinkingMode>) -> LlmBackend {
     backend_with(model, thinking, None)
 }
 
-/// The default backend under test (`ALTER_ZERO_LIVE_MODEL`, else a cheap
+/// The default backend under test (`ZEROTH_LIVE_MODEL`, else a cheap
 /// vision-capable model), no thinking mode.
 fn backend() -> LlmBackend {
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     backend_for(model, None)
 }
 
@@ -206,7 +206,7 @@ fn live_anthropic_prompt_cache_writes_then_reads() {
         thinking: None,
         vision: None,
         context: None,
-        cache_key: Some(format!("alter-zero-live-cache-{salt}")),
+        cache_key: Some(format!("zeroth-live-cache-{salt}")),
         service_tier: None,
         extra_headers: Vec::new(),
         extra_body: serde_json::Map::new(),
@@ -291,7 +291,7 @@ fn live_venice_reports_usage_and_hits_its_cache() {
     // must show cached tokens.
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the Venice live tests");
-    let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
     let providers = zeroth::llm::ProvidersFile::builtin();
     let salt = std::time::SystemTime::now()
@@ -306,7 +306,7 @@ fn live_venice_reports_usage_and_hits_its_cache() {
         vision: None,
         context: None,
         api_base: None,
-        cache_key: Some(format!("alter-zero-live-venice-{salt}")),
+        cache_key: Some(format!("zeroth-live-venice-{salt}")),
         service_tier: None,
     };
     let cfg = providers.model_config(&sel).expect("a0_venice is built in");
@@ -456,7 +456,7 @@ fn live_a_real_write_then_edit_resolves_with_the_short_ack() {
     // conversation once, in the arguments the model already sent, instead of
     // twice. Asserted on the recorded history and the derived context, not on
     // the events, because the recording leg is where they could still be lost.
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-ack-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-ack-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("work dir");
     let path = dir.join("note.txt");
     let _ = std::fs::remove_file(&path);
@@ -658,8 +658,8 @@ fn live_environment_context_reaches_the_model() {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
-    let cwd = "/home/user/alter-zero-sentinel-42";
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+    let cwd = "/home/user/zeroth-sentinel-42";
     // The os string is the distro-enriched form the boundary builds on Linux
     // (docs/architecture/environment.md) — assert the model can read the distro back too.
     let os = "linux (Ubuntu 24.04.4 LTS)";
@@ -736,8 +736,8 @@ fn live_scratchpad_context_reaches_the_model() {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
-    let scratchpad = "/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad";
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+    let scratchpad = "/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad";
     let system = augment_with_scratchpad(
         &augment_with_environment(
             "You are Zeroth an autonomous AI agent running in terminal UI",
@@ -803,7 +803,7 @@ fn scratchpad_targets(scratchpad: &std::path::Path, cwd: &str, task: &str) -> Ve
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let cfg = ModelConfig {
         provider_id: "openrouter".to_string(),
         provider_name: "OpenRouter".to_string(),
@@ -866,7 +866,7 @@ fn live_the_model_puts_its_temp_file_in_the_scratchpad() {
     // recite (docs/tools/scratchpad.md). Given a task that needs a scratch file and
     // no path to put it at, every file the round touches must land in the
     // scratchpad — not `/tmp`, and not the project cwd.
-    let scratchpad = std::path::PathBuf::from("/tmp/alter-zero-1000/18cea7c-5d77f/scratchpad");
+    let scratchpad = std::path::PathBuf::from("/tmp/zeroth-1000/18cea7c-5d77f/scratchpad");
     let task = "Save a short note listing three prime numbers to a temporary file, \
                 then tell me the full path you used.";
     // Both cwds, because the second one caught a real weakness: launched *in*
@@ -901,7 +901,7 @@ fn live_scratchpad_write_runs_without_a_permission_prompt() {
     use zeroth::llm::backend::augment_with_scratchpad;
     use zeroth::permission::{PermissionGate, PermissionMode, SCRATCHPAD_ALLOWED_NOTE};
 
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-pad-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-pad-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("scratchpad dir");
     let path = dir.join("notes.txt");
     let _ = std::fs::remove_file(&path);
@@ -912,7 +912,7 @@ fn live_scratchpad_write_runs_without_a_permission_prompt() {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let cfg = ModelConfig {
         provider_id: "openrouter".to_string(),
         provider_name: "OpenRouter".to_string(),
@@ -1253,7 +1253,7 @@ fn live_thinking_off_suppresses_reasoning() {
 fn live_vision_reads_a_pasted_image() {
     // A solid-red PNG written the way the clipboard paste writes one; the
     // context message carries its path like a real [Image #1] attachment.
-    let path = std::env::temp_dir().join("alter-zero-live-vision-red.png");
+    let path = std::env::temp_dir().join("zeroth-live-vision-red.png");
     let img = image::RgbaImage::from_pixel(64, 64, image::Rgba([220, 20, 20, 255]));
     img.save(&path).expect("write the test PNG");
 
@@ -1283,7 +1283,7 @@ fn live_read_tool_lets_the_model_see_an_image() {
     // pixels via ToolOutcome::image, the agent loop appends the follow-up
     // user parts message, and the NEXT round must actually see it — the
     // color exists nowhere in text, only in the attached pixels.
-    let path = std::env::temp_dir().join("alter-zero-live-read-image-red.png");
+    let path = std::env::temp_dir().join("zeroth-live-read-image-red.png");
     let img = image::RgbaImage::from_pixel(64, 64, image::Rgba([220, 20, 20, 255]));
     img.save(&path).expect("write the test PNG");
 
@@ -1392,7 +1392,7 @@ fn live_non_vision_model_gracefully_declines_an_image_read() {
     // support image input") and the turn would die red; with it, the tool
     // resolves as a recoverable error the model reads, and the turn completes
     // with a text answer.
-    let path = std::env::temp_dir().join("alter-zero-live-no-vision-read.png");
+    let path = std::env::temp_dir().join("zeroth-live-no-vision-read.png");
     let img = image::RgbaImage::from_pixel(32, 32, image::Rgba([220, 20, 20, 255]));
     img.save(&path).expect("write the test PNG");
 
@@ -1442,7 +1442,7 @@ fn live_non_vision_model_survives_a_pasted_image() {
     // provider 404s the request; with it the attachment degrades to the
     // [image omitted…] note and the model answers — knowing an image existed
     // that it cannot see.
-    let path = std::env::temp_dir().join("alter-zero-live-no-vision-paste.png");
+    let path = std::env::temp_dir().join("zeroth-live-no-vision-paste.png");
     let img = image::RgbaImage::from_pixel(32, 32, image::Rgba([20, 220, 20, 255]));
     img.save(&path).expect("write the test PNG");
 
@@ -1493,7 +1493,7 @@ fn live_replayed_image_read_is_visible_on_the_next_turn() {
     // turn. Blue (vs the in-turn test's red) so a leaked context can't
     // false-positive.
     use zeroth::app::{HistoryItem, Message, Role, ToolCall, ToolStatus};
-    let path = std::env::temp_dir().join("alter-zero-live-replay-image-blue.png");
+    let path = std::env::temp_dir().join("zeroth-live-replay-image-blue.png");
     let img = image::RgbaImage::from_pixel(64, 64, image::Rgba([20, 20, 220, 255]));
     img.save(&path).expect("write the test PNG");
     let path_str = path.display().to_string();
@@ -1562,7 +1562,7 @@ fn live_vision_survives_a_large_image_upload() {
     // send/header exchange. Under the old 3 s per-operation timeout this
     // upload burned the whole retry budget re-hitting the same wall and the
     // turn failed ("[Image] can't be processed").
-    let path = std::env::temp_dir().join("alter-zero-live-vision-large.png");
+    let path = std::env::temp_dir().join("zeroth-live-vision-large.png");
     // Deterministic noise compresses poorly, so the PNG lands in the
     // megabytes without shipping a binary fixture; the solid red centre
     // square keeps a semantic assertion possible.
@@ -1617,7 +1617,7 @@ fn live_ctrl_b_handoff_tells_the_model_the_user_moved_it() {
     // acknowledgement — so the model knows why the output stopped arriving
     // and does not re-run the command or poll for it.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-ctrlb-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-ctrlb-{}", std::process::id()));
     let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let backend = backend().with_background(registry.clone());
 
@@ -1712,7 +1712,7 @@ fn live_killed_background_task_is_known_to_the_model_within_the_turn() {
     // signal" note in its final reply of the SAME turn, without any
     // follow-up turn.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-kill-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-kill-{}", std::process::id()));
     let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let backend = backend().with_background(registry.clone());
 
@@ -1810,7 +1810,7 @@ fn live_sudo_style_tty_prompt_fails_fast() {
     // default timeout; attached, it would block on the terminal (the
     // `Running…`-forever hijack this fix removes).
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-notty-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-notty-{}", std::process::id()));
     let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir)
         .with_detach_helper(Some(PathBuf::from(env!("CARGO_BIN_EXE_zeroth"))));
     let backend = backend().with_background(registry);
@@ -1870,7 +1870,7 @@ fn live_background_launch_resolves_and_completes() {
     // turn finishing while the process runs), and the shared registry reports
     // Started → Screen → Exited on its own channel.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-bg-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-bg-{}", std::process::id()));
     let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let backend = backend().with_background(registry);
 
@@ -1942,7 +1942,7 @@ fn live_subagent_is_sent_the_subagent_note_and_ctrl_d_matches_it() {
     // Ctrl+D shows) carries that same sentence, so the view matches what was
     // actually sent.
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-agnote-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-agnote-{}", std::process::id()));
     let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, _agent_rx) = tokio::sync::mpsc::unbounded_channel();
     let agent_registry = zeroth::agents::AgentRegistry::new(agent_tx);
@@ -2026,7 +2026,7 @@ fn live_a_subagents_classifier_context_is_its_own_not_the_leads() {
     // lead's request carries a word the agent's prompt never does, and the
     // agent runs a command the lead is told not to run.
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-agclass-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-agclass-{}", std::process::id()));
     let bg = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, mut agent_rx) = tokio::sync::mpsc::unbounded_channel();
     let agents = zeroth::agents::AgentRegistry::new(agent_tx);
@@ -2109,7 +2109,7 @@ fn live_subagent_background_bash_stacks_into_the_shared_registry() {
     // resolving as ToolBackgrounded on the agent channel, and the process
     // completing on the registry's own channel.
     let (bg_tx, mut bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-agbg-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-agbg-{}", std::process::id()));
     let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, mut agent_rx) = tokio::sync::mpsc::unbounded_channel();
     let agent_registry = zeroth::agents::AgentRegistry::new(agent_tx);
@@ -2205,7 +2205,7 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
     const WIDTH: u16 = 60;
 
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
-    let dir = std::env::temp_dir().join(format!("alter-zero-live-agdim-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("zeroth-live-agdim-{}", std::process::id()));
     let registry = zeroth::background::BackgroundRegistry::new(bg_tx, dir);
     let (agent_tx, mut agent_rx) = tokio::sync::mpsc::unbounded_channel();
     let agent_registry = zeroth::agents::AgentRegistry::new(agent_tx);
@@ -2370,12 +2370,12 @@ fn bash_request(command: &str, description: Option<&str>) -> PermissionRequest {
 }
 
 /// The classifier under test, on the live-model config (or
-/// `ALTER_ZERO_CLASSIFIER_MODEL`, which `SafetyClassifier::new` honours).
+/// `ZEROTH_CLASSIFIER_MODEL`, which `SafetyClassifier::new` honours).
 fn live_classifier() -> zeroth::llm::classifier::SafetyClassifier {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let cfg = ModelConfig {
         provider_id: "openrouter".to_string(),
         provider_name: "OpenRouter".to_string(),
@@ -2626,7 +2626,7 @@ fn live_tools_setting_decides_whether_the_model_is_offered_any() {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let cfg = ModelConfig {
         provider_id: "openrouter".to_string(),
         provider_name: "OpenRouter".to_string(),
@@ -2694,7 +2694,7 @@ fn live_error_retry_setting_bounds_the_attempts() {
     // whose transport fails, and count the `Retrying` announcements: the
     // budget the knob set is exactly what the driver spends.
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let unreachable = ModelConfig {
         provider_id: "openrouter".to_string(),
         provider_name: "OpenRouter".to_string(),
@@ -2761,7 +2761,7 @@ fn live_temperature_setting_rides_the_request() {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     for temperature in [None, Some(0.0), Some(1.0)] {
         let cfg = ModelConfig {
             provider_id: "openrouter".to_string(),
@@ -2817,7 +2817,7 @@ fn live_max_tool_calls_bounds_a_parallel_batch() {
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run the live tests");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let cfg = ModelConfig {
         provider_id: "openrouter".to_string(),
         provider_name: "OpenRouter".to_string(),
@@ -3110,7 +3110,7 @@ fn backend_with_hooks(hooks_json: &str, dir: &std::path::Path) -> LlmBackend {
     )
     .expect("the fixture has a runnable handler");
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     backend_for(model, None).with_hooks(std::sync::Arc::new(sink))
 }
 
@@ -3388,7 +3388,7 @@ fn skill_backend_and_context(
         );
     };
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let cfg = ModelConfig {
         provider_id: "openrouter".to_string(),
         provider_name: "OpenRouter".to_string(),
@@ -3931,7 +3931,7 @@ fn live_streaming_never_loses_or_repeats_a_row() {
     // screen at width 40 (`docs/ui/markdown.md`, *Scrollback and the strip share
     // one frontier*).
     let model =
-        std::env::var("ALTER_ZERO_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+        std::env::var("ZEROTH_LIVE_MODEL").unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
     let styled = |line: &ratatui::text::Line<'_>| -> Vec<(String, Option<ratatui::style::Color>)> {
         line.spans
             .iter()
@@ -4029,7 +4029,7 @@ fn live_streaming_never_loses_or_repeats_a_row() {
 fn venice_backend(system: Option<String>) -> LlmBackend {
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the Venice live tests");
-    let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
     let providers = zeroth::llm::ProvidersFile::builtin();
     let sel = zeroth::llm::Selection {
@@ -4349,11 +4349,11 @@ fn live_streamed_table_never_squeezes_the_composer() {
 
 /// A tools-enabled backend on the `a0_venice` provider carrying `registry` —
 /// [`skill_backend_and_context`]'s Venice twin, for the skill tests run
-/// against that key (`A0_VENICE_API_KEY`, `ALTER_ZERO_LIVE_VENICE_MODEL`).
+/// against that key (`A0_VENICE_API_KEY`, `ZEROTH_LIVE_VENICE_MODEL`).
 fn venice_skill_backend(registry: &zeroth::skills::SkillRegistry) -> LlmBackend {
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the Venice live tests");
-    let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "zai-org-glm-4.7-flash".to_string());
     let providers = zeroth::llm::ProvidersFile::builtin();
     let sel = zeroth::llm::Selection {
@@ -4390,10 +4390,8 @@ fn live_the_built_in_skill_creator_writes_a_skill_this_crate_can_load() {
     // walk skips) would look perfectly reasonable in review and fail only
     // here: the skill's body is a claim about this parser, and the parser is
     // the only thing that can check it.
-    let work = std::env::temp_dir().join(format!(
-        "alter-zero-live-skill-creator-{}",
-        std::process::id()
-    ));
+    let work =
+        std::env::temp_dir().join(format!("zeroth-live-skill-creator-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&work);
     let root = work.join("skills");
     assert!(
@@ -4459,7 +4457,7 @@ fn live_the_skill_creator_sends_the_model_to_its_reference_file() {
     // placeholder is one written from the reference, since the `SKILL.md`
     // that sent it there cannot spell the token out.
     let work = std::env::temp_dir().join(format!(
-        "alter-zero-live-skill-reference-{}",
+        "zeroth-live-skill-reference-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&work);
@@ -4490,7 +4488,7 @@ fn live_the_skill_creator_sends_the_model_to_its_reference_file() {
     let _ = std::fs::remove_dir_all(&work);
     println!("wrote:\n{written}");
     assert!(
-        written.contains("${ALTER_ZERO_SKILL_DIR}") || written.contains("${CLAUDE_SKILL_DIR}"),
+        written.contains("${ZEROTH_SKILL_DIR}") || written.contains("${CLAUDE_SKILL_DIR}"),
         "the body uses a real skill-dir token, so the reference was read: {written}"
     );
     let read_the_reference = history

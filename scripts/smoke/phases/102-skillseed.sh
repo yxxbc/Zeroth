@@ -12,16 +12,16 @@ smoke_begin
 # model there for the substitution tokens a body cannot spell out — a later
 # launch must never clobber a copy the user edited, and a deleted file has to
 # come back. The fourth is the difference from the agent definitions: an
-# ALTER_ZERO_SKILLS_DIR override is NEVER seeded into (it says "these are the
+# ZEROTH_SKILLS_DIR override is NEVER seeded into (it says "these are the
 # skills, and only these" — and this suite's own hermetic sessions depend on
 # that dir staying exactly as empty as it was made).
 S102="${S}_skillseed"
 SK_CFG="$(mktemp -d)"
 SK_HOME="$(mktemp -d)"
-# No ALTER_ZERO_SKILLS_DIR here — the override is what this phase must see
+# No ZEROTH_SKILLS_DIR here — the override is what this phase must see
 # switched off. HOME is redirected instead so the walk's `~/.claude/skills` row
 # finds nothing and the run stays hermetic on a machine that has real skills.
-APP_SK="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 HOME=$SK_HOME ALTER_ZERO_CONFIG_DIR=$SK_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_AGENTS_DIR=$SMOKE_AGENTS ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_SK="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 HOME=$SK_HOME ZEROTH_CONFIG_DIR=$SK_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux kill-session -t "$S102" 2>/dev/null
 tmux new-session -d -s "$S102" -x 100 -y 24 "$APP_SK"
 sleep 1.2
@@ -105,13 +105,13 @@ fi
 # and every other phase in this suite runs against one that must stay empty.
 SK_OVERRIDE="$(mktemp -d)"
 SK_CFG2="$(mktemp -d)"
-tmux new-session -d -s "$S102" -x 100 -y 24 "env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 HOME=$SK_HOME ALTER_ZERO_CONFIG_DIR=$SK_CFG2 ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_SKILLS_DIR=$SK_OVERRIDE ALTER_ZERO_AGENTS_DIR=$SMOKE_AGENTS ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+tmux new-session -d -s "$S102" -x 100 -y 24 "env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 HOME=$SK_HOME ZEROTH_CONFIG_DIR=$SK_CFG2 ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SK_OVERRIDE ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 sleep 1.2
 submit "$S102" "/quit"
 sleep 0.6
 tmux kill-session -t "$S102" 2>/dev/null
 if [ -n "$(ls -A "$SK_OVERRIDE" 2>/dev/null)" ]; then
-	fail "the seed wrote into an ALTER_ZERO_SKILLS_DIR override"
+	fail "the seed wrote into an ZEROTH_SKILLS_DIR override"
 	ls -1 "$SK_OVERRIDE" >&2
 fi
 if [ -e "$SK_CFG2/skills" ]; then

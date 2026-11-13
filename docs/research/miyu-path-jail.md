@@ -243,7 +243,7 @@ if covered
 | 大小写/Unicode | `file_change_inside` 用 `Path::starts_with`，macOS/Windows 不折叠 | 多数情况是“多问一次”（fail closed），但不是明确的统一策略 | **P2** |
 | `bash` 无 OS 沙盒 | `run_bash` 直接用当前用户跑；没有 Landlock/Seatbelt/AppContainer | auto 的 classifier 不是强制边界，注入可诱导写工作区外 | **P2** |
 | `web_fetch`/MCP 出站 | 只有 classifier/规则；没有私网地址、`file://`、重定向的统一拦截 | 读到的密钥可经 URL/请求外发 | **P2** |
-| Master / 关闭权限 | `Master` 在 `allows` 里先返回 true；`ALTER_ZERO_PERMISSIONS=0` 直接没有 gate（`src/tui/config.rs:984-990`） | 显式选择，需文档写清“这不是路径监狱” | **P2** |
+| Master / 关闭权限 | `Master` 在 `allows` 里先返回 true；`ZEROTH_PERMISSIONS=0` 直接没有 gate（`src/tui/config.rs:984-990`） | 显式选择，需文档写清“这不是路径监狱” | **P2** |
 
 ### 4.3 P0：把 write/edit 的判定做成“判定 + 执行”双重
 
@@ -334,8 +334,8 @@ if covered
 1. `read` 的敏感路径策略：`~/.ssh`、云凭据、`.env`、`authorized_keys`、浏览器配置；auto 也不能静默读。
 2. auto 的只读命令 fast path 复用同一套路径策略；`cat ~/.ssh/...` 不能因为“只读”就放行。
 3. 受保护写路径：`.git/hooks`、`.git/config`、`.git`（文件）、`.bashrc`/`.zshrc`/`.profile`、`.config/fish`、`.envrc`、`.vscode`、`.mcp.json`、`authorized_keys`；在工作区内也要问/拒。
-4. 显式临时根：把 `std::env::temp_dir()` 下会话级目录、`ALTER_ZERO_SCRATCHPAD_DIR` 纳入允许根，减少“正常临时文件也被问”的摩擦。
-5. 文档写清 `Master`、`ALTER_ZERO_PERMISSIONS=0`、hooks allow 的绕过语义。
+4. 显式临时根：把 `std::env::temp_dir()` 下会话级目录、`ZEROTH_SCRATCHPAD_DIR` 纳入允许根，减少“正常临时文件也被问”的摩擦。
+5. 文档写清 `Master`、`ZEROTH_PERMISSIONS=0`、hooks allow 的绕过语义。
 
 **P2（需要新机制）**
 

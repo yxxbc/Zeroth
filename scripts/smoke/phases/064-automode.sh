@@ -5,7 +5,7 @@
 smoke_begin
 
 # The permission modes end to end (docs/state/permissions.md). Every other phase
-# runs with ALTER_ZERO_PERMISSION_MODE=manual exported; these launches unset
+# runs with ZEROTH_PERMISSION_MODE=manual exported; these launches unset
 # it, so the session comes up in the DEFAULT — auto — with the footer saying
 # so before any key is pressed. In auto the dummy's "auto permission" demo is
 # decided without the user: the read-only listing takes the fast path past
@@ -17,16 +17,16 @@ smoke_begin
 # step is master (persisted as "master"), where the same demo runs both
 # commands silently; a second is manual, which must be written out now that
 # an absent mode means auto, so a relaunch in the same directory comes back
-# in manual. Last, a relaunch seeded ALTER_ZERO_PERMISSION_MODE=edit starts in
+# in manual. Last, a relaunch seeded ZEROTH_PERMISSION_MODE=edit starts in
 # edit, and a command rule approved under that seed saves only the allowlist:
 # the file still says manual.
 S64="${S}_automode"
 CFG64="$SMOKE_TMP/cfg64"
 PERMS64="$CFG64/permissions.json"
 mkdir -p "$CFG64"
-ENV64="ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$CFG64 ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_STARTUP_DELAY_MS=300"
-APP64="env -u ALTER_ZERO_PERMISSION_MODE $ENV64 $BIN"
-APP64_EDIT="env ALTER_ZERO_PERMISSION_MODE=edit $ENV64 $BIN"
+ENV64="ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$CFG64 ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=300"
+APP64="env -u ZEROTH_PERMISSION_MODE $ENV64 $BIN"
+APP64_EDIT="env ZEROTH_PERMISSION_MODE=edit $ENV64 $BIN"
 
 launch "$S64" 100 44 "$APP64"
 start_pane="$(pane "$S64")"
@@ -88,7 +88,7 @@ wait_gone 10 "$S64" || fail "the relaunched app did not quit on Ctrl+C"
 # A seeded run: the seed outranks the saved manual for this launch alone.
 launch "$S64" 100 44 "$APP64_EDIT"
 seeded_pane="$(pane "$S64")"
-expect_has "$seeded_pane" -E "dummy_model_name · .*edit$" "ALTER_ZERO_PERMISSION_MODE=edit did not seed the run over the saved manual"
+expect_has "$seeded_pane" -E "dummy_model_name · .*edit$" "ZEROTH_PERMISSION_MODE=edit did not seed the run over the saved manual"
 # Edit mode covers file changes, not commands, so the demo's listing asks
 # (the read-only fast path is auto mode's alone): option 2 saves a rule while
 # the gate's live mode is the seed. The test run asks next and is allowed
@@ -114,5 +114,5 @@ note "permissions.json after the seeded run"
 cat "$PERMS64" 2>/dev/null
 expect_file_has "$PERMS64" -F '"mode": "manual"' "a rule saved under the seed overwrote the saved mode — the seed reached the file"
 if grep -qF '"mode": "edit"' "$PERMS64" 2>/dev/null; then
-	fail "the ALTER_ZERO_PERMISSION_MODE seed was saved to permissions.json"
+	fail "the ZEROTH_PERMISSION_MODE seed was saved to permissions.json"
 fi

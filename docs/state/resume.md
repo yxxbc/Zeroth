@@ -94,8 +94,8 @@ overlay machinery.
   default, and inside a moved `ZEROTH_CONFIG_DIR`, so the state dir moves
   whole (it used to fall back to `$HOME` regardless, which is how the smoke
   suite's throwaway sessions reached the developer's own picker) — with
-  `ALTER_ZERO_SESSIONS_DIR` overriding it outright (the
-  `ALTER_ZERO_STARTUP_DELAY_MS` pattern — the smoke suite points it at a temp
+  `ZEROTH_SESSIONS_DIR` overriding it outright (the
+  `ZEROTH_STARTUP_DELAY_MS` pattern — the smoke suite points it at a temp
   dir). `{id}` is nanos-since-epoch + pid in hex — unique enough without
   a uuid dependency, and never parsed back (we resume by *path*). The path
   derivation is the pure `session::rollout_rel_path(date, time, id)`; the
@@ -106,7 +106,7 @@ overlay machinery.
   deferred create (`docs/tools/hooks.md`).
 - Lines are codex's shape: `{"timestamp": <UTC millis Z>, "type": …,
   "payload": …}`. Line 1 is `session_meta`
-  (`{id, timestamp, cwd, model, originator: "alter-zero", version}`); then one
+  (`{id, timestamp, cwd, model, originator: "zeroth", version}`); then one
   line per finished [`HistoryItem`] as it lands in `App::history`:
   - `"message"` → `{role: "user"|"assistant"|"system"|"error"|"shell", text,
     timestamp}` (the display stamp the item already carries),
@@ -350,7 +350,7 @@ the highlight back up the rows already on screen without scrolling at all.
   events); our rewrite-on-truncate keeps the file a mirror of `App::history`
   instead. (A resumed file whose last line lost its newline — a torn write —
   is repaired on the first append rather than glued onto.)
-- **Concurrent instances**: two alter-zero processes never share a file
+- **Concurrent instances**: two zeroth processes never share a file
   (the id embeds the pid), but resuming the *same* saved session from two
   instances interleaves appends unguarded — codex has state-db arbitration;
   documented limitation here.
@@ -389,7 +389,7 @@ the highlight back up the rows already on screen without scrolling at all.
   selection kept visible in a short window, and — mid-list — kept
   **centered** in it with the rows above and below in view (`/model`'s rule).
 - `scripts/smoke.sh` Phase 31 (the I/O boundary): with
-  `ALTER_ZERO_SESSIONS_DIR` pointed at a temp dir — a turn writes a rollout
+  `ZEROTH_SESSIONS_DIR` pointed at a temp dir — a turn writes a rollout
   file (meta + user + assistant lines); a second launch's `/resume` picker
   lists it (preview visible), Enter repaints the old conversation inline, a
   follow-up turn **appends to the same file** (no second file), and the

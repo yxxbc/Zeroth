@@ -282,7 +282,7 @@ budget spent — a red note, once. A zero allowance that isn't unlimited is a
 placeholder (a pooled Business seat) and is left out. Everything resets at
 midnight UTC on the 1st (`quota_reset_at`, else `quota_reset_date_utc`, else
 `quota_reset_date`). A seat on the old Free plan reports `limited_user_quotas`
-against `monthly_quotas` instead. `ALTER_ZERO_GITHUB_API_BASE` points this read
+against `monthly_quotas` instead. `ZEROTH_GITHUB_API_BASE` points this read
 — and the token exchange — at another host (`copilot::set_github_api`, read at
 the boundary), which is how the smoke suite stands in for GitHub.
 
@@ -295,7 +295,7 @@ and the section says so instead of reading windows), then `GET
 /api/v1/users/me/plan/usage-limits` — `limits[]` of `{type, percentUsed,
 resetsAt?}` for the `five_hour`, `weekly` and `monthly` windows. Both carry
 the minted `Bearer workos:<jwt>` and go to the API host in force
-(`ALTER_ZERO_CLINE_API_BASE`, `docs/providers/cline.md`). A spent window is reached on
+(`ZEROTH_CLINE_API_BASE`, `docs/providers/cline.md`). A spent window is reached on
 its own row, and one amber line says what to do about it, naming the window
 that resets **last** — how long the pause lasts — the dashboard's banner.
 Verified live.
@@ -360,7 +360,7 @@ they change without notice. Nothing is parsed into a `serde_json::Value` tree
   the frame hugging its content at every width and height, the ladder.
 - `tests/live_usage.rs` — every provider against its real endpoint,
   `#[ignore]`d (it needs credentials; the rotating ones write back to
-  `ALTER_ZERO_LIVE_TOKEN_STORE`).
+  `ZEROTH_LIVE_TOKEN_STORE`).
 - `scripts/smoke/phases/145-usage.sh` — the page against stub endpoints for
   ChatGPT, Copilot (a Free seat on credit billing) and ClinePass: the
   sections, `limit reached` in red, `r`, a refused refresh, ↓ moving the

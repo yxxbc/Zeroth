@@ -23,8 +23,8 @@ fn run(args: &[&str]) -> Output {
         // The sessions dir is never reached by these paths, but keep the
         // process off the developer's real config home regardless.
         .env(
-            "ALTER_ZERO_CONFIG_DIR",
-            std::env::temp_dir().join("alter-zero-cli-help-tests"),
+            "ZEROTH_CONFIG_DIR",
+            std::env::temp_dir().join("zeroth-cli-help-tests"),
         )
         .env_remove("NO_COLOR")
         .output()

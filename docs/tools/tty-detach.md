@@ -83,7 +83,7 @@ is real and surfaces):
    `BackgroundRegistry` (`with_detach_helper` → `detach_helper()`), which
    every runner already shares. A `cargo test` binary has libtest's `main`,
    not ours — re-execing it would run the test suite instead of the command —
-   so the tests install the `alter-zero` binary cargo built beside them
+   so the tests install the `zeroth` binary cargo built beside them
    instead (*Testing*).
 3. **Attached `sh -c` + `process_group(0)`** — the pre-fix behavior, the last
    resort where neither detach route exists (still fully killable, but
@@ -163,9 +163,9 @@ a terminal?" saw non-tty fds before and after. The new session only removes
   the helper re-exec tier directly — the macOS-representative path.
 - **The library's own tests** start their sessions and detached commands
   through the helper too, where there is no `setsid` binary: the registries,
-  the session spawns and the detach fixtures install the `alter-zero` binary
+  the session spawns and the detach fixtures install the `zeroth` binary
   cargo built beside the test binary (`subprocess::test_detach_helper` —
-  `target/debug/alter-zero` for `target/debug/deps/alter_zero-…`). On Linux
+  `target/debug/zeroth` for `target/debug/deps/zeroth-…`). On Linux
   `setsid` comes first and the helper is only behind it; on macOS, which
   ships no `setsid`, the helper is the tier every terminal test runs on, as
   the app does there — the CI macOS job checks that no `setsid` is on

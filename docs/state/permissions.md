@@ -461,7 +461,7 @@ A new session takes its mode from the first of:
 1. **`--permission-mode <MODE>`** on the command line — the flag form of
    the variable below, outranking it (`docs/cli/cli.md`). The parse refuses an
    unknown mode outright, naming the four.
-2. **`ALTER_ZERO_PERMISSION_MODE`** — `manual`, `edit`, `auto` or `master`,
+2. **`ZEROTH_PERMISSION_MODE`** — `manual`, `edit`, `auto` or `master`,
    in any case — for this launch only. Both seeds outrank the project's
    saved mode and are **never saved**: only a mode the user picks reaches
    `permissions.json` (below). A blank value counts as unset; anything else
@@ -481,7 +481,7 @@ file changes run — the footer names the mode, and Shift+Tab is one key away �
 and puts each command the allowlist doesn't cover in front of the classifier,
 which falls back to the ordinary prompt whenever it cannot reach a verdict.
 The cost is one classifier request to the session's own provider per
-reviewed call. The smoke suite pins `ALTER_ZERO_PERMISSION_MODE=manual` so
+reviewed call. The smoke suite pins `ZEROTH_PERMISSION_MODE=manual` so
 its prompt phases still meet their prompts (`docs/ops/smoke.md`); Phase 64
 launches without it to cover the default.
 
@@ -610,7 +610,7 @@ survives arbitrary OpenAI-compatible models far better than JSON; the parse
 (`classifier::parse_verdict`) still tolerates a chatty model's preamble, and
 anything without a recognisable verdict is an **error, never an allow**. The
 call runs on a tools-free clone of the session's `ModelConfig` with thinking
-dropped (a verdict needs no reasoning budget); `ALTER_ZERO_CLASSIFIER_MODEL`
+dropped (a verdict needs no reasoning budget); `ZEROTH_CLASSIFIER_MODEL`
 swaps in a cheaper model id on the same provider — Claude Code's
 small-fast-model slot. Cancellation rides the same `CancelToken` polling as
 every request, and a classify that fails *because* the turn was torn down
@@ -847,7 +847,7 @@ strictly inside and lexically checked, and a forced ask still asks. And it is
 visible, through the same channel the classifier's verdict uses:
 
 ```
-● Write(/tmp/alter-zero-1000/18ce…-5d77f/scratchpad/plan.md)
+● Write(/tmp/zeroth-1000/18ce…-5d77f/scratchpad/plan.md)
   ⎿  Wrote 12 lines to …/scratchpad/plan.md
   ⎿  Allowed in the session scratchpad
 ```
@@ -885,7 +885,7 @@ Claude Code's per-project settings:
 ```json
 {
   "projects": {
-    "/home/user/Codes/rust/project/alter-zero": {
+    "/home/user/Codes/rust/project/zeroth": {
       "allow_commands": ["git status *", "python3 *"],
       "mode": "edit"
     }
@@ -910,7 +910,7 @@ the file, updates only what changed in this project's entry, and rewrites
 it** — a mode change (Shift+Tab, the `/settings` row, option 2 on a file
 prompt) only the `mode` (`record_mode`), a command or MCP rule (option 2 on
 their prompts) only `allow_commands` (`record_commands`). The split is what
-keeps an `ALTER_ZERO_PERMISSION_MODE` seed out of the file — the gate's live
+keeps an `ZEROTH_PERMISSION_MODE` seed out of the file — the gate's live
 mode carries the seed, and a rule saved under it would otherwise have
 written the seed over the mode the project chose (the `settings.json` rule,
 `docs/state/per-directory-state.md`) — and a rule a second instance in the same
@@ -1106,7 +1106,7 @@ cursor identically.
 
 ## Nobody to ask: a headless run
 
-A headless run (`alter-zero -p`, `docs/cli/headless.md`) has no screen to put a
+A headless run (`zeroth -p`, `docs/cli/headless.md`) has no screen to put a
 prompt on, so its gate is **unattended** (`PermissionGate::set_unattended`).
 Everything that answers before a prompt still answers — the allowlist, the
 scratchpad exemption, the read-only fast path, a `PermissionRequest` hook,
@@ -1139,13 +1139,13 @@ and then run unattended.
 
 ## Turning it off
 
-`ALTER_ZERO_PERMISSIONS=0` (or `false`/`no`/`off`) starts the session with no
+`ZEROTH_PERMISSIONS=0` (or `false`/`no`/`off`) starts the session with no
 gate attached, and every tool runs as it did before this feature. The
 `LlmBackend` only asks when a gate was installed, so an embedder (and the live
 integration tests) that builds a backend directly is unaffected. With no gate
 there is no mode either: the footer's right-edge segment disappears, Shift+Tab
 explains itself with a toast instead of pretending to toggle anything, and
-`ALTER_ZERO_PERMISSION_MODE` has nothing to seed.
+`ZEROTH_PERMISSION_MODE` has nothing to seed.
 
 ## Tests
 
@@ -1166,7 +1166,7 @@ explains itself with a toast instead of pretending to toggle anything, and
   label → manual, auto omitted and manual written), the two partial records
   (`record_commands` keeping the saved mode, `record_mode` keeping the
   allowlist, so a seeded mode never lands in the file), the
-  `ALTER_ZERO_PERMISSION_MODE` grammar (`mode_by_env`: unset and blank seed
+  `ZEROTH_PERMISSION_MODE` grammar (`mode_by_env`: unset and blank seed
   nothing, labels in any case, anything else manual) and `starting_mode`'s
   precedence (the seed over the saved mode over auto), and the gate's
   blocking round trip (real threads) + shared mode + seeded commands.
@@ -1309,7 +1309,7 @@ explains itself with a toast instead of pretending to toggle anything, and
   reported empty-newlines bug) — with the tall `write`'s resolved cell
   visible above it, committed exactly once, and the box back flush after.
 - `smoke.sh` Phase 64 — the modes end to end, launched without the suite's
-  `ALTER_ZERO_PERMISSION_MODE=manual`: a fresh session's footer reads `auto`
+  `ZEROTH_PERMISSION_MODE=manual`: a fresh session's footer reads `auto`
   before any key; the "auto permission" demo is decided by the offline
   classifier with no prompt and nothing written to `permissions.json`; one
   Shift+Tab is master (saved as `"master"`, the demo running silently), a

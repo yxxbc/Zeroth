@@ -5,7 +5,7 @@
 //! same four rules:
 //!
 //! - **Nothing happens unless the check is active.** No config home, an
-//!   environment that forbids it (`ALTER_ZERO_UPDATE_CHECK=0`), or the
+//!   environment that forbids it (`ZEROTH_UPDATE_CHECK=0`), or the
 //!   user's own saved `false` all resolve to `update_check_active() ==
 //!   false` before [`Session::update_tick`] reads the file or spawns
 //!   anything, and a forbidding environment makes the `/settings` row

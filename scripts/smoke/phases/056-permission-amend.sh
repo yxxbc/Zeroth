@@ -12,7 +12,7 @@ smoke_begin
 # this guards: history kept only the one-line cell text, so the instructions
 # reached the model for exactly one round and then vanished.
 S56="${S}_permission_amend"
-APP_AMEND="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=1200 $BIN"
+APP_AMEND="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=1200 $BIN"
 launch "$S56" 100 44 "$APP_AMEND"
 submit "$S56" "permission demo please"
 amend_prompt=""

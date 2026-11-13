@@ -4101,7 +4101,7 @@ mod tests {
     fn a_budget_sized_line_diff_uses_less_than_four_megabytes() {
         // RSS/HWM are process-wide: re-run only this test in its own process,
         // without the library suite's other tests allocating beside it.
-        const PROBE: &str = "ALTER_ZERO_DIFF_MEMORY_PROBE";
+        const PROBE: &str = "ZEROTH_DIFF_MEMORY_PROBE";
         if std::env::var_os(PROBE).is_none() {
             let result = std::process::Command::new(std::env::current_exe().expect("test binary"))
                 .args([

@@ -16,8 +16,8 @@
 //!   the whole shared set (background registry, subagent registry, permission
 //!   gate) — the reason those handles are *owned* here as clones rather than
 //!   passed in per call.
-//! - **The environment wins, and never sticks.** An `ALTER_ZERO_PROVIDER` /
-//!   `ALTER_ZERO_MODEL` selection is used but never written back to
+//! - **The environment wins, and never sticks.** An `ZEROTH_PROVIDER` /
+//!   `ZEROTH_MODEL` selection is used but never written back to
 //!   `config.json`, so persisting its reasoning state can't hijack the saved
 //!   default (see [`ModelSession::persist`]).
 //! - **The selection is the working directory's.** `config.json` keeps one
@@ -68,7 +68,7 @@ pub(crate) struct ModelSession {
     /// rebuild re-attaches the same cooldown table.
     pub(crate) web_search: Option<std::sync::Arc<zeroth::web::walk::Search>>,
     /// The provider table: the built-ins with the user's own `providers.toml`
-    /// laid over them, or `ALTER_ZERO_PROVIDERS_FILE` alone
+    /// laid over them, or `ZEROTH_PROVIDERS_FILE` alone
     /// (`docs/providers/user-providers.md`). Re-read whenever `/login` or `/model`
     /// opens, so a provider added mid-session is there without a restart.
     providers: ProvidersFile,
@@ -96,11 +96,11 @@ pub(crate) struct ModelSession {
     /// only.
     persisted_selection: Option<(String, String)>,
     /// The sampling temperature riding every request — seeded from
-    /// `ALTER_ZERO_TEMPERATURE`, then owned by the `/settings` **Temperature**
+    /// `ZEROTH_TEMPERATURE`, then owned by the `/settings` **Temperature**
     /// knob (`docs/state/settings.md`).
     temperature: Option<f32>,
     /// Whether the `bash`/`read`/`write`/`edit`/`agent` tools are offered —
-    /// seeded from `ALTER_ZERO_TOOLS`, then owned by the `/settings` **Tools**
+    /// seeded from `ZEROTH_TOOLS`, then owned by the `/settings` **Tools**
     /// knob. Every rebuild reads it, so a switch mid-session sticks.
     tools: bool,
     /// The retry budget every round carries — the `/settings` **Error retry**
@@ -116,11 +116,11 @@ pub(crate) struct ModelSession {
     /// (`docs/agents/subagents.md`). Resolved once at startup beside it, so every
     /// rebuild inherits it by clone.
     prompt_context: Option<String>,
-    /// `ALTER_ZERO_STALL_MS` — the test-only wedged backend (`docs/input/interrupt.md`).
+    /// `ZEROTH_STALL_MS` — the test-only wedged backend (`docs/input/interrupt.md`).
     stall_ms: Option<u64>,
-    /// `ALTER_ZERO_CONTEXT_WINDOW`, which outranks whatever a provider reports.
+    /// `ZEROTH_CONTEXT_WINDOW`, which outranks whatever a provider reports.
     env_context_window: Option<u64>,
-    /// The `ALTER_ZERO_PROVIDER` / `ALTER_ZERO_MODEL` pins, read once: they
+    /// The `ZEROTH_PROVIDER` / `ZEROTH_MODEL` pins, read once: they
     /// decide the startup selection, and outrank a resumed conversation's
     /// recorded model the same way (`docs/state/session-model.md`).
     env_provider: Option<String>,
@@ -329,7 +329,7 @@ impl ModelSession {
         };
         let saved_provider = saved.as_ref().map(|s| s.provider.clone());
         // The `/settings` knobs the backend is built around — already merged
-        // with their `ALTER_ZERO_*` overrides by the caller
+        // with their `ZEROTH_*` overrides by the caller
         // (`config::apply_setting_overrides`, docs/state/settings.md).
         let temperature = settings.temperature;
         let tools = settings.tools;
@@ -357,7 +357,7 @@ impl ModelSession {
         // else the saved selection, else the file's default.
         // Read as this build spells it: a shell still exporting the ChatGPT
         // Codex provider's old id pins the same provider (`docs/providers/chatgpt.md`).
-        let env_provider = std::env::var("ALTER_ZERO_PROVIDER")
+        let env_provider = std::env::var("ZEROTH_PROVIDER")
             .ok()
             .filter(|s| !s.is_empty())
             .map(|id| llm::chatgpt::canonical_provider_id(&id).to_string());
@@ -373,9 +373,7 @@ impl ModelSession {
             .as_ref()
             .map(|s| s.model.clone())
             .filter(|_| active_provider == saved_provider);
-        let env_model_pin = std::env::var("ALTER_ZERO_MODEL")
-            .ok()
-            .filter(|s| !s.is_empty());
+        let env_model_pin = std::env::var("ZEROTH_MODEL").ok().filter(|s| !s.is_empty());
         let env_model = env_model_pin.clone().or(saved_model);
         let stall_ms = config::stall_ms();
         let env_context_window = config::context_window_override();
@@ -415,7 +413,7 @@ impl ModelSession {
             saved_speed.as_ref().and_then(SpeedSettings::to_state);
 
         // A real model activates only when a provider, a model and a key all
-        // resolve — and `ALTER_ZERO_DUMMY` isn't forcing the dummy. Anything else
+        // resolve — and `ZEROTH_DUMMY` isn't forcing the dummy. Anything else
         // falls back to the dummy, so the app always runs offline.
         let real_config = (!config::dummy_forced())
             .then(|| active_provider.as_deref().zip(env_model.as_deref()))
@@ -439,7 +437,7 @@ impl ModelSession {
             .filter(ModelConfig::is_usable);
         // Whether the *real* backend activated (vs the dummy fallback) — the
         // capability state and its probe only make sense against a live provider.
-        // `ALTER_ZERO_STALL_MS` preempts both with the test-only wedged backend.
+        // `ZEROTH_STALL_MS` preempts both with the test-only wedged backend.
         let real_backend = stall_ms.is_none() && real_config.is_some();
         // The session's own selection (docs/state/session-model.md): the pair the
         // real backend runs, with the facts the file recorded for it when
@@ -490,7 +488,7 @@ impl ModelSession {
                 // which is the only offline way to drive the agent session
                 // view (`docs/agents/agent-view-streaming.md`).
                 let dummy = DummyAi::with_startup_delay(config::startup_delay())
-                    // …and the per-chunk pace, so `ALTER_ZERO_CHUNK_DELAY_MS`
+                    // …and the per-chunk pace, so `ZEROTH_CHUNK_DELAY_MS`
                     // makes the demo stream as slowly as a struggling model
                     // (docs/ui/slow-stream.md).
                     .with_chunk_delay(config::chunk_delay())
@@ -644,7 +642,7 @@ impl ModelSession {
     /// (`docs/agents/agent-context-gauge.md`): a type that inherits the model shares
     /// [`context_window`](Self::context_window), while one pinned to another
     /// model has a window this session never learned — the listing is read
-    /// for the *selected* model only — so only the `ALTER_ZERO_CONTEXT_WINDOW`
+    /// for the *selected* model only — so only the `ZEROTH_CONTEXT_WINDOW`
     /// override answers there, and `None` hides that view's gauge exactly as
     /// an unknown window hides the main one.
     pub(crate) fn agent_context_window(&self, inherits: bool) -> Option<u64> {
@@ -1502,7 +1500,7 @@ impl ModelSession {
     /// environment prompt, no background-notice injection. See `docs/architecture/compact.md`.
     ///
     /// `None` whenever the session itself isn't talking to a real model — the
-    /// dummy, `ALTER_ZERO_DUMMY`, or the stalled test backend — and the caller
+    /// dummy, `ZEROTH_DUMMY`, or the stalled test backend — and the caller
     /// then falls back to the session backend (the dummy scripts a text-only
     /// canned summary). That single [`Self::real_backend`] check is load-bearing:
     /// gating on a *usable config* instead only proved a key had resolved, so a
@@ -1800,7 +1798,7 @@ fn session_backend(
     // names the model that is about to answer (docs/tools/hooks.md).
     let model = cfg.model.clone();
     // `configure` rather than `with_system_prompt`: the tool toggle is the
-    // `/settings` **Tools** knob now (seeded from `ALTER_ZERO_TOOLS`), so it
+    // `/settings` **Tools** knob now (seeded from `ZEROTH_TOOLS`), so it
     // is passed in rather than re-read from the environment per build
     // (`docs/state/settings.md`).
     let mut backend = LlmBackend::configure(cfg, system_prompt, tools)
@@ -1854,7 +1852,7 @@ fn session_backend(
         backend = backend.with_mcp(manager.clone());
     }
     // The tool-permission gate (docs/state/permissions.md) — absent when
-    // `ALTER_ZERO_PERMISSIONS` is falsy, and every tool then runs unasked.
+    // `ZEROTH_PERMISSIONS` is falsy, and every tool then runs unasked.
     if let Some(gate) = permissions {
         backend = backend.with_permissions(gate.clone());
     }

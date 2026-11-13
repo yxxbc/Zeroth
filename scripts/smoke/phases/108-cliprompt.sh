@@ -5,7 +5,7 @@
 smoke_begin
 
 # the [PROMPT] CLI shortcut and the --help page (docs/cli/cli.md).
-# `alter-zero "hello there"` boots STRAIGHT into that turn — the ❯ bubble, the
+# `zeroth "hello there"` boots STRAIGHT into that turn — the ❯ bubble, the
 # streamed reply and the Done summary appear with no key pressed — and its
 # quit still prints the resume hint; `--resume {id} "again please"` reloads
 # the transcript and runs the prompt as the next turn in the SAME rollout
@@ -17,10 +17,10 @@ smoke_begin
 # restore, so each launch is wrapped in a shell that holds the pane open.
 S108="${S}_cliprompt"
 CLIP_DIR="$(mktemp -d "$SMOKE_TMP/cliprompt.XXXXXX")"
-CLIPAPP="env $CFG_ENV_NOHIST ALTER_ZERO_SESSIONS_DIR=$CLIP_DIR ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+CLIPAPP="env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$CLIP_DIR ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux new-session -d -s "$S108" -x 80 -y 24 "$CLIPAPP \"$USER_MSG\"; echo CLI_APP_EXITED; sleep 60"
 clip_first_pane="$(wait_summaries 20.1 "$S108" 1 -S -60)" # the shortcut's turn settles, no key pressed
-echo "==== Phase 108: alter-zero \"$USER_MSG\" — the turn ran from the command line ===="
+echo "==== Phase 108: zeroth \"$USER_MSG\" — the turn ran from the command line ===="
 printf '%s\n' "$clip_first_pane"
 tmux send-keys -t "$S108" C-c # quit (empty composer)
 wait_for 4 "$S108" -F "CLI_APP_EXITED"

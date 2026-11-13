@@ -13,27 +13,27 @@
 #
 #   OPENROUTER_API_KEY=sk-or-… scripts/live_smoke.sh [target/debug/zeroth]
 #
-# `ALTER_ZERO_LIVE_PROVIDER` picks any provider from providers.toml (default
+# `ZEROTH_LIVE_PROVIDER` picks any provider from providers.toml (default
 # openrouter); its key is read from that provider's default variable —
 # `<ID_UPPERCASE>_API_KEY`, so `a0_venice` reads `A0_VENICE_API_KEY` — and
-# `ALTER_ZERO_LIVE_MODEL` names the model (default openai/gpt-4o-mini, which
+# `ZEROTH_LIVE_MODEL` names the model (default openai/gpt-4o-mini, which
 # only OpenRouter serves: another provider must name one).
 #
-#   ALTER_ZERO_LIVE_PROVIDER=a0_venice A0_VENICE_API_KEY=sk-a0-… \
-#   ALTER_ZERO_LIVE_MODEL=llama-3.3-70b scripts/live_smoke.sh
-#   ALTER_ZERO_LIVE_PROVIDER=venice VENICE_API_KEY=… \
-#   ALTER_ZERO_LIVE_MODEL=llama-3.3-70b scripts/live_smoke.sh
+#   ZEROTH_LIVE_PROVIDER=a0_venice A0_VENICE_API_KEY=sk-a0-… \
+#   ZEROTH_LIVE_MODEL=llama-3.3-70b scripts/live_smoke.sh
+#   ZEROTH_LIVE_PROVIDER=venice VENICE_API_KEY=… \
+#   ZEROTH_LIVE_MODEL=llama-3.3-70b scripts/live_smoke.sh
 set -uo pipefail
 
-PROVIDER="${ALTER_ZERO_LIVE_PROVIDER:-openrouter}"
+PROVIDER="${ZEROTH_LIVE_PROVIDER:-openrouter}"
 KEY_VAR="$(printf '%s' "$PROVIDER" | tr '[:lower:]-' '[:upper:]_')_API_KEY"
 KEY="${!KEY_VAR:-}"
 if [ -z "$KEY" ]; then
 	echo "live_smoke: set $KEY_VAR to run (never committed)" >&2
 	exit 2
 fi
-if [ "$PROVIDER" != "openrouter" ] && [ -z "${ALTER_ZERO_LIVE_MODEL:-}" ]; then
-	echo "live_smoke: set ALTER_ZERO_LIVE_MODEL to a model $PROVIDER serves" >&2
+if [ "$PROVIDER" != "openrouter" ] && [ -z "${ZEROTH_LIVE_MODEL:-}" ]; then
+	echo "live_smoke: set ZEROTH_LIVE_MODEL to a model $PROVIDER serves" >&2
 	exit 2
 fi
 
@@ -42,7 +42,7 @@ if [ ! -x "$BIN" ]; then
 	echo "live_smoke: $BIN not found — cargo build first" >&2
 	exit 2
 fi
-MODEL="${ALTER_ZERO_LIVE_MODEL:-openai/gpt-4o-mini}"
+MODEL="${ZEROTH_LIVE_MODEL:-openai/gpt-4o-mini}"
 S="alterzero_live_$$"
 # A committed turn summary, whichever verb the turn ended on: a live turn can
 # run past 30s and end on a later one (the same line as scripts/smoke/lib.sh;
@@ -65,9 +65,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-APP="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_CONFIG_DIR=$CFG ALTER_ZERO_SESSIONS_DIR=$CFG/sessions ALTER_ZERO_CHECKPOINTS=0 \
-ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_TOOLS=0 \
-ALTER_ZERO_PROVIDER=$PROVIDER ALTER_ZERO_MODEL=$MODEL $KEY_VAR=$KEY $BIN"
+APP="env ZEROTH_TELEMETRY=0 ZEROTH_CONFIG_DIR=$CFG ZEROTH_SESSIONS_DIR=$CFG/sessions ZEROTH_CHECKPOINTS=0 \
+ZEROTH_PROJECT_CONFIG=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_TOOLS=0 \
+ZEROTH_PROVIDER=$PROVIDER ZEROTH_MODEL=$MODEL $KEY_VAR=$KEY $BIN"
 
 fail() {
 	echo "FAIL: $1" >&2
@@ -185,7 +185,7 @@ S_P="${S}_prompt"
 # later `env` assignment overrides the earlier one in APP.
 L4_SESSIONS="$CFG/sessions-l4"
 APP_L4="$APP"
-APP_L4="${APP_L4/ $BIN/ ALTER_ZERO_SESSIONS_DIR=$L4_SESSIONS $BIN}"
+APP_L4="${APP_L4/ $BIN/ ZEROTH_SESSIONS_DIR=$L4_SESSIONS $BIN}"
 tmux new-session -d -s "$S_P" -x 100 -y 30 "$APP_L4 \"Reply with exactly the single word PROMPTOK and nothing else.\"; echo LIVE_APP_EXITED; sleep 60"
 pane="$(wait_for_summaries "$S_P" 1 120)" || fail "L4: the command-line prompt's turn never settled" "$pane"
 no_panic "$pane" "L4"

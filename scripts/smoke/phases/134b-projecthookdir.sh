@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Phase 134b — a trusted project hook reached through $ALTER_ZERO_PROJECT_DIR runs from a subdirectory
+# Phase 134b — a trusted project hook reached through $ZEROTH_PROJECT_DIR runs from a subdirectory
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 smoke_begin
 
 # A project's own hooks.json reaches its scripts the documented way —
-# "${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh" — and the session is
+# "${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh" — and the session is
 # launched in a SUBDIRECTORY of the repository (docs/tools/hooks.md). The variable
 # used to be the cwd, so the command named a script that does not exist, the
 # hook failed open and the refused command ran. What it proves:
-#   - $ALTER_ZERO_PROJECT_DIR is the project root (the root the project layer
+#   - $ZEROTH_PROJECT_DIR is the project root (the root the project layer
 #     reads `.zeroth/` from), while the hook still runs in the cwd;
 #   - the guard's block holds: `rm -rf build/` never runs;
 #   - what the model reads names the hook and the trusted project's own
@@ -34,7 +34,7 @@ SH
 chmod +x "$REPO/.zeroth/hooks/guard.sh"
 cat >"$REPO/.zeroth/hooks.json" <<'JSON'
 {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
-  {"type": "command", "command": "${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh"}]}]}}
+  {"type": "command", "command": "${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh"}]}]}}
 JSON
 
 PH_BODIES="$SMOKE_TMP/tool-results134b.jsonl"
@@ -87,7 +87,7 @@ PH_PROVIDERS="$SMOKE_TMP/providers134b.toml"
 printf '[providers.stub]\nname = "Stub"\n\n[providers.stub.kwargs]\napi_base = "http://127.0.0.1:%s/v1"\n' "$PH_PORT" >"$PH_PROVIDERS"
 # The project layer on (the base env turns it off for hermeticity), no user
 # hooks file, and `master` so the command would run unasked if the hook let it.
-PH_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_PROJECT_CONFIG=1 ALTER_ZERO_HOOKS=1 ALTER_ZERO_HOOKS_FILE=$SMOKE_TMP/no-user-hooks.json ALTER_ZERO_PROVIDERS_FILE=$PH_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in ALTER_ZERO_PERMISSION_MODE=master $BIN_ABS"
+PH_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_PROJECT_CONFIG=1 ZEROTH_HOOKS=1 ZEROTH_HOOKS_FILE=$SMOKE_TMP/no-user-hooks.json ZEROTH_PROVIDERS_FILE=$PH_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in ZEROTH_PERMISSION_MODE=master $BIN_ABS"
 
 # The project's hook is trusted at the startup review first
 # (docs/state/config-review.md), launched in the subdirectory.
@@ -101,7 +101,7 @@ dump "the turn, launched in $REPO/src" "$ph_pane"
 expect_has "$ph_pane" -F "Blocked by PreToolUse hook: no destructive deletes (ran in" \
 	"the project's guard never ran from the subdirectory, or did not run in the cwd"
 expect_has "$ph_pane" -F "$REPO/src)" "the hook's cell does not name the cwd it ran in"
-expect_has "$ph_pane" -F 'Hook: ${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh' \
+expect_has "$ph_pane" -F 'Hook: ${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh' \
 	"the refusal cell did not name the project's hook"
 expect_has "$ph_pane" -F "Config: ~/projrepo/.zeroth/hooks.json" \
 	"the refusal cell did not name the project's hooks.json from the user's home"
@@ -109,6 +109,6 @@ expect_has "$ph_pane" -F "Config: ~/projrepo/.zeroth/hooks.json" \
 ph_result="$(python3 -c 'import json,sys; [print(json.loads(l)["content"]) for l in open(sys.argv[1])]' "$PH_BODIES" 2>/dev/null)"
 dump "what the model read back" "$ph_result"
 expect_has "$ph_result" -F "Blocked by PreToolUse hook: no destructive deletes" "the model was not told the hook refused"
-expect_has "$ph_result" -F 'Hook: ${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh' "the model was not told which hook refused"
+expect_has "$ph_result" -F 'Hook: ${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh' "the model was not told which hook refused"
 expect_has "$ph_result" -F "Config: $REPO/.zeroth/hooks.json" "the model was not told the project hooks.json the hook is configured in"
 tmux kill-session -t "$S134B" 2>/dev/null || true

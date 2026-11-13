@@ -13,7 +13,7 @@ smoke_begin
 # sent as a message, and nothing claims a tier that was never listed — no
 # footer word, no `Speed:` toast. Then a ChatGPT Codex model whose listing
 # names TWO tiers, served by a local stub standing in for both the token
-# mint (`ALTER_ZERO_OPENAI_ISSUER`) and the `/models` catalog (a smoke
+# mint (`ZEROTH_OPENAI_ISSUER`) and the `/models` catalog (a smoke
 # provider file pointing `api_base` at the stub), must show a row per tier
 # with the backend's own description, toggle each — a tier's command
 # selects it, the same command again is the way back to standard, another
@@ -145,7 +145,7 @@ TOML
 # provider and model are pinned so the real backend activates with nothing
 # saved, which is exactly what makes the startup probe fetch the listing.
 T_DIR="$(work_dir)"
-launch -c "$T_DIR" "$S117B" 100 30 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_OPENAI_ISSUER=$T_BASE ALTER_ZERO_PROVIDERS_FILE=$T_PROVIDERS ALTER_ZERO_PROVIDER=chatgpt_codex ALTER_ZERO_MODEL=gpt-5.6-sol OPENAI_CHATGPT_REFRESH_TOKEN=rt-117-legacy $APP_ABS"
+launch -c "$T_DIR" "$S117B" 100 30 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_OPENAI_ISSUER=$T_BASE ZEROTH_PROVIDERS_FILE=$T_PROVIDERS ZEROTH_PROVIDER=chatgpt_codex ZEROTH_MODEL=gpt-5.6-sol OPENAI_CHATGPT_REFRESH_TOKEN=rt-117-legacy $APP_ABS"
 
 # The palette: the listed tiers each a row, right after /model, wearing the
 # record's own description. The probe answers in the background, and the

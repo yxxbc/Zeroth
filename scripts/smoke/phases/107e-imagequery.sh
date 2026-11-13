@@ -160,7 +160,7 @@ PNG64
 eq_day="$SMOKE_SESSIONS/2026/07/23"
 mkdir -p "$eq_day"
 {
-	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-107e","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"alter-zero","version":"0.1.0"}}\n' "$EQ_DIR"
+	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-107e","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"zeroth","version":"0.1.0"}}\n' "$EQ_DIR"
 	printf '{"timestamp":"2026-07-23T10:00:01.000Z","type":"message","payload":{"role":"user","text":"look at shot.png","timestamp":"10:00 AM"}}\n'
 	printf '{"timestamp":"2026-07-23T10:00:02.000Z","type":"tool","payload":{"name":"Read","args":"%s/shot.png","ok":true,"output":"Read image (PNG, 100x60, 2 KB)","timestamp":"10:00 AM","shell":false,"truncated":false,"arguments":"{\\"path\\":\\"%s/shot.png\\"}"}}\n' "$EQ_DIR" "$EQ_DIR"
 	printf '{"timestamp":"2026-07-23T10:00:03.000Z","type":"message","payload":{"role":"assistant","text":"A colour gradient with a white diagonal.","timestamp":"10:00 AM"}}\n'
@@ -182,7 +182,7 @@ eq_run() {
 	extra=("$@")
 	# shellcheck disable=SC2086 # CFG_ENV_NOHIST is a list of assignments
 	(cd "$EQ_DIR" && env -i HOME="$HOME" PATH="$PATH" TERM=xterm-256color TERM_PROGRAM=herdr \
-		$CFG_ENV_NOHIST ALTER_ZERO_IMAGE_CELL_SIZE=5x10 ${extra[@]+"${extra[@]}"} \
+		$CFG_ENV_NOHIST ZEROTH_IMAGE_CELL_SIZE=5x10 ${extra[@]+"${extra[@]}"} \
 		python3 -I "$EQ_TERM" --log "$SMOKE_TMP/$name.raw" --report "$SMOKE_TMP/$name.report" \
 		${args[@]+"${args[@]}"} -- "$BIN_ABS" --resume 10710715)
 }

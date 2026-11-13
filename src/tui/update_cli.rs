@@ -7,15 +7,15 @@
 //!
 //! The decisions are the pure `update` module's; this file resolves the
 //! executable's own path, prints, and hands the installer its variables:
-//! `ALTER_ZERO_INSTALL_DIR` (this binary's directory, so the update lands
-//! over the binary that asked for it), `ALTER_ZERO_VERSION` (the release
+//! `ZEROTH_INSTALL_DIR` (this binary's directory, so the update lands
+//! over the binary that asked for it), `ZEROTH_VERSION` (the release
 //! just resolved, so the two halves cannot disagree about which version is
-//! newest) and `ALTER_ZERO_INSTALL_BASE_URL` (the same repository the check
+//! newest) and `ZEROTH_INSTALL_BASE_URL` (the same repository the check
 //! read, so a fork or a stand-in server serves both). The script is fetched
 //! here and run from a file rather than piped: a fetch that fails must fail
 //! loudly, and `sh` reading an empty pipe exits 0.
 //!
-//! `ALTER_ZERO_UPDATE_CHECK=0` silences the *automatic* check; an explicit
+//! `ZEROTH_UPDATE_CHECK=0` silences the *automatic* check; an explicit
 //! `zeroth update` is the user's own request and runs regardless.
 
 use std::io::Write;
@@ -87,7 +87,7 @@ pub(crate) fn run() -> i32 {
         }
     };
     let mut file = match tempfile::Builder::new()
-        .prefix("alter-zero-install-")
+        .prefix("zeroth-install-")
         .suffix(".sh")
         .tempfile()
     {
@@ -106,9 +106,9 @@ pub(crate) fn run() -> i32 {
     }
     let status = Command::new("sh")
         .arg(file.path())
-        .env("ALTER_ZERO_INSTALL_DIR", dir)
-        .env("ALTER_ZERO_VERSION", format!("v{latest}"))
-        .env("ALTER_ZERO_INSTALL_BASE_URL", &repo)
+        .env("ZEROTH_INSTALL_DIR", dir)
+        .env("ZEROTH_VERSION", format!("v{latest}"))
+        .env("ZEROTH_INSTALL_BASE_URL", &repo)
         .status();
     match status {
         Ok(status) => status.code().unwrap_or(1),

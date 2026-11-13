@@ -15,7 +15,7 @@
 //! A0_VENICE_API_KEY=sk-a0-… cargo test --test live_subagents -- --ignored --nocapture
 //! ```
 //!
-//! `ALTER_ZERO_LIVE_VENICE_MODEL` overrides the model.
+//! `ZEROTH_LIVE_VENICE_MODEL` overrides the model.
 
 use std::path::{Path, PathBuf};
 
@@ -30,7 +30,7 @@ use zeroth::subagents::SubagentRegistry;
 fn backend() -> LlmBackend {
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the subagent live tests");
-    let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
     let providers = zeroth::llm::ProvidersFile::builtin();
     let sel = zeroth::llm::Selection {
@@ -57,7 +57,7 @@ fn backend() -> LlmBackend {
 fn backend_with_agents(dir: &Path) -> (LlmBackend, zeroth::agents::AgentRegistry) {
     let (bg_tx, _bg_rx) = tokio::sync::mpsc::unbounded_channel();
     let scratch =
-        std::env::temp_dir().join(format!("alter-zero-live-subagents-{}", std::process::id()));
+        std::env::temp_dir().join(format!("zeroth-live-subagents-{}", std::process::id()));
     let background = zeroth::background::BackgroundRegistry::new(bg_tx, scratch);
     let (agent_tx, _agent_rx) = tokio::sync::mpsc::unbounded_channel();
     let agents = zeroth::agents::AgentRegistry::new(agent_tx);
@@ -180,7 +180,7 @@ fn live_a_tools_allowlist_withholds_the_tool_it_omits() {
     let (backend, _agents) = backend_with_agents(dir.path());
 
     let target: PathBuf = std::env::temp_dir().join(format!(
-        "alter-zero-live-nowrite-{}-{}.txt",
+        "zeroth-live-nowrite-{}-{}.txt",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -215,13 +215,13 @@ fn live_a_definitions_model_reaches_the_request() {
     // one: a bogus id must fail the child's request (and, since the id is the
     // only thing that changed, the *reason* is the model), while the sibling
     // type on a real second model completes normally.
-    let real = std::env::var("ALTER_ZERO_LIVE_VENICE_ALT_MODEL")
+    let real = std::env::var("ZEROTH_LIVE_VENICE_ALT_MODEL")
         .unwrap_or_else(|_| "llama-3.3-70b".to_string());
     let dir = fixture(&[
         (
             "bogus-model",
             "---\ndescription: Runs on a model that does not exist.\n\
-             model: alter-zero-no-such-model-xyz\n---\n",
+             model: zeroth-no-such-model-xyz\n---\n",
         ),
         (
             "alt-model",

@@ -47,7 +47,7 @@ pub struct SkillsMenu {
     /// The names currently turned off.
     pub disabled: std::collections::BTreeSet<String>,
     /// Whether skills are on for the session at all (the `/settings`
-    /// **Skills** row, `ALTER_ZERO_SKILLS`). `false` shows a note rather than
+    /// **Skills** row, `ZEROTH_SKILLS`). `false` shows a note rather than
     /// silently listing rows that do nothing — the `/hooks` menu's rule.
     pub session_enabled: bool,
     /// Where skills are looked for, `~`-relativized at the boundary. Shown

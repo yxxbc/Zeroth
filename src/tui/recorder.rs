@@ -41,7 +41,7 @@ use super::resume::sessions_root;
 /// [`sync`]: SessionRecorder::sync
 pub(crate) struct SessionRecorder {
     /// The sessions root (`~/.zeroth/sessions`, or
-    /// `ALTER_ZERO_SESSIONS_DIR` — the smoke test points it at a temp dir);
+    /// `ZEROTH_SESSIONS_DIR` — the smoke test points it at a temp dir);
     /// `None` disables recording (no HOME and no override).
     root: Option<PathBuf>,
     /// The active session's file + meta, once anything was recorded — created

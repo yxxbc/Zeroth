@@ -1217,7 +1217,7 @@ const USAGE_BODY_MAX_BYTES: u64 = 256 * 1024;
 /// REST API refuses a request without one, and a server's logs should be able
 /// to tell who asked.
 fn default_user_agent() -> String {
-    format!("alter-zero/{}", env!("CARGO_PKG_VERSION"))
+    format!("zeroth/{}", env!("CARGO_PKG_VERSION"))
 }
 
 /// The sentence for a usage read the provider refused: what to do about it,
@@ -1546,7 +1546,7 @@ mod tests {
         assert!(request.starts_with("get /wham/usage "), "{request}");
         assert!(request.contains("authorization: bearer t-1"), "{request}");
         assert!(request.contains("accept: application/json"), "{request}");
-        assert!(request.contains("user-agent: alter-zero/"), "{request}");
+        assert!(request.contains("user-agent: zeroth/"), "{request}");
     }
 
     #[test]
@@ -1555,7 +1555,7 @@ mod tests {
         get_body(&base, &[header("User-Agent", "codex_cli_rs/1")]).unwrap();
         let request = &server.join().unwrap()[0];
         assert!(request.contains("user-agent: codex_cli_rs/1"), "{request}");
-        assert!(!request.contains("alter-zero/"), "{request}");
+        assert!(!request.contains("zeroth/"), "{request}");
     }
 
     #[test]

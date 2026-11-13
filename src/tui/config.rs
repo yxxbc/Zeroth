@@ -38,11 +38,11 @@ use zeroth::ui;
 
 use super::host::{self, local_date, os_context, user_context};
 
-/// Is the built-in dummy backend forced on? (`ALTER_ZERO_DUMMY` set to a truthy
+/// Is the built-in dummy backend forced on? (`ZEROTH_DUMMY` set to a truthy
 /// value). Keeps `smoke.sh` — which sets nothing — on the dummy, and lets a
 /// developer force it even with a key configured. See `docs/providers/llm.md`.
 pub(crate) fn dummy_forced() -> bool {
-    std::env::var("ALTER_ZERO_DUMMY").ok().is_some_and(|v| {
+    std::env::var("ZEROTH_DUMMY").ok().is_some_and(|v| {
         matches!(
             v.trim().to_ascii_lowercase().as_str(),
             "1" | "true" | "yes" | "on"
@@ -61,7 +61,7 @@ pub(crate) fn user_providers_path() -> Option<PathBuf> {
 /// one row per problem, each led by the file (`~`-relative), for the toast
 /// that says so (`docs/providers/user-providers.md`):
 ///
-/// - `ALTER_ZERO_PROVIDERS_FILE` names a file that stands **alone**: its
+/// - `ZEROTH_PROVIDERS_FILE` names a file that stands **alone**: its
 ///   providers and none of the built-ins, which is what keeps a smoke run
 ///   hermetic.
 /// - Otherwise the built-in providers with the user's own
@@ -88,7 +88,7 @@ pub(crate) fn load_providers(
     home: Option<&Path>,
     in_use: Option<(&str, &Provider)>,
 ) -> Result<(ProvidersFile, Vec<String>), String> {
-    let standalone = std::env::var_os("ALTER_ZERO_PROVIDERS_FILE").filter(|path| !path.is_empty());
+    let standalone = std::env::var_os("ZEROTH_PROVIDERS_FILE").filter(|path| !path.is_empty());
     let Some(path) = standalone
         .clone()
         .map(PathBuf::from)
@@ -159,7 +159,7 @@ pub(crate) fn resolve_env(env_file: &EnvFile, name: &str) -> Option<String> {
 /// Resolve a provider's API key: its own env var (process env then `.env`),
 /// else the name that variable had before a rename (a token stored under
 /// `OPENAI_CHATGPT_REFRESH_TOKEN` still signs in — `docs/providers/chatgpt.md`), else
-/// the generic `ALTER_ZERO_API_KEY`. Empty values count as unset.
+/// the generic `ZEROTH_API_KEY`. Empty values count as unset.
 pub(crate) fn resolve_api_key(
     providers: &ProvidersFile,
     env_file: &EnvFile,
@@ -171,7 +171,7 @@ pub(crate) fn resolve_api_key(
             zeroth::llm::chatgpt::legacy_key_env(&key_env)
                 .and_then(|legacy| resolve_env(env_file, legacy))
         })
-        .or_else(|| resolve_env(env_file, "ALTER_ZERO_API_KEY"))
+        .or_else(|| resolve_env(env_file, "ZEROTH_API_KEY"))
 }
 
 /// Build the resolved [`ModelConfig`] for a provider/model (with the resolved
@@ -240,7 +240,7 @@ pub(crate) fn session_cache_key() -> &'static str {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        format!("alter-zero-{}-{now}", std::process::id())
+        format!("zeroth-{}-{now}", std::process::id())
     })
 }
 
@@ -321,7 +321,7 @@ fn is_configured(providers: &ProvidersFile, env_file: &EnvFile, id: &str) -> boo
         .filter(|p| p.auth.key_optional())
         .and_then(|p| p.api_base_env.as_deref());
     let pointed_at = host_var.is_some_and(|var| resolve_env(env_file, var).is_some())
-        || std::env::var("ALTER_ZERO_PROVIDER")
+        || std::env::var("ZEROTH_PROVIDER")
             .ok()
             .is_some_and(|env| zeroth::llm::chatgpt::canonical_provider_id(&env) == id);
     let defined = provider.is_some_and(Provider::configured_by_definition);
@@ -418,7 +418,7 @@ fn signin_kinds(auth: AuthScheme) -> Vec<SigninKind> {
 }
 
 /// The app's config home — where the `.env` key store and `config.json` live:
-/// `ZEROTH_CONFIG_DIR` (or the pre-fork `ALTER_ZERO_CONFIG_DIR`), else
+/// `ZEROTH_CONFIG_DIR`, else
 /// `~/.zeroth`, else `None` (no HOME and no override, so file persistence is
 /// disabled). Every per-user file resolves under it — `providers.toml`, the
 /// `.env` key store, the checkpoints root and the sessions root
@@ -427,9 +427,7 @@ fn signin_kinds(auth: AuthScheme) -> Vec<SigninKind> {
 /// copies the model config and sign-ins out of it once, so the previous app
 /// keeps working. See `docs/providers/llm.md`.
 pub(crate) fn config_home() -> Option<PathBuf> {
-    if let Some(dir) =
-        std::env::var_os("ZEROTH_CONFIG_DIR").or_else(|| std::env::var_os("ALTER_ZERO_CONFIG_DIR"))
-    {
+    if let Some(dir) = std::env::var_os("ZEROTH_CONFIG_DIR") {
         return Some(PathBuf::from(dir));
     }
     std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".zeroth"))
@@ -464,13 +462,11 @@ impl HomeMigration {
             .collect::<Vec<_>>()
             .join(", ");
         Some(if self.copied.is_empty() {
-            format!("Could not import model config and sign-ins from ~/.alter-zero: {failed}")
+            format!("Could not import model config and sign-ins from ~/.zeroth: {failed}")
         } else if self.failed.is_empty() {
-            "Imported model config and sign-ins from ~/.alter-zero".to_string()
+            "Imported model config and sign-ins from ~/.zeroth".to_string()
         } else {
-            format!(
-                "Imported model config and sign-ins from ~/.alter-zero — could not copy: {failed}"
-            )
+            format!("Imported model config and sign-ins from ~/.zeroth — could not copy: {failed}")
         })
     }
 }
@@ -568,9 +564,7 @@ pub(crate) fn migrate_home(src: &Path, dst: &Path) -> Option<HomeMigration> {
 /// config-dir override means the user manages the path, so nothing is
 /// migrated.
 pub(crate) fn migrate_from_alter_zero() -> Option<HomeMigration> {
-    if std::env::var_os("ZEROTH_CONFIG_DIR").is_some()
-        || std::env::var_os("ALTER_ZERO_CONFIG_DIR").is_some()
-    {
+    if std::env::var_os("ZEROTH_CONFIG_DIR").is_some() {
         return None;
     }
     let home = PathBuf::from(std::env::var_os("HOME")?);
@@ -580,9 +574,7 @@ pub(crate) fn migrate_from_alter_zero() -> Option<HomeMigration> {
 /// The `.env` key store path: `ZEROTH_ENV_FILE`, else `{config_home}/.env`,
 /// else `./.env` when there's no config home. Written by the `/login` flow.
 pub(crate) fn env_file_path() -> PathBuf {
-    if let Some(path) =
-        std::env::var_os("ZEROTH_ENV_FILE").or_else(|| std::env::var_os("ALTER_ZERO_ENV_FILE"))
-    {
+    if let Some(path) = std::env::var_os("ZEROTH_ENV_FILE") {
         return PathBuf::from(path);
     }
     config_home().map_or_else(|| PathBuf::from(".env"), |dir| dir.join(".env"))
@@ -621,7 +613,7 @@ pub(crate) fn load_permissions(path: Option<&Path>) -> PermissionsFile {
 
 /// Persist the session's command allowlist as this project's, keeping the
 /// mode its entry saves (`PermissionsFile::record_commands`) — the live rules
-/// carry the run's `ALTER_ZERO_PERMISSION_MODE` seed, which is never saved.
+/// carry the run's `ZEROTH_PERMISSION_MODE` seed, which is never saved.
 pub(crate) fn save_permission_commands(
     path: Option<&Path>,
     project: &str,
@@ -685,13 +677,13 @@ pub(crate) fn load_hooks(path: Option<&Path>) -> (zeroth::hooks::HooksFile, Opti
     }
 }
 
-/// Whether the project-level `.alter-zero` config layer is discovered at all
-/// (`docs/state/project-config.md`) — `ALTER_ZERO_PROJECT_CONFIG`, default on.
+/// Whether the project-level `.zeroth` config layer is discovered at all
+/// (`docs/state/project-config.md`) — `ZEROTH_PROJECT_CONFIG`, default on.
 /// Falsy = no project hooks/MCP discovery and so nothing of a project's in
 /// the startup review — and the smoke suite's hermeticity switch, since its
 /// phases run with cwd inside a real checkout.
 pub(crate) fn project_config_enabled() -> bool {
-    env_flag("ALTER_ZERO_PROJECT_CONFIG")
+    env_flag("ZEROTH_PROJECT_CONFIG")
 }
 
 /// `{config_home}/trust.json` — what the user trusted to run
@@ -701,7 +693,7 @@ pub(crate) fn trust_json_path() -> Option<PathBuf> {
     config_home().map(|dir| dir.join("trust.json"))
 }
 
-/// The user's `hooks.json` (`ALTER_ZERO_HOOKS_FILE`, else
+/// The user's `hooks.json` (`ZEROTH_HOOKS_FILE`, else
 /// `{config_home}/hooks.json`) as an **absolute** path — the file's key in
 /// `trust.json` (`docs/state/config-review.md`). A relative override kept as
 /// written would be one key for a different file in every directory, so a
@@ -741,13 +733,13 @@ pub(crate) fn load_trust_file(path: Option<&Path>) -> (zeroth::trust::TrustFile,
     }
 }
 
-/// The checkpoints root — `ALTER_ZERO_CHECKPOINTS_DIR` (the smoke test points
-/// it at a temp dir, the `ALTER_ZERO_SESSIONS_DIR` pattern), else
+/// The checkpoints root — `ZEROTH_CHECKPOINTS_DIR` (the smoke test points
+/// it at a temp dir, the `ZEROTH_SESSIONS_DIR` pattern), else
 /// `~/.zeroth/checkpoints`. `None` (no HOME and no override) disables
 /// checkpoints. Each working directory gets one isolated store under this root
 /// ([`checkpoint::store_git_dir`]). See `docs/state/checkpoint.md`.
 pub(crate) fn checkpoints_root() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("ALTER_ZERO_CHECKPOINTS_DIR") {
+    if let Some(dir) = std::env::var_os("ZEROTH_CHECKPOINTS_DIR") {
         return Some(PathBuf::from(dir));
     }
     config_home().map(|dir| dir.join("checkpoints"))
@@ -763,7 +755,7 @@ pub(crate) fn tmp_dir() -> Option<PathBuf> {
 
 // ===== the session's temp layout (docs/tools/scratchpad.md) =====
 
-/// This session's temp root — `{temp}/alter-zero-{uid}/{session}`, the parent
+/// This session's temp root — `{temp}/zeroth-{uid}/{session}`, the parent
 /// of both the agent's scratchpad and the background shells' `tasks` dir. The
 /// uid and session id are the boundary's (`host::process_uid`/`session_id`),
 /// the shape is the pure [`scratchpad::session_root`]; `TMPDIR` moves the
@@ -772,15 +764,15 @@ pub(crate) fn session_tmp_root(session: &str) -> PathBuf {
     scratchpad::session_root(&std::env::temp_dir(), host::process_uid(), session)
 }
 
-/// Is the scratchpad on? On by default; a falsy `ALTER_ZERO_SCRATCHPAD` turns
+/// Is the scratchpad on? On by default; a falsy `ZEROTH_SCRATCHPAD` turns
 /// it off entirely — no directory, no `## Scratchpad` block in the system
 /// prompt, and no permission exemption (`docs/tools/scratchpad.md`).
 pub(crate) fn scratchpad_enabled() -> bool {
-    env_flag("ALTER_ZERO_SCRATCHPAD")
+    env_flag("ZEROTH_SCRATCHPAD")
 }
 
-/// The session's scratchpad directory, **created**: `ALTER_ZERO_SCRATCHPAD_DIR`
-/// puts it at an exact path (the `ALTER_ZERO_SKILLS_DIR` convention), else
+/// The session's scratchpad directory, **created**: `ZEROTH_SCRATCHPAD_DIR`
+/// puts it at an exact path (the `ZEROTH_SKILLS_DIR` convention), else
 /// `{session_root}/scratchpad`.
 ///
 /// `None` means the agent is told about no scratchpad at all: the feature is
@@ -792,7 +784,7 @@ pub(crate) fn prepare_scratchpad(session_root: &Path) -> Option<PathBuf> {
     if !scratchpad_enabled() {
         return None;
     }
-    let dir = std::env::var_os("ALTER_ZERO_SCRATCHPAD_DIR")
+    let dir = std::env::var_os("ZEROTH_SCRATCHPAD_DIR")
         .map_or_else(|| scratchpad::scratchpad_dir(session_root), PathBuf::from);
     std::fs::create_dir_all(&dir).ok().map(|()| dir)
 }
@@ -807,15 +799,15 @@ pub(crate) fn paste_store_dir(session: &str) -> PathBuf {
     match config_home() {
         Some(home) => zeroth::clipboard::paste_store_dir(&home, session),
         None => std::env::temp_dir()
-            .join("alter-zero-image-cache")
+            .join("zeroth-image-cache")
             .join(session),
     }
 }
 
-/// Read `ALTER_ZERO_IMAGE_CACHE_MAX_BYTES`, else
+/// Read `ZEROTH_IMAGE_CACHE_MAX_BYTES`, else
 /// [`clipboard::IMAGE_CACHE_MAX_BYTES`]; `0` means no limit.
 fn image_cache_cap() -> u64 {
-    std::env::var("ALTER_ZERO_IMAGE_CACHE_MAX_BYTES")
+    std::env::var("ZEROTH_IMAGE_CACHE_MAX_BYTES")
         .ok()
         .and_then(|raw| raw.trim().parse::<u64>().ok())
         .unwrap_or(zeroth::clipboard::IMAGE_CACHE_MAX_BYTES)
@@ -880,8 +872,8 @@ pub(crate) fn prepare_image_cache(session_root: &Path) -> Option<PathBuf> {
 }
 
 /// What one checkpoint snapshot may cost before the feature switches itself
-/// off for the session — `ALTER_ZERO_CHECKPOINT_MAX_FILES` /
-/// `ALTER_ZERO_CHECKPOINT_MAX_BYTES` over the defaults, each accepting a
+/// off for the session — `ZEROTH_CHECKPOINT_MAX_FILES` /
+/// `ZEROTH_CHECKPOINT_MAX_BYTES` over the defaults, each accepting a
 /// plain count or a `k`/`m`/`g` suffix and each taking `0` as *no limit*.
 /// See `docs/state/checkpoint.md`.
 pub(crate) fn checkpoint_budget() -> checkpoint::SnapshotBudget {
@@ -889,14 +881,8 @@ pub(crate) fn checkpoint_budget() -> checkpoint::SnapshotBudget {
         checkpoint::parse_size_limit(std::env::var(name).ok().as_deref(), default)
     };
     checkpoint::SnapshotBudget {
-        max_files: limit(
-            "ALTER_ZERO_CHECKPOINT_MAX_FILES",
-            checkpoint::DEFAULT_MAX_FILES,
-        ),
-        max_bytes: limit(
-            "ALTER_ZERO_CHECKPOINT_MAX_BYTES",
-            checkpoint::DEFAULT_MAX_BYTES,
-        ),
+        max_files: limit("ZEROTH_CHECKPOINT_MAX_FILES", checkpoint::DEFAULT_MAX_FILES),
+        max_bytes: limit("ZEROTH_CHECKPOINT_MAX_BYTES", checkpoint::DEFAULT_MAX_BYTES),
         max_time: checkpoint::DEFAULT_PROBE_TIME,
     }
 }
@@ -982,24 +968,24 @@ pub(crate) fn thinking_settings_of(
 }
 
 /// Does this session ask before a `write`/`edit`/`bash` runs? On by default;
-/// disabled by a falsy `ALTER_ZERO_PERMISSIONS` (`0`/`false`/`no`/`off`), which
+/// disabled by a falsy `ZEROTH_PERMISSIONS` (`0`/`false`/`no`/`off`), which
 /// starts the session with no gate so every tool runs unasked — the pre-feature
 /// behaviour. See `docs/state/permissions.md`.
 pub(crate) fn permissions_enabled() -> bool {
-    env_flag("ALTER_ZERO_PERMISSIONS")
+    env_flag("ZEROTH_PERMISSIONS")
 }
 
-/// The mode `ALTER_ZERO_PERMISSION_MODE` seeds this run with — outranking the
+/// The mode `ZEROTH_PERMISSION_MODE` seeds this run with — outranking the
 /// project's saved mode, never saved (`permission::mode_by_env` decides,
 /// `docs/state/permissions.md`).
 pub(crate) fn permission_mode_seed() -> Option<PermissionMode> {
-    let value = std::env::var("ALTER_ZERO_PERMISSION_MODE").ok();
+    let value = std::env::var("ZEROTH_PERMISSION_MODE").ok();
     zeroth::permission::mode_by_env(value.as_deref())
 }
 
 /// A feature toggle read from the environment: **on** unless `name` is set to
 /// one of `0`/`false`/`no`/`off` (case- and whitespace-insensitive). The one
-/// grammar every `ALTER_ZERO_*` on/off flag uses.
+/// grammar every `ZEROTH_*` on/off flag uses.
 fn env_flag(name: &str) -> bool {
     match std::env::var(name) {
         Ok(v) => !matches!(
@@ -1010,7 +996,7 @@ fn env_flag(name: &str) -> bool {
     }
 }
 
-/// An **explicitly set** `ALTER_ZERO_*` on/off flag, or `None` when the
+/// An **explicitly set** `ZEROTH_*` on/off flag, or `None` when the
 /// variable is absent. The `/settings` seed needs the distinction [`env_flag`]
 /// erases: an unset variable must leave the saved value alone, where a set one
 /// overrides it for this run. See `docs/state/settings.md`.
@@ -1173,7 +1159,7 @@ pub(crate) fn update_telemetry_file(
     file
 }
 
-/// Where OpenAI's sign-in flows go: `ALTER_ZERO_OPENAI_ISSUER` when set and
+/// Where OpenAI's sign-in flows go: `ZEROTH_OPENAI_ISSUER` when set and
 /// non-empty (the smoke suite's local stand-in for the auth server, or a
 /// fork's own), else `None` — the module's built-in default stands
 /// (`docs/providers/chatgpt.md`).
@@ -1184,14 +1170,14 @@ pub(crate) fn openai_issuer() -> Option<String> {
         .filter(|url| !url.is_empty())
 }
 
-/// Where Cline's sign-in talks to WorkOS: `ALTER_ZERO_CLINE_AUTH_BASE` when
+/// Where Cline's sign-in talks to WorkOS: `ZEROTH_CLINE_AUTH_BASE` when
 /// set and non-empty (Phase 137's local stub, or a fork's own), else `None` —
 /// `https://api.workos.com` stands (`docs/providers/cline.md`).
 pub(crate) fn cline_auth_base() -> Option<String> {
     nonempty_env(zeroth::llm::cline::AUTH_BASE_ENV)
 }
 
-/// Where Cline's register/refresh calls go: `ALTER_ZERO_CLINE_API_BASE` when
+/// Where Cline's register/refresh calls go: `ZEROTH_CLINE_API_BASE` when
 /// set and non-empty (Phase 137's stub again), else `None` —
 /// `https://api.cline.bot` stands.
 pub(crate) fn cline_api_base() -> Option<String> {
@@ -1199,14 +1185,14 @@ pub(crate) fn cline_api_base() -> Option<String> {
 }
 
 /// Where the Google Antigravity sign-in's token and userinfo calls go:
-/// `ALTER_ZERO_GOOGLE_OAUTH_BASE` when set and non-empty (the smoke suite's
+/// `ZEROTH_GOOGLE_OAUTH_BASE` when set and non-empty (the smoke suite's
 /// stub), else `None` — Google's own hosts stand (`docs/providers/antigravity.md`).
 pub(crate) fn google_oauth_base() -> Option<String> {
     nonempty_env(zeroth::llm::antigravity::OAUTH_BASE_ENV)
 }
 
 /// The `User-Agent` replacing the agy CLI's on Cloud Code requests:
-/// `ALTER_ZERO_ANTIGRAVITY_USER_AGENT`, for when Google moves its gate.
+/// `ZEROTH_ANTIGRAVITY_USER_AGENT`, for when Google moves its gate.
 pub(crate) fn antigravity_user_agent() -> Option<String> {
     nonempty_env(zeroth::llm::antigravity::USER_AGENT_ENV)
 }
@@ -1218,7 +1204,7 @@ pub(crate) fn antigravity_project() -> Option<String> {
 }
 
 /// Where GitHub's REST API calls go — the Copilot token exchange and the
-/// `/usage` quota read: `ALTER_ZERO_GITHUB_API_BASE` when set and non-empty
+/// `/usage` quota read: `ZEROTH_GITHUB_API_BASE` when set and non-empty
 /// (Phase 145's stub, or a fork's own), else `None` —
 /// `https://api.github.com` stands (`docs/providers/usage.md`).
 pub(crate) fn github_api_base() -> Option<String> {
@@ -1234,7 +1220,7 @@ fn nonempty_env(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// Where the daily ping goes: `ALTER_ZERO_TELEMETRY_URL` when set and
+/// Where the daily ping goes: `ZEROTH_TELEMETRY_URL` when set and
 /// non-empty (a fork's own collector, the smoke suite's local stub), else
 /// the built-in collector (`telemetry::DEFAULT_ENDPOINT`).
 pub(crate) fn telemetry_endpoint() -> String {
@@ -1246,12 +1232,12 @@ pub(crate) fn telemetry_endpoint() -> String {
 }
 
 /// Whether the environment **forbids** telemetry this run — a falsy
-/// `ALTER_ZERO_TELEMETRY`, or a set `DO_NOT_TRACK`.
+/// `ZEROTH_TELEMETRY`, or a set `DO_NOT_TRACK`.
 ///
 /// This is what makes the opt-out *hard* rather than a mere seed
 /// (`TELEMETRY.md`): the `/settings` row reports itself unavailable, so
 /// it cannot be cycled back on, and `telemetry_active()` stays false however
-/// the row is set. Every other `ALTER_ZERO_*` override only seeds its row —
+/// the row is set. Every other `ZEROTH_*` override only seeds its row —
 /// but the others are preferences, and this one is a statement that nothing
 /// should be sent. The asymmetry is deliberate and one-directional: an
 /// environment that forces telemetry *on* leaves the row cyclable, because
@@ -1261,7 +1247,7 @@ pub(crate) fn telemetry_forbidden_by_env() -> bool {
 }
 
 /// What the environment says about telemetry for this run —
-/// `ALTER_ZERO_TELEMETRY` in the app's on/off grammar, outranked by a set
+/// `ZEROTH_TELEMETRY` in the app's on/off grammar, outranked by a set
 /// `DO_NOT_TRACK` — or `None` to defer to `telemetry.json`
 /// (`telemetry::enabled_by_env`, `TELEMETRY.md`).
 fn telemetry_env_override() -> Option<bool> {
@@ -1307,7 +1293,7 @@ pub(crate) fn update_update_file(
     file
 }
 
-/// The repository whose releases the check reads: `ALTER_ZERO_UPDATE_URL`
+/// The repository whose releases the check reads: `ZEROTH_UPDATE_URL`
 /// when set and non-empty (a fork, the smoke suite's stand-in server), else
 /// the manifest's own (`update::DEFAULT_REPO_URL`).
 pub(crate) fn update_repo_url() -> String {
@@ -1319,7 +1305,7 @@ pub(crate) fn update_repo_url() -> String {
 }
 
 /// Whether the environment **forbids** the update check this run — a falsy
-/// `ALTER_ZERO_UPDATE_CHECK`. The telemetry rule (`telemetry_forbidden_by_env`):
+/// `ZEROTH_UPDATE_CHECK`. The telemetry rule (`telemetry_forbidden_by_env`):
 /// the `/settings` row reports itself unavailable, so a "send nothing"
 /// stated in the environment cannot be cycled around from inside the app.
 pub(crate) fn update_check_forbidden_by_env() -> bool {
@@ -1427,76 +1413,76 @@ pub(crate) fn load_settings_file(path: Option<&Path>) -> SettingsFile {
         .unwrap_or_default()
 }
 
-/// The saved knobs with the `ALTER_ZERO_*` overrides applied on top — the
+/// The saved knobs with the `ZEROTH_*` overrides applied on top — the
 /// app's standing precedence rule: **the environment wins**, per setting, and
 /// only when it is actually set. This is what the session *runs* with;
 /// [`load_saved_settings`]'s blob is what it *writes back* to.
 pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionSettings {
-    // `ALTER_ZERO_SHOW_THINKING` names the *shown* side; the row is its
+    // `ZEROTH_SHOW_THINKING` names the *shown* side; the row is its
     // inverse (docs/ui/thinking-stream.md).
-    if let Some(show) = env_flag_set("ALTER_ZERO_SHOW_THINKING") {
+    if let Some(show) = env_flag_set("ZEROTH_SHOW_THINKING") {
         settings.hide_thinking = !show;
     }
-    if let Some(on) = env_flag_set("ALTER_ZERO_TOOLS") {
+    if let Some(on) = env_flag_set("ZEROTH_TOOLS") {
         settings.tools = on;
     }
     // The **Verbose output** row: every tool call its own cell for the run
     // (docs/ui/tool-groups.md) — the smoke suite exports it so its phases keep
     // the per-call cells they assert on.
-    if let Some(on) = env_flag_set("ALTER_ZERO_VERBOSE") {
+    if let Some(on) = env_flag_set("ZEROTH_VERBOSE") {
         settings.verbose = on;
     }
-    // `ALTER_ZERO_HOOKS` seeds the **Hooks** row the way `ALTER_ZERO_TOOLS`
+    // `ZEROTH_HOOKS` seeds the **Hooks** row the way `ZEROTH_TOOLS`
     // seeds Tools — an override for this run, never saved (docs/tools/hooks.md).
     // It used to be ANDed over the row instead, which could only ever turn
     // hooks *off*; with the row off by default it has to turn them on too.
-    if let Some(on) = env_flag_set("ALTER_ZERO_HOOKS") {
+    if let Some(on) = env_flag_set("ZEROTH_HOOKS") {
         settings.hooks = on;
     }
     // Checkpoints keep their own (identical) pure predicate, so the one
     // grammar stays in the module that owns the feature.
-    if let Ok(value) = std::env::var("ALTER_ZERO_CHECKPOINTS") {
+    if let Ok(value) = std::env::var("ZEROTH_CHECKPOINTS") {
         settings.checkpoints = zeroth::checkpoint::enabled_by_env(Some(&value));
     }
     // The project-doc knob's env form is a byte budget, whose documented off
     // switch is `0` (docs/state/project-doc.md).
-    if let Some(budget) = std::env::var("ALTER_ZERO_PROJECT_DOC_MAX_BYTES")
+    if let Some(budget) = std::env::var("ZEROTH_PROJECT_DOC_MAX_BYTES")
         .ok()
         .and_then(|v| v.trim().parse::<usize>().ok())
     {
         settings.project_docs = budget > 0;
     }
-    if let Some(on) = env_flag_set("ALTER_ZERO_SKILLS") {
+    if let Some(on) = env_flag_set("ZEROTH_SKILLS") {
         settings.skills = on;
     }
-    // `ALTER_ZERO_MCP` seeds the **MCP** row the way `ALTER_ZERO_HOOKS`
+    // `ZEROTH_MCP` seeds the **MCP** row the way `ZEROTH_HOOKS`
     // seeds Hooks — an override for this run, never saved (docs/tools/mcp.md). A
     // falsy value used to remove the manager outright; now the session
     // starts with MCP off, which `/settings` can turn back on.
-    if let Some(on) = env_flag_set("ALTER_ZERO_MCP") {
+    if let Some(on) = env_flag_set("ZEROTH_MCP") {
         settings.mcp = on;
     }
     if let Some(t) = temperature() {
         settings.temperature = Some(t);
     }
-    // The Ask timeout row: `ALTER_ZERO_ASK_TIMEOUT_SECS` seeds it for the
+    // The Ask timeout row: `ZEROTH_ASK_TIMEOUT_SECS` seeds it for the
     // run, `0` meaning never — a wait the menu doesn't list still reads whole
     // (`1m 30s`), which is how the smoke suite sits one out (docs/tools/ask.md).
-    if let Some(secs) = std::env::var("ALTER_ZERO_ASK_TIMEOUT_SECS")
+    if let Some(secs) = std::env::var("ZEROTH_ASK_TIMEOUT_SECS")
         .ok()
         .and_then(|v| v.trim().parse::<u64>().ok())
     {
         settings.ask_timeout_secs = secs;
     }
-    // The Telemetry row: `ALTER_ZERO_TELEMETRY` (and the cross-tool
+    // The Telemetry row: `ZEROTH_TELEMETRY` (and the cross-tool
     // `DO_NOT_TRACK`, which outranks it) seed it for the run over the value
     // `telemetry.json` supplied — an override, never saved
     // (`TELEMETRY.md`).
     if let Some(on) = telemetry_env_override() {
         settings.telemetry = on;
     }
-    // The Show tips row: `ALTER_ZERO_TIPS` seeds it for the run over the
-    // value `tips.json` supplied, the `ALTER_ZERO_TOOLS` grammar — not a
+    // The Show tips row: `ZEROTH_TIPS` seeds it for the run over the
+    // value `tips.json` supplied, the `ZEROTH_TOOLS` grammar — not a
     // privacy switch, so it never withdraws the row (`docs/ui/tips.md`).
     if let Some(on) = env_flag_set(zeroth::tips::TIPS_ENV) {
         settings.tips = on;
@@ -1508,7 +1494,7 @@ pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionS
 /// keys it): a read-modify-write over the file itself — re-read, the
 /// directory's entry (else the seed) taking only `key`'s value from the
 /// `live` blob (`SettingsFile::record_value`), written back — so an
-/// `ALTER_ZERO_*` override merged in at startup never sticks and entries
+/// `ZEROTH_*` override merged in at startup never sticks and entries
 /// other directories wrote meanwhile survive. Best-effort like
 /// [`save_permissions`]: a write failure is swallowed (a read-only home must
 /// never kill the TUI) and a `None` path (no config home) no-ops. See
@@ -1532,61 +1518,61 @@ pub(crate) fn save_setting(
 
 /// The dummy's pre-stream pause, so the status indicator is visibly working
 /// before the first chunk: [`stream::STARTUP_DELAY`] unless
-/// `ALTER_ZERO_STARTUP_DELAY_MS` overrides it (the smoke test runs with a short
+/// `ZEROTH_STARTUP_DELAY_MS` overrides it (the smoke test runs with a short
 /// delay; one phase uses a longer one). A real backend's own first-token
 /// latency replaces it.
 pub(crate) fn startup_delay() -> Duration {
-    std::env::var("ALTER_ZERO_STARTUP_DELAY_MS")
+    std::env::var("ZEROTH_STARTUP_DELAY_MS")
         .ok()
         .and_then(|ms| ms.parse::<u64>().ok())
         .map_or(stream::STARTUP_DELAY, Duration::from_millis)
 }
 
 /// The dummy's pause after every streamed piece of reply text:
-/// [`stream::CHUNK_DELAY`] unless `ALTER_ZERO_CHUNK_DELAY_MS` overrides it —
+/// [`stream::CHUNK_DELAY`] unless `ZEROTH_CHUNK_DELAY_MS` overrides it —
 /// the startup delay's twin, and how the offline backend mimics a model
 /// streaming a few tokens a second (`docs/ui/slow-stream.md`; the smoke suite's
 /// slow-stream phase drives the inline pipeline at that pace).
 pub(crate) fn chunk_delay() -> Duration {
-    std::env::var("ALTER_ZERO_CHUNK_DELAY_MS")
+    std::env::var("ZEROTH_CHUNK_DELAY_MS")
         .ok()
         .and_then(|ms| ms.parse::<u64>().ok())
         .map_or(stream::CHUNK_DELAY, Duration::from_millis)
 }
 
-/// The sampling temperature every request carries (`ALTER_ZERO_TEMPERATURE`),
+/// The sampling temperature every request carries (`ZEROTH_TEMPERATURE`),
 /// or `None` to leave it to the provider's default.
 pub(crate) fn temperature() -> Option<f32> {
-    std::env::var("ALTER_ZERO_TEMPERATURE")
+    std::env::var("ZEROTH_TEMPERATURE")
         .ok()
         .and_then(|t| t.trim().parse::<f32>().ok())
 }
 
-/// `ALTER_ZERO_STALL_MS` selects a test-only backend that ignores the cancel
+/// `ZEROTH_STALL_MS` selects a test-only backend that ignores the cancel
 /// for N ms — modelling a real network backend wedged in a blocking read
 /// during the pre-first-token pause — so `scripts/smoke.sh` can prove an Esc
 /// interrupt stays responsive even then. Never used in normal operation (it
 /// preempts the real/dummy backend only when the env var is set). See
 /// `docs/input/interrupt.md`.
 pub(crate) fn stall_ms() -> Option<u64> {
-    std::env::var("ALTER_ZERO_STALL_MS")
+    std::env::var("ZEROTH_STALL_MS")
         .ok()
         .and_then(|ms| ms.parse::<u64>().ok())
 }
 
-/// `ALTER_ZERO_CONTEXT_WINDOW`: the model's context window, overriding
+/// `ZEROTH_CONTEXT_WINDOW`: the model's context window, overriding
 /// whatever the provider reports (and the only way to get a footer gauge on
 /// the dummy). Zero — a window that would divide by nothing — is ignored. See
 /// `docs/architecture/compact.md`.
 pub(crate) fn context_window_override() -> Option<u64> {
-    std::env::var("ALTER_ZERO_CONTEXT_WINDOW")
+    std::env::var("ZEROTH_CONTEXT_WINDOW")
         .ok()
         .and_then(|v| v.trim().parse().ok())
         .filter(|&w| w > 0)
 }
 
 /// The real backend's system prompt: the "Zeroth" persona
-/// (`prompts/zeroth.md`) unless `ALTER_ZERO_SYSTEM_PROMPT` overrides it
+/// (`prompts/zeroth.md`) unless `ZEROTH_SYSTEM_PROMPT` overrides it
 /// (an empty value sends no system prompt at all — `with_system_prompt` drops
 /// blanks). Either way we fold in the runtime environment — date, os, user,
 /// cwd — so the agent has context awareness (`docs/architecture/environment.md`), and —
@@ -1599,7 +1585,7 @@ pub(crate) fn context_window_override() -> Option<u64> {
 /// every backend the loop rebuilds (a `/model` switch, a Ctrl+T thinking
 /// change, the capability probe) inherits it by clone.
 pub(crate) fn system_prompt(cwd: &Path, scratchpad: Option<&Path>) -> Option<String> {
-    std::env::var("ALTER_ZERO_SYSTEM_PROMPT")
+    std::env::var("ZEROTH_SYSTEM_PROMPT")
         .ok()
         .or_else(|| Some(DEFAULT_SYSTEM_PROMPT.to_string()))
         .map(|base| {
@@ -1644,11 +1630,11 @@ pub(crate) fn prompt_context(cwd: &Path, scratchpad: Option<&Path>) -> Option<St
     })
 }
 
-/// The **user** MCP config file: `ALTER_ZERO_MCP_FILE` (what makes a smoke
+/// The **user** MCP config file: `ZEROTH_MCP_FILE` (what makes a smoke
 /// run hermetic — the project `.mcp.json` is still discovered), else
 /// `{config_home}/mcp.json`.
 pub(crate) fn mcp_user_file_path() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("ALTER_ZERO_MCP_FILE") {
+    if let Some(path) = std::env::var_os("ZEROTH_MCP_FILE") {
         return Some(PathBuf::from(path));
     }
     config_home().map(|dir| dir.join("mcp.json"))
@@ -1679,18 +1665,18 @@ fn mcp_timeout_ms(name: &str, default: std::time::Duration) -> std::time::Durati
         .map_or(default, std::time::Duration::from_millis)
 }
 
-/// The per-server connect budget (`ALTER_ZERO_MCP_STARTUP_TIMEOUT_MS`).
+/// The per-server connect budget (`ZEROTH_MCP_STARTUP_TIMEOUT_MS`).
 pub(crate) fn mcp_startup_timeout() -> std::time::Duration {
     mcp_timeout_ms(
-        "ALTER_ZERO_MCP_STARTUP_TIMEOUT_MS",
+        "ZEROTH_MCP_STARTUP_TIMEOUT_MS",
         zeroth::llm::mcp::DEFAULT_STARTUP_TIMEOUT,
     )
 }
 
-/// The per-call budget (`ALTER_ZERO_MCP_TOOL_TIMEOUT_MS`).
+/// The per-call budget (`ZEROTH_MCP_TOOL_TIMEOUT_MS`).
 pub(crate) fn mcp_tool_timeout() -> std::time::Duration {
     mcp_timeout_ms(
-        "ALTER_ZERO_MCP_TOOL_TIMEOUT_MS",
+        "ZEROTH_MCP_TOOL_TIMEOUT_MS",
         zeroth::llm::mcp::DEFAULT_TOOL_TIMEOUT,
     )
 }
@@ -1789,7 +1775,7 @@ mod tests {
         };
         assert_eq!(
             migration.notice().as_deref(),
-            Some("Imported model config and sign-ins from ~/.alter-zero")
+            Some("Imported model config and sign-ins from ~/.zeroth")
         );
     }
 }

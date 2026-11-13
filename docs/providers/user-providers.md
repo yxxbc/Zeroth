@@ -11,7 +11,7 @@ rest of the state). The block shape is the shipped file's, and the file is
 **laid over** the built-in providers: it adds to them, and it can change one
 of them, but it never replaces the set.
 
-It used to replace it. The first file that parsed — `ALTER_ZERO_PROVIDERS_FILE`,
+It used to replace it. The first file that parsed — `ZEROTH_PROVIDERS_FILE`,
 then a `providers.toml` in the working directory, then the one in the home
 directory — became the whole provider table, so adding one provider meant
 copying the entire shipped file, and the copy then never received a fix or a
@@ -32,7 +32,7 @@ api_base = "https://api.groq.com/openai/v1"
 ```
 
 - **`[providers.groq]`** is the id. It tags the provider's rows in `/model`
-  (`[groq]`), names it in `config.json` and in `ALTER_ZERO_PROVIDER=groq`, and
+  (`[groq]`), names it in `config.json` and in `ZEROTH_PROVIDER=groq`, and
   decides where the key is read from: `GROQ_API_KEY`, the id upper-cased with
   `_API_KEY` after it, punctuation becoming `_`. `api_key_env = "…"` names
   another variable.
@@ -72,7 +72,7 @@ Other services take the same block with their own id, name and base:
 
 | | the provider table |
 | --- | --- |
-| `ALTER_ZERO_PROVIDERS_FILE` names a file | that file **alone**, none of the built-ins — a curated table, or a test's stub: the smoke suite points it at one stub provider so nothing else is fetched |
+| `ZEROTH_PROVIDERS_FILE` names a file | that file **alone**, none of the built-ins — a curated table, or a test's stub: the smoke suite points it at one stub provider so nothing else is fetched |
 | otherwise | the built-in providers, with `{config_home}/providers.toml` laid over them; no such file is the normal case |
 
 Either way the file's blocks are checked the same way (*When the file is
@@ -118,7 +118,7 @@ its own `api_model_base`, which still decides where the model list comes from
 — set `api_model_base` as well to move the listing too.
 
 What a patch cannot do is remove: a shipped key, a shipped header or a shipped
-provider stays. A table without some of them is what `ALTER_ZERO_PROVIDERS_FILE`
+provider stays. A table without some of them is what `ZEROTH_PROVIDERS_FILE`
 is for.
 
 ## Every key a block can set
@@ -250,7 +250,7 @@ for one not loaded yet (`docs/providers/local-models.md`) — or
 `context_window` (gauged at 95%, the ChatGPT backend's rule); image input and
 reasoning from the shapes `docs/tools/tools.md` and `docs/providers/reasoning.md` list. A fact
 no record states stays unknown — the footer's gauge hides and auto-compaction
-stays off (`ALTER_ZERO_CONTEXT_WINDOW` supplies a window), and images are
+stays off (`ZEROTH_CONTEXT_WINDOW` supplies a window), and images are
 attached optimistically (`docs/tools/tools.md`).
 
 A gateway that flattens every capability to a boolean is read the same way.
@@ -278,7 +278,7 @@ the model, its block also needs `reasoning_param = "reasoning_effort"`
 A server with no `/models` at all lists nothing, and `/model` notes it
 `unavailable` — so does one answering `/models` with a 200 that carries no
 models list (an error object), which an empty list is not; name the model
-at launch instead, with `ALTER_ZERO_PROVIDER` and `ALTER_ZERO_MODEL`.
+at launch instead, with `ZEROTH_PROVIDER` and `ZEROTH_MODEL`.
 
 ## When the file is wrong
 

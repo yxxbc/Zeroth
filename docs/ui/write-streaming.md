@@ -276,7 +276,7 @@ hand-kept list here is what dropped a `SubagentStop` continuation's tail once
 The dummy's file-change demo (a prompt mentioning *write*, *edit* or *diff*)
 streams its `write` the way a live model does: the call's real JSON arguments,
 cut into token-sized pieces (`stream::tokens`) at the reply's own pace
-(`ALTER_ZERO_CHUNK_DELAY_MS`). `smoke.sh` Phase 138 drives it in tmux, and then
+(`ZEROTH_CHUNK_DELAY_MS`). `smoke.sh` Phase 138 drives it in tmux, and then
 drives the **real** backend against a stub provider that streams a 30-line
 `write` six characters at a time, sampling the cell as it moves. Past ten
 lines the window's bottom row must keep moving down the file and line 1 must

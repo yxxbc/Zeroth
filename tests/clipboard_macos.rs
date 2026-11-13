@@ -37,7 +37,7 @@ struct Store(PathBuf);
 
 impl Store {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("alter-zero-macos-clip-{name}"));
+        let dir = std::env::temp_dir().join(format!("zeroth-macos-clip-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         Self(dir)
     }

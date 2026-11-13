@@ -138,19 +138,19 @@ def main():
     providers.write_text('[providers.fixture]\nname = "Memory fixture"\n[providers.fixture.kwargs]\napi_base = "http://127.0.0.1:%d/v1"\n' % server.server_port)
     overrides = {
         'NO_PROXY': '127.0.0.1', 'no_proxy': '127.0.0.1',
-        'ALTER_ZERO_CONFIG_DIR': str(root / 'cfg'), 'ALTER_ZERO_SESSIONS_DIR': str(root / 'sessions'),
-        'ALTER_ZERO_SKILLS_DIR': str(root / 'skills'), 'ALTER_ZERO_AGENTS_DIR': str(root / 'agents'),
-        'ALTER_ZERO_PROVIDERS_FILE': str(providers), 'ALTER_ZERO_PROVIDER': 'fixture',
-        'ALTER_ZERO_MODEL': 'memory-fixture-model', 'FIXTURE_API_KEY': 'stand-in',
-        'ALTER_ZERO_HISTORY_FILE': '/dev/null', 'ALTER_ZERO_CHECKPOINTS': '0',
-        'ALTER_ZERO_PROJECT_CONFIG': '0', 'ALTER_ZERO_PROJECT_DOC_MAX_BYTES': '0',
-        'ALTER_ZERO_TELEMETRY': '0', 'ALTER_ZERO_UPDATE_CHECK': '0', 'ALTER_ZERO_TIPS': '0',
-        'ALTER_ZERO_PERMISSIONS': '0', 'ALTER_ZERO_CONTEXT_WINDOW': '1000000',
+        'ZEROTH_CONFIG_DIR': str(root / 'cfg'), 'ZEROTH_SESSIONS_DIR': str(root / 'sessions'),
+        'ZEROTH_SKILLS_DIR': str(root / 'skills'), 'ZEROTH_AGENTS_DIR': str(root / 'agents'),
+        'ZEROTH_PROVIDERS_FILE': str(providers), 'ZEROTH_PROVIDER': 'fixture',
+        'ZEROTH_MODEL': 'memory-fixture-model', 'FIXTURE_API_KEY': 'stand-in',
+        'ZEROTH_HISTORY_FILE': '/dev/null', 'ZEROTH_CHECKPOINTS': '0',
+        'ZEROTH_PROJECT_CONFIG': '0', 'ZEROTH_PROJECT_DOC_MAX_BYTES': '0',
+        'ZEROTH_TELEMETRY': '0', 'ZEROTH_UPDATE_CHECK': '0', 'ZEROTH_TIPS': '0',
+        'ZEROTH_PERMISSIONS': '0', 'ZEROTH_CONTEXT_WINDOW': '1000000',
     }
     # Isolate all app-specific overrides and model keys. Keep the runtime's
     # proxy, CA trust, and other managed environment variables untouched.
     inherited = {key: value for key, value in os.environ.items()
-                 if not key.startswith(('ALTER_ZERO_', 'HERDR_'))
+                 if not key.startswith(('ZEROTH_', 'HERDR_'))
                  and not key.endswith('API_KEY')
                  and key not in {'OLLAMA_HOST', 'NO_COLOR', 'DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY'}}
     def tmux(*parts):

@@ -718,7 +718,7 @@ fn header_keeps_the_mascot_at_mid_width() {
         text.contains(env!("CARGO_PKG_VERSION")),
         "version kept: {text:?}"
     );
-    assert!(text.contains("~/alter-zero"), "cwd kept: {text:?}");
+    assert!(text.contains("~/zeroth"), "cwd kept: {text:?}");
     for line in &lines {
         assert!(
             cols(&plain(line)) <= width as usize,

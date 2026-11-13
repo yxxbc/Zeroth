@@ -91,7 +91,7 @@ What the tool path trades away is determinism — it depends on the model
 honouring the description's guidance — so that is measured rather than assumed.
 Both live mention tests were run across five models (`openai/gpt-4o-mini`,
 `anthropic/claude-haiku-4.5`, `qwen/qwen3.6-flash`, `deepseek/deepseek-v3.2`,
-`openai/gpt-oss-120b`) via `ALTER_ZERO_LIVE_MODEL`, and all ten runs loaded
+`openai/gpt-oss-120b`) via `ZEROTH_LIVE_MODEL`, and all ten runs loaded
 the mentioned skill — including
 `live_an_embedded_mention_still_loads_the_skill`, whose prompt is the hard
 case: the name dropped mid-sentence with no imperative, no "use", and no

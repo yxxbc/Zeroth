@@ -479,7 +479,7 @@ fn render_live_paints_the_footer_on_the_last_row() {
     render_live(buf.area, &mut buf, &app);
     let last = row(&buf, h - 1, 60);
     assert!(
-        last.contains("dummy_model_name · ~/alter-zero"),
+        last.contains("dummy_model_name · ~/zeroth"),
         "footer under the box: {last:?}"
     );
     assert!(last.starts_with("  dummy"), "two-column inset: {last:?}");

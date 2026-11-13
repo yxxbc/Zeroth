@@ -17,11 +17,11 @@
 #   bin        target/debug/zeroth
 #   WxH        1920x1200 (the served picture)
 #   followups  5
-#   protocol   halfblocks | kitty | sixel | iterm2 (ALTER_ZERO_IMAGE_PROTOCOL)
+#   protocol   halfblocks | kitty | sixel | iterm2 (ZEROTH_IMAGE_PROTOCOL)
 #
 # The dummy backend answers by default (it never encodes the picture, so it
 # is the control). `LIVE=1` drives a real provider instead: set
-# `ALTER_ZERO_PROVIDER`, `ALTER_ZERO_MODEL` (a vision-capable one) and the
+# `ZEROTH_PROVIDER`, `ZEROTH_MODEL` (a vision-capable one) and the
 # provider's key variable in the environment — they are passed through.
 # `TURN_MEM_DISPLAY` picks the X display (default :99).
 set -uo pipefail
@@ -46,8 +46,8 @@ if ! command -v tmux >/dev/null; then
 	echo "turn_mem: tmux is required" >&2
 	exit 2
 fi
-if [ "${LIVE:-0}" = 1 ] && { [ -z "${ALTER_ZERO_PROVIDER:-}" ] || [ -z "${ALTER_ZERO_MODEL:-}" ]; }; then
-	echo "turn_mem: LIVE=1 needs ALTER_ZERO_PROVIDER, ALTER_ZERO_MODEL and the provider's key in the environment" >&2
+if [ "${LIVE:-0}" = 1 ] && { [ -z "${ZEROTH_PROVIDER:-}" ] || [ -z "${ZEROTH_MODEL:-}" ]; }; then
+	echo "turn_mem: LIVE=1 needs ZEROTH_PROVIDER, ZEROTH_MODEL and the provider's key in the environment" >&2
 	exit 2
 fi
 
@@ -63,9 +63,9 @@ trap cleanup EXIT
 "$OWNER" "$W" "$H" >/dev/null 2>&1 &
 OWNER_PID=$!
 sleep 1.5
-ENV="ALTER_ZERO_CONFIG_DIR=$CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_IMAGE_PROTOCOL=$PROTO ALTER_ZERO_IMAGE_CELL_SIZE=10x20 ALTER_ZERO_STARTUP_DELAY_MS=100 DISPLAY=$DISPLAY"
+ENV="ZEROTH_CONFIG_DIR=$CFG ZEROTH_CHECKPOINTS=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_IMAGE_PROTOCOL=$PROTO ZEROTH_IMAGE_CELL_SIZE=10x20 ZEROTH_STARTUP_DELAY_MS=100 DISPLAY=$DISPLAY"
 if [ "${LIVE:-0}" != 1 ]; then
-	ENV="$ENV ALTER_ZERO_DUMMY=1"
+	ENV="$ENV ZEROTH_DUMMY=1"
 fi
 tmux new-session -d -s "$S" -x 140 -y 45 "env $ENV $BIN"
 sleep 2

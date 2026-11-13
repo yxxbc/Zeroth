@@ -36,7 +36,7 @@ binary uses. It offers four shapes:
 | `pool` | W worker threads consuming N jobs from a channel |
 | `async` | one multi-thread tokio runtime; each session is a `spawn_blocking` job (see *Why not a task?*) |
 
-Workload: the built-in dummy backend with `ALTER_ZERO_STALL_MS` set, so every
+Workload: the built-in dummy backend with `ZEROTH_STALL_MS` set, so every
 session spends a known 300–800 ms in the pre-first-token stall — the shape of
 a network-bound turn — then answers without network or tokens. Metrics:
 process RSS (`ps -o rss`), thread count (`ps -M`), wall clock, and stderr
@@ -47,7 +47,7 @@ Reproduce:
 
 ```bash
 cargo build --features bench --bin sessionbench
-ALTER_ZERO_DUMMY=1 ALTER_ZERO_STALL_MS=300 ZEROTH_CONFIG_DIR=$(mktemp -d) \
+ZEROTH_DUMMY=1 ZEROTH_STALL_MS=300 ZEROTH_CONFIG_DIR=$(mktemp -d) \
   target/debug/sessionbench thread 15
 ```
 
@@ -209,7 +209,7 @@ thread that built it. The shared-state walls were fixed where they were
 smallest: the first-run seeds write through a temporary file and an atomic
 rename, and session ids carry a process-local sequence.
 
-Measured 2026-11-13 with the offline dummy backend and `ALTER_ZERO_STALL_MS=300`
+Measured 2026-11-13 with the offline dummy backend and `ZEROTH_STALL_MS=300`
 (the worker's own bootstrap included, unlike the harness above):
 
 | jobs | concurrency | fd soft limit | wall | max RSS | stderr |
@@ -241,7 +241,7 @@ and hands a `&Host` to every session:
 - the skill and subagent walks, with their parse errors, and this project's
   `skills.json` disabled set;
 - this directory's `/settings` entry plus the telemetry/update/tips files and
-  the `ALTER_ZERO_*` overrides, and the tips cursor;
+  the `ZEROTH_*` overrides, and the tips cursor;
 - the secrets file, the user's `hooks.json` (path and parse), and the model
   resolver's inputs: the provider table, `.env`, and the saved selection
   (`adopt_selection` now pins a directory once per process, not once per

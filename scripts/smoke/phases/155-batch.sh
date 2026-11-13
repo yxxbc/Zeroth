@@ -15,7 +15,7 @@ printf '%s\n' \
 	'{"id":"two","prompt":"hello"}' > "$B_JOBS"
 B_OUT="$SMOKE_TMP/batch155.out"
 B_ERR="$SMOKE_TMP/batch155.err"
-env $CFG_ENV_NOHIST ALTER_ZERO_DUMMY=1 ALTER_ZERO_STARTUP_DELAY_MS=0 ALTER_ZERO_CHUNK_DELAY_MS=0 \
+env $CFG_ENV_NOHIST ZEROTH_DUMMY=1 ZEROTH_STARTUP_DELAY_MS=0 ZEROTH_CHUNK_DELAY_MS=0 \
 	"$BIN_ABS" -p --jobs "$B_JOBS" --concurrency 2 --out-dir "$B_WORK/logs" \
 	> "$B_OUT" 2> "$B_ERR"
 B_CODE=$?

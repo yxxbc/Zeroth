@@ -1862,7 +1862,7 @@ mod tests {
                 model: "qwen3-235b".to_string(),
                 api_key: Some("key".to_string()),
                 thinking: Some(ThinkingMode::Off),
-                cache_key: Some("alter-zero-7".to_string()),
+                cache_key: Some("zeroth-7".to_string()),
                 service_tier: None,
                 ..Selection::default()
             })
@@ -1879,7 +1879,7 @@ mod tests {
             direct["venice_parameters"]["include_venice_system_prompt"],
             json!(false)
         );
-        assert_eq!(direct["prompt_cache_key"], json!("alter-zero-7"));
+        assert_eq!(direct["prompt_cache_key"], json!("zeroth-7"));
         assert!(
             direct.get("session_id").is_none(),
             "Venice rejects unknown body keys"
@@ -1912,7 +1912,7 @@ mod tests {
         // mode have had their say. `stream` stays whatever the list says.
         use crate::llm::{ReasoningEffort, ThinkingMode};
         let mut cfg = ModelConfig::fallback();
-        cfg.cache_key = Some("alter-zero-42".to_string());
+        cfg.cache_key = Some("zeroth-42".to_string());
         cfg.thinking = Some(ThinkingMode::Effort(ReasoningEffort::High));
         cfg.extra_body
             .insert("safe_prompt".to_string(), json!(false));
@@ -2010,9 +2010,9 @@ mod tests {
         // repeats hit the same warm cache. No OpenRouter-only `session_id`
         // for a non-OpenRouter base — Venice rejects unknown keys.
         let mut cfg = ModelConfig::fallback();
-        cfg.cache_key = Some("alter-zero-42".to_string());
+        cfg.cache_key = Some("zeroth-42".to_string());
         let p = OpenAiClient::new(cfg).build_payload(&[ChatMessage::user("hi")]);
-        assert_eq!(p["prompt_cache_key"], json!("alter-zero-42"));
+        assert_eq!(p["prompt_cache_key"], json!("zeroth-42"));
         assert!(
             p.get("session_id").is_none(),
             "session_id is OpenRouter-only: {p}"
@@ -2025,10 +2025,10 @@ mod tests {
         // `session_id` pins the session to one so cache writes are readable.
         let mut cfg = ModelConfig::fallback();
         cfg.api_base = "https://openrouter.ai/api/v1".to_string();
-        cfg.cache_key = Some("alter-zero-42".to_string());
+        cfg.cache_key = Some("zeroth-42".to_string());
         let p = OpenAiClient::new(cfg).build_payload(&[ChatMessage::user("hi")]);
-        assert_eq!(p["prompt_cache_key"], json!("alter-zero-42"));
-        assert_eq!(p["session_id"], json!("alter-zero-42"));
+        assert_eq!(p["prompt_cache_key"], json!("zeroth-42"));
+        assert_eq!(p["session_id"], json!("zeroth-42"));
     }
 
     #[test]
@@ -2049,7 +2049,7 @@ mod tests {
         // caching is server-side, so the affinity key buys nothing worth that.
         let mut cfg = ModelConfig::fallback();
         cfg.auth = crate::llm::AuthScheme::GithubCopilot;
-        cfg.cache_key = Some("alter-zero-42".to_string());
+        cfg.cache_key = Some("zeroth-42".to_string());
         let p = OpenAiClient::new(cfg).build_payload(&[ChatMessage::user("hi")]);
         assert!(p.get("prompt_cache_key").is_none(), "{p}");
         assert!(p.get("session_id").is_none(), "{p}");
@@ -2078,14 +2078,14 @@ mod tests {
         // Codex's two header names.
         let mut cfg = ModelConfig::fallback();
         cfg.auth = crate::llm::AuthScheme::ChatGptCodex;
-        cfg.cache_key = Some("alter-zero-42".to_string());
+        cfg.cache_key = Some("zeroth-42".to_string());
         assert_eq!(
             built_header(cfg.clone(), "session_id").as_deref(),
-            Some("alter-zero-42")
+            Some("zeroth-42")
         );
         assert_eq!(
             built_header(cfg, "conversation_id").as_deref(),
-            Some("alter-zero-42")
+            Some("zeroth-42")
         );
     }
 
@@ -2094,7 +2094,7 @@ mod tests {
         // A pasted-key provider keys on the body's `prompt_cache_key`; a
         // header it never asked for is a header a strict shim can refuse.
         let mut cfg = ModelConfig::fallback();
-        cfg.cache_key = Some("alter-zero-42".to_string());
+        cfg.cache_key = Some("zeroth-42".to_string());
         assert_eq!(built_header(cfg.clone(), "session_id"), None);
         assert_eq!(built_header(cfg, "conversation_id"), None);
     }
@@ -2130,12 +2130,12 @@ mod tests {
     #[test]
     fn an_ordinary_providers_payload_is_unchanged_by_the_copilot_branch() {
         let mut cfg = ModelConfig::fallback();
-        cfg.cache_key = Some("alter-zero-42".to_string());
+        cfg.cache_key = Some("zeroth-42".to_string());
         cfg.thinking = Some(crate::llm::ThinkingMode::Effort(
             crate::llm::ReasoningEffort::High,
         ));
         let p = OpenAiClient::new(cfg).build_payload(&[ChatMessage::user("hi")]);
-        assert_eq!(p["prompt_cache_key"], json!("alter-zero-42"));
+        assert_eq!(p["prompt_cache_key"], json!("zeroth-42"));
         assert_eq!(p["reasoning"], json!({"effort": "high"}));
         assert!(p.get("reasoning_effort").is_none(), "{p}");
     }

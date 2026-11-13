@@ -381,7 +381,7 @@ pub fn parse_verdict(text: &str) -> Result<ClassifierVerdict, String> {
 }
 
 /// The auto mode classifier bound to one provider: a tools-free client on
-/// the session's model (or the `ALTER_ZERO_CLASSIFIER_MODEL` override — a
+/// the session's model (or the `ZEROTH_CLASSIFIER_MODEL` override — a
 /// cheap fast model on the same provider, Claude Code's small-model slot),
 /// plus the working directory baked into every user prompt.
 #[derive(Debug, Clone)]
@@ -394,13 +394,13 @@ impl SafetyClassifier {
     /// Build the classifier for the backend's resolved config. The clone
     /// drops the session's thinking mode (a verdict needs no visible
     /// reasoning budget — the reference disables thinking for its
-    /// classifier) and never carries tools; `ALTER_ZERO_CLASSIFIER_MODEL`
+    /// classifier) and never carries tools; `ZEROTH_CLASSIFIER_MODEL`
     /// swaps the model id on the same provider. Boundary code (env + cwd
     /// reads), like the rest of the backend constructors.
     #[must_use]
     pub fn new(cfg: &ModelConfig) -> Self {
         let mut cfg = cfg.clone();
-        if let Some(model) = std::env::var("ALTER_ZERO_CLASSIFIER_MODEL")
+        if let Some(model) = std::env::var("ZEROTH_CLASSIFIER_MODEL")
             .ok()
             .map(|m| m.trim().to_string())
             .filter(|m| !m.is_empty())
@@ -969,7 +969,7 @@ mod tests {
     fn a_verdict_is_asked_for_at_standard_speed() {
         // The session's `/fast` tier is for the conversation; a safety
         // verdict is a few tokens whose speed is not worth the plan usage
-        // priority processing bills — and `ALTER_ZERO_CLASSIFIER_MODEL` may
+        // priority processing bills — and `ZEROTH_CLASSIFIER_MODEL` may
         // name a model that lists no tier at all (docs/providers/fast-mode.md).
         let mut cfg = ModelConfig::fallback();
         cfg.service_tier = Some("priority".to_string());

@@ -17,7 +17,7 @@ use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 /// A round in which the model reads a file that is not there — one call, so
 /// the turn needs a second request to finish.
 const TOOL_ROUND: &str = concat!(
-    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/alter-zero-round-budget\"}"}}]}}]}"#,
+    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/zeroth-round-budget\"}"}}]}}]}"#,
     "\n\n",
     r#"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
     "\n\n",

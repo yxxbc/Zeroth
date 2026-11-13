@@ -69,7 +69,7 @@ And if either value does not fit the shape the collector accepts, that field
 is dropped and the rest of the ping is sent without it.
 
 Two headers ride along: `Content-Type: application/json` and
-`User-Agent: alter-zero/{version}`. The reply is ignored.
+`User-Agent: zeroth/{version}`. The reply is ignored.
 
 ## What is never sent
 
@@ -138,7 +138,7 @@ Any one of these is enough:
 | how | scope |
 |---|---|
 | **`/settings` → Telemetry** | permanent, for your user, in every directory |
-| **`ALTER_ZERO_TELEMETRY=0`** | that run (`0`/`false`/`no`/`off` all work; `=1` turns it on for a run) |
+| **`ZEROTH_TELEMETRY=0`** | that run (`0`/`false`/`no`/`off` all work; `=1` turns it on for a run) |
 | **`DO_NOT_TRACK=1`** | that run — the [cross-tool convention](https://consoledonottrack.com), and it outranks the variable above |
 
 When either variable turns telemetry off, the `/settings` row goes with it:
@@ -147,7 +147,7 @@ app can quietly opt you back in. Turning it *off* from the row always works,
 whatever the environment says.
 
 ```bash
-ALTER_ZERO_TELEMETRY=0 zeroth        # this run
+ZEROTH_TELEMETRY=0 zeroth        # this run
 export DO_NOT_TRACK=1                    # every tool that honours it, including this one
 ```
 
@@ -178,7 +178,7 @@ once, under the banner:
   │  Shares App version, OS and connection country.                          │
   │  Never Your prompts, files, keys or IP address.                          │
   │                                                                          │
-  │  Opt out /settings → Telemetry or ALTER_ZERO_TELEMETRY=0                 │
+  │  Opt out /settings → Telemetry or ZEROTH_TELEMETRY=0                 │
   ╰──────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -242,7 +242,7 @@ class H(BaseHTTPRequestHandler):
 HTTPServer(('127.0.0.1', 8787), H).serve_forever()"
 
 # In another — a fresh config home, so this is a 'first install':
-ALTER_ZERO_TELEMETRY_URL=http://127.0.0.1:8787/v1/ping \
+ZEROTH_TELEMETRY_URL=http://127.0.0.1:8787/v1/ping \
 ZEROTH_CONFIG_DIR=/tmp/az-telemetry-check zeroth
 ```
 
@@ -252,7 +252,7 @@ automated.
 
 ## Pointing the ping elsewhere
 
-`ALTER_ZERO_TELEMETRY_URL` overrides the endpoint for a run, and
+`ZEROTH_TELEMETRY_URL` overrides the endpoint for a run, and
 `telemetry::DEFAULT_ENDPOINT` in `src/telemetry.rs` changes it for a build.
 This repository does not ship a collector.
 
@@ -269,7 +269,7 @@ The whole request is one `HEAD` of the repository's releases page —
 
 ```
 HEAD https://github.com/yxxbc/zeroth/releases/latest
-User-Agent: alter-zero/0.1.0
+User-Agent: zeroth/0.1.0
 ```
 
 — and the answer is a redirect to `…/releases/tag/vX.Y.Z`, whose tag is the
@@ -288,14 +288,14 @@ one you may not want:
 | how | scope |
 |---|---|
 | **`/settings` → Update check** | permanent, for your user, in every directory |
-| **`ALTER_ZERO_UPDATE_CHECK=0`** | that run (`0`/`false`/`no`/`off`; `=1` turns it on for a run) |
+| **`ZEROTH_UPDATE_CHECK=0`** | that run (`0`/`false`/`no`/`off`; `=1` turns it on for a run) |
 
 As with Telemetry, the variable withdraws the `/settings` row (`false
 (unavailable)`) so nothing in the app can quietly turn it back on, and without
 a config home nothing runs at all. What is kept is
 `~/.zeroth/update.json`: the switch, the last day a check was attempted,
 the newest version the last check found, and the last day the notice was
-shown. `ALTER_ZERO_UPDATE_URL` points the check at another repository — a
+shown. `ZEROTH_UPDATE_URL` points the check at another repository — a
 fork of your own — and `scripts/smoke.sh` Phase 116 drives the whole thing
 against a local stand-in server, so you can watch the one request it makes.
 

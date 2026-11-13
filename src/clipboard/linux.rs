@@ -219,7 +219,7 @@ impl X11 {
         };
         x11.clipboard = x11.atom("CLIPBOARD")?;
         x11.incr = x11.atom("INCR")?;
-        x11.property = x11.atom("ALTER_ZERO_CLIPBOARD")?;
+        x11.property = x11.atom("ZEROTH_CLIPBOARD")?;
         Ok(x11)
     }
 

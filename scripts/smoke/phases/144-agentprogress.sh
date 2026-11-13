@@ -123,7 +123,7 @@ api_base = "http://127.0.0.1:$STUB_PORT/v1"
 EOF
 # No permission gate: the agent's commands run unasked.
 # NO_PROXY keeps a developer's proxy off the loopback.
-REAL_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_PERMISSIONS=0 ALTER_ZERO_PROVIDERS_FILE=$PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+REAL_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_PERMISSIONS=0 ZEROTH_PROVIDERS_FILE=$PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 launch -c "$WORK" "$S144" 120 40 "$REAL_APP"
 
 # ---- the agent talks: the lead's live cell says what it is saying ----

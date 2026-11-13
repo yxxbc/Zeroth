@@ -79,10 +79,10 @@ pub const TIPS: &[&str] = &[
 pub const TIPS_FILE_NAME: &str = "tips.json";
 
 /// Seeds the **Show tips** row for a run (`0`/`false`/`no`/`off` = off, the
-/// grammar every `ALTER_ZERO_*` flag uses) — never written back. The smoke
+/// grammar every `ZEROTH_*` flag uses) — never written back. The smoke
 /// suite turns tips off with it, so a phase that holds a turn past the delay
 /// sees the strip it asserts on.
-pub const TIPS_ENV: &str = "ALTER_ZERO_TIPS";
+pub const TIPS_ENV: &str = "ZEROTH_TIPS";
 
 /// Which tip slot a turn `elapsed` into is in: `None` before [`TIP_DELAY`],
 /// then `0` for the first [`TIP_ROTATION`] after it, `1` for the next, and
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn the_file_and_the_switch_have_their_documented_names() {
         assert_eq!(TIPS_FILE_NAME, "tips.json");
-        assert_eq!(TIPS_ENV, "ALTER_ZERO_TIPS");
+        assert_eq!(TIPS_ENV, "ZEROTH_TIPS");
     }
 
     #[test]

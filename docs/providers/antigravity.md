@@ -162,7 +162,7 @@ Headers: the bearer, `Content-Type: application/json`, and the agy CLI
 arch={arch}; cl={changelist}; auth_method=consumer)`, built per machine at the
 auth seam. The backend serves a reduced catalog to any other agent string and
 answers the hidden models with 404, so the header is load-bearing;
-`ALTER_ZERO_ANTIGRAVITY_USER_AGENT` replaces it whole when Google moves the
+`ZEROTH_ANTIGRAVITY_USER_AGENT` replaces it whole when Google moves the
 gate. No `X-Goog-Api-Client`, `Client-Metadata` or `x-goog-user-project`:
 the last one turns a request into a 403 on an account whose project lacks the
 API. `sessionId` is the session's cache-affinity key
@@ -365,8 +365,8 @@ CLI *would* read them.
 | --- | --- |
 | `ANTIGRAVITY_REFRESH_TOKEN` | the stored credential (`.env`, or exported) |
 | `ANTIGRAVITY_PROJECT_ID` | the Cloud Code project to bill, outranking discovery |
-| `ALTER_ZERO_ANTIGRAVITY_USER_AGENT` | replaces the agy CLI `User-Agent` |
-| `ALTER_ZERO_GOOGLE_OAUTH_BASE` | where the token and userinfo calls go (the smoke suite's stub) |
+| `ZEROTH_ANTIGRAVITY_USER_AGENT` | replaces the agy CLI `User-Agent` |
+| `ZEROTH_GOOGLE_OAUTH_BASE` | where the token and userinfo calls go (the smoke suite's stub) |
 
 ## Files
 

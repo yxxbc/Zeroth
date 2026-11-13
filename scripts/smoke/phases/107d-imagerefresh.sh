@@ -37,12 +37,12 @@ printf '%s' "$RED_PNG64" | base64 -d >"$IMG_DIR/shot.png"
 touch -d '2001-01-01 00:00:00' "$IMG_DIR/shot.png"
 img_file="$img_day/rollout-2026-07-23T10-00-00-107d0000.jsonl"
 {
-	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-107d","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"alter-zero","version":"0.1.0"}}\n' "$IMG_DIR"
+	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-107d","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"zeroth","version":"0.1.0"}}\n' "$IMG_DIR"
 	printf '{"timestamp":"2026-07-23T10:00:01.000Z","type":"message","payload":{"role":"user","text":"look at shot.png","timestamp":"10:00 AM"}}\n'
 	printf '{"timestamp":"2026-07-23T10:00:02.000Z","type":"tool","payload":{"name":"Read","args":"%s/shot.png","ok":true,"output":"Read image (PNG, 100x60, 154 B)","timestamp":"10:00 AM","shell":false,"truncated":false,"arguments":"{\\"path\\":\\"%s/shot.png\\"}"}}\n' "$IMG_DIR" "$IMG_DIR"
 	printf '{"timestamp":"2026-07-23T10:00:03.000Z","type":"message","payload":{"role":"assistant","text":"A solid square.","timestamp":"10:00 AM"}}\n'
 } >"$img_file"
-IMG_ENV="$CFG_ENV_NOHIST ALTER_ZERO_SESSIONS_DIR=$IMG_SESS ALTER_ZERO_IMAGE_PROTOCOL=halfblocks ALTER_ZERO_IMAGE_CELL_SIZE=5x10 ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
+IMG_ENV="$CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$IMG_SESS ZEROTH_IMAGE_PROTOCOL=halfblocks ZEROTH_IMAGE_CELL_SIZE=5x10 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
 launch -c "$IMG_DIR" "$S107D" 100 30 "env $IMG_ENV $BIN_ABS"
 tmux send-keys -t "$S107D" -l "/resume"
 sleep 0.3

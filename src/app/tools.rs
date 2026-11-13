@@ -1036,7 +1036,7 @@ impl PathDisplay {
     }
 
     /// Whether `path` names a file in a session's scratchpad — this
-    /// session's own, wherever `ALTER_ZERO_SCRATCHPAD_DIR` put it, or any
+    /// session's own, wherever `ZEROTH_SCRATCHPAD_DIR` put it, or any
     /// session's by the layout, so a resumed conversation still knows the
     /// files an earlier process wrote there
     /// ([`scratchpad::is_session_scratchpad`](crate::scratchpad::is_session_scratchpad)).

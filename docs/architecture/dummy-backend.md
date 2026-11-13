@@ -53,7 +53,7 @@ subtree inside it:
 
 | Module | Holds |
 |--------|-------|
-| `dummy/mod.rs` | `DummyAi` — the `ReplySource` impl, `turn_events`, and the playback pacing (`with_startup_delay` / `with_chunk_delay`, the two knobs `ALTER_ZERO_STARTUP_DELAY_MS` / `ALTER_ZERO_CHUNK_DELAY_MS` set). |
+| `dummy/mod.rs` | `DummyAi` — the `ReplySource` impl, `turn_events`, and the playback pacing (`with_startup_delay` / `with_chunk_delay`, the two knobs `ZEROTH_STARTUP_DELAY_MS` / `ZEROTH_CHUNK_DELAY_MS` set). |
 | `dummy/scenario.rs` | **The registry**: `Cue`, `Scenario`, `SCENARIOS`, `select`. |
 | `dummy/script.rs` | The canned replies, the `handoff!()` sentence they close on, and the streaming/output primitives (`chunks`, `tokens` — the token-sized split the slow-stream stress demo streams by (`docs/ui/slow-stream.md`), `dummy_response`, `reply_parts`, `image_ack`; the file-cell bodies come straight from `llm::tools::write_report`/`update_report`). |
 | `dummy/turns.rs` | The **pure** scripted turns — one `Cue -> Vec<StreamEvent>` per scenario. |
@@ -76,7 +76,7 @@ pub(in crate::stream) const SCENARIOS: &[Scenario] = &[
         play: Play::Gated(gated::auto_permission_turn),
     },
     …
-    // The default turn: think, then read/edit/run alter-zero's calling card.
+    // The default turn: think, then read/edit/run zeroth's calling card.
     Scenario {
         selects: |_| true,          // the catch-all — keep it last
         play: Play::Script(turns::tools_turn),
@@ -269,7 +269,7 @@ The turn that answers *anything* used to be two unrelated calls — read
 neither meant anything: the demo read as a widget sampler.
 
 It is one errand in three steps now, on one file — and the file is chosen so
-the errand has a *point*. `about.py` is alter-zero's calling card, and it
+the errand has a *point*. `about.py` is zeroth's calling card, and it
 carries `CREATOR = "linuztx"` and `HOME = "https://github.com/linuztx"` right at
 the top, then prints a card that mentions neither:
 
@@ -288,7 +288,7 @@ the top, then prints a card that mentions neither:
 3. **`Bash(python3 about.py)`** — the run, whose output *is* the credit:
 
    ```
-   alter-zero — an autonomous AI agent that lives in your terminal
+   zeroth — an autonomous AI agent that lives in your terminal
      created by linuztx · https://github.com/linuztx
    ```
 

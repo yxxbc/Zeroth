@@ -26,13 +26,13 @@ use crate::APP_NAME;
 pub const UPDATE_FILE_NAME: &str = "update.json";
 
 /// The app's own on/off switch for a run (`0`/`false`/`no`/`off` = off, the
-/// grammar every `ALTER_ZERO_*` flag uses). Seeds the `/settings` row; never
+/// grammar every `ZEROTH_*` flag uses). Seeds the `/settings` row; never
 /// written back.
-pub const UPDATE_ENV: &str = "ALTER_ZERO_UPDATE_CHECK";
+pub const UPDATE_ENV: &str = "ZEROTH_UPDATE_CHECK";
 
 /// Overrides [`DEFAULT_REPO_URL`] for a run — a fork, or the smoke suite's
 /// stand-in server (`scripts/release/release_server.py`).
-pub const REPO_URL_ENV: &str = "ALTER_ZERO_UPDATE_URL";
+pub const REPO_URL_ENV: &str = "ZEROTH_UPDATE_URL";
 
 /// The repository whose releases are checked: Cargo.toml's own `repository`,
 /// so a fork that edits the manifest checks its own releases.
@@ -428,7 +428,7 @@ pub fn is_cargo_build_dir(exe: &Path) -> bool {
 pub fn looks_like_installer(text: &str) -> bool {
     text.starts_with("#!/bin/sh")
         && text.contains("\nmain \"$@\"")
-        && text.contains("ALTER_ZERO_INSTALL_DIR")
+        && text.contains("ZEROTH_INSTALL_DIR")
 }
 
 /// Fetch the one-line installer's text from [`installer_url`] — the
@@ -463,7 +463,7 @@ pub fn fetch_installer(repo: &str, current_version: &str) -> Result<String, Stri
 /// worker thread (and `zeroth update`) calls. One `HEAD` request to
 /// [`latest_url`], following GitHub's redirect to the release's page and
 /// reading the tag off where it landed: no API (so no rate limit), no body,
-/// no identifier beyond the `alter-zero/{version}` user agent every request
+/// no identifier beyond the `zeroth/{version}` user agent every request
 /// carries. Rides the shared cached client (`llm::http_client`), so the
 /// check adds no second connection pool to a process that idles all day.
 ///
@@ -755,27 +755,27 @@ mod tests {
     #[test]
     fn a_cargo_build_dir_is_recognised() {
         for dev in [
-            "/home/u/src/alter-zero/target/debug/alter-zero",
-            "/home/u/src/alter-zero/target/release/alter-zero",
-            "/home/u/src/alter-zero/target/x86_64-unknown-linux-gnu/release/alter-zero",
-            "target/debug/alter-zero",
+            "/home/u/src/zeroth/target/debug/zeroth",
+            "/home/u/src/zeroth/target/release/zeroth",
+            "/home/u/src/zeroth/target/x86_64-unknown-linux-gnu/release/zeroth",
+            "target/debug/zeroth",
             // The shipped build's own profile (docs/ops/binary-size.md):
             // `cargo build --profile dist`, and the per-target shape
             // `scripts/release.sh build` leaves.
-            "/home/u/src/alter-zero/target/dist/alter-zero",
-            "/home/u/src/alter-zero/target/aarch64-unknown-linux-gnu/dist/alter-zero",
+            "/home/u/src/zeroth/target/dist/zeroth",
+            "/home/u/src/zeroth/target/aarch64-unknown-linux-gnu/dist/zeroth",
         ] {
             assert!(is_cargo_build_dir(Path::new(dev)), "{dev}");
         }
         for installed in [
-            "/home/u/.local/bin/alter-zero",
-            "/usr/local/bin/alter-zero",
-            "/home/u/.cargo/bin/alter-zero",
-            "/home/u/target-practice/alter-zero",
-            "/home/u/target/alter-zero",
+            "/home/u/.local/bin/zeroth",
+            "/usr/local/bin/zeroth",
+            "/home/u/.cargo/bin/zeroth",
+            "/home/u/target-practice/zeroth",
+            "/home/u/target/zeroth",
             // A directory merely named like a profile, outside a `target/`.
-            "/home/u/dist/alter-zero",
-            "/opt/alter-zero/dist/alter-zero",
+            "/home/u/dist/zeroth",
+            "/opt/zeroth/dist/zeroth",
         ] {
             assert!(!is_cargo_build_dir(Path::new(installed)), "{installed}");
         }
@@ -817,13 +817,13 @@ mod tests {
             assert_eq!(package_manager(Path::new(exe)), Some(manager), "{exe}");
         }
         for unmanaged in [
-            "/home/u/.local/bin/alter-zero",
-            "/usr/bin/alter-zero",
-            "/home/u/src/alter-zero/target/release/alter-zero",
+            "/home/u/.local/bin/zeroth",
+            "/usr/bin/zeroth",
+            "/home/u/src/zeroth/target/release/zeroth",
             // A directory merely named like one is not one.
-            "/home/u/node_modules_backup/alter-zero",
-            "/home/u/.pnpm/alter-zero",
-            "/home/u/.bun/bin/alter-zero",
+            "/home/u/node_modules_backup/zeroth",
+            "/home/u/.pnpm/zeroth",
+            "/home/u/.bun/bin/zeroth",
         ] {
             assert_eq!(package_manager(Path::new(unmanaged)), None, "{unmanaged}");
         }

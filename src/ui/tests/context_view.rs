@@ -456,7 +456,7 @@ fn context_lines_wrap_a_long_image_path_instead_of_clipping() {
     app.record_user_message_with_images(
         "[Image #1]",
         vec![std::path::PathBuf::from(
-            "/tmp/a-very-long-temp-directory-name/alter-zero-clipboard-0123456789.png",
+            "/tmp/a-very-long-temp-directory-name/zeroth-clipboard-0123456789.png",
         )],
     );
     let texts = texts(&app, 30);

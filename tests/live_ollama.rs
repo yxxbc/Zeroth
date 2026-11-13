@@ -13,7 +13,7 @@
 //! ```
 //!
 //! `OLLAMA_HOST` points them at another server (Ollama's own grammar, e.g.
-//! `myhost:11434`); `ALTER_ZERO_LIVE_OLLAMA_MODEL` swaps the tool-capable
+//! `myhost:11434`); `ZEROTH_LIVE_OLLAMA_MODEL` swaps the tool-capable
 //! thinking model (default `qwen3:1.7b` — the 0.6b one thinks and chats but
 //! cannot form a call against the real tool schemas, which is the model's
 //! limit rather than the wire's).
@@ -29,7 +29,7 @@ use zeroth::stream::{CancelToken, ReplySource, StreamEvent, TokenUsage};
 
 /// The tool-capable thinking model under test.
 fn thinking_model() -> String {
-    std::env::var("ALTER_ZERO_LIVE_OLLAMA_MODEL").unwrap_or_else(|_| "qwen3:1.7b".to_string())
+    std::env::var("ZEROTH_LIVE_OLLAMA_MODEL").unwrap_or_else(|_| "qwen3:1.7b".to_string())
 }
 
 /// The resolved config for `model` on the built-in `ollama` provider, the
@@ -119,10 +119,8 @@ fn usages(events: &[StreamEvent]) -> Vec<TokenUsage> {
 
 /// A 64×64 solid red PNG, written to the temp dir.
 fn red_png() -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "alter-zero-live-ollama-red-{}.png",
-        std::process::id()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("zeroth-live-ollama-red-{}.png", std::process::id()));
     let mut image = image::RgbImage::new(64, 64);
     for pixel in image.pixels_mut() {
         *pixel = image::Rgb([0xff, 0x00, 0x00]);
@@ -231,7 +229,7 @@ fn live_tool_round_trip() {
     let backend = backend(&thinking_model(), Some(ThinkingMode::On), Some(8192));
     let events = run(
         &backend,
-        "Run the shell command `echo alter-zero-live-ok` with the bash tool, then reply \
+        "Run the shell command `echo zeroth-live-ok` with the bash tool, then reply \
          with exactly what it printed.",
         vec![],
     );

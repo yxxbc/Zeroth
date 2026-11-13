@@ -15,7 +15,7 @@ smoke_begin
 S55="${S}_permission"
 # A long pre-stream pause so the draft below is unambiguously typed BEFORE the
 # request lands — once the prompt is up it owns every key (`a` would answer it).
-APP_PERM="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=2500 $BIN"
+APP_PERM="env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=2500 $BIN"
 launch "$S55" 100 44 "$APP_PERM"
 submit "$S55" "permission demo please"
 sleep 0.4

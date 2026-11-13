@@ -40,12 +40,12 @@ AABJRU5ErkJggg==
 PNG64
 img_file2="$IMG_SESS2/2026/07/23/rollout-2026-07-23T10-00-00-10710711.jsonl"
 {
-	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-107b","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"alter-zero","version":"0.1.0"}}\n' "$IMG_DIR2"
+	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-107b","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"zeroth","version":"0.1.0"}}\n' "$IMG_DIR2"
 	printf '{"timestamp":"2026-07-23T10:00:01.000Z","type":"message","payload":{"role":"user","text":"look at shot.png","timestamp":"10:00 AM"}}\n'
 	printf '{"timestamp":"2026-07-23T10:00:02.000Z","type":"tool","payload":{"name":"Read","args":"%s/shot.png","ok":true,"output":"Read image (PNG, 100x60, 2 KB)","timestamp":"10:00 AM","shell":false,"truncated":false,"arguments":"{\\"path\\":\\"%s/shot.png\\"}"}}\n' "$IMG_DIR2" "$IMG_DIR2"
 	printf '{"timestamp":"2026-07-23T10:00:03.000Z","type":"message","payload":{"role":"assistant","text":"A colour gradient with a white diagonal.","timestamp":"10:00 AM"}}\n'
 } >"$img_file2"
-IMG_ENV2="$CFG_ENV_NOHIST ALTER_ZERO_SESSIONS_DIR=$IMG_SESS2 ALTER_ZERO_IMAGE_PROTOCOL=kitty ALTER_ZERO_IMAGE_CELL_SIZE=5x10 ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
+IMG_ENV2="$CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$IMG_SESS2 ZEROTH_IMAGE_PROTOCOL=kitty ZEROTH_IMAGE_CELL_SIZE=5x10 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
 launch -c "$IMG_DIR2" "$S107B" 100 30 "env $IMG_ENV2 $BIN_ABS"
 tmux pipe-pane -t "$S107B" -o "cat >> $IMG_RAW"
 sleep 0.3

@@ -202,10 +202,10 @@ fn every_file_a_picture_is_drawn_from_is_listed_for_the_recheck() {
     // rebuilt: an image read's file, whatever the registry knows of it, and
     // every Ctrl+V attachment a user message carries — a paste whose size was
     // never recorded included, since the recheck is what records it.
-    let read = image_read("/alter-zero-tests/paths/read.png", (64, 64));
+    let read = image_read("/zeroth-tests/paths/read.png", (64, 64));
     assert_eq!(
         item_image_paths(&read),
-        vec!["/alter-zero-tests/paths/read.png".to_string()]
+        vec!["/zeroth-tests/paths/read.png".to_string()]
     );
     let message = |role: Role| {
         HistoryItem::Message(Message {
@@ -213,23 +213,23 @@ fn every_file_a_picture_is_drawn_from_is_listed_for_the_recheck() {
             text: "[Image #1] [Image #2] compare".to_string(),
             timestamp: String::new(),
             images: vec![
-                std::path::PathBuf::from("/alter-zero-tests/paths/1.png"),
-                std::path::PathBuf::from("/alter-zero-tests/paths/2.png"),
+                std::path::PathBuf::from("/zeroth-tests/paths/1.png"),
+                std::path::PathBuf::from("/zeroth-tests/paths/2.png"),
             ],
         })
     };
     assert_eq!(
         item_image_paths(&message(Role::User)),
         vec![
-            "/alter-zero-tests/paths/1.png".to_string(),
-            "/alter-zero-tests/paths/2.png".to_string(),
+            "/zeroth-tests/paths/1.png".to_string(),
+            "/zeroth-tests/paths/2.png".to_string(),
         ]
     );
     assert!(
         item_image_paths(&message(Role::Assistant)).is_empty(),
         "only the user's own messages carry pastes"
     );
-    let mut text = match image_read("/alter-zero-tests/paths/notes.txt", (1, 1)) {
+    let mut text = match image_read("/zeroth-tests/paths/notes.txt", (1, 1)) {
         HistoryItem::Tool(tool) => tool,
         _ => unreachable!(),
     };
@@ -249,7 +249,7 @@ fn a_resumed_read_whose_file_is_gone_leaves_no_blank_rows() {
     // draw. The boundary's recheck finds no header there, and the
     // conversation reads exactly as it would with no picture at all.
     let _guard = drawing(120);
-    let path = "/alter-zero-tests/gone/desktop-first.png";
+    let path = "/zeroth-tests/gone/desktop-first.png";
     let history = vec![
         image_read(path, (1883, 1007)),
         HistoryItem::Message(Message {

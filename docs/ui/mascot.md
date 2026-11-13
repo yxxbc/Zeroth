@@ -44,8 +44,8 @@ layout (`docs/ui/theme.md`):
   → crest ✓     Crest
     bloom       A crested hatchling flaring its frill
     sprout
-    twin         ▙▄▙▄▟▄▟   Alter Zero (v0.18.0)
-    skiter      ▝▜▄███▄▛▘  ~/alter-zero
+    twin         ▙▄▙▄▟▄▟   Zeroth (v0.18.0)
+    skiter      ▝▜▄███▄▛▘  ~/zeroth
     (1/6)         ▘▘ ▝▝    / commands   @ files   ? shortcuts
 
   ↑/↓ to navigate · Type to search · Enter to choose · Esc to cancel
@@ -71,8 +71,8 @@ On a narrower one the same preview stacks under the list:
   Crest
   A crested hatchling flaring its frill
 
-   ▙▄▙▄▟▄▟   Alter Zero (v0.14.0)
-  ▝▜▄███▄▛▘  ~/alter-zero
+   ▙▄▙▄▟▄▟   Zeroth (v0.14.0)
+  ▝▜▄███▄▛▘  ~/zeroth
     ▘▘ ▝▝    / commands   @ files   ? shortcuts
 
   ↑/↓ to navigate · Type to search · Enter to choose …

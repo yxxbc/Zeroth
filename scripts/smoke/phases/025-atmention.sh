@@ -26,7 +26,7 @@ for n in 01 02 03 04 05 06 07 08 09 10 11 12; do
 done
 # The session starts in $ATDIR, so the binary needs an ABSOLUTE path ($APP's is
 # relative to the project dir); the app then walks $ATDIR for the @ picker.
-APP_ABS="env $CFG_ENV ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+APP_ABS="env $CFG_ENV ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 launch -c "$ATDIR" "$S22" 80 24 "$APP_ABS"
 # A bare `@` lists the whole workspace the way a directory listing reads: the
 # cwd's own entries first — the directory, then the files — and a level down

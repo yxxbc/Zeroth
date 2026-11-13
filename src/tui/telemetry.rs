@@ -7,7 +7,7 @@
 //! Four rules hold the whole thing to its promise:
 //!
 //! - **Nothing happens unless telemetry is active.** No config home, an
-//!   environment that forbids it (`ALTER_ZERO_TELEMETRY=0`,
+//!   environment that forbids it (`ZEROTH_TELEMETRY=0`,
 //!   `DO_NOT_TRACK=1`), or the user's own saved `false` all resolve to
 //!   `telemetry_active() == false` before [`Session::telemetry_tick`] mints
 //!   an id, shows a notice or spawns anything. A forbidding environment

@@ -57,7 +57,7 @@ text appears): the just-sent **user message is counted into the tally up front
 with the `↑` arrow** (uploaded input, like a tool result folded back in), so the
 pause shows `↑ N tokens` and the timer ticks. The first streamed chunk flips the
 arrow to `↓`. The pause is `DummyAi`'s (`stream::STARTUP_DELAY`, overridable via
-`ALTER_ZERO_STARTUP_DELAY_MS` — the smoke test runs short, one phase long); a
+`ZEROTH_STARTUP_DELAY_MS` — the smoke test runs short, one phase long); a
 real backend's own latency plays the same role.
 
 - **spinner** — the line opens with the session's **spinner style**
@@ -457,9 +457,9 @@ one column after the spinner whatever its width.
 status indicator is visibly working before any reply text — the point of the
 pause is to show it off. The wait is an interruptible `nap` (an Esc during it
 reaps the thread at once and streams nothing). The delay is configurable
-(`DummyAi::with_startup_delay`); `main.rs` reads `ALTER_ZERO_STARTUP_DELAY_MS`
+(`DummyAi::with_startup_delay`); `main.rs` reads `ZEROTH_STARTUP_DELAY_MS`
 (so the smoke test runs short and one phase long), defaulting to `STARTUP_DELAY`.
-Its twin, `ALTER_ZERO_CHUNK_DELAY_MS` (`DummyAi::with_chunk_delay`), sets the
+Its twin, `ZEROTH_CHUNK_DELAY_MS` (`DummyAi::with_chunk_delay`), sets the
 pause after every streamed piece — `CHUNK_DELAY`, 45 ms, by default — which is
 how the offline backend mimics a model streaming a few tokens a second
 (`docs/ui/slow-stream.md`).

@@ -266,14 +266,14 @@ context window, one entry per message the request carries:
 / C O N T E X T / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / /
  SYSTEM  #1 · ≈1.8k tokens            (amber chip — the backend's prompt)
   ⎿  # System prompt
-     You are Alter Zero, an autonomous agent harness …
+     You are Zeroth, an autonomous agent harness …
      ## Environment · Date … OS … User … CWD …           (docs/architecture/environment.md)
 
  USER  #2 · ≈40 tokens · 1 image      (blue chip — context_user_color(), the one
                                        blue the running bullet left behind)
-  ⎿  [Image #1: /home/me/.alter-zero/image-cache/773c1c6cb321/1.png] what's in
+  ⎿  [Image #1: /home/me/.zeroth/image-cache/773c1c6cb321/1.png] what's in
      this picture?
-     image: /home/me/.alter-zero/image-cache/773c1c6cb321/1.png  (dim attachment)
+     image: /home/me/.zeroth/image-cache/773c1c6cb321/1.png  (dim attachment)
 
  ASSISTANT  #3 · ≈25 tokens · 1 tool call                       (green chip)
   ⎿  Let me look at the file.
@@ -426,7 +426,7 @@ tiling never glues a `/` onto a title ending on the other parity.
 
 ## Also fixed while wiring: the default system prompt was dead
 
-`build_backend` passed the raw `ALTER_ZERO_SYSTEM_PROMPT` env read straight
+`build_backend` passed the raw `ZEROTH_SYSTEM_PROMPT` env read straight
 through, so with the var unset the real backend got **no** system prompt —
 `DEFAULT_SYSTEM_PROMPT` was unreachable, contradicting `docs/providers/llm.md`
 ("Override with…"). Now: unset → the default; set → the override; set to
@@ -455,5 +455,5 @@ base — default or override — so the empty → no-prompt contract still holds
   still reads as written.
 - Replaying native `tool_calls`/`tool` messages assumes the provider supports
   function calling (the same providers that would emit tool calls). Resuming a
-  tools-on session with `ALTER_ZERO_TOOLS=0` would replay tool messages to a
+  tools-on session with `ZEROTH_TOOLS=0` would replay tool messages to a
   request that declares no tools — a narrow edge a strict provider could reject.

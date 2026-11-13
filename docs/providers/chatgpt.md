@@ -25,14 +25,14 @@ still read where they can turn up (`llm::chatgpt`'s `LEGACY_PROVIDER_ID` /
 - a token stored under `OPENAI_CHATGPT_REFRESH_TOKEN` — in the `.env` store
   or exported by the shell — still signs in: the boundary's key lookup
   (`tui::config::resolve_api_key`) tries the current name, then the legacy
-  one (`chatgpt::legacy_key_env`), then the generic `ALTER_ZERO_API_KEY`,
+  one (`chatgpt::legacy_key_env`), then the generic `ZEROTH_API_KEY`,
   and the next rotation writes the token back under the current name;
 - a `config.json` selection (the last one, or a directory's entry) and a
   rollout's `model` record (`docs/state/session-model.md`) naming
   `openai_chatgpt` land on the provider: `ModelSelection`'s `provider`
   deserializes through `chatgpt::canonical_provider_id`, and the next write
   stores the current id — which is how a file migrates;
-- an `ALTER_ZERO_PROVIDER=openai_chatgpt` still pins the same provider, and
+- an `ZEROTH_PROVIDER=openai_chatgpt` still pins the same provider, and
   a provider file of your own spelling `auth = "openai_chatgpt"` still reads
   as the sign-in (`AuthScheme::ChatGptCodex`'s serde alias) rather than
   falling through to a pasted key.
@@ -342,7 +342,7 @@ poll, and the device callback (never a loopback port) on the exchange.
 #### The issuer
 
 Both flows, and the refresh they share, build their URLs on one **issuer**,
-`https://auth.openai.com` by default. `ALTER_ZERO_OPENAI_ISSUER` points them
+`https://auth.openai.com` by default. `ZEROTH_OPENAI_ISSUER` points them
 elsewhere — a fork's own auth server, or the smoke suite's stub — read once
 at the boundary and handed in through `chatgpt::set_issuer`, the
 `set_store_path` pattern: the pure URL builders never read the environment.
@@ -595,7 +595,7 @@ rather than left to a default.
 | `CHATGPT_CODEX_REFRESH_TOKEN` | the stored refresh token (a real env var wins over `.env`, as everywhere) |
 | `OPENAI_CHATGPT_REFRESH_TOKEN` | the variable's name before the rename — still read when the current one is unset, never written |
 | `ZEROTH_ENV_FILE` | relocates the store the rotation writes back to |
-| `ALTER_ZERO_OPENAI_ISSUER` | the auth server both sign-ins (and the refresh) talk to — a fork's, or `smoke.sh` Phase 119's local stub; `https://auth.openai.com` by default |
+| `ZEROTH_OPENAI_ISSUER` | the auth server both sign-ins (and the refresh) talk to — a fork's, or `smoke.sh` Phase 119's local stub; `https://auth.openai.com` by default |
 
 The seat's rate limits and credits — what `/usage` shows — are read from the
 backend's root rather than the chat base: `GET …/backend-api/wham/usage`,

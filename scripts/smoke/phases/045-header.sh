@@ -10,7 +10,7 @@ smoke_begin
 # resize (a width change purges scrollback and rebuilds from history, which the
 # header is NOT part of, so it must be re-emitted) and re-shows after /clear (a
 # fresh-start banner). The tier-independent title word is the marker (both the
-# mascot tier and the narrow badge carry the literal "Alter Zero"); the
+# mascot tier and the narrow badge carry the literal "Zeroth"); the
 # borderless design adds no `─` rule / bare prompt / footer, so Phases 16/17
 # stay green.
 S_HEADER="${S}_header"

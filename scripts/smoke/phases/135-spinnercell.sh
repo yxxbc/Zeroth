@@ -96,7 +96,7 @@ smoke_on_exit kill "$SC_STUB"
 SC_PROVIDERS="$SMOKE_TMP/providers135.toml"
 printf '[providers.stub]\nname = "Stub"\n\n[providers.stub.kwargs]\napi_base = "http://127.0.0.1:%s/v1"\n' "$SC_PORT" >"$SC_PROVIDERS"
 # No permission gate: the calls run unasked, so nothing but the spinner moves.
-SC_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_PERMISSIONS=0 ALTER_ZERO_PROVIDERS_FILE=$SC_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+SC_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_PERMISSIONS=0 ZEROTH_PROVIDERS_FILE=$SC_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 launch -c "$WORK" "$S135" 120 40 "$SC_APP"
 submit "$S135" "smoke135 install"
 

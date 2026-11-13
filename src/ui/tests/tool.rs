@@ -1943,10 +1943,10 @@ fn render_live_grows_the_preview_to_fit_a_long_running_command() {
 fn a_shell_tool_renders_headerless_output_only() {
     // The Role::Shell header message is the cell's first line; the tool
     // itself contributes only the `⎿` output lines, flush below it.
-    let mut t = tool("pwd", "", ToolStatus::Ok, "/home/user/alter-zero");
+    let mut t = tool("pwd", "", ToolStatus::Ok, "/home/user/zeroth");
     t.shell = true;
     let lines = tool_lines(&t, 60, &PathDisplay::VERBATIM);
-    assert_eq!(plain(&lines[0]), "  ⎿  /home/user/alter-zero");
+    assert_eq!(plain(&lines[0]), "  ⎿  /home/user/zeroth");
     assert!(
         !plain(&lines[0]).contains("pwd"),
         "no `● pwd` header — the Shell message above is the header"
@@ -4445,7 +4445,7 @@ fn read_and_edit_headers_link_alike_whatever_form_the_row_shows() {
     // An image read links the same way — the header is the header.
     let image = tool(
         "Read",
-        "/tmp/alter-zero-1000/18d27aab55500771-4c329/scratchpad/cute_cat.jpg",
+        "/tmp/zeroth-1000/18d27aab55500771-4c329/scratchpad/cute_cat.jpg",
         ToolStatus::Ok,
         "Read image (PNG, 784x562, 1.1 MB)",
     );
@@ -4453,9 +4453,8 @@ fn read_and_edit_headers_link_alike_whatever_form_the_row_shows() {
     assert_eq!(
         linked_spans(&lines[0]),
         vec![(
-            "/tmp/alter-zero-1000/18d27aab55500771-4c329/scratchpad/cute_cat.jpg".to_string(),
-            "file:///tmp/alter-zero-1000/18d27aab55500771-4c329/scratchpad/cute_cat.jpg"
-                .to_string()
+            "/tmp/zeroth-1000/18d27aab55500771-4c329/scratchpad/cute_cat.jpg".to_string(),
+            "file:///tmp/zeroth-1000/18d27aab55500771-4c329/scratchpad/cute_cat.jpg".to_string()
         )]
     );
     assert_eq!(plain(&lines[1]), "  ⎿  Read image (PNG, 784x562, 1.1 MB)");

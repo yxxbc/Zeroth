@@ -35,13 +35,13 @@ present.
 
 Three pieces, all reusable, so the answer stays checkable:
 
-- **`ALTER_ZERO_CHUNK_DELAY_MS`** — the pause the dummy takes after every
+- **`ZEROTH_CHUNK_DELAY_MS`** — the pause the dummy takes after every
   streamed piece of reply text (and every live tool-output line):
   `stream::CHUNK_DELAY`'s 45 ms unless set. The twin of
-  `ALTER_ZERO_STARTUP_DELAY_MS`, threaded the same way
+  `ZEROTH_STARTUP_DELAY_MS`, threaded the same way
   (`DummyAi::with_chunk_delay`, `tui::config::chunk_delay`, the one
-  `replay`/`pace` pair in `stream::dummy`). `ALTER_ZERO_CHUNK_DELAY_MS=400
-  alter-zero` then `stream some markdown` is the interactive form of this
+  `replay`/`pace` pair in `stream::dummy`). `ZEROTH_CHUNK_DELAY_MS=400
+  zeroth` then `stream some markdown` is the interactive form of this
   document.
 - **`stream::tokens`** — the stress twin of `chunks`: token-sized pieces that
   walk a cycle of lengths averaging three characters (`TOKEN_LENGTHS`, one-

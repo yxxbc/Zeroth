@@ -26,7 +26,7 @@ pub struct HooksMenu {
     /// config home resolved).
     pub source: Option<String>,
     /// Whether the session actually runs these hooks — `false` shows the
-    /// disabled note under the header (`/settings` off, `ALTER_ZERO_HOOKS=0`).
+    /// disabled note under the header (`/settings` off, `ZEROTH_HOOKS=0`).
     pub enabled: bool,
     /// Where the browse stands — Claude Code's four-mode state machine.
     pub level: HooksLevel,

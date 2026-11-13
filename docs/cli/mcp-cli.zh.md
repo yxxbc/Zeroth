@@ -1,20 +1,20 @@
-# CLI MCP 安装 — `alter-zero mcp add/remove/list/get/add-json`
+# CLI MCP 安装 — `zeroth mcp add/remove/list/get/add-json`
 
 Claude Code 和 codex 都允许脚本在不打开应用的情况下安装一个 MCP 服务器；这就是
 面向用户 config 文件的这个表面（`docs/tools/mcp.md`），像 `--continue`/`--resume`
 一样**在 TUI 启动之前**被解析并应答（`docs/cli/cli.md`）：
 
 ```
-$ alter-zero mcp add vercel --url https://mcp.vercel.com
+$ zeroth mcp add vercel --url https://mcp.vercel.com
 Added http MCP server "vercel" (https://mcp.vercel.com)
-File: /home/user/.alter-zero/mcp.json
+File: /home/user/.zeroth/mcp.json
 
-$ alter-zero mcp add everything -e API_KEY=xxx -- npx -y @modelcontextprotocol/server-everything
+$ zeroth mcp add everything -e API_KEY=xxx -- npx -y @modelcontextprotocol/server-everything
 Added stdio MCP server "everything" (npx -y @modelcontextprotocol/server-everything)
-File: /home/user/.alter-zero/mcp.json
+File: /home/user/.zeroth/mcp.json
 
-$ alter-zero mcp list
-MCP servers in /home/user/.alter-zero/mcp.json:
+$ zeroth mcp list
+MCP servers in /home/user/.zeroth/mcp.json:
   vercel: https://mcp.vercel.com (http)
   everything: npx -y @modelcontextprotocol/server-everything (stdio)
 ```
@@ -47,20 +47,20 @@ codex 的显式骨架（传输方式取决于你用的是哪种形式 —— 一
 Code 便利：`--transport` 用来点名 `sse`（codex 说不出它，而我们的
 `McpServerConfig` 可以）、面向远程服务器的 `--header`、用于 README 片段的
 `add-json`，以及重名错误。所有这些只针对**用户**文件
-（`ALTER_ZERO_MCP_FILE`，否则 `{config_home}/mcp.json` —— 与 TUI 使用的同一套
+（`ZEROTH_MCP_FILE`，否则 `{config_home}/mcp.json` —— 与 TUI 使用的同一套
 解析）；项目文件与团队共享并等待启动审查，所以一个会写它们的 CLI 要么绕过了
 审查，要么把它的服务器直接送回审查（`docs/state/config-review.md`）。
 
 ### 语法（纯函数，`src/cli.rs`）
 
 ```
-alter-zero mcp add <name> --url <URL> [--transport http|sse] [-H|--header "Name: Value"]...
+zeroth mcp add <name> --url <URL> [--transport http|sse] [-H|--header "Name: Value"]...
                    [--client-id <ID> [--client-secret] [--callback-port <N>]]
-alter-zero mcp add <name> [--transport stdio] [-e|--env KEY=VALUE]... [--] <command> [args...]
-alter-zero mcp add-json <name> <json> [--client-secret]
-alter-zero mcp remove <name>
-alter-zero mcp get <name>
-alter-zero mcp list
+zeroth mcp add <name> [--transport stdio] [-e|--env KEY=VALUE]... [--] <command> [args...]
+zeroth mcp add-json <name> <json> [--client-secret]
+zeroth mcp remove <name>
+zeroth mcp get <name>
+zeroth mcp list
 ```
 
 - `mcp` 只在**第一个**参数的位置被识别；`parse` 把它剥下来，把其余交给
@@ -113,7 +113,7 @@ alter-zero mcp list
   `cli::help(HelpPage::Mcp, style)`，主 `--help` 自己的渲染器
   （`docs/cli/cli.md`）：命令名作为标题、以 heading 样式呈现，描述，六行
   `Usage:` 形式，对齐的 `Options:` —— 除了在 `--` 之后，那里的 token 是命令
-  自己的。裸 `alter-zero mcp` 是一个点出各子命令的用法错误。
+  自己的。裸 `zeroth mcp` 是一个点出各子命令的用法错误。
 
 ### 写出方（纯函数，`src/mcp/config.rs`）
 
@@ -146,13 +146,13 @@ alter-zero mcp list
 `tui::mcp_cli::run(cmd) -> i32`，以返回的代码经由 `--help` 所用的同一个
 `Err(code)` 通道退出 —— cooked 模式的 stdio、没有 tokio、没有终端，位于
 `InlineViewport::init` 之前（`docs/cli/cli.md` 的顺序）。文件是
-`config::mcp_user_file_path()`（`ALTER_ZERO_MCP_FILE`，否则
+`config::mcp_user_file_path()`（`ZEROTH_MCP_FILE`，否则
 `{config_home}/mcp.json`）；为 `None` —— 没有 `HOME`、没有覆盖 —— 是硬退出 1，
 与 TUI 那些尽力而为的 writer 不同，因为没有地方可以持久化。缺失的文件读作
 `{}`；写入由 `llm::mcp::write_config_file` 完成 —— 首次使用时创建父目录
 （仅 owner 可访问）、临时文件同步并重命名到位，使一次失败的写入留下完整的旧
 文件、保留文件原有的权限（新文件则仅 owner 可访问）、并跟随软链接到它所指向的
-文件 —— 它的错误会被呈现出来。`ALTER_ZERO_MCP=0` 不门控 CLI —— 它只是编辑
+文件 —— 它的错误会被呈现出来。`ZEROTH_MCP=0` 不门控 CLI —— 它只是编辑
 一个文件，什么都不启动；这个功能开关继续管着 TUI。
 
 - `add`/`add-json`：经由 `record_server` 做读-改-写，然后两行 stdout ——
@@ -179,7 +179,7 @@ alter-zero mcp list
 
 ## 与参考实现的已知差异
 
-- **没有 `--scope`**：项目文件（`.mcp.json`、`.alter-zero/mcp.json`）在这里
+- **没有 `--scope`**：项目文件（`.mcp.json`、`.zeroth/mcp.json`）在这里
   是只读的 —— 它们与团队共享、在运行之前先被审查，所以往它们里面安装属于一次
   编辑和启动审查，而不属于一次 CLI 写入。Claude Code 的 `local` 范围在我们
   的两范围模型里不存在。
@@ -208,7 +208,7 @@ alter-zero mcp list
 - `mcp::names`：`validate_server_name` 接受 wire 安全的字符类，拒绝其他任何
   东西并点名它。
 - `tests/mcp_cli.rs`（`detached_exec.rs` 的模式 —— 经 `CARGO_BIN_EXE_zeroth`
-  运行真实二进制，`ALTER_ZERO_MCP_FILE` 指向一个临时目录）：add stdio + http +
+  运行真实二进制，`ZEROTH_MCP_FILE` 指向一个临时目录）：add stdio + http +
   sse + add-json、文件的精确 JSON、list 顺序、get 的掩码、remove 保留顺序、
   重复/缺失/无效文件的退出码、help，以及无效文件保持逐字节不变。
 - `scripts/smoke.sh` Phase 84：CLI 把 Phase 80 的脚本化 stdio fixture 安装进

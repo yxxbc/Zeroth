@@ -450,7 +450,7 @@ pub fn listing_sections(skill_listing: &str, agent_listing: &str) -> String {
 ///
 /// `note` (`prompts/subagent.md`) always closes it — it is what tells the
 /// agent its final message is the caller's result. `None` only when there is
-/// nothing at all to say, which is the empty-`ALTER_ZERO_SYSTEM_PROMPT`
+/// nothing at all to say, which is the empty-`ZEROTH_SYSTEM_PROMPT`
 /// contract (`docs/architecture/context.md`).
 #[must_use]
 pub fn system_prompt_for(

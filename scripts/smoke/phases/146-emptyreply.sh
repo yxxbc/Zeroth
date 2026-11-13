@@ -109,7 +109,7 @@ api_base = "http://127.0.0.1:$PORT/v1"
 EOF
 # The thinking display is on, so the empty round's thought settles into a cell
 # the way it did in the report.
-STUB_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_PERMISSIONS=0 ALTER_ZERO_SHOW_THINKING=1 ALTER_ZERO_PROVIDERS_FILE=$PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+STUB_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_PERMISSIONS=0 ZEROTH_SHOW_THINKING=1 ZEROTH_PROVIDERS_FILE=$PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 
 # requests MODE — how many requests answered the `smoke146 MODE` prompt.
 requests() { grep -c "\"mode\": \"$1\"" "$LOG" 2>/dev/null; }

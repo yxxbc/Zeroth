@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 
 /// Codex's `project_doc_max_bytes` default: the total byte budget across
 /// every discovered `AGENTS.md`. Overridable via
-/// `ALTER_ZERO_PROJECT_DOC_MAX_BYTES` ([`doc_budget`] — `0` disables
+/// `ZEROTH_PROJECT_DOC_MAX_BYTES` ([`doc_budget`] — `0` disables
 /// loading entirely, codex's `max_total == 0` early out).
 pub const PROJECT_DOC_MAX_BYTES: usize = 32 * 1024;
 
@@ -44,7 +44,7 @@ pub const PROJECT_DOC_OVERRIDE_FILENAME: &str = "AGENTS.override.md";
 /// Candidate filenames per directory, in priority order.
 pub const PROJECT_DOC_FILENAMES: [&str; 2] = [PROJECT_DOC_OVERRIDE_FILENAME, PROJECT_DOC_FILENAME];
 
-/// The byte budget from `ALTER_ZERO_PROJECT_DOC_MAX_BYTES`'s value: a parsed
+/// The byte budget from `ZEROTH_PROJECT_DOC_MAX_BYTES`'s value: a parsed
 /// number wins (`0` = off), anything else — unset, blank, garbage — is
 /// codex's [`PROJECT_DOC_MAX_BYTES`] default. Pure (the boundary hands in the
 /// env read), like `term`'s env predicate.
@@ -218,14 +218,14 @@ pub fn find_project_root(cwd: &Path) -> Option<PathBuf> {
 
 /// Load the project's AGENTS.md instructions for `cwd`, rendered as the
 /// reminder's [`instructions_section`] — or `None` when no doc exists. The
-/// budget comes from `ALTER_ZERO_PROJECT_DOC_MAX_BYTES` via [`doc_budget`]
+/// budget comes from `ZEROTH_PROJECT_DOC_MAX_BYTES` via [`doc_budget`]
 /// (`0` disables loading entirely).
 #[must_use]
 pub fn load_user_instructions(cwd: &Path) -> Option<String> {
     load_user_instructions_with(
         cwd,
         doc_budget(
-            std::env::var("ALTER_ZERO_PROJECT_DOC_MAX_BYTES")
+            std::env::var("ZEROTH_PROJECT_DOC_MAX_BYTES")
                 .ok()
                 .as_deref(),
         ),
@@ -308,7 +308,7 @@ fn read_capped(path: &Path, cap: usize) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
 
-    // --- doc_budget (the ALTER_ZERO_PROJECT_DOC_MAX_BYTES knob) ---
+    // --- doc_budget (the ZEROTH_PROJECT_DOC_MAX_BYTES knob) ---
 
     #[test]
     fn doc_budget_defaults_and_parses_the_env_override() {
@@ -674,7 +674,7 @@ mod tests {
 
     #[test]
     fn a_zero_budget_disables_loading_entirely() {
-        // The knob's off switch (ALTER_ZERO_PROJECT_DOC_MAX_BYTES=0): no
+        // The knob's off switch (ZEROTH_PROJECT_DOC_MAX_BYTES=0): no
         // discovery, no reads, no fragment — codex's max_total == 0 early out.
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("proj");

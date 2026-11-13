@@ -472,7 +472,7 @@ fn the_scratchpad_demo_writes_then_edits_a_file_in_the_sessions_scratchpad() {
     let Play::Script(script) = scenario.play else {
         panic!("the scratchpad demo is a script");
     };
-    let dir = std::path::PathBuf::from("/tmp/alter-zero-7/s9/scratchpad");
+    let dir = std::path::PathBuf::from("/tmp/zeroth-7/s9/scratchpad");
     let events =
         script(&Cue::new("draft a game in your scratchpad", 0).with_scratchpad(Some(dir.clone())));
     let file = dir.join("guess_the_number.py").display().to_string();

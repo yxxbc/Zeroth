@@ -55,7 +55,7 @@ jobs:
     # could see it. macOS has no `setsid` binary, so the app gives a command
     # its terminal through its own binary's helper re-exec; the library's
     # tests start their terminal sessions the same way, through the
-    # `alter-zero` binary `cargo test` builds beside them
+    # `zeroth` binary `cargo test` builds beside them
     # (docs/tools/tty-detach.md *Testing*) — the tier a Mac runs on, and every
     # tool the tests run is macOS's own.
     name: clippy · test · doc (macOS)

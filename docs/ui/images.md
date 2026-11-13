@@ -253,9 +253,9 @@ then the cursor report.
 
 * **When it asks** (`images::graphics_query_wanted`): only when the
   environment left the half-block fallback and nothing pinned the protocol —
-  never when it named one, never with `ALTER_ZERO_IMAGE_PROTOCOL` set
+  never when it named one, never with `ZEROTH_IMAGE_PROTOCOL` set
   (`halfblocks` included, which is the way to turn the question off), never
-  with `ALTER_ZERO_IMAGES=0`, never under a multiplexer (which answers nothing
+  with `ZEROTH_IMAGES=0`, never under a multiplexer (which answers nothing
   itself), and never on a `linux` or `dumb` console, which would print an
   escape string it does not know.
 * **The title push/pop** is for tmux. It files an APC string it does not know
@@ -290,9 +290,9 @@ does not) and gives up after two seconds, crossterm's old budget, with the
 same "cursor position could not be read" error.
 
 Anything still undetected falls to **half-blocks**.
-`ALTER_ZERO_IMAGE_PROTOCOL` (`kitty` / `iterm2` / `sixel` / `halfblocks`) and
-`ALTER_ZERO_IMAGE_CELL_SIZE` (`9x18`) override both;
-`ALTER_ZERO_IMAGES=0` turns the whole feature off. `smoke.sh` Phase 107e plays
+`ZEROTH_IMAGE_PROTOCOL` (`kitty` / `iterm2` / `sixel` / `halfblocks`) and
+`ZEROTH_IMAGE_CELL_SIZE` (`9x18`) override both;
+`ZEROTH_IMAGES=0` turns the whole feature off. `smoke.sh` Phase 107e plays
 the terminal itself — a pty answering the way herdr, a silent terminal or
 WezTerm would — since tmux can answer none of it.
 
@@ -309,7 +309,7 @@ documented command forwards the variables this section reads, per session:
 
 ```sh
 docker exec -it -e TERM -e COLORTERM -e TERM_PROGRAM -e KITTY_WINDOW_ID -e TMUX \
-  alter-zero-kali alter-zero
+  zeroth-kali zeroth
 ```
 
 A bare `-e NAME` takes the value from the caller's own environment. `TMUX` is
@@ -453,7 +453,7 @@ pixels and **~4.5 MB of base64**. Measured across one Ctrl+O toggle:
 The one upload that remains is the honest one: the alternate screen's store
 genuinely does not have the picture the first time you open it.
 
-`ALTER_ZERO_IMAGE_RETRANSMIT=1` takes the conservative path — re-upload on
+`ZEROTH_IMAGE_RETRANSMIT=1` takes the conservative path — re-upload on
 every switch — for a terminal that speaks the protocol but not that part of
 it. Without it such a terminal would show the picture on the first Ctrl+O and
 blank rows on the second. We cannot ask it which kind it is: the protocol has
@@ -529,7 +529,7 @@ later turn, and each of those turns used to decode and shrink the original
 all over again — on a 4K screenshot, a 20 MB spike per turn for as long as
 the picture stayed in context. The downscaled bytes are now **kept on disk
 for the session** (`images::payload`'s sidecar under
-`{tmp}/alter-zero-{uid}/{session}/images/`, `docs/tools/scratchpad.md`), keyed on
+`{tmp}/zeroth-{uid}/{session}/images/`, `docs/tools/scratchpad.md`), keyed on
 the file's path, size, mtime and the cap, and a later turn serves the request
 from that small file — `cached_downscale`, consulted before the original is
 even opened. The key is what makes a stale payload impossible: a changed file
@@ -570,13 +570,13 @@ was a bad idea.
 
 * Under **tmux/screen/zellij** the protocol guess is deliberately
   conservative: half-blocks unless the outer terminal is a known iTerm2-family
-  one, and the terminal is never asked. `ALTER_ZERO_IMAGE_PROTOCOL` overrides
+  one, and the terminal is never asked. `ZEROTH_IMAGE_PROTOCOL` overrides
   it for a passthrough-enabled setup.
 * A terminal that answers the kitty query `OK` but draws no unicode
   placeholders, reached where neither its name (XTVERSION) nor its
   environment says which it is, gets kitty graphics it cannot show — WezTerm
   and Konsole are caught by name, an unknown one is not.
-  `ALTER_ZERO_IMAGE_PROTOCOL=halfblocks` answers it.
+  `ZEROTH_IMAGE_PROTOCOL=halfblocks` answers it.
 * The live **streaming preview** doesn't draw a picture: a `read` has no image
   until it resolves, and the committed cell is one frame away.
 
@@ -590,7 +590,7 @@ screenshot-shaped PNG on the X11 clipboard for Ctrl+V to pick up
 (`docs/input/image-paste.md`, *Measuring*):
 
 ```
-ALTER_ZERO_IMAGE_PROTOCOL=halfblocks ALTER_ZERO_IMAGE_CELL_SIZE=5x10 cargo run
+ZEROTH_IMAGE_PROTOCOL=halfblocks ZEROTH_IMAGE_CELL_SIZE=5x10 cargo run
 ```
 
 `smoke.sh` Phase 107 does exactly that against a handcrafted rollout carrying

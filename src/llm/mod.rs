@@ -392,7 +392,7 @@ fn truncate_chars(s: &str, max: usize) -> String {
 
 /// Build a blocking HTTP client: env proxies (`HTTPS_PROXY`) are picked up
 /// automatically; the agent proxy's custom CA is added from `SSL_CERT_FILE` /
-/// `ALTER_ZERO_CA_FILE` so `rustls` trusts it. A short connect timeout bounds a
+/// `ZEROTH_CA_FILE` so `rustls` trusts it. A short connect timeout bounds a
 /// hung connect (DNS + TCP + TLS — a blackholed host fails in seconds, not
 /// after the full per-operation deadline).
 ///
@@ -498,13 +498,13 @@ pub fn antigravity_transport_text(error: reqwest::Error) -> String {
     }
 }
 
-/// Extra trust roots loaded from `ALTER_ZERO_CA_FILE` or `SSL_CERT_FILE` — the
+/// Extra trust roots loaded from `ZEROTH_CA_FILE` or `SSL_CERT_FILE` — the
 /// agent proxy's CA bundle, so real calls work behind it. Best-effort: an
 /// unreadable or malformed file yields no extra roots (the built-in Mozilla
 /// roots still apply). Boundary code — reads the environment and the filesystem.
 fn extra_root_certificates() -> Vec<reqwest::Certificate> {
     let Some(path) =
-        std::env::var_os("ALTER_ZERO_CA_FILE").or_else(|| std::env::var_os("SSL_CERT_FILE"))
+        std::env::var_os("ZEROTH_CA_FILE").or_else(|| std::env::var_os("SSL_CERT_FILE"))
     else {
         return Vec::new();
     };

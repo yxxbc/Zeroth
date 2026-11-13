@@ -10,18 +10,18 @@ CK_SESS="$(mktemp -d "$SMOKE_TMP/cksess.XXXXXX")"
 # The session-start snapshot `git add -A`s the whole cwd before the first
 # frame ever paints; run with cwd = `~` itself that hashed the user's entire
 # home directory into the store — minutes of blocked, blank, raw-mode
-# terminal and hundreds of MB per snapshot (the "alter-zero hangs in ~" bug).
+# terminal and hundreds of MB per snapshot (the "zeroth hangs in ~" bug).
 # The
 # guard (`checkpoint::cwd_scope`) disables the store when the
 # cwd IS the home dir (or an ancestor of it, or a filesystem root) — even
-# with an explicit ALTER_ZERO_CHECKPOINTS=1 — while a project dir UNDER home
+# with an explicit ZEROTH_CHECKPOINTS=1 — while a project dir UNDER home
 # checkpoints exactly as before. Assert on the store dir itself: it must stay
 # empty after a home-cwd launch and populate after a project-cwd launch.
 S49="${S}_ckhome"
 WORK49="$(mktemp -d "$SMOKE_TMP/home49.XXXXXX")"
 CK49="$(mktemp -d "$SMOKE_TMP/ck49.XXXXXX")"
 mkdir -p "$WORK49/proj"
-CKAPP49="env $CFG_ENV ALTER_ZERO_CHECKPOINTS=1 ALTER_ZERO_CHECKPOINTS_DIR=$CK49 ALTER_ZERO_SESSIONS_DIR=$CK_SESS HOME=$WORK49 ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+CKAPP49="env $CFG_ENV ZEROTH_CHECKPOINTS=1 ZEROTH_CHECKPOINTS_DIR=$CK49 ZEROTH_SESSIONS_DIR=$CK_SESS HOME=$WORK49 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 tmux new-session -d -s "$S49" -x 80 -y 24 -c "$WORK49" "$CKAPP49"
 ckhome_ready=0
 for _ in $(seq 1 40); do # the footer proves startup completed (init ran or was skipped)

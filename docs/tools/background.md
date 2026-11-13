@@ -94,8 +94,8 @@ executor (`llm::exec`), and the `!` shell runner:
   `task_id(seed)` pins the format.
 - The interim files live in the session's own temp tree
   (`docs/tools/scratchpad.md`) — the pure `scratchpad::tasks_dir(session_root)`:
-  `{tmp}/alter-zero-{uid}/{session}/tasks/{id}.output`
-  (e.g. `/tmp/alter-zero-0/18f…-4e2/tasks/bvyo7tkbe.output`) —
+  `{tmp}/zeroth-{uid}/{session}/tasks/{id}.output`
+  (e.g. `/tmp/zeroth-0/18f…-4e2/tasks/bvyo7tkbe.output`) —
   a stable per-user root (Claude Code's `claude-{uid}` pattern) and a
   per-session dir keeping concurrent instances apart, with the `tasks` leaf
   naming these files apart from the agent's `scratchpad/` beside them. Short
@@ -278,7 +278,7 @@ footer segment keeps its text *and* its dim styling:
 ────────────────────────────────────────────────────────────────────
 ❯
 ────────────────────────────────────────────────────────────────────
-  kimi-k3 medium · ~/Codes/rust/alter-zero · 1.8k/1M (0.2%) · 1 shell
+  kimi-k3 medium · ~/Codes/rust/zeroth · 1.8k/1M (0.2%) · 1 shell
                                                               ▔▔▔▔▔▔▔ cyan
 ```
 

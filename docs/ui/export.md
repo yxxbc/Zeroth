@@ -51,7 +51,7 @@ siblings it borrows from:
   the `/settings` menu's shape: the highlighted row's alone. The clipboard
   row's says where the text goes; the file row's names the file's shape and
   the directory it lands in — `Writes conversation-YYYY-MM-DD-HHMMSS.txt
-  into ~/alter-zero.` — the session's cwd as the footer shows it, so the
+  into ~/zeroth.` — the session's cwd as the footer shows it, so the
   user knows where to look before the file exists (`the working directory`
   until the boundary has injected one; the pure core never reads the
   environment).
@@ -114,7 +114,7 @@ so an empty history *is* an empty conversation.
 **The transcript on screen, as text — top to bottom.** The Ctrl+O page's
 own rows, built by the same `TranscriptCache` walk so the export and the
 pager can never disagree, starting where the page starts: the **startup
-banner** the terminal opened with — the mascot beside `Alter Zero (v…)`,
+banner** the terminal opened with — the mascot beside `Zeroth (v…)`,
 the cwd, the `/ commands   @ files   ? shortcuts` hint — then one blank row and the
 conversation. The banner is kept on purpose: the file is a record of what
 the terminal showed, and a transcript that opens the way the session did

@@ -43,7 +43,7 @@ done
 skill_rows() { printf '%s\n' "$1" | grep -cE '^(→ |  )[a-z]+-skill +[A-Z]' || true; }
 # The band's counter as `n/total`, empty when there is none.
 skill_counter() { printf '%s\n' "$1" | sed -nE 's/^  \(([0-9]+)\/([0-9]+)\)$/\1\/\2/p' | tail -1; }
-APP_SM="env ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CONFIG_DIR=$SM_CFG ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_SKILLS_DIR=$SM_DIR ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_SM="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$SM_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_SKILLS_DIR=$SM_DIR ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 launch "$S79" 90 32 "$APP_SM"
 # A bare `$` lists the discovered skills with their descriptions.
 tmux send-keys -t "$S79" -l '$'

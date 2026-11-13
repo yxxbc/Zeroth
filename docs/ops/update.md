@@ -1,25 +1,25 @@
-# Update notice — the once-a-day release check and `alter-zero update`
+# Update notice — the once-a-day release check and `zeroth update`
 
 **One request a day, a card under the banner when a newer release is out,
 and one command that installs it.** A binary installed with the one-line
 installer (`docs/ops/release.md`) has no package manager behind it to say a
 release shipped, so the app asks the repository itself — `HEAD
-https://github.com/linuztx/alter-zero/releases/latest`, once per UTC day,
+https://github.com/yxxbc/zeroth/releases/latest`, once per UTC day,
 after the first frame — reads the tag off the redirect it lands on, and, when
 that tag is newer than `CARGO_PKG_VERSION`, says so **once a day** in the
 telemetry card's frame:
 
 ```
   ╭─ Update available ───────────────────────────────────────────────────────╮
-  │  Alter Zero v0.2.0 is out — you are running v0.1.0.                      │
-  │  What's new https://github.com/linuztx/alter-zero/releases/tag/v0.2.0    │
-  │  Update run alter-zero update, then restart.                             │
+  │  Zeroth v0.2.0 is out — you are running v0.1.0.                      │
+  │  What's new https://github.com/yxxbc/zeroth/releases/tag/v0.2.0    │
+  │  Update run zeroth update, then restart.                             │
   │                                                                          │
-  │  Turn off /settings → Update check or ALTER_ZERO_UPDATE_CHECK=0          │
+  │  Turn off /settings → Update check or ZEROTH_UPDATE_CHECK=0          │
   ╰──────────────────────────────────────────────────────────────────────────╯
 ```
 
-`alter-zero update` then does the install: the same check, and — when a
+`zeroth update` then does the install: the same check, and — when a
 newer release exists — the one-line `install.sh` fetched to a temp file and
 run over the directory the running binary lives in, pinned to the version the
 check just resolved. The pure half is `src/update.rs`; the boundary is
@@ -39,7 +39,7 @@ One `HEAD` request per UTC day per install, to
 
 | header | value |
 |---|---|
-| `User-Agent` | `alter-zero/{version}` — GitHub refuses a request with none |
+| `User-Agent` | `zeroth/{version}` — GitHub refuses a request with none |
 
 That is the whole request: **no body, no install id, no query string**. It is
 the request a browser makes opening the releases page, minus the page. What
@@ -63,7 +63,7 @@ Three things this deliberately is not:
   convention is about analytics, and this measures nothing. It has its own
   switches instead (below), because a request to github.com the user did not
   type is still a request the user may not want.
-- **Not a download.** The check fetches no binary; only `alter-zero update`
+- **Not a download.** The check fetches no binary; only `zeroth update`
   does, and only when asked.
 
 ## When, and what it costs
@@ -100,11 +100,11 @@ reply — so the two cards under the banner are one design. The body says four
 things and stops: the release and the running version, the release page
 (`update::release_page_url`, a real link in a terminal that draws them —
 `docs/ui/links.md`), the command that installs it, and the off switch. That
-command is `alter-zero update` unless a JavaScript package manager installed
+command is `zeroth update` unless a JavaScript package manager installed
 the binary: then it is the manager's own — `npm install -g
 @linuztx/alter-zero@latest` and kin, `update::update_command` over
 `update::package_manager(current_exe)` — because
-`alter-zero update` refuses such an install.
+`zeroth update` refuses such an install.
 
 Three rules decide *when* it shows:
 
@@ -174,39 +174,39 @@ again, and a newer release is announced again.
 | how | scope |
 |---|---|
 | **`/settings` → Update check** | permanent, for your user, in every directory |
-| **`ALTER_ZERO_UPDATE_CHECK=0`** | that run (`0`/`false`/`no`/`off`; `=1` turns it on for a run) |
+| **`ZEROTH_UPDATE_CHECK=0`** | that run (`0`/`false`/`no`/`off`; `=1` turns it on for a run) |
 | **no config home** | nothing runs — there is nowhere to remember the day, and a check per launch is not once a day |
 
 The variable **withdraws the `/settings` row** rather than seeding it —
 `false (unavailable)`, refusing to cycle — the Telemetry rule
 (`config::update_check_forbidden_by_env` → `SettingAvailability::update_check`):
-an opt-out a keystroke could undo is not one. `ALTER_ZERO_UPDATE_URL` points
-the check (and `alter-zero update`) at another repository root — a fork, or
+an opt-out a keystroke could undo is not one. `ZEROTH_UPDATE_URL` points
+the check (and `zeroth update`) at another repository root — a fork, or
 the smoke suite's stand-in server — and `smoke.sh`'s base environment sets
-`ALTER_ZERO_UPDATE_CHECK=0` so no other phase reaches github.com.
+`ZEROTH_UPDATE_CHECK=0` so no other phase reaches github.com.
 
-## `alter-zero update`
+## `zeroth update`
 
 The subcommand is routed at the same pre-TUI boundary as `mcp`
 (`cli::parse` → `Cli::Update`, `tui::startup::resolve_cli` →
 `tui::update_cli::run`, `docs/cli/cli.md`): a first argument of `update`, taking
-nothing — `alter-zero update now` is a usage error, not a guess. It runs in
+nothing — `zeroth update now` is a usage error, not a guess. It runs in
 cooked mode before the runtime and the terminal exist, prints as it goes, and
 exits `0` when the binary is already the newest release or the installer
 finished, `1` when it could not check, fetch or install.
 
 ```
-$ alter-zero update
-Checking https://github.com/linuztx/alter-zero for a newer release…
-alter-zero v0.2.0 is out — this is v0.1.0. Installing it over /home/me/.local/bin.
+$ zeroth update
+Checking https://github.com/yxxbc/zeroth for a newer release…
+zeroth v0.2.0 is out — this is v0.1.0. Installing it over /home/me/.local/bin.
   …the installer's own output…
 ```
 
 What it does, in order:
 
 1. **Refuses a build directory.** `update::is_cargo_build_dir` recognises
-   `…/target/debug/alter-zero`, `…/target/release/alter-zero` and
-   `…/target/dist/alter-zero` — the profile a release is built in,
+   `…/target/debug/zeroth`, `…/target/release/zeroth` and
+   `…/target/dist/zeroth` — the profile a release is built in,
    `docs/ops/binary-size.md` — (and cargo's per-target `target/{triple}/{profile}/`
    shape `scripts/release.sh build` leaves) and stops with `update the
    checkout instead: git pull && cargo build --release`. Overwriting a
@@ -226,20 +226,20 @@ What it does, in order:
    root, which is what lets the stand-in server serve it) — **to a temp
    file**, never a pipe. `sh` reading an empty pipe exits `0`; a fetch that
    fails must fail loudly. `update::looks_like_installer` checks the shape
-   (`#!/bin/sh`, the `main "$@"` trailer, the `ALTER_ZERO_INSTALL_DIR`
+   (`#!/bin/sh`, the `main "$@"` trailer, the `ZEROTH_INSTALL_DIR`
    variable) before anything is run, so an HTML error page served with a
    `200` is refused as *did not serve the installer*.
 4. **Runs it** with three variables the installer already honours
-   (`docs/ops/release.md`): `ALTER_ZERO_INSTALL_DIR` = the running binary's own
+   (`docs/ops/release.md`): `ZEROTH_INSTALL_DIR` = the running binary's own
    directory, so the update lands over the binary that asked for it (not
-   `~/.local/bin` if that is not where it lives); `ALTER_ZERO_VERSION` =
+   `~/.local/bin` if that is not where it lives); `ZEROTH_VERSION` =
    `v{latest}`, the tag the check resolved, so the two halves cannot disagree
-   about which release is newest; `ALTER_ZERO_INSTALL_BASE_URL` = the same
+   about which release is newest; `ZEROTH_INSTALL_BASE_URL` = the same
    repository the check read. The installer's checksum verification, the
    platform pick and the `PATH` advice are unchanged — the subcommand adds no
    second install path.
 
-The subcommand ignores `ALTER_ZERO_UPDATE_CHECK`: that variable silences the
+The subcommand ignores `ZEROTH_UPDATE_CHECK`: that variable silences the
 *automatic* check, and an explicit command is the user's own request.
 
 The next launch on the new binary also sends the day's telemetry ping again,
@@ -278,12 +278,12 @@ records its day.
   the stand-in for github.com's release pages the release tooling already
   uses — gained an optional third argument, the installer to serve at
   `/install.sh`. The phase packages a fake `v9.9.9` release from the debug
-  binary with `package_dist`, points `ALTER_ZERO_UPDATE_URL` at the server,
+  binary with `package_dist`, points `ZEROTH_UPDATE_URL` at the server,
   and drives: a fresh home showing the card and recording all four fields;
   a relaunch the same day showing no card; the `/settings` row cycling into
-  `update.json` and never `settings.json`; `ALTER_ZERO_UPDATE_CHECK=0`
+  `update.json` and never `settings.json`; `ZEROTH_UPDATE_CHECK=0`
   withdrawing the row and writing no file; a server whose latest release *is*
-  the running version recording `latest` with no `notice_day`; `alter-zero
+  the running version recording `latest` with no `notice_day`; `zeroth
   update` from a copy of the binary against that server (`is the newest
   release`, exit `0`), from `target/debug` (refused, exit `1`), and against
   `v9.9.9` — the copy replaced by the served archive's binary (a new inode)

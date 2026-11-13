@@ -53,7 +53,7 @@ impl App {
     }
 
     /// Mutable access for the boundary's startup seed (the file + the
-    /// `ALTER_ZERO_*` overrides) — the pure key handling goes through the
+    /// `ZEROTH_*` overrides) — the pure key handling goes through the
     /// menu's own `cycle_selected_setting`.
     pub const fn settings_mut(&mut self) -> &mut crate::settings::SessionSettings {
         &mut self.settings

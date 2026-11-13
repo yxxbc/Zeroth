@@ -1,4 +1,4 @@
-//! The wedged-backend test double (`ALTER_ZERO_STALL_MS`, `docs/input/interrupt.md`).
+//! The wedged-backend test double (`ZEROTH_STALL_MS`, `docs/input/interrupt.md`).
 
 use std::path::PathBuf;
 use std::thread::{self, JoinHandle};
@@ -21,7 +21,7 @@ use super::{CancelToken, ReplySource, StreamEvent};
 /// only wake after one op-timeout — see `src/llm/openai.rs`), reproduced
 /// deterministically and offline. The event loop must therefore **never
 /// `join()`** a cancelled backend on its thread: doing so freezes the UI for
-/// the whole stall (the interrupt-lag bug). Selected via `ALTER_ZERO_STALL_MS`
+/// the whole stall (the interrupt-lag bug). Selected via `ZEROTH_STALL_MS`
 /// and used only by `scripts/smoke.sh` — never in normal operation. See
 /// `docs/input/interrupt.md`.
 #[derive(Debug, Clone, Copy)]

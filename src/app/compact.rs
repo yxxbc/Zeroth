@@ -125,7 +125,7 @@ impl App {
 
     /// Inject the active model's context window in tokens (the boundary's
     /// `/v1/models` `context_length`, the saved settings, or the
-    /// `ALTER_ZERO_CONTEXT_WINDOW` override) — `None` (or a meaningless 0)
+    /// `ZEROTH_CONTEXT_WINDOW` override) — `None` (or a meaningless 0)
     /// hides the footer gauge and disables auto-compact. See `docs/architecture/compact.md`.
     pub fn set_context_window(&mut self, window: Option<u64>) {
         self.context_window = window.filter(|&w| w > 0);

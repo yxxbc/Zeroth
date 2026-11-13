@@ -12,7 +12,7 @@ smoke_begin
 # itself never reaching scrollback (it expands in Ctrl+O instead). Driven
 # against the dummy's canned two-line reasoning: poll for the live block, then
 # for the settled cell, and assert the thought's text is nowhere in the
-# committed scrollback. Then the same turn with ALTER_ZERO_SHOW_THINKING=0
+# committed scrollback. Then the same turn with ZEROTH_SHOW_THINKING=0
 # must show neither.
 S66="${S}_thinking"
 launch "$S66" 80 24
@@ -80,17 +80,17 @@ tmux send-keys -t "$S66" C-o
 sleep 0.3
 tmux kill-session -t "$S66" 2>/dev/null
 
-# The off switch: same turn, ALTER_ZERO_SHOW_THINKING=0 → neither the live
+# The off switch: same turn, ZEROTH_SHOW_THINKING=0 → neither the live
 # block nor the collapsed cell, and the turn still settles normally.
 S66B="${S}_nothinking"
-APP_NOTHINK="env $CFG_ENV_NOHIST ALTER_ZERO_SHOW_THINKING=0 ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_NOTHINK="env $CFG_ENV_NOHIST ZEROTH_SHOW_THINKING=0 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 launch "$S66B" 80 24 "$APP_NOTHINK"
 submit "$S66B" "$USER_MSG"
 nothink="$(wait_pane 25 "$S66B" -S -80 -- -E "^$SUMMARY_RE")" # up to ~25s
-echo "==== Phase 66: captured pane (ALTER_ZERO_SHOW_THINKING=0) ===="
+echo "==== Phase 66: captured pane (ZEROTH_SHOW_THINKING=0) ===="
 printf '%s\n' "$nothink"
 expect_has "$nothink" -E "^$SUMMARY_RE" "the turn never settled with the thinking display off"
-expect_lacks "$nothink" -E "Thinking…|Thought for" "ALTER_ZERO_SHOW_THINKING=0 still showed the model's thinking"
+expect_lacks "$nothink" -E "Thinking…|Thought for" "ZEROTH_SHOW_THINKING=0 still showed the model's thinking"
 tmux kill-session -t "$S66B" 2>/dev/null
 
 # Esc MID-THOUGHT settles the open phase as a cell that keeps its own

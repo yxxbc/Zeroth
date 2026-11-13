@@ -17,7 +17,7 @@ named children instead of one flat pile.
 ## The layout
 
 ```text
-{tmp}/alter-zero-{uid}/{session}/
+{tmp}/zeroth-{uid}/{session}/
 ├── scratchpad/            the agent's temp files
 ├── tasks/                 {id}.output — background shells' interim output
 └── images/                the downscaled copy of every picture sent to the model
@@ -30,13 +30,13 @@ images** cap — is kept here so those turns read a small file instead of
 decoding the original again (`docs/ui/images.md` "Memory"). It is created
 beside the scratchpad at bootstrap (`tui::config::prepare_image_cache`) and
 published through `images::set_payload_cache_dir`; unlike the scratchpad it is
-not gated by `ALTER_ZERO_SCRATCHPAD`, since it carries no prompt and no
+not gated by `ZEROTH_SCRATCHPAD`, since it carries no prompt and no
 permission exemption.
 
-e.g. `/tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad`.
+e.g. `/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad`.
 
 - `{tmp}` is `std::env::temp_dir()` — `TMPDIR` moves the whole tree.
-- `alter-zero-{uid}` is Claude Code's `claude-{uid}` pattern: one stable root
+- `zeroth-{uid}` is Claude Code's `claude-{uid}` pattern: one stable root
   per user, so a shared `/tmp` never mixes two users' sessions.
 - `{session}` is `tui::host::session_id()` (nanos + pid in hex), keeping
   concurrent instances off each other's files.
@@ -84,7 +84,7 @@ scratchpad     prompts/scratchpad.md    (where your scratch goes)   ← this doc
 
 `augment_with_scratchpad` composes after `augment_with_environment` — same
 rules, so the pair reads as a pair: a blank base is returned unchanged (the
-"empty `ALTER_ZERO_SYSTEM_PROMPT` → no system message" contract,
+"empty `ZEROTH_SYSTEM_PROMPT` → no system message" contract,
 `docs/architecture/context.md`), and the whole assembly is visible in the Ctrl+D
 context-debug view. Subagents inherit it with the rest of the prompt
 (`docs/agents/agent-tool.md`), so a side agent scratches in the same directory.
@@ -136,7 +136,7 @@ model writes it:
 
 ```
 ● Making 1 scratchpad edit +25… (ctrl+o to expand)
-  ⎿  /tmp/alter-zero-1000/18cea7cc0aee22c0-5d77f/scratchpad/guess_the_number.py
+  ⎿  /tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad/guess_the_number.py
 ```
 
 and as one dim line once the group closes —
@@ -147,10 +147,10 @@ an edit that failed or never ran keeps its red cell.
 
 ## Configuration
 
-- `ALTER_ZERO_SCRATCHPAD` — falsy (`0`/`false`/`no`/`off`) turns the whole
+- `ZEROTH_SCRATCHPAD` — falsy (`0`/`false`/`no`/`off`) turns the whole
   feature off: no directory, no prompt block, no exemption.
-- `ALTER_ZERO_SCRATCHPAD_DIR` — use this exact directory instead of
-  `{session_root}/scratchpad` (the `ALTER_ZERO_SKILLS_DIR` convention).
+- `ZEROTH_SCRATCHPAD_DIR` — use this exact directory instead of
+  `{session_root}/scratchpad` (the `ZEROTH_SKILLS_DIR` convention).
 - `TMPDIR` moves the whole session tree, tasks dir included — which is how
   `smoke.sh` Phase 91 gets a tree it can find unambiguously.
 

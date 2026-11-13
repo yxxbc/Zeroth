@@ -28,17 +28,17 @@ use super::registry::{Placement, placement};
 
 /// Environment gate: a falsy value turns inline pictures off entirely.
 /// Default on.
-pub const IMAGES_ENV: &str = "ALTER_ZERO_IMAGES";
+pub const IMAGES_ENV: &str = "ZEROTH_IMAGES";
 
 /// Force the graphics protocol instead of guessing it from the environment:
 /// `kitty`, `iterm2`, `sixel`, or `halfblocks`. For the terminal whose env
 /// vars say nothing — and for saying "just use half-blocks".
-pub const IMAGE_PROTOCOL_ENV: &str = "ALTER_ZERO_IMAGE_PROTOCOL";
+pub const IMAGE_PROTOCOL_ENV: &str = "ZEROTH_IMAGE_PROTOCOL";
 
 /// Force the terminal's cell size in pixels, `WxH` (e.g. `9x18`), for a
 /// terminal that reports none. Only the *ratio* matters: it decides how many
 /// rows tall a picture of a given width comes out.
-pub const IMAGE_CELL_SIZE_ENV: &str = "ALTER_ZERO_IMAGE_CELL_SIZE";
+pub const IMAGE_CELL_SIZE_ENV: &str = "ZEROTH_IMAGE_CELL_SIZE";
 
 /// Re-upload a picture every time the terminal switches screen buffers,
 /// instead of trusting it to keep a virtually-placed image
@@ -47,7 +47,7 @@ pub const IMAGE_CELL_SIZE_ENV: &str = "ALTER_ZERO_IMAGE_CELL_SIZE";
 /// virtual placements on the 1049 switch: pictures would otherwise go blank
 /// on the *second* Ctrl+O. Costs one upload per open — megabytes for a large
 /// picture — so it is off by default.
-pub const IMAGE_RETRANSMIT_ENV: &str = "ALTER_ZERO_IMAGE_RETRANSMIT";
+pub const IMAGE_RETRANSMIT_ENV: &str = "ZEROTH_IMAGE_RETRANSMIT";
 
 /// Whether [`IMAGE_RETRANSMIT_ENV`] asks for a re-upload on every screen
 /// switch: any value but the falsy spellings turns it on (the inverse of the
@@ -126,7 +126,7 @@ pub struct GraphicsReply {
 
 /// Whether the startup read should ask the terminal about graphics: only
 /// when the environment left the protocol at the half-block fallback
-/// (`guessed`) and nothing pinned it (`forced` — `ALTER_ZERO_IMAGE_PROTOCOL`,
+/// (`guessed`) and nothing pinned it (`forced` — `ZEROTH_IMAGE_PROTOCOL`,
 /// `halfblocks` included), so the answer could change something.
 ///
 /// Never under a multiplexer, which answers nothing itself and — tmux —

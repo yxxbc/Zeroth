@@ -166,14 +166,14 @@ pub struct InlineViewport {
     /// terminal reports Shift+Enter distinctly from Enter — see
     /// `docs/input/shift-enter.md`). Recorded so [`restore`] and the panic hook only
     /// **pop** the stack when we actually pushed; `false` when the
-    /// `ALTER_ZERO_DISABLE_KEYBOARD_ENHANCEMENT` escape hatch is set.
+    /// `ZEROTH_DISABLE_KEYBOARD_ENHANCEMENT` escape hatch is set.
     ///
     /// [`init`]: InlineViewport::init
     /// [`restore`]: InlineViewport::restore
     keyboard_enhanced: bool,
     /// Whether link-marked cells are bracketed with the OSC 8 hyperlink
     /// escape so a wrapped URL opens whole (`docs/ui/links.md`). Read from
-    /// `ALTER_ZERO_HYPERLINKS` at [`init`] (default on; the
+    /// `ZEROTH_HYPERLINKS` at [`init`] (default on; the
     /// keyboard-enhancement pattern). Off, the emitter still strips the link
     /// carrier — the interned id must never paint as a real underline colour
     /// — it just writes no escapes.
@@ -1744,7 +1744,7 @@ fn install_panic_hook(keyboard_enhanced: bool) {
 /// Environment escape hatch: set this to a truthy value to keep keyboard
 /// enhancement **off** on terminals where the kitty protocol misbehaves (codex's
 /// `CODEX_TUI_DISABLE_KEYBOARD_ENHANCEMENT`). See `docs/input/shift-enter.md`.
-const DISABLE_KEYBOARD_ENHANCEMENT_ENV: &str = "ALTER_ZERO_DISABLE_KEYBOARD_ENHANCEMENT";
+const DISABLE_KEYBOARD_ENHANCEMENT_ENV: &str = "ZEROTH_DISABLE_KEYBOARD_ENHANCEMENT";
 
 /// Environment selector for the screen-owning mode: `ZEROTH_TUI=full`
 /// (`docs/ui/full-screen.md`). A *value* selector, not a truthy gate — any

@@ -352,7 +352,7 @@ fn a_refused_read_closes_the_group_too() {
 // ===== scratchpad edits: a write or edit in the session's scratchpad =====
 
 /// The session's scratchpad in these tests.
-const PAD: &str = "/tmp/alter-zero-0/s1/scratchpad";
+const PAD: &str = "/tmp/zeroth-0/s1/scratchpad";
 
 /// A path policy that knows [`PAD`].
 fn pad_paths() -> PathDisplay {
@@ -442,7 +442,7 @@ fn a_scratchpad_edit_extends_a_run_of_reads() {
         assistant("done"),
     ];
     assert_eq!(group_run(&items, &paths), Some(2));
-    // A scratchpad moved off the layout (ALTER_ZERO_SCRATCHPAD_DIR) is known
+    // A scratchpad moved off the layout (ZEROTH_SCRATCHPAD_DIR) is known
     // only to the session whose it is.
     let moved = resolved_with("Write", "/home/u/scratch/x.py", true, "Wrote 2 lines to x");
     let items = vec![tool("Read", "a.rs"), HistoryItem::Tool(moved)];
@@ -469,7 +469,7 @@ fn an_unresolved_write_counts_the_content_it_carries() {
     app.start_tool(
         "Write",
         &pad_file("x.py"),
-        Some(r#"{"path":"/tmp/alter-zero-0/s1/scratchpad/x.py","content":"a\nb\nc\n"}"#),
+        Some(r#"{"path":"/tmp/zeroth-0/s1/scratchpad/x.py","content":"a\nb\nc\n"}"#),
     );
     let queued = app.tool_queue().front().expect("running").clone();
     assert_eq!(

@@ -18,7 +18,7 @@ smoke_begin
 # the next request derives: all three calls, each answered. And a resize's
 # purge rebuild renders the same history: each cell exactly once.
 S_INT="${S}_batchint"
-launch "$S_INT" 90 40 "env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ALTER_ZERO_CHUNK_DELAY_MS=400 $BIN"
+launch "$S_INT" 90 40 "env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_CHUNK_DELAY_MS=400 $BIN"
 submit "$S_INT" "run three pings in parallel"
 if ! wait_for 25 "$S_INT" -F "Waiting…"; then
 	fail "the parallel batch never showed a ⎿ Waiting… sibling"

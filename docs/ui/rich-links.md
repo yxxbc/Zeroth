@@ -7,7 +7,7 @@ adds click-to-expand, the composer's click-to-place caret and **preview cards**
 for a URL alone on a line: site, title, description, and — when the page has an
 `og:image` and the terminal draws pictures — a cover thumbnail on the left
 (fetched on demand through `zeroth::link_card`, cached under
-`~/.zeroth/cache/link-cards.json` + `cache/link-cards/`, `ALTER_ZERO_LINK_CARDS=0`
+`~/.zeroth/cache/link-cards.json` + `cache/link-cards/`, `ZEROTH_LINK_CARDS=0`
 disables). B's overlay-only fallback and the editor handoff remain later
 phases ([`full-screen.md`](full-screen.md)).
 
@@ -190,7 +190,7 @@ progressively, like a sealed URL.
   must not touch the filesystem. A linked path that does not exist is the
   user's terminal's problem (it will say so), and a bare `README` stays plain.
 - Scheme-less `www.…` and bare file names stay plain, as URLs do.
-- OSC 8 remains a terminal capability; the existing `ALTER_ZERO_HYPERLINKS`
+- OSC 8 remains a terminal capability; the existing `ZEROTH_HYPERLINKS`
   gate covers both kinds.
 
 ## B. Overlay-scoped mouse and the `/links` page

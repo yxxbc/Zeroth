@@ -99,9 +99,9 @@ The personal root hangs off the **config home**, so it follows
 `settings.json` and `config.json` do — one rule for where per-user state
 lives, rather than a second one reading `$HOME` directly.
 
-`ALTER_ZERO_SKILLS_DIR` **replaces** the whole list rather than adding to it.
+`ZEROTH_SKILLS_DIR` **replaces** the whole list rather than adding to it.
 That is the convention every other `*_DIR`/`*_FILE` override here follows
-(`ALTER_ZERO_CHECKPOINTS_DIR`, `ALTER_ZERO_HOOKS_FILE`), and it is the only
+(`ZEROTH_CHECKPOINTS_DIR`, `ZEROTH_HOOKS_FILE`), and it is the only
 shape that can make a test run hermetic: a merely-prepended root still leaves
 the developer's own `~/.claude/skills` in every session, which is exactly how
 `smoke.sh` Phase 36 broke on the first full run — a real personal skill's
@@ -160,7 +160,7 @@ installed the app can already use it. An edited copy is never overwritten; a
 deleted file comes back next launch, so the off-switch is `/skills` (which
 persists) rather than `rm -rf`.
 
-One difference from the agent definitions: `ALTER_ZERO_SKILLS_DIR` is **never
+One difference from the agent definitions: `ZEROTH_SKILLS_DIR` is **never
 seeded into**. That variable replaces the root list — it says "these are the
 skills, and only these" — and a built-in skill is a convenience the session
 works without, where a built-in *agent type* has to resolve because
@@ -215,7 +215,7 @@ complete extraction.
 
 Like `skill-creator`, it is editable at `{config_home}/skills/jina-reader/`,
 never overwrites an existing file, respects project-root precedence and can
-be disabled per project through `/skills`. An `ALTER_ZERO_SKILLS_DIR` override
+be disabled per project through `/skills`. An `ZEROTH_SKILLS_DIR` override
 receives no built-ins. Offline regression tests exercise the actual
 seed → discovery → listing → tool-load path and verify that local edits
 survive reseeding and deleted files are restored.
@@ -238,7 +238,7 @@ and permission gate. Browser cookies require asking first; credentials must
 not be logged or copied into the download directory. It does not claim to
 bypass DRM or access controls. Like the other built-ins, its seeded copy is
 editable, project skills can shadow it, `/skills` can disable it, and an
-`ALTER_ZERO_SKILLS_DIR` override is never seeded.
+`ZEROTH_SKILLS_DIR` override is never seeded.
 
 #### `flaredantic`
 
@@ -266,7 +266,7 @@ adds **no native tool or dependency**, does not bundle or install `flare`, and
 loading it executes nothing and starts no tunnel. Later CLI calls use the
 ordinary shell permission gate. Its seeded files preserve edits, deleted files
 return next launch, project skills take precedence, `/skills` disables it, and
-an `ALTER_ZERO_SKILLS_DIR` override receives no built-ins.
+an `ZEROTH_SKILLS_DIR` override receives no built-ins.
 
 ### The walk re-runs every turn
 
@@ -386,7 +386,7 @@ Base directory for this skill: /home/u/.claude/skills/dataviz
 …
 ```
 
-`${ALTER_ZERO_SKILL_DIR}` / `${CLAUDE_SKILL_DIR}` in the body expand to that
+`${ZEROTH_SKILL_DIR}` / `${CLAUDE_SKILL_DIR}` in the body expand to that
 same directory (the second spelling for ecosystem compatibility). That
 expansion is the **only** rewrite the loader performs; everything else in a
 body reaches the model exactly as its author wrote it.
@@ -747,7 +747,7 @@ Against a live model, with three skills on disk:
 
 | step | observed |
 |---|---|
-| disable `haiku-writer`, ask for a haiku | no `Skill(…)` cell, and the reply **lost the `— alter-zero` signature** the skill body mandates — the body never reached the model |
+| disable `haiku-writer`, ask for a haiku | no `Skill(…)` cell, and the reply **lost the `— zeroth` signature** the skill body mandates — the body never reached the model |
 | Ctrl+D | the `<system-reminder>` lists the other two only |
 | force `skill(haiku-writer)` while others are on | red `⎿ Unknown skill: haiku-writer. Available skills: commit-helper.` — recoverable, and the "available" list excludes every disabled one |
 | disable **all** | no listing at all, and the tool is withdrawn (`⎿ unknown tool: skill`) |
@@ -774,7 +774,7 @@ didn't — better evidence than the cell, which only shows what the TUI drew.
 `/settings` gains a **Skills** row (`SettingKey::Skills`): on by default,
 `false` drops the tool and the listing at the next turn — the row reports
 `false (unavailable)` when no skill loaded, since there is nothing to turn on.
-`ALTER_ZERO_SKILLS=0` seeds it off for the session. It is the session-wide
+`ZEROTH_SKILLS=0` seeds it off for the session. It is the session-wide
 switch; `/skills` is the per-skill one.
 
 `/settings` → **Tools** = `false` withdraws the whole tool set, `skill`
@@ -833,4 +833,4 @@ context entry are built by [`SKILL_LOADED_DISPLAY`] and [`render_skill_body`] �
 the very constants and formatter `run_skill_tool` uses — so the offline demo is
 byte-for-byte the live one, the rule every scripted demo follows. `smoke.sh`
 Phase 76 drives it, and gets its hermetic (skill-free) session for every other
-phase from `ALTER_ZERO_SKILLS_DIR` pointed at an empty temp dir.
+phase from `ZEROTH_SKILLS_DIR` pointed at an empty temp dir.

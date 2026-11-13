@@ -18,7 +18,7 @@ model: inherit
 #   tool is never available whatever this says: subagents do not nest.
 #
 # Anything written BELOW the closing `---` becomes this type's system prompt,
-# replacing the Alter Zero persona for agents of this type (the environment and
+# replacing the Zeroth persona for agents of this type (the environment and
 # scratchpad blocks still ride along). There is nothing below it here, so this
 # type keeps the session's own persona.
 ---

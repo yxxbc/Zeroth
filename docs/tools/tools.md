@@ -16,7 +16,7 @@ rendering. It complements `docs/providers/llm.md` (the backend seam) and
 ## Why Chat Completions function-calling (not codex's Responses/apply_patch)
 
 openai/codex uses the **Responses API** and a freeform `apply_patch` **grammar**
-tool. Neither fits here: alter-zero talks the **Chat Completions** API
+tool. Neither fits here: zeroth talks the **Chat Completions** API
 (`/chat/completions`) for broad OpenAI-compatible/OpenRouter coverage, and a
 Lark-grammar custom tool only works on the handful of models that support it.
 
@@ -395,7 +395,7 @@ Ctrl+T thinking cycle established (`docs/providers/reasoning.md`):
 ## Enabling / disabling
 
 Tools are **on by default for the real backend** and never for the dummy (the
-dummy's canned tools are unaffected). Toggle with `ALTER_ZERO_TOOLS`
+dummy's canned tools are unaffected). Toggle with `ZEROTH_TOOLS`
 (`0`/`false`/`no` disables). Enabling them adds **no prose to the system
 prompt** — the schemas carry the whole capability story, so the assembled
 prompt stays persona ([`prompts/zeroth.md`](../../prompts/zeroth.md)) →
@@ -422,7 +422,7 @@ OPENROUTER_API_KEY=sk-... cargo run --example tool_smoke -- \
   openai/gpt-4o-mini "Create hello.py, read it back, then edit its message."
 ```
 
-(It reads the proxy CA from `SSL_CERT_FILE`/`ALTER_ZERO_CA_FILE` like the app.)
+(It reads the proxy CA from `SSL_CERT_FILE`/`ZEROTH_CA_FILE` like the app.)
 
 ## Rendering (codex's `diff_render`, in the `⎿` gutter)
 
@@ -554,12 +554,12 @@ header now stops at the end of its second row. The report, at 87 columns:
 
 ```
 Before:
-● Bash(cd /home/linuztx/.alter-zero/skills/web-search && PARALLEL_SESSION_ID=$(python3
+● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
       -c "import secrets;print(secrets.token_hex(16))") && python3
       scripts/parallel_se…)
 
 Now:
-● Bash(cd /home/linuztx/.alter-zero/skills/web-search && PARALLEL_SESSION_ID=$(python3
+● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
       -c "import secrets;print(secrets.token_hex(16))") && python3…)
 ```
 

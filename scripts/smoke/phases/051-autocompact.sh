@@ -5,7 +5,7 @@
 smoke_begin
 
 # AUTO-compact + the footer context gauge (docs/architecture/compact.md).
-# `ALTER_ZERO_CONTEXT_WINDOW=100` forces a tiny window onto the dummy: the
+# `ZEROTH_CONTEXT_WINDOW=100` forces a tiny window onto the dummy: the
 # footer shows the `{used}/{window} ({pct}%)` gauge, and one turn's estimate
 # blows past codex's 90% threshold — the loop then starts the summarization
 # turn ON ITS OWN (no /compact typed): the marker cell commits with the
@@ -14,7 +14,7 @@ smoke_begin
 # untouched.
 S51="${S}_autocompact"
 # A short `~/work` cwd, so the footer's gauge tail fits (see work_dir).
-tmux new-session -d -s "$S51" -x 100 -y 24 -c "$(work_dir)" "env ALTER_ZERO_CONTEXT_WINDOW=100 $APP_ABS"
+tmux new-session -d -s "$S51" -x 100 -y 24 -c "$(work_dir)" "env ZEROTH_CONTEXT_WINDOW=100 $APP_ABS"
 sleep 0.4
 gauge_idle="$(tmux capture-pane -t "$S51" -p)"
 echo "==== captured pane (idle footer gauge under a forced 100-token window) ===="
@@ -32,7 +32,7 @@ echo "==== captured pane (auto-compact after one turn) ===="
 printf '%s\n' "$auto_pane"
 tmux kill-session -t "$S51" 2>/dev/null
 echo "==== Phase 51: footer gauge + threshold-triggered auto-compact ===="
-expect_has "$gauge_idle" -E '/100 \([0-9]+\.[0-9]%\)' "the footer does not show the context gauge under ALTER_ZERO_CONTEXT_WINDOW"
+expect_has "$gauge_idle" -E '/100 \([0-9]+\.[0-9]%\)' "the footer does not show the context gauge under ZEROTH_CONTEXT_WINDOW"
 expect_has "$auto_pane" -F "Context compacted" "no auto-compaction happened past the 90% threshold"
 expect_has "$auto_pane" -E "tokens( · [0-9]+[hms][0-9ms ]*)? · auto" "the marker cell is missing the '· {before} → {after} tokens[ · {elapsed}] · auto' clause"
 expect_has "$auto_pane" -F "hello there" "the transcript above the auto marker was not preserved"

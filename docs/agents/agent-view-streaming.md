@@ -137,7 +137,7 @@ another turn's clock would be a lie.
   `AgentRun::begin_reasoning` (via `App::begin_agent_reasoning`), which the
   boundary calls **only when `/settings` **Hide thinking** is off** — so with
   the display off no buffer is ever opened and `ThinkingChunk` only counts,
-  exactly as before (the `ALTER_ZERO_SHOW_THINKING` posture,
+  exactly as before (the `ZEROTH_SHOW_THINKING` posture,
   `docs/ui/thinking-stream.md`).
 - `round_reasoning: Vec<usize>` — where this round's cells landed, so the
   agent's own `Usage` frame snaps their token estimates to the provider's

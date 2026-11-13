@@ -13,7 +13,7 @@
 //! A0_VENICE_API_KEY=sk-a0-… cargo test --test live_reminder -- --ignored --nocapture
 //! ```
 //!
-//! `ALTER_ZERO_LIVE_VENICE_MODEL` overrides the model.
+//! `ZEROTH_LIVE_VENICE_MODEL` overrides the model.
 
 use std::path::PathBuf;
 
@@ -27,7 +27,7 @@ use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 fn backend() -> LlmBackend {
     let key = std::env::var("A0_VENICE_API_KEY")
         .expect("set A0_VENICE_API_KEY to run the reminder live tests");
-    let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_VENICE_MODEL")
         .unwrap_or_else(|_| "openai-gpt-4o-mini-2024-07-18".to_string());
     let providers = zeroth::llm::ProvidersFile::builtin();
     let sel = zeroth::llm::Selection {

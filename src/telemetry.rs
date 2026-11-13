@@ -29,9 +29,9 @@ pub const PAYLOAD_VERSION: u32 = 2;
 
 /// Where the ping goes unless [`ENDPOINT_ENV`] says otherwise: the collector
 /// the upstream project deployed as the Cloudflare Worker
-/// `alter-zero-telemetry` on its `workers.dev` subdomain. This repository ships
+/// `zeroth-telemetry` on its `workers.dev` subdomain. This repository ships
 /// no collector; change this constant to point a build at one you run.
-pub const DEFAULT_ENDPOINT: &str = "https://alter-zero-telemetry.linuztx.workers.dev/v1/ping";
+pub const DEFAULT_ENDPOINT: &str = "https://zeroth-telemetry.linuztx.workers.dev/v1/ping";
 
 /// The file's name under the config home: `{config_home}/telemetry.json`.
 pub const TELEMETRY_FILE_NAME: &str = "telemetry.json";
@@ -42,17 +42,17 @@ pub const TELEMETRY_FILE_NAME: &str = "telemetry.json";
 pub const INSTALL_ID_BYTES: usize = 16;
 
 /// The app's own on/off switch for a run (`0`/`false`/`no`/`off` = off, the
-/// grammar every `ALTER_ZERO_*` flag uses). Seeds the `/settings` row; never
+/// grammar every `ZEROTH_*` flag uses). Seeds the `/settings` row; never
 /// written back.
-pub const TELEMETRY_ENV: &str = "ALTER_ZERO_TELEMETRY";
+pub const TELEMETRY_ENV: &str = "ZEROTH_TELEMETRY";
 
 /// Overrides [`DEFAULT_ENDPOINT`] for a run — a fork's own collector, or the
 /// smoke suite's local stub.
-pub const ENDPOINT_ENV: &str = "ALTER_ZERO_TELEMETRY_URL";
+pub const ENDPOINT_ENV: &str = "ZEROTH_TELEMETRY_URL";
 
 /// The cross-tool opt-out (consoledonottrack.com): set to `1` it turns
 /// telemetry off for the run, outranking even an explicit
-/// `ALTER_ZERO_TELEMETRY=1`.
+/// `ZEROTH_TELEMETRY=1`.
 pub const DNT_ENV: &str = "DO_NOT_TRACK";
 
 /// Where the Linux distribution's `ID` is read from, in systemd's own search
@@ -395,7 +395,7 @@ pub fn should_ping(file: &TelemetryFile, today: &str, version: &str) -> bool {
 /// - `DO_NOT_TRACK` set to a truthy value (`1`/`true`/`yes`/`on`) is
 ///   `Some(false)` whatever else says — a blanket statement outranks an app
 ///   default; a `DO_NOT_TRACK` that says nothing (`0`, empty) is unset;
-/// - otherwise an explicit `ALTER_ZERO_TELEMETRY` answers in the app's own
+/// - otherwise an explicit `ZEROTH_TELEMETRY` answers in the app's own
 ///   grammar: `0`/`false`/`no`/`off` is `Some(false)`, anything else
 ///   `Some(true)`;
 /// - neither set: `None` — defer to the file's `enabled`.
@@ -854,7 +854,7 @@ mod tests {
         assert_eq!(enabled_by_env(Some(" TRUE "), None), Some(true));
         assert_eq!(enabled_by_env(Some("anything"), None), Some(true));
         // DO_NOT_TRACK=1 is a blanket statement: it wins even over an explicit
-        // ALTER_ZERO_TELEMETRY=1.
+        // ZEROTH_TELEMETRY=1.
         assert_eq!(enabled_by_env(None, Some("1")), Some(false));
         assert_eq!(enabled_by_env(Some("1"), Some("1")), Some(false));
         assert_eq!(enabled_by_env(Some("1"), Some("true")), Some(false));
@@ -875,7 +875,7 @@ mod tests {
             "IP address",
             "/settings",
             "Telemetry",
-            "ALTER_ZERO_TELEMETRY=0",
+            "ZEROTH_TELEMETRY=0",
         ] {
             assert!(text.contains(needle), "{needle:?} in {text}");
         }

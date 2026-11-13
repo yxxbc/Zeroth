@@ -15,7 +15,7 @@ built by `src/llm/loopback/page.rs`.
                            ▘▘ ▝▝
 
                   Authorization received         ← serif headline
-     You can close this tab and return to Alter Zero.
+     You can close this tab and return to Zeroth.
 ```
 
 ## The look
@@ -77,10 +77,10 @@ mid-motion.
 
 | The request | Status | Headline | Sentence |
 | --- | --- | --- | --- |
-| this sign-in's code | 200 | the flow's own (`Pages::received`): `Authorization received`, `Signed in to ChatGPT` | You can close this tab and return to Alter Zero. |
-| this sign-in's refusal | 200 | Sign-in refused | The authorization server turned the sign-in down. Return to Alter Zero to try again. |
-| not this sign-in's answer | 400 | Not this sign-in's response | the reason, as a sentence, then: To sign in, start again from `/mcp` in Alter Zero. |
-| an answer after the sign-in stopped waiting | 410 | This sign-in has ended | It stopped waiting before this answer arrived. To sign in, start again from `/mcp` in Alter Zero. |
+| this sign-in's code | 200 | the flow's own (`Pages::received`): `Authorization received`, `Signed in to ChatGPT` | You can close this tab and return to Zeroth. |
+| this sign-in's refusal | 200 | Sign-in refused | The authorization server turned the sign-in down. Return to Zeroth to try again. |
+| not this sign-in's answer | 400 | Not this sign-in's response | the reason, as a sentence, then: To sign in, start again from `/mcp` in Zeroth. |
+| an answer after the sign-in stopped waiting | 410 | This sign-in has ended | It stopped waiting before this answer arrived. To sign in, start again from `/mcp` in Zeroth. |
 | the callback path with neither a code nor an error | 400 | Not a sign-in response | It carries neither an authorization code nor an error. |
 | any other path (a hand-typed address) | 404 | Nothing here | This address only receives sign-in responses. |
 

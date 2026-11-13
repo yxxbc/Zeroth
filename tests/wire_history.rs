@@ -20,13 +20,13 @@ use zeroth::llm::{LlmBackend, ModelConfig, WireApi};
 use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
 /// The one call every round below makes, and the arguments it records.
-const ARGUMENTS: &str = r#"{"path":"/nonexistent/alter-zero-wire-history"}"#;
+const ARGUMENTS: &str = r#"{"path":"/nonexistent/zeroth-wire-history"}"#;
 
 /// A Chat Completions round in which the model says nothing but a blank line
 /// before its one call.
 const CHAT_TOOL_ROUND: &str = concat!(
     "data: {\"choices\":[{\"delta\":{\"content\":\"\\n\\n\"}}]}\n\n",
-    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_from_the_provider","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/alter-zero-wire-history\"}"}}]}}]}"#,
+    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_from_the_provider","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/zeroth-wire-history\"}"}}]}}]}"#,
     "\n\n",
     r#"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
     "\n\n",
@@ -36,9 +36,9 @@ const CHAT_TOOL_ROUND: &str = concat!(
 /// A Chat Completions round with a **parallel batch** of two reads, the
 /// shape one assistant message carries on the wire.
 const CHAT_BATCH_ROUND: &str = concat!(
-    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_provider_a","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/alter-zero-a\"}"}}]}}]}"#,
+    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_provider_a","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/zeroth-a\"}"}}]}}]}"#,
     "\n\n",
-    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_provider_b","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/alter-zero-b\"}"}}]}}]}"#,
+    r#"data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_provider_b","type":"function","function":{"name":"read","arguments":"{\"path\":\"/nonexistent/zeroth-b\"}"}}]}}]}"#,
     "\n\n",
     r#"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
     "\n\n",
@@ -78,7 +78,7 @@ const CHAT_TEXT_ROUND: &str = concat!(
 /// line as an output-text delta, the call whole on one finished item.
 const RESPONSES_TOOL_ROUND: &str = concat!(
     "data: {\"type\":\"response.output_text.delta\",\"delta\":\"\\n\\n\"}\n\n",
-    r#"data: {"type":"response.output_item.done","item":{"type":"function_call","id":"fc_1","call_id":"call_from_the_provider","name":"read","arguments":"{\"path\":\"/nonexistent/alter-zero-wire-history\"}"}}"#,
+    r#"data: {"type":"response.output_item.done","item":{"type":"function_call","id":"fc_1","call_id":"call_from_the_provider","name":"read","arguments":"{\"path\":\"/nonexistent/zeroth-wire-history\"}"}}"#,
     "\n\n",
     r#"data: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}"#,
     "\n\n",
@@ -577,7 +577,7 @@ fn live_openrouter_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
     use zeroth::llm::{ProvidersFile, Selection};
     let key =
         std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY to run this live test");
-    let model = std::env::var("ALTER_ZERO_LIVE_OPENROUTER_MODEL")
+    let model = std::env::var("ZEROTH_LIVE_OPENROUTER_MODEL")
         .unwrap_or_else(|_| "~anthropic/claude-haiku-latest".to_string());
     let salt = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -600,7 +600,7 @@ fn live_openrouter_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
                 vision: None,
                 context: None,
                 api_base: None,
-                cache_key: Some(format!("alter-zero-wire-history-{salt}")),
+                cache_key: Some(format!("zeroth-wire-history-{salt}")),
                 service_tier: None,
             })
             .expect("openrouter is a built-in provider");
@@ -671,7 +671,7 @@ fn live_openrouter_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
 }
 
 #[test]
-#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ALTER_ZERO_LIVE_TOKEN_STORE + ALTER_ZERO_LIVE_CHATGPT_MODEL"]
+#[ignore = "hits the network; needs CHATGPT_CODEX_REFRESH_TOKEN + ZEROTH_LIVE_TOKEN_STORE + ZEROTH_LIVE_CHATGPT_MODEL"]
 fn live_chatgpt_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
     // The Responses wire's durable half on OpenAI's cache: a real `bash`
     // turn whose result spans several 128-token cache blocks, folded into
@@ -683,14 +683,16 @@ fn live_chatgpt_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
     // best-effort, so the assertion is the floor and the ratio is printed.
     use zeroth::llm::{ProvidersFile, Selection};
     zeroth::llm::chatgpt::set_store_path(
-        std::env::var_os("ALTER_ZERO_LIVE_TOKEN_STORE")
+        std::env::var_os("ZEROTH_LIVE_TOKEN_STORE")
             .map(std::path::PathBuf::from)
-            .expect("set ALTER_ZERO_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to"),
+            .expect(
+                "set ZEROTH_LIVE_TOKEN_STORE to a file the rotated refresh token can be written to",
+            ),
     );
     let refresh = std::env::var("CHATGPT_CODEX_REFRESH_TOKEN")
         .expect("set CHATGPT_CODEX_REFRESH_TOKEN to run this live test");
-    let model = std::env::var("ALTER_ZERO_LIVE_CHATGPT_MODEL")
-        .expect("set ALTER_ZERO_LIVE_CHATGPT_MODEL to a model available to your account");
+    let model = std::env::var("ZEROTH_LIVE_CHATGPT_MODEL")
+        .expect("set ZEROTH_LIVE_CHATGPT_MODEL to a model available to your account");
     let salt = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
@@ -710,7 +712,7 @@ fn live_chatgpt_a_rebuilt_backend_reads_the_tool_round_back_from_cache() {
                 vision: None,
                 context: None,
                 api_base: None,
-                cache_key: Some(format!("alter-zero-wire-history-{salt}")),
+                cache_key: Some(format!("zeroth-wire-history-{salt}")),
                 service_tier: None,
             })
             .expect("chatgpt_codex is a built-in provider");

@@ -3,7 +3,7 @@
 //! CI step or an n8n node runs it — the reported failure was the binary
 //! dying on exactly that (`Device not configured`) before it read a prompt.
 //!
-//! Two backends. The offline demo (`ALTER_ZERO_DUMMY=1`) drives the output
+//! Two backends. The offline demo (`ZEROTH_DUMMY=1`) drives the output
 //! formats, the prompt's sources and `--continue`. A stand-in provider on the
 //! loopback — a few lines of `std::net` answering Chat Completions — drives
 //! what only a real backend has: a `bash` call the permission mode decides,
@@ -40,7 +40,7 @@ mod tempdir {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_nanos());
             let path = std::env::temp_dir().join(format!(
-                "alter-zero-headless-{tag}-{}-{nanos}",
+                "zeroth-headless-{tag}-{}-{nanos}",
                 std::process::id()
             ));
             std::fs::create_dir_all(&path).expect("a scratch dir");
@@ -87,17 +87,17 @@ impl World {
             .env_clear()
             .env("PATH", std::env::var_os("PATH").unwrap_or_default())
             .env("HOME", self.dir("home"))
-            .env("ALTER_ZERO_CONFIG_DIR", self.dir("cfg"))
-            .env("ALTER_ZERO_SESSIONS_DIR", self.dir("sessions"))
-            .env("ALTER_ZERO_SKILLS_DIR", self.dir("skills"))
-            .env("ALTER_ZERO_AGENTS_DIR", self.dir("agents"))
-            .env("ALTER_ZERO_HISTORY_FILE", "/dev/null")
-            .env("ALTER_ZERO_PROJECT_CONFIG", "0")
-            .env("ALTER_ZERO_CHECKPOINTS", "0")
-            .env("ALTER_ZERO_TELEMETRY", "0")
-            .env("ALTER_ZERO_UPDATE_CHECK", "0")
-            .env("ALTER_ZERO_STARTUP_DELAY_MS", "0")
-            .env("ALTER_ZERO_CHUNK_DELAY_MS", "0")
+            .env("ZEROTH_CONFIG_DIR", self.dir("cfg"))
+            .env("ZEROTH_SESSIONS_DIR", self.dir("sessions"))
+            .env("ZEROTH_SKILLS_DIR", self.dir("skills"))
+            .env("ZEROTH_AGENTS_DIR", self.dir("agents"))
+            .env("ZEROTH_HISTORY_FILE", "/dev/null")
+            .env("ZEROTH_PROJECT_CONFIG", "0")
+            .env("ZEROTH_CHECKPOINTS", "0")
+            .env("ZEROTH_TELEMETRY", "0")
+            .env("ZEROTH_UPDATE_CHECK", "0")
+            .env("ZEROTH_STARTUP_DELAY_MS", "0")
+            .env("ZEROTH_CHUNK_DELAY_MS", "0")
             .env("NO_PROXY", "127.0.0.1,localhost")
             .env("no_proxy", "127.0.0.1,localhost");
         command
@@ -106,7 +106,7 @@ impl World {
     /// A run of the offline demo, stdin closed.
     fn demo(&self, args: &[&str]) -> Output {
         self.command(args)
-            .env("ALTER_ZERO_DUMMY", "1")
+            .env("ZEROTH_DUMMY", "1")
             .stdin(Stdio::null())
             .output()
             .expect("the binary runs")
@@ -213,7 +213,7 @@ fn a_piped_prompt_needs_no_argument() {
     let world = World::new("stdin");
     let mut child = world
         .command(&["-p", "--output-format", "stream-json"])
-        .env("ALTER_ZERO_DUMMY", "1")
+        .env("ZEROTH_DUMMY", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -237,7 +237,7 @@ fn a_file_on_stdin_rides_beside_the_argument_in_a_tagged_block() {
     std::fs::write(&input, "+added line\n").expect("the input file");
     let out = world
         .command(&["-p", "--output-format", "stream-json", "Review this"])
-        .env("ALTER_ZERO_DUMMY", "1")
+        .env("ZEROTH_DUMMY", "1")
         .stdin(std::fs::File::open(&input).expect("the input opens"))
         .output()
         .expect("the binary runs");
@@ -257,7 +257,7 @@ fn an_open_socket_that_says_nothing_is_left_alone() {
     let began = Instant::now();
     let out = world
         .command(&["-p", "--output-format", "json", "hello there"])
-        .env("ALTER_ZERO_DUMMY", "1")
+        .env("ZEROTH_DUMMY", "1")
         .stdin(Stdio::from(std::os::fd::OwnedFd::from(theirs)))
         .output()
         .expect("the binary runs");
@@ -278,7 +278,7 @@ fn a_slow_pipe_is_waited_for_and_what_it_sends_is_used() {
     let world = World::new("slowpipe");
     let mut child = world
         .command(&["-p", "--output-format", "stream-json", "summarize"])
-        .env("ALTER_ZERO_DUMMY", "1")
+        .env("ZEROTH_DUMMY", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -465,9 +465,9 @@ impl StandIn {
         )
         .expect("the providers file");
         command
-            .env("ALTER_ZERO_PROVIDERS_FILE", file)
-            .env("ALTER_ZERO_PROVIDER", "stub")
-            .env("ALTER_ZERO_MODEL", "stub-model")
+            .env("ZEROTH_PROVIDERS_FILE", file)
+            .env("ZEROTH_PROVIDER", "stub")
+            .env("ZEROTH_MODEL", "stub-model")
             .env("STUB_API_KEY", "stand-in");
     }
 }
@@ -770,7 +770,7 @@ fn the_wait_on_a_background_agent_that_never_finishes_is_bounded() {
     stand_in.configure(&world, &mut command);
     let began = Instant::now();
     let out = command
-        .env("ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS", "1")
+        .env("ZEROTH_HEADLESS_AGENT_WAIT_SECS", "1")
         .stdin(Stdio::null())
         .output()
         .expect("the binary runs");
@@ -865,9 +865,9 @@ fn a_signal_stops_the_run_and_still_reports() {
     let world = World::new("signal");
     let child = world
         .command(&["-p", "--output-format", "stream-json", "hello there"])
-        .env("ALTER_ZERO_DUMMY", "1")
+        .env("ZEROTH_DUMMY", "1")
         // The demo waits before its first word: long enough to be stopped.
-        .env("ALTER_ZERO_STARTUP_DELAY_MS", "30000")
+        .env("ZEROTH_STARTUP_DELAY_MS", "30000")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -1060,7 +1060,7 @@ fn a_compactions_request_is_recorded_as_one() {
         let mut command = world.command(args);
         stand_in.configure(&world, &mut command);
         command
-            .env("ALTER_ZERO_CONTEXT_WINDOW", "2000")
+            .env("ZEROTH_CONTEXT_WINDOW", "2000")
             .stdin(Stdio::null())
             .output()
             .expect("the binary runs")

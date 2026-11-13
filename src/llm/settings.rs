@@ -479,8 +479,8 @@ impl Settings {
 
 /// Does an environment pin outrank a saved selection? The startup precedence
 /// (`docs/providers/llm.md`), asked again when a resume brings a conversation's own
-/// model back (`docs/state/session-model.md`): `ALTER_ZERO_MODEL` pins the model
-/// for the run whatever the record says, and `ALTER_ZERO_PROVIDER` alone pins
+/// model back (`docs/state/session-model.md`): `ZEROTH_MODEL` pins the model
+/// for the run whatever the record says, and `ZEROTH_PROVIDER` alone pins
 /// the provider — a saved pair applies only under the provider it was saved
 /// with, since a different provider may not serve that model at all. Both
 /// values arrive already filtered of empties (an empty variable is no pin).
@@ -907,8 +907,8 @@ mod tests {
     #[test]
     fn an_environment_pin_outranks_a_sessions_recorded_selection() {
         // The startup precedence, asked again when a resume brings a
-        // conversation's model back: `ALTER_ZERO_MODEL` pins the model for the
-        // run whatever the record says, and `ALTER_ZERO_PROVIDER` alone pins
+        // conversation's model back: `ZEROTH_MODEL` pins the model for the
+        // run whatever the record says, and `ZEROTH_PROVIDER` alone pins
         // the provider — a pair applies only under the provider it was saved
         // with. No pin at all: the record applies.
         let recorded = own("openrouter", "vendor/model-1");

@@ -313,7 +313,7 @@ pub(super) fn bare_compaction(summary: &str) -> crate::app::Compaction {
 /// An app with session info injected, as `main.rs` does at startup.
 pub(super) fn with_session() -> App {
     let mut app = App::new();
-    app.set_session_info("dummy_model_name", "~/alter-zero");
+    app.set_session_info("dummy_model_name", "~/zeroth");
     app
 }
 

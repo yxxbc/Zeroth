@@ -106,10 +106,10 @@ fixture() {
 	mkdir -p "$root"
 	cat >"$root/Cargo.toml" <<'EOF'
 [package]
-name = "alter-zero"
+name = "zeroth"
 version = "0.4.2"
 edition = "2024"
-repository = "https://github.com/example/alter-zero.git"
+repository = "https://github.com/example/zeroth.git"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -127,7 +127,7 @@ name = "aho-corasick"
 version = "1.1.3"
 
 [[package]]
-name = "alter-zero"
+name = "zeroth"
 version = "0.4.2"
 dependencies = [
  "aho-corasick",
@@ -163,9 +163,9 @@ EOF
 
 - The thing.
 
-[Unreleased]: https://github.com/example/alter-zero/compare/v0.4.2...HEAD
-[0.4.2]: https://github.com/example/alter-zero/compare/v0.4.1...v0.4.2
-[0.4.1]: https://github.com/example/alter-zero/releases/tag/v0.4.1
+[Unreleased]: https://github.com/example/zeroth/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/example/zeroth/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/example/zeroth/releases/tag/v0.4.1
 EOF
 	printf 'Apache License\n' >"$root/LICENSE"
 }
@@ -190,10 +190,10 @@ section "readers"
 fixture "$T/fx"
 export RELEASE_ROOT="$T/fx"
 expect_eq "manifest version is [package]'s, not a dependency's" "0.4.2" "$(manifest_version)"
-expect_eq "manifest name" "alter-zero" "$(manifest_name)"
-expect_eq "manifest repository drops .git" "https://github.com/example/alter-zero" "$(manifest_repository)"
-expect_eq "repo slug" "example/alter-zero" "$(repo_slug)"
-expect_eq "lock version of the crate (not the crate named 'version')" "0.4.2" "$(lock_version alter-zero)"
+expect_eq "manifest name" "zeroth" "$(manifest_name)"
+expect_eq "manifest repository drops .git" "https://github.com/example/zeroth" "$(manifest_repository)"
+expect_eq "repo slug" "example/zeroth" "$(repo_slug)"
+expect_eq "lock version of the crate (not the crate named 'version')" "0.4.2" "$(lock_version zeroth)"
 expect_eq "lock version of another package" "8.8.8" "$(lock_version version)"
 expect_eq "README badge label" "0.4.2" "$(readme_badge_version)"
 expect_eq "README alt text" "0.4.2" "$(readme_alt_version)"
@@ -219,13 +219,13 @@ expect_eq "last section stops before the link block" "### Added
 
 - The thing." "$(changelog_section 0.4.1)"
 expect_eq "empty [Unreleased]" "" "$(changelog_section Unreleased)"
-expect_eq "link reference" "https://github.com/example/alter-zero/releases/tag/v0.4.1" "$(changelog_link 0.4.1)"
+expect_eq "link reference" "https://github.com/example/zeroth/releases/tag/v0.4.1" "$(changelog_link 0.4.1)"
 
 # ---------------------------------------------------------------------------
 section "assets"
-expect_eq "asset archive name" "alter-zero-v0.4.2-x86_64-unknown-linux-gnu.tar.gz" "$(asset_archive 0.4.2 x86_64-unknown-linux-gnu)"
-expect_eq "asset_target parses the triple back" "aarch64-apple-darwin" "$(asset_target alter-zero-v0.4.2-aarch64-apple-darwin.tar.gz 0.4.2)"
-expect_fail "asset_target refuses another version" asset_target alter-zero-v0.4.1-aarch64-apple-darwin.tar.gz 0.4.2
+expect_eq "asset archive name" "zeroth-v0.4.2-x86_64-unknown-linux-gnu.tar.gz" "$(asset_archive 0.4.2 x86_64-unknown-linux-gnu)"
+expect_eq "asset_target parses the triple back" "aarch64-apple-darwin" "$(asset_target zeroth-v0.4.2-aarch64-apple-darwin.tar.gz 0.4.2)"
+expect_fail "asset_target refuses another version" asset_target zeroth-v0.4.1-aarch64-apple-darwin.tar.gz 0.4.2
 expect_fail "asset_target refuses a foreign name" asset_target notes.tar.gz 0.4.2
 expect_eq "platform label" "macOS Apple silicon" "$(platform_label aarch64-apple-darwin)"
 expect_eq "unknown platform falls back to the triple" "riscv64gc-unknown-linux-gnu" "$(platform_label riscv64gc-unknown-linux-gnu)"
@@ -247,7 +247,7 @@ GITHUB_REF_TYPE=branch GITHUB_REF_NAME=main expect_ok "a branch ref is not a tag
 
 fixture "$T/bad-lock" && sed 's/^version = "0.4.2"$/version = "0.4.1"/' "$T/fx/Cargo.lock" >"$T/bad-lock/Cargo.lock"
 RELEASE_ROOT="$T/bad-lock" expect_fail "a stale Cargo.lock fails" bash "$STEPS/check.sh"
-expect_contains "…and says so" "$OUT" "Cargo.lock records alter-zero 0.4.1"
+expect_contains "…and says so" "$OUT" "Cargo.lock records zeroth 0.4.1"
 
 fixture "$T/bad-readme" && sed 's/0\.4\.2/0.4.1/g' "$T/fx/README.md" >"$T/bad-readme/README.md"
 RELEASE_ROOT="$T/bad-readme" expect_fail "a stale README badge fails" bash "$STEPS/check.sh"
@@ -275,26 +275,26 @@ if command -v cc >/dev/null 2>&1; then
 #include <stdio.h>
 #include <string.h>
 int main(int argc, char **argv) {
-	if (argc > 1 && strcmp(argv[1], "--version") == 0) { puts("alter-zero 0.4.2"); return 0; }
+	if (argc > 1 && strcmp(argv[1], "--version") == 0) { puts("zeroth 0.4.2"); return 0; }
 	return 1;
 }
 EOF
 	if cc -o "$T/fake-bin" "$T/fake.c" 2>"$T/cc.log"; then
 		archive="$(package_dist "$T/fake-bin" 0.4.2 "$host" "$T/dist")"
-		expect_eq "package_dist names the archive" "$T/dist/alter-zero-v0.4.2-$host.tar.gz" "$archive"
+		expect_eq "package_dist names the archive" "$T/dist/zeroth-v0.4.2-$host.tar.gz" "$archive"
 		if [ -f "$archive.sha256" ]; then pass "…beside its .sha256"; else flunk "no .sha256 beside $archive"; fi
 		expected_entries="$(printf '%s\n' \
-			"alter-zero-v0.4.2-$host" \
-			"alter-zero-v0.4.2-$host/CHANGELOG.md" \
-			"alter-zero-v0.4.2-$host/LICENSE" \
-			"alter-zero-v0.4.2-$host/README.md" \
-			"alter-zero-v0.4.2-$host/alter-zero" | sort)"
+			"zeroth-v0.4.2-$host" \
+			"zeroth-v0.4.2-$host/CHANGELOG.md" \
+			"zeroth-v0.4.2-$host/LICENSE" \
+			"zeroth-v0.4.2-$host/README.md" \
+			"zeroth-v0.4.2-$host/zeroth" | sort)"
 		expect_eq "the archive holds exactly the stem dir and four files" "$expected_entries" "$(tar -tzf "$archive" | sed 's#/$##' | sort)"
 		sleep 1 # straddle a second boundary: the copies' own mtimes must not leak into the archive
 		second="$(package_dist "$T/fake-bin" 0.4.2 "$host" "$T/dist2")"
 		expect_eq "packaging is reproducible across time" "$(sha256_of "$archive")" "$(sha256_of "$second")"
 		expect_ok "verify passes a good dist" bash "$STEPS/verify.sh" "$T/dist"
-		expect_contains "…running --version on the host's asset" "$OUT" "alter-zero --version"
+		expect_contains "…running --version on the host's asset" "$OUT" "zeroth --version"
 		expect_ok "verify takes an explicit version" bash "$STEPS/verify.sh" "$T/dist" --version 0.4.2
 		expect_fail "verify refuses another version" bash "$STEPS/verify.sh" "$T/dist" --version 0.4.3
 		expect_fail "verify refuses an empty dist" bash "$STEPS/verify.sh" "$T/empty-dist" 2>/dev/null || true
@@ -331,11 +331,11 @@ EOF
 		expect_contains "…naming what is missing" "$OUT" "no per-asset .sha256 files"
 		expect_eq "…leaving the SHA256SUMS there as it was" "1" "$(grep -c "$(basename "$archive")" "$T/dist-as-published/SHA256SUMS")"
 
-		mkdir -p "$T/dist-layout/x/alter-zero-v0.4.2-$host"
-		cp "$T/fake-bin" "$T/dist-layout/x/alter-zero-v0.4.2-$host/alter-zero"
-		cp "$T/fx/LICENSE" "$T/dist-layout/x/alter-zero-v0.4.2-$host/"
-		tar_reproducible "$T/dist-layout/x" "alter-zero-v0.4.2-$host" "$T/dist-layout/alter-zero-v0.4.2-$host.tar.gz"
-		write_sha256 "$T/dist-layout/alter-zero-v0.4.2-$host.tar.gz"
+		mkdir -p "$T/dist-layout/x/zeroth-v0.4.2-$host"
+		cp "$T/fake-bin" "$T/dist-layout/x/zeroth-v0.4.2-$host/zeroth"
+		cp "$T/fx/LICENSE" "$T/dist-layout/x/zeroth-v0.4.2-$host/"
+		tar_reproducible "$T/dist-layout/x" "zeroth-v0.4.2-$host" "$T/dist-layout/zeroth-v0.4.2-$host.tar.gz"
+		write_sha256 "$T/dist-layout/zeroth-v0.4.2-$host.tar.gz"
 		rm -rf "$T/dist-layout/x"
 		expect_fail "an archive missing README/CHANGELOG fails" bash "$STEPS/verify.sh" "$T/dist-layout"
 		expect_contains "…as a layout problem" "$OUT" "unexpected layout"
@@ -350,14 +350,14 @@ EOF
 
 		section "publish --dry-run"
 		expect_ok "a dry run needs no gh" env PATH="/nonexistent:$PATH" bash "$STEPS/publish.sh" 0.4.2 "$T/dist" --dry-run
-		expect_contains "…printing the draft create" "$OUT" "gh release create v0.4.2 -R example/alter-zero --draft --verify-tag"
+		expect_contains "…printing the draft create" "$OUT" "gh release create v0.4.2 -R example/zeroth --draft --verify-tag"
 		expect_contains "…with the notes" "$OUT" "--notes-file"
 		expect_contains "…titled by the tag alone" "$OUT" "--title v0.4.2 --notes-file"
 		expect_lacks "…never the tag plus the changelog's title" "$OUT" "A\\ fixed\\ thing"
-		expect_contains "…uploading the archive" "$OUT" "alter-zero-v0.4.2-$host.tar.gz"
+		expect_contains "…uploading the archive" "$OUT" "zeroth-v0.4.2-$host.tar.gz"
 		expect_contains "…and SHA256SUMS" "$OUT" "SHA256SUMS"
 		expect_lacks "…but no per-asset checksum files" "$OUT" ".tar.gz.sha256"
-		expect_contains "…and the publish flip" "$OUT" "gh release edit v0.4.2 -R example/alter-zero --draft=false --latest"
+		expect_contains "…and the publish flip" "$OUT" "gh release edit v0.4.2 -R example/zeroth --draft=false --latest"
 		if [ -f "$T/dist/SHA256SUMS" ]; then pass "…after writing SHA256SUMS"; else flunk "no SHA256SUMS written"; fi
 		expect_ok "the dist still verifies with SHA256SUMS" bash "$STEPS/verify.sh" "$T/dist"
 		expect_fail "publish refuses a dist that fails verify" bash "$STEPS/publish.sh" 0.4.2 "$T/dist-badsum" --dry-run
@@ -375,17 +375,17 @@ EOF
 			"$(LC_ALL=C grep -nE '[$]([A-Za-z_][A-Za-z0-9_]*|[0-9]+|[-?@*#!$])[^[:print:][:space:]]' "$CHECKOUT/install.sh" || true)"
 		if command -v python3 >/dev/null 2>&1; then
 			base="http://127.0.0.1:$(serve_release "$T/dist" v0.4.2)"
-			expect_ok "install.sh installs the latest release from the stand-in server" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin" sh "$CHECKOUT/install.sh"
+			expect_ok "install.sh installs the latest release from the stand-in server" env ZEROTH_REPO=example/zeroth ZEROTH_INSTALL_BASE_URL="$base" ZEROTH_INSTALL_DIR="$T/home/bin" sh "$CHECKOUT/install.sh"
 			expect_contains "…reading the tag off the /releases/latest redirect" "$OUT" "v0.4.2 · latest"
 			expect_contains "…verifying the checksum" "$OUT" "matches the published value"
 			expect_contains "…and reporting the install" "$OUT" "Installed"
 			expect_contains "…with the PATH hint for a directory not on it" "$OUT" "is not on your PATH"
 			expect_lacks "…and no colour codes when piped" "$OUT" "$(printf '\033')"
-			if [ -x "$T/home/bin/alter-zero" ]; then pass "…the binary is executable"; else flunk "no executable at $T/home/bin/alter-zero"; fi
-			expect_eq "…and runs" "alter-zero 0.4.2" "$("$T/home/bin/alter-zero" --version 2>&1)"
+			if [ -x "$T/home/bin/zeroth" ]; then pass "…the binary is executable"; else flunk "no executable at $T/home/bin/zeroth"; fi
+			expect_eq "…and runs" "zeroth 0.4.2" "$("$T/home/bin/zeroth" --version 2>&1)"
 			# A minimal Debian server ships wget and no curl. The tag must still
 			# come off the redirect: GitHub's API is rate-limited per address and
-			# knows nothing of ALTER_ZERO_INSTALL_BASE_URL, so a fork — or this
+			# knows nothing of ZEROTH_INSTALL_BASE_URL, so a fork — or this
 			# stand-in — would be answered with the real repository's newest tag.
 			# A PATH of links to everything the installer runs, minus curl.
 			mkdir -p "$T/nocurl"
@@ -393,10 +393,10 @@ EOF
 				tool_path=$(command -v "$tool" 2>/dev/null) && ln -s "$tool_path" "$T/nocurl/$tool"
 			done
 			if [ -x "$T/nocurl/wget" ]; then
-				expect_ok "install.sh resolves and downloads with wget where there is no curl" env PATH="$T/nocurl" ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin-wget" sh "$CHECKOUT/install.sh"
+				expect_ok "install.sh resolves and downloads with wget where there is no curl" env PATH="$T/nocurl" ZEROTH_REPO=example/zeroth ZEROTH_INSTALL_BASE_URL="$base" ZEROTH_INSTALL_DIR="$T/home/bin-wget" sh "$CHECKOUT/install.sh"
 				expect_contains "…reading the tag off the same redirect" "$OUT" "v0.4.2 · latest"
 				expect_contains "…verifying the checksum" "$OUT" "matches the published value"
-				expect_eq "…and installing a binary that runs" "alter-zero 0.4.2" "$("$T/home/bin-wget/alter-zero" --version 2>&1)"
+				expect_eq "…and installing a binary that runs" "zeroth 0.4.2" "$("$T/home/bin-wget/zeroth" --version 2>&1)"
 			else
 				warn "no wget — skipping the curl-less install.sh case"
 			fi
@@ -406,31 +406,31 @@ EOF
 			write_sha256sums "$T/dist-published" >/dev/null
 			rm -f "$T/dist-published"/*.tar.gz.sha256
 			base="http://127.0.0.1:$(serve_release "$T/dist-published" v0.4.2)"
-			expect_ok "install.sh verifies against SHA256SUMS, with no per-asset file published" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin-pub" sh "$CHECKOUT/install.sh"
+			expect_ok "install.sh verifies against SHA256SUMS, with no per-asset file published" env ZEROTH_REPO=example/zeroth ZEROTH_INSTALL_BASE_URL="$base" ZEROTH_INSTALL_DIR="$T/home/bin-pub" sh "$CHECKOUT/install.sh"
 			expect_contains "…reporting the match" "$OUT" "matches the published value"
-			if [ -x "$T/home/bin-pub/alter-zero" ]; then pass "…and installing the binary"; else flunk "no executable at $T/home/bin-pub/alter-zero"; fi
+			if [ -x "$T/home/bin-pub/zeroth" ]; then pass "…and installing the binary"; else flunk "no executable at $T/home/bin-pub/zeroth"; fi
 			stop_release
 			base="http://127.0.0.1:$(serve_release "$T/dist" v0.4.2)"
-			expect_ok "install.sh takes --version and --dir" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" sh "$CHECKOUT/install.sh" --version 0.4.2 --dir "$T/home/bin2"
+			expect_ok "install.sh takes --version and --dir" env ZEROTH_REPO=example/zeroth ZEROTH_INSTALL_BASE_URL="$base" sh "$CHECKOUT/install.sh" --version 0.4.2 --dir "$T/home/bin2"
 			expect_contains "…as a pinned release" "$OUT" "v0.4.2 · pinned"
-			expect_ok "…installing over itself again" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin2" sh "$CHECKOUT/install.sh"
-			expect_fail "install.sh refuses a release with no asset for the machine" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_VERSION=v9.9.9 ALTER_ZERO_INSTALL_DIR="$T/home/bin3" sh "$CHECKOUT/install.sh"
+			expect_ok "…installing over itself again" env ZEROTH_REPO=example/zeroth ZEROTH_INSTALL_BASE_URL="$base" ZEROTH_INSTALL_DIR="$T/home/bin2" sh "$CHECKOUT/install.sh"
+			expect_fail "install.sh refuses a release with no asset for the machine" env ZEROTH_REPO=example/zeroth ZEROTH_INSTALL_BASE_URL="$base" ZEROTH_VERSION=v9.9.9 ZEROTH_INSTALL_DIR="$T/home/bin3" sh "$CHECKOUT/install.sh"
 			expect_contains "…saying so" "$OUT" "no release asset"
-			if [ ! -e "$T/home/bin3/alter-zero" ]; then pass "…and installing nothing"; else flunk "…but left a binary behind"; fi
+			if [ ! -e "$T/home/bin3/zeroth" ]; then pass "…and installing nothing"; else flunk "…but left a binary behind"; fi
 			stop_release
 			base="http://127.0.0.1:$(serve_release "$T/dist-badsum" v0.4.2)"
-			expect_fail "install.sh refuses a download whose checksum does not match" env ALTER_ZERO_REPO=example/alter-zero ALTER_ZERO_INSTALL_BASE_URL="$base" ALTER_ZERO_INSTALL_DIR="$T/home/bin4" sh "$CHECKOUT/install.sh"
+			expect_fail "install.sh refuses a download whose checksum does not match" env ZEROTH_REPO=example/zeroth ZEROTH_INSTALL_BASE_URL="$base" ZEROTH_INSTALL_DIR="$T/home/bin4" sh "$CHECKOUT/install.sh"
 			expect_contains "…naming the mismatch" "$OUT" "checksum mismatch"
 			expect_contains "…and that nothing was installed" "$OUT" "Nothing was installed"
-			if [ ! -e "$T/home/bin4/alter-zero" ]; then pass "…truly"; else flunk "…but left a binary behind"; fi
+			if [ ! -e "$T/home/bin4/zeroth" ]; then pass "…truly"; else flunk "…but left a binary behind"; fi
 			stop_release
 
 			section "download"
 			base="http://127.0.0.1:$(serve_release "$T/dist-published" v0.4.2)"
 			expect_ok "download fetches a published release and verifies it" bash "$STEPS/download.sh" 0.4.2 "$T/dl" --from "$base"
-			expect_contains "…verifying what it fetched" "$OUT" "verified 1 asset(s) for alter-zero 0.4.2"
+			expect_contains "…verifying what it fetched" "$OUT" "verified 1 asset(s) for zeroth 0.4.2"
 			expect_eq "…in the shape build leaves: each archive beside its .sha256, and SHA256SUMS" \
-				"SHA256SUMS alter-zero-v0.4.2-$host.tar.gz alter-zero-v0.4.2-$host.tar.gz.sha256" "$(cd "$T/dl" && printf '%s\n' * | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
+				"SHA256SUMS zeroth-v0.4.2-$host.tar.gz zeroth-v0.4.2-$host.tar.gz.sha256" "$(cd "$T/dl" && printf '%s\n' * | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
 			expect_eq "…the archive byte for byte" "$(sha256_of "$archive")" "$(sha256_of "$T/dl/$(basename "$archive")")"
 			expect_eq "…and its .sha256 the one build wrote" "$(cat "$archive.sha256")" "$(cat "$T/dl/$(basename "$archive").sha256")"
 			expect_ok "…a dist a publish takes as built" bash "$STEPS/verify.sh" "$T/dl"
@@ -478,7 +478,7 @@ EOF
 			expect_fail "install.sh refuses an unknown option" sh "$CHECKOUT/install.sh" --bogus
 			# --preview: the mascot alone. It is not a terminal here, so the
 			# art is drawn once, still — the run must still exit 0, install
-			# nothing, and touch no network (no ALTER_ZERO_INSTALL_BASE_URL).
+			# nothing, and touch no network (no ZEROTH_INSTALL_BASE_URL).
 			expect_ok "install.sh --preview draws the mascot and exits" sh "$CHECKOUT/install.sh" --preview 1
 			expect_contains "…drawing the mascot" "$OUT" "Zeroth"
 			expect_lacks "…and never prompting for a release" "$OUT" "Release"
@@ -510,13 +510,13 @@ expect_eq "…promoting it to no heading of its own" "0" "$(printf '%s\n' "$note
 expect_ok "notes render for a version with no title" bash "$STEPS/notes.sh" 0.4.1
 expect_eq "…opening straight on the entries" "### Added" "$(printf '%s' "$OUT" | head -1)"
 expect_eq "…and inventing no title" "0" "$(printf '%s\n' "$OUT" | grep -c '^\*\*A ')"
-expect_contains "…and closing on the compare link" "$notes" "**Full changelog**: https://github.com/example/alter-zero/compare/v0.4.1...v0.4.2"
+expect_contains "…and closing on the compare link" "$notes" "**Full changelog**: https://github.com/example/zeroth/compare/v0.4.1...v0.4.2"
 expect_lacks "…with no assets table" "$notes" "## Assets"
 expect_lacks "…and no install section" "$notes" "### Install"
 expect_lacks "…nor the one-liner" "$notes" "install.sh | sh"
 expect_lacks "…and no contributors line" "$notes" "**Contributors**"
 expect_ok "notes render for a first release" bash "$STEPS/notes.sh" 0.4.1
-expect_contains "…linking its commits, with nothing to compare against" "$OUT" "**Full changelog**: https://github.com/example/alter-zero/commits/v0.4.1"
+expect_contains "…linking its commits, with nothing to compare against" "$OUT" "**Full changelog**: https://github.com/example/zeroth/commits/v0.4.1"
 expect_fail "notes refuse an unknown version" bash "$STEPS/notes.sh" 0.9.9
 expect_fail "notes refuse a second argument" bash "$STEPS/notes.sh" 0.4.2 "$T"
 expect_contains "…pointing at the usage" "$OUT" "usage: scripts/release.sh notes VERSION"
@@ -540,7 +540,7 @@ if command -v git >/dev/null 2>&1; then
 	expect_ok "notes render inside a git repo" env RELEASE_ROOT="$T/repo" bash "$STEPS/notes.sh" 0.4.2
 	expect_lacks "…crediting nobody in the body" "$OUT" "**Contributors**"
 	expect_lacks "…naming no author of its own" "$OUT" "Grace Hopper"
-	expect_eq "…and ending on the compare link, with nothing after it" "**Full changelog**: https://github.com/example/alter-zero/compare/v0.4.1...v0.4.2" "$(printf '%s\n' "$OUT" | tail -1)"
+	expect_eq "…and ending on the compare link, with nothing after it" "**Full changelog**: https://github.com/example/zeroth/compare/v0.4.1...v0.4.2" "$(printf '%s\n' "$OUT" | tail -1)"
 else
 	warn "no git — skipping the contributors cases"
 fi
@@ -550,7 +550,7 @@ section "prepare"
 fixture "$T/prep" && cp "$T/pending/CHANGELOG.md" "$T/prep/CHANGELOG.md"
 RELEASE_ROOT="$T/prep" RELEASE_DATE=2026-10-01 expect_ok "prepare rolls a fixture forward" bash "$STEPS/prepare.sh" 0.5.0
 expect_eq "…Cargo.toml bumped (dependencies untouched)" "0.5.0 9.9.9" "$(RELEASE_ROOT="$T/prep" manifest_version) $(grep -c '"9.9.9"' "$T/prep/Cargo.toml" >/dev/null && echo 9.9.9)"
-expect_eq "…Cargo.lock's crate entry bumped" "0.5.0" "$(RELEASE_ROOT="$T/prep" lock_version alter-zero)"
+expect_eq "…Cargo.lock's crate entry bumped" "0.5.0" "$(RELEASE_ROOT="$T/prep" lock_version zeroth)"
 expect_eq "…the other lock entries untouched" "8.8.8" "$(RELEASE_ROOT="$T/prep" lock_version version)"
 expect_eq "…README badge bumped" "0.5.0 0.5.0" "$(RELEASE_ROOT="$T/prep" readme_badge_version) $(RELEASE_ROOT="$T/prep" readme_alt_version)"
 expect_eq "…the license badge untouched" "1" "$(grep -c 'License-Apache--2.0' "$T/prep/README.md")"
@@ -564,8 +564,8 @@ expect_eq "…older sections intact" "**A fixed thing**
 ### Fixed
 
 - A thing that was broken." "$(RELEASE_ROOT="$T/prep" changelog_section 0.4.2)"
-expect_eq "…compare link added" "https://github.com/example/alter-zero/compare/v0.4.2...v0.5.0" "$(RELEASE_ROOT="$T/prep" changelog_link 0.5.0)"
-expect_eq "…[Unreleased] re-pointed" "https://github.com/example/alter-zero/compare/v0.5.0...HEAD" "$(RELEASE_ROOT="$T/prep" changelog_link Unreleased)"
+expect_eq "…compare link added" "https://github.com/example/zeroth/compare/v0.4.2...v0.5.0" "$(RELEASE_ROOT="$T/prep" changelog_link 0.5.0)"
+expect_eq "…[Unreleased] re-pointed" "https://github.com/example/zeroth/compare/v0.5.0...HEAD" "$(RELEASE_ROOT="$T/prep" changelog_link Unreleased)"
 expect_contains "…and the commit it prints adds it" "$OUT" "git add Cargo.toml Cargo.lock README.md CHANGELOG.md"
 RELEASE_ROOT="$T/prep" expect_ok "…and the tree checks out for its tag" bash "$STEPS/check.sh" v0.5.0
 expect_eq "…heading order: Unreleased, 0.5.0, 0.4.2, 0.4.1" "0.5.0 0.4.2 0.4.1" "$(RELEASE_ROOT="$T/prep" changelog_versions | tr '\n' ' ' | sed 's/ $//')"
@@ -582,10 +582,10 @@ awk '/^## \[Unreleased\]$/ { print; print ""; print "- First."; next } { print }
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/example/alter-zero/commits/HEAD
+[Unreleased]: https://github.com/example/zeroth/commits/HEAD
 EOF
 RELEASE_ROOT="$T/first" RELEASE_DATE=2026-10-01 expect_ok "prepare handles a first release" bash "$STEPS/prepare.sh" 0.5.0
-expect_eq "…linking the tag, with nothing to compare against" "https://github.com/example/alter-zero/releases/tag/v0.5.0" "$(RELEASE_ROOT="$T/first" changelog_link 0.5.0)"
+expect_eq "…linking the tag, with nothing to compare against" "https://github.com/example/zeroth/releases/tag/v0.5.0" "$(RELEASE_ROOT="$T/first" changelog_link 0.5.0)"
 
 # ---------------------------------------------------------------------------
 # Every case stops the stand-in it started; one left running would outlive

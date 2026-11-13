@@ -21,7 +21,7 @@ smoke_begin
 
 # --- the offline demo ---
 S138="${S}_writestream"
-launch "$S138" 100 40 "env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ALTER_ZERO_CHUNK_DELAY_MS=40 $BIN"
+launch "$S138" 100 40 "env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_CHUNK_DELAY_MS=40 $BIN"
 submit "$S138" "write fizzbuzz for me"
 tail_screen="$(wait_pane 30 "$S138" -E 'Writing 1[2-5] lines…')" ||
 	fail "the demo's write never streamed past ten lines"
@@ -95,7 +95,7 @@ WS_PROVIDERS="$SMOKE_TMP/providers138.toml"
 printf '[providers.stub]\nname = "Stub"\n\n[providers.stub.kwargs]\napi_base = "http://127.0.0.1:%s/v1"\n' "$WS_PORT" >"$WS_PROVIDERS"
 WORK="$(work_dir writestream)"
 # No permission gate: the write runs unasked once the round ends.
-WS_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_PERMISSIONS=0 ALTER_ZERO_PROVIDERS_FILE=$WS_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+WS_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_PERMISSIONS=0 ZEROTH_PROVIDERS_FILE=$WS_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 S138L="${S}_writestreamlive"
 launch -c "$WORK" "$S138L" 100 40 "$WS_APP"
 submit "$S138L" "smoke138 write the squares"

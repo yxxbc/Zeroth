@@ -131,11 +131,11 @@ of a catalog that shrank simply wraps.
   (never `settings.json`: `SessionSettings::tips` is `#[serde(skip)]` and
   `copy_value` never moves it — the Telemetry row's pattern). Toggled
   mid-turn, the row goes (or comes) at the next frame.
-- **`ALTER_ZERO_TIPS=0`** seeds the row off for a run, never saved — the
-  `ALTER_ZERO_TOOLS` grammar. Not a privacy switch, so unlike
-  `ALTER_ZERO_TELEMETRY` it does not withdraw the row: the user can still
+- **`ZEROTH_TIPS=0`** seeds the row off for a run, never saved — the
+  `ZEROTH_TOOLS` grammar. Not a privacy switch, so unlike
+  `ZEROTH_TELEMETRY` it does not withdraw the row: the user can still
   turn tips back on for the session.
-- The smoke suite exports `ALTER_ZERO_TIPS=0` in its base environment
+- The smoke suite exports `ZEROTH_TIPS=0` in its base environment
   (`scripts/smoke/lib.sh`), so a phase that holds a turn past three seconds
   sees the strip it asserts on; the tips phase turns them back on.
 
@@ -147,7 +147,7 @@ of a catalog that shrank simply wraps.
 | The walk: the cursor, the draw, what hides the row | `src/app/tips.rs` (`App::set_status_times` calls it) |
 | The row: `  ⎿  Tip: …`, wrapped under the gutter | `src/ui/tips.rs` |
 | Its height: the status line's **hanging rows** — the checklist, else the tip — threaded through `live_height`/`live_layout`/`cursor_position`/the strip exactly as the checklist was | `ui::hang_rows` (`src/ui/layout.rs`) |
-| Seeding, persisting, the `/settings` apply, `ALTER_ZERO_TIPS` | `src/tui/bootstrap.rs`, `src/tui/settings.rs`, `src/tui/config.rs` |
+| Seeding, persisting, the `/settings` apply, `ZEROTH_TIPS` | `src/tui/bootstrap.rs`, `src/tui/settings.rs`, `src/tui/config.rs` |
 
 The checklist and the tip share one slot, so they share one row count:
 `strip_rows`/`live_height`/`live_layout`/`input_box` take the **hanging
@@ -170,14 +170,14 @@ row: label, default, cycle, never in `settings.json`), `src/ui/tests/tips.rs`
 (the row's text and dim dress, the wrap, the height threading through the
 live region, the strip and a picker's strip above itself).
 
-`scripts/smoke.sh` Phase 125 drives the binary: `ALTER_ZERO_TIPS=0` keeping
+`scripts/smoke.sh` Phase 125 drives the binary: `ZEROTH_TIPS=0` keeping
 a turn tipless and `tips.json` unwritten; on a fresh config home no tip in a
 turn's first seconds, then the catalog's first directly under the status
 line over the slot's gap once three have passed, gone with the turn and
 never in scrollback; the next turn on the next tip and `tips.json` recording
 the cursor; a relaunch carrying the walk on; `/settings` → Show tips turning
 the row off, persisting that to `tips.json` (not `settings.json`) and a
-relaunch keeping it off; and `ALTER_ZERO_TIPS=1` turning a run back on
+relaunch keeping it off; and `ZEROTH_TIPS=1` turning a run back on
 without saving anything.
 
 [`TIP_DELAY`]: ../src/tips.rs

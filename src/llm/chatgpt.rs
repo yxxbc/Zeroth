@@ -46,7 +46,7 @@ pub const DEFAULT_ISSUER: &str = "https://auth.openai.com";
 /// (`smoke.sh` Phase 119), or a fork's own. Read at the boundary and handed
 /// in once through [`set_issuer`], the `set_store_path` pattern: the pure
 /// builders never read the environment themselves.
-pub const ISSUER_ENV: &str = "ALTER_ZERO_OPENAI_ISSUER";
+pub const ISSUER_ENV: &str = "ZEROTH_OPENAI_ISSUER";
 
 /// The issuer in force — [`DEFAULT_ISSUER`] until the boundary sets one.
 fn issuer_slot() -> &'static Mutex<Option<String>> {
@@ -1244,7 +1244,7 @@ pub fn canonical_provider_id(id: &str) -> &str {
 /// The name a credential for `key_env` was stored under before a rename, if
 /// there was one — only [`REFRESH_ENV_VAR`]'s, [`LEGACY_REFRESH_ENV_VAR`].
 /// The boundary consults it after the current name comes up empty and before
-/// the generic `ALTER_ZERO_API_KEY`.
+/// the generic `ZEROTH_API_KEY`.
 #[must_use]
 pub fn legacy_key_env(key_env: &str) -> Option<&'static str> {
     (key_env == REFRESH_ENV_VAR).then_some(LEGACY_REFRESH_ENV_VAR)
@@ -1554,10 +1554,10 @@ mod tests {
         // and `OpenAI-Beta` on its own changes nothing. Both names carry the
         // one per-session key, the reference client's shape.
         assert_eq!(
-            session_headers(Some("alter-zero-42")),
+            session_headers(Some("zeroth-42")),
             vec![
-                ("session_id".to_string(), "alter-zero-42".to_string()),
-                ("conversation_id".to_string(), "alter-zero-42".to_string()),
+                ("session_id".to_string(), "zeroth-42".to_string()),
+                ("conversation_id".to_string(), "zeroth-42".to_string()),
             ]
         );
     }
@@ -1972,7 +1972,7 @@ mod tests {
     #[test]
     fn the_issuer_defaults_to_openai_and_the_override_has_a_name() {
         assert_eq!(DEFAULT_ISSUER, "https://auth.openai.com");
-        assert_eq!(ISSUER_ENV, "ALTER_ZERO_OPENAI_ISSUER");
+        assert_eq!(ISSUER_ENV, "ZEROTH_OPENAI_ISSUER");
         // And the code's life is Codex's own fifteen minutes — what the
         // page counts down from.
         assert_eq!(DEVICE_CODE_TIMEOUT, Duration::from_secs(15 * 60));

@@ -231,9 +231,9 @@ survives the trip.
    inline cell, the live strip's running cell (a `Write` waiting on the
    permission gate), the Ctrl+O transcript and a subagent session view.
 
-`ALTER_ZERO_HYPERLINKS` gates it (default **on**; a falsy value — `0`,
+`ZEROTH_HYPERLINKS` gates it (default **on**; a falsy value — `0`,
 `false`, `no` — turns emission off for a terminal that misbehaves, the
-`ALTER_ZERO_DISABLE_KEYBOARD_ENHANCEMENT` pattern). The gate is read once at
+`ZEROTH_DISABLE_KEYBOARD_ENHANCEMENT` pattern). The gate is read once at
 `InlineViewport::init`; disabled still strips the carrier — the id must never
 paint as a colour — it just writes no OSC.
 
@@ -288,7 +288,7 @@ would come back as its own underlined span.
 the real binary in a pane narrow enough to split the dummy reply's
 `https://github.com/linuztx`, captures the raw byte stream with
 `tmux pipe-pane`, and asserts the full URL rides an OSC 8 open while the
-visible pane shows the split text — and that `ALTER_ZERO_HYPERLINKS=0` emits
+visible pane shows the split text — and that `ZEROTH_HYPERLINKS=0` emits
 none. The file tool header has the same two halves: `links::file_url`'s
 resolution and encoding are unit-tested in `links.rs`, the header's stamp —
 the path linked, the parens and corner rows not, every wrapped or cut
@@ -316,7 +316,7 @@ anywhere carrying a fragment of it.
 - OSC 8 support must be enabled in the terminal and any multiplexer between
   it and the app. If the sequences are disabled or discarded, the terminal's
   ordinary per-row auto-detection cannot recover a wrapped URL. The default
-  app gate is on; check that `ALTER_ZERO_HYPERLINKS` is not falsy.
+  app gate is on; check that `ZEROTH_HYPERLINKS` is not falsy.
 - A real newline inside a source URL is not a visual wrap: separate source
   lines stay separate rather than guessing whether to concatenate them.
 - Scheme-less `www.…` text is not linked (OSC 8 needs a real URI; fabricating

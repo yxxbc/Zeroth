@@ -25,7 +25,7 @@ use super::script::{
 /// of the thought live and then collapses them into one `Thought for … · …
 /// tokens` cell (`docs/ui/thinking-stream.md`), so a first run should meet a
 /// thought that actually moves rather than a single static line. With the
-/// display off (`ALTER_ZERO_SHOW_THINKING=0`) it is counted and dropped, as it
+/// display off (`ZEROTH_SHOW_THINKING=0`) it is counted and dropped, as it
 /// always was.
 const DUMMY_THINKING: &str = "Let me read the file first.\nThen edit it and run it.";
 
@@ -813,7 +813,7 @@ pub(in crate::stream) fn table_turn(cue: &Cue) -> Vec<StreamEvent> {
 /// tool calls, which would split the reply around them — streamed in
 /// [`tokens`]' token-sized pieces rather than words, so the boundaries land
 /// inside markers and across line breaks the way a real model's do. Played
-/// at the dummy's chunk pace, which `ALTER_ZERO_CHUNK_DELAY_MS` slows to a
+/// at the dummy's chunk pace, which `ZEROTH_CHUNK_DELAY_MS` slows to a
 /// struggling model's few tokens a second.
 pub(in crate::stream) fn markdown_turn(cue: &Cue) -> Vec<StreamEvent> {
     let mut events = opening(cue);
@@ -1275,7 +1275,7 @@ const DUMMY_GUESS_NAME: &str = "guess_the_number.py";
 
 /// Where the scratchpad demo writes when the session has no scratchpad — a
 /// path in a session's scratchpad by the layout, so the group still takes it.
-const DUMMY_SCRATCHPAD_FALLBACK: &str = "/tmp/alter-zero-0/demo/scratchpad";
+const DUMMY_SCRATCHPAD_FALLBACK: &str = "/tmp/zeroth-0/demo/scratchpad";
 
 /// The game the scratchpad demo writes, twenty-five lines.
 const DUMMY_GUESS_V1: &str = "#!/usr/bin/env python3\n\
@@ -1391,7 +1391,7 @@ const EXPLORE_GREP: &str = "./about.py:10:def card() -> str:\n./about.py:16:    
 
 /// The README the explore demo reads the head of.
 const EXPLORE_README: &str = "# about\n\n\
-    A one-file calling card for alter-zero.\n\n\
+    A one-file calling card for zeroth.\n\n\
     Run it with `python3 about.py`.";
 
 /// What the explore demo's script prints — the card before the default

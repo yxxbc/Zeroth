@@ -1088,7 +1088,7 @@ mod tests {
     }
 
     #[test]
-    fn the_alter_zero_project_file_shadows_the_compat_file() {
+    fn the_zeroth_project_file_shadows_the_compat_file() {
         let alter = parse_mcp_file(
             r#"{"mcpServers": {"wiki": {"url": "https://a"}, "docs": {"command": "d"}}}"#,
         );

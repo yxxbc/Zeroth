@@ -1,6 +1,6 @@
-# Headless mode — `alter-zero -p`
+# Headless mode — `zeroth -p`
 
-`alter-zero -p "prompt"` runs one prompt with **no screen**: no inline
+`zeroth -p "prompt"` runs one prompt with **no screen**: no inline
 viewport, no raw mode, no cursor query, no key reader, nothing asked. The
 answer goes to stdout, anything that went wrong to stderr — every step of
 the run too with `--verbose` — and the process exits with a status a script
@@ -9,12 +9,12 @@ not a person at a terminal — a cron job, a CI step, an n8n node, a benchmark
 harness, one stage of a pipeline.
 
 ```
-$ alter-zero -p "Reply with exactly: OK"
+$ zeroth -p "Reply with exactly: OK"
 OK
-$ git diff origin/main | alter-zero -p "Review this diff; list real bugs only"
-$ alter-zero -p --output-format json "Summarize the failing tests" | jq -r .result
-$ alter-zero -p -c "Run the suite again and compare with last night"
-$ alter-zero -p --permission-mode master --max-turns 40 -C ~/proj < task.md
+$ git diff origin/main | zeroth -p "Review this diff; list real bugs only"
+$ zeroth -p --output-format json "Summarize the failing tests" | jq -r .result
+$ zeroth -p -c "Run the suite again and compare with last night"
+$ zeroth -p --permission-mode master --max-turns 40 -C ~/proj < task.md
 ```
 
 ## Why it was missing
@@ -39,7 +39,7 @@ own — a run in which nobody can approve anything is the caller's choice.
 ```text
 error: could not start the interface: No such device or address (os error 6)
 It needs a terminal; to run without one (cron, CI, a script), use print mode:
-alter-zero -p "your prompt"
+zeroth -p "your prompt"
 ```
 
 ## What the references do (findings)
@@ -92,7 +92,7 @@ transcript is never warmed.
 ## Invocation
 
 ```
-alter-zero -p [OPTIONS] [PROMPT]
+zeroth -p [OPTIONS] [PROMPT]
 ```
 
 | Flag | Meaning |
@@ -106,20 +106,20 @@ alter-zero -p [OPTIONS] [PROMPT]
 | `-c`, `--continue` / `-r`, `--resume <ID>` | Send the prompt into that conversation (as without `-p`). |
 
 The grammar is `cli::parse`'s (`docs/cli/cli.md`): `-p` is a switch and the prompt
-stays the one positional, so `alter-zero -p "…"` reads the way Claude Code's
+stays the one positional, so `zeroth -p "…"` reads the way Claude Code's
 does. A usage error exits `2` with the clap-shaped trailer: `--output-format`,
 `--max-turns` or `--verbose` without `-p`, an unknown format or mode, `--max-turns 0`, a
 flag given twice, and `-p` with the bare `--resume` — the picker is a screen,
 so a headless run must name its session.
 
 `--permission-mode` and `-C` work in the TUI too: the first is the run seed
-`ALTER_ZERO_PERMISSION_MODE` already was (it outranks that variable and the
+`ZEROTH_PERMISSION_MODE` already was (it outranks that variable and the
 project's saved mode, and is never saved); the second is `chdir` before
 anything reads the working directory — which is why it runs before
 `--continue` looks for the newest conversation *there*.
 
 `--max-turns` counts what Claude Code counts — **model replies** (requests
-the lead agent sends), not alter-zero's turns (a turn is a whole exchange,
+the lead agent sends), not zeroth's turns (a turn is a whole exchange,
 however many replies its tool loop takes). Each request takes one from a
 budget shared by the prompt's turn and every follow-up turn the run starts;
 subagents' requests and a compaction's are not counted. When it is spent the
@@ -148,7 +148,7 @@ reads a diff as a diff: `{prompt}\n\n<stdin>\n{input}\n</stdin>`. Blank input
 adds nothing.
 
 A **pipe** is never cut off. A shell's `|` ends when its writer does, so
-waiting for it loses nothing — `./slow-tests.sh 2>&1 | alter-zero -p
+waiting for it loses nothing — `./slow-tests.sh 2>&1 | zeroth -p
 "summarize the failures"` sends the whole log however long the tests stay
 quiet first — and a run that cut it off after a few seconds would answer the
 bare instruction with exit 0, the worst way to fail. The cost is a parent
@@ -185,13 +185,13 @@ byte is still worth reading.
    history; a `--continue`/`--resume` load **does not restore the working
    tree** to the conversation's last checkpoint (see *Resume*). An error
    toast — a `SKILL.md` that would not parse, a provider file's problem —
-   is written to stderr as an `alter-zero: …` line; an info toast only with
+   is written to stderr as an `zeroth: …` line; an info toast only with
    `--verbose`.
 3. **No model, no run**: when no provider, model and key resolve, the TUI
    falls back to the offline demo. A headless run refuses instead (exit 1,
-   naming `/login` and the `ALTER_ZERO_PROVIDER`/`ALTER_ZERO_MODEL`
+   naming `/login` and the `ZEROTH_PROVIDER`/`ZEROTH_MODEL`
    variables) — a CI job "succeeding" on a canned demo reply is the worst
-   failure a misconfiguration could have. `ALTER_ZERO_DUMMY=1` still forces
+   failure a misconfiguration could have. `ZEROTH_DUMMY=1` still forces
    the demo, which is how the tests run offline.
 4. **MCP servers settle first**: the TUI connects servers in the background
    and a turn simply runs without the ones still connecting; a headless run
@@ -208,7 +208,7 @@ byte is still worth reading.
    follow-up turn the TUI would start, so "launch the critic agent, write a
    report" reports. That wait is bounded: once nothing but background agents
    is left, the run waits on them at most
-   `ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS` (default 600, `0` for no wait), then
+   `ZEROTH_HEADLESS_AGENT_WAIT_SECS` (default 600, `0` for no wait), then
    stops the ones still working, names them on stderr and ends on its last
    reply — an agent that never finishes cannot hold a cron job forever. A
    notice already in hand is never cut off: its follow-up turn is coming.
@@ -284,7 +284,7 @@ list.
 The startup review (`docs/state/config-review.md`) is a screen, so it never opens:
 a hook or a project MCP server nobody has trusted **stays off**, exactly as
 it would after the review was declined, and stderr says what is waiting and
-that `alter-zero` run interactively in that directory asks about it. A
+that `zeroth` run interactively in that directory asks about it. A
 headless run never trusts anything on its own.
 
 ### Resume
@@ -310,7 +310,7 @@ one event per line, the result last.
 **stderr** is quiet unless something needs saying — Claude Code's posture,
 and the one a cron job wants, since cron mails whatever a job writes. A run
 that went well writes nothing there. What it always says: why a run failed
-(`alter-zero: HTTP 401: …`, `interrupted by SIGTERM`, the `--max-turns`
+(`zeroth: HTTP 401: …`, `interrupted by SIGTERM`, the `--max-turns`
 limit), the calls nobody could approve, the background work it stopped,
 stdin it waited on or left alone, an outage it is waiting out, the hooks and
 MCP servers held for review, an error toast. **`--verbose`** adds the run's
@@ -326,8 +326,8 @@ never mistaken for the result.
 ### `text`
 
 ```
-$ alter-zero -p --verbose "Run the tests and fix what fails"
-alter-zero 0.18.0 · gpt-5.5 · ~/proj · auto · session 18a9f2c33d41e5b6-1a2b   ← stderr
+$ zeroth -p --verbose "Run the tests and fix what fails"
+zeroth 0.18.0 · gpt-5.5 · ~/proj · auto · session 18a9f2c33d41e5b6-1a2b   ← stderr
 ● Bash(cargo test)                                                           ← stderr
   ⎿ exit 101 · 240 lines
 I'll fix the empty-input case first.                                         ← stderr
@@ -449,8 +449,8 @@ per-job output capture (`--out-dir`) and one JSON result line per job on stdout.
 - **No input history.** An automated prompt is not something the user typed;
   ↑ in the TUI should not walk through a cron job's prompts.
 - **No `--output-schema`, `-o FILE`, `--ephemeral` or `--model`** yet:
-  stdout redirection covers `-o`, and `ALTER_ZERO_PROVIDER`/
-  `ALTER_ZERO_MODEL` already pin the model for a run.
+  stdout redirection covers `-o`, and `ZEROTH_PROVIDER`/
+  `ZEROTH_MODEL` already pin the model for a run.
 
 ## Testing
 
@@ -495,7 +495,7 @@ per-job output capture (`--out-dir`) and one JSON result line per job on stdout.
   request no `askuserquestion`; a background subagent is waited for and its
   completion answers the run, and one that never finishes is stopped once
   the wait runs out; a command left running is stopped and named.
-- `scripts/smoke.sh` Phase 153: `alter-zero -p --verbose` from a tmux pane —
+- `scripts/smoke.sh` Phase 153: `zeroth -p --verbose` from a tmux pane —
   the log and the answer on the terminal, its modes unchanged (`stty -g`), and none
   of the TUI's escapes in the raw byte stream (no DSR, no alternate screen,
   no hidden cursor, no bracketed paste, no synchronized update); and the TUI

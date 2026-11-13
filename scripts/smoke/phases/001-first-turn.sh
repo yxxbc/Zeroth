@@ -128,7 +128,7 @@ printf '%s\n' "$returned"
 # commits beneath it and never rebuilds — docs/ui/header.md; Phase 81 pins the
 # stronger property, that nothing an overlay-covered turn produced is lost).
 returned_full="$(tmux capture-pane -t "$S" -p -S -80)"
-returned_banner_count=$(printf '%s\n' "$returned_full" | grep -cF "Alter Zero")
+returned_banner_count=$(printf '%s\n' "$returned_full" | grep -cF "Zeroth")
 
 # "T R A N S C R I P T" is unique to the overlay's pager title row (it never
 # appears in the conversation), so it's a clean marker for "open / closed".
@@ -139,7 +139,7 @@ expect_has "$overlay" -F "esc to edit prev" "the overlay's closing hint does not
 expect_has "$overlay" -F "$USER_MSG" "tool-output view did not include the user/AI conversation"
 expect_has "$overlay_deep" -F 'if __name__ == "__main__":' "tool-output view did not show the full (expanded) Read output"
 if [ "${returned_banner_count:-0}" -gt 1 ]; then
-	fail "the Ctrl+O return duplicated the header banner over a long conversation — expected at most 1 'Alter Zero' in screen+scrollback, got ${returned_banner_count:-0}"
+	fail "the Ctrl+O return duplicated the header banner over a long conversation — expected at most 1 'Zeroth' in screen+scrollback, got ${returned_banner_count:-0}"
 fi
 # Stamps in the tool view: only the USER message shows one — alone on its own
 # right-aligned line, 12-hour hh:mm AM/PM, no seconds, no date.

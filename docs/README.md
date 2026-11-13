@@ -24,6 +24,7 @@ How the crate is put together: module layout, the async loop, the context, token
 - [`architecture/memory.md`](architecture/memory.md): Resident memory: what the app holds, and what `/model` used to cost
 - [`architecture/module-layout.md`](architecture/module-layout.md): Module layout: `app/`, `ui/`, `tui/`, and `stream/`
 - [`architecture/multithread-core.md`](architecture/multithread-core.md): The multi-threaded core — N sessions in one process, measured
+- [`architecture/naming.md`](architecture/naming.md): Naming — finishing the Zeroth rename
 - [`architecture/token-estimate.md`](architecture/token-estimate.md): Token estimates, corrected by the provider
 - [`architecture/unfinished-replies.md`](architecture/unfinished-replies.md): A turn never ends on a reply that isn't one
 
@@ -144,7 +145,7 @@ What persists and what is trusted: permissions, settings, checkpoints, rollouts,
 - [`state/init.md`](state/init.md): `/init` — generate an AGENTS.md contributor guide (codex's `/init`)
 - [`state/per-directory-state.md`](state/per-directory-state.md): Per-directory state — `/model`, `/settings`, `/mascot` and `/spinner` remember the directory
 - [`state/permissions.md`](state/permissions.md): Tool permission requests
-- [`state/project-config.md`](state/project-config.md): Project-level `.alter-zero` config — hooks, MCP servers, skills, agents
+- [`state/project-config.md`](state/project-config.md): Project-level `.zeroth` config — hooks, MCP servers, skills, agents
 - [`state/project-doc.md`](state/project-doc.md): AGENTS.md in the context window — codex's project doc (Design)
 - [`state/resume.md`](state/resume.md): /resume — pick up a saved session (rollout files + session picker)
 - [`state/rollout-records.md`](state/rollout-records.md): What the rollout records about each call and request
@@ -157,9 +158,9 @@ What persists and what is trusted: permissions, settings, checkpoints, rollouts,
 The pre-TUI command surface: flags, the `[PROMPT]` shortcut, headless mode and the `mcp` subcommand family.
 
 - [`cli/cli.md`](cli/cli.md): CLI — `--help`, the `[PROMPT]` shortcut, `--continue`, `--resume [id]`, and the exit hint
-- [`cli/headless.md`](cli/headless.md): Headless mode — `alter-zero -p`
+- [`cli/headless.md`](cli/headless.md): Headless mode — `zeroth -p`
 - [`cli/batch.md`](cli/batch.md): Batch mode — several headless sessions in one process
-- [`cli/mcp-cli.md`](cli/mcp-cli.md): CLI MCP install — `alter-zero mcp add/remove/list/get/add-json`
+- [`cli/mcp-cli.md`](cli/mcp-cli.md): CLI MCP install — `zeroth mcp add/remove/list/get/add-json`
 
 ## Operations
 
@@ -169,7 +170,7 @@ Shipping it: releases, updates, the smoke suite, build time and binary size.
 - [`ops/build-time.md`](ops/build-time.md): Build time — `cargo build --release`
 - [`ops/release.md`](ops/release.md): Releases — the tag, the workflow, the assets, the notes
 - [`ops/smoke.md`](ops/smoke.md): The smoke suite — `scripts/smoke.sh`
-- [`ops/update.md`](ops/update.md): Update notice — the once-a-day release check and `alter-zero update`
+- [`ops/update.md`](ops/update.md): Update notice — the once-a-day release check and `zeroth update`
 
 ## Credits
 

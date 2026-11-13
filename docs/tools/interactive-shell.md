@@ -1085,7 +1085,7 @@ unaffected. Variables that describe the TUI's *own* terminal (`TMUX`,
 steer a program toward features the session's emulator does not have — and
 `HERDR_PANE_ID` with them, since it names the herdr pane the TUI is drawn in:
 a nested agent's herdr integration reporting under it would make itself the
-pane's owner, after which herdr drops every report alter-zero sends, and
+pane's owner, after which herdr drops every report zeroth sends, and
 `herdr … --current` would type into the TUI itself (`docs/architecture/herdr.md`; every
 pipe-run child and MCP server goes without it too). `HERDR_ENV` and herdr's
 socket stay, so the model can still drive herdr — its agent skill checks

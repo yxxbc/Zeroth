@@ -48,7 +48,7 @@ pub(crate) struct Host {
     /// The discovered subagent definitions, in precedence order.
     pub(crate) agents: Vec<zeroth::subagents::AgentDefinition>,
     pub(crate) agent_errors: Vec<zeroth::subagents::AgentFileError>,
-    /// This directory's `/settings` entry with the `ALTER_ZERO_*` overrides
+    /// This directory's `/settings` entry with the `ZEROTH_*` overrides
     /// already applied, and the tips cursor the session starts on.
     pub(crate) settings: zeroth::settings::SessionSettings,
     pub(crate) tips_next: usize,
@@ -310,7 +310,7 @@ pub(crate) fn local_offset(at: i64) -> i32 {
 /// through rustix's safe `geteuid` (this crate forbids `unsafe`, so no
 /// `libc`), on macOS as on Linux: the `/proc/self` owner it replaced answered
 /// 0 wherever `/proc` is absent, which on a Linux sandbox without it put every
-/// user under one `/tmp/alter-zero-0`.
+/// user under one `/tmp/zeroth-0`.
 #[cfg(unix)]
 pub(crate) fn process_uid() -> u32 {
     rustix::process::geteuid().as_raw()

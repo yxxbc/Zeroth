@@ -52,15 +52,15 @@ impl<T: Clone> ProjectFile<T> {
     }
 }
 
-/// The project's `.alter-zero` layer, read once at bootstrap
+/// The project's `.zeroth` layer, read once at bootstrap
 /// (`docs/state/project-config.md`).
 #[derive(Debug, Clone)]
 pub(crate) struct ProjectLayer {
     /// The project root — the `/trust` era's key for its approvals.
     pub(crate) root: PathBuf,
-    /// `{root}/.alter-zero/hooks.json`, when present.
+    /// `{root}/.zeroth/hooks.json`, when present.
     pub(crate) hooks: Option<ProjectFile<hooks::HooksFile>>,
-    /// `{root}/.alter-zero/mcp.json`, when present.
+    /// `{root}/.zeroth/mcp.json`, when present.
     pub(crate) mcp_alter: Option<ProjectFile<mcp::McpFile>>,
     /// `{root}/.mcp.json` (the Claude-Code-compat name), when present.
     pub(crate) mcp_compat: Option<ProjectFile<mcp::McpFile>>,
@@ -95,7 +95,7 @@ pub(crate) struct TrustState {
     /// The user's hooks file: its path and parse (empty when absent or
     /// broken — the broken one's toast is `report_hooks_error`'s).
     user_hooks: Option<(PathBuf, hooks::HooksFile)>,
-    /// The project layer; `None` when `ALTER_ZERO_PROJECT_CONFIG` is off or
+    /// The project layer; `None` when `ZEROTH_PROJECT_CONFIG` is off or
     /// the cwd resolves to the home directory.
     pub(crate) project: Option<ProjectLayer>,
 }
@@ -392,7 +392,7 @@ fn server_detail(config: &mcp::McpServerConfig) -> Vec<String> {
 }
 
 /// Gather the project layer at bootstrap: resolve the root and read each
-/// project file. `None` when `ALTER_ZERO_PROJECT_CONFIG` is off, or the
+/// project file. `None` when `ZEROTH_PROJECT_CONFIG` is off, or the
 /// root is the home directory (never a project, `trust::is_project_root`).
 pub(crate) fn load_project_layer(cwd: &Path) -> Option<ProjectLayer> {
     if !config::project_config_enabled() {

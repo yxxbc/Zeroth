@@ -19,7 +19,7 @@ use super::config;
 /// server shadows the user's, one waiting for the review or declined is
 /// listed but held — plus this project's disabled set, the token-store path,
 /// and the timeout knobs. Pure parse/merge over boundary reads. Without a
-/// project layer (`ALTER_ZERO_PROJECT_CONFIG` off) no project file
+/// project layer (`ZEROTH_PROJECT_CONFIG` off) no project file
 /// contributes at all.
 pub(crate) fn load_mcp_sources(cwd: &Path, trust: &super::trust::TrustState) -> McpSources {
     let project = cwd.display().to_string();

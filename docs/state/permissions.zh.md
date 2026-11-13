@@ -143,6 +143,14 @@ edit —— 而兄弟一多，连选项都跑出了屏幕底部。所以这些�
 否则就是被询问的那个调用本身 —— 永远不会被丢掉，这样 prompt 始终是关于屏幕上
 某个东西的问题。
 
+被询问的那个调用是从请求的 **call id** 读出来的（
+`PermissionRequest::call_id` —— 与它的批次摘要和 `ToolStart` 携带的是同一个
+id），而不是假定它就是队列头。一个并行批次按模型的顺序在任何一个调用开始
+*之前*逐个询问每个调用的权限，所以第五个问题到达时，队列里已经躺着五个
+`⎿ Waiting…` 单元格 —— prompt 把第五个提到它 context 的最前面，更早的单元格
+排在它后面（`asked_first`，`docs/tools/parallel-tools.md`）。没有任何 wire 调用
+发起的请求（一个脚本化的回合、一个续上的 prompt）保持旧的队列顺序。
+
 当整页**流动**时（正文比终端高），context 随之流动 —— 前提是它*静态*。排队的
 `⎿ Waiting…` 单元格就是静态的：approve 接缝跑在它的 `ToolStart` 之前，所以答案
 悬而未决期间什么都不可能变，它**完整且不折叠**地进入 scrollback（已经没有一屏要
@@ -221,7 +229,7 @@ prompt 只有十几行；回答高的那个会把它的单元格提交出活跃�
 
 1. **Yes** —— 只批准这一次调用。
 2. 对 `write`/`edit` 是 **Yes, allow all edits during this session (shift+tab)** ——
-   这*就是*切换到 [edit 模式](#permission-modes-manual--edit)，而 Shift+Tab
+   这*就是*切换到 [edit 模式](#权限模式manual--edit--auto--master)，而 Shift+Tab
    （模式切换键）会直接选中它；
    对 `bash` 是 **Yes, and don't ask again for: {rule}** —— 规则就是它将被存储的
    样子：前缀规则用 `python3 *`（星号意为"这个程序，任意参数"，即 Claude Code 的
@@ -251,7 +259,7 @@ prompt 只有十几行；回答高的那个会把它的单元格提交出活跃�
   `docs/input/interrupt.md`）。
 - **Tab** —— 修改：选项列表被 composer 替换，这样你可以输入模型应该改成做什么。
   Enter 会拒绝，**并**把这段反馈附在工具结果上、*同时*记录在单元格上；Esc 回到
-  选项。见 [修改反馈的价值是什么](#what-the-amend-feedback-is-worth)。
+  选项。见 [修改反馈的价值是什么](#amend-反馈值多少)。
 - **ctrl+e**（仅 `bash`）—— 解释：拒绝，并附带一条指示，要求它解释这条命令做什么
   然后重新询问，而不是执行它。
 
@@ -370,7 +378,7 @@ footer 那段被隐藏，Shift+Tab 改成弹出一个 `Tool permissions are disa
 
 1. 命令行上的 **`--permission-mode <MODE>`** —— 下面那个变量的 flag 形式，优先级
    更高（`docs/cli/cli.md`）。解析会直接拒绝未知的模式，并点名那四个。
-2. **`ALTER_ZERO_PERMISSION_MODE`** —— `manual`、`edit`、`auto` 或 `master`，
+2. **`ZEROTH_PERMISSION_MODE`** —— `manual`、`edit`、`auto` 或 `master`，
    大小写不限 —— 仅对这次启动有效。这两个种子都优先于项目保存的模式，并且**从不
    被保存**：只有用户自己选定的模式才会写进 `permissions.json`（见下文）。空值
    视为未设置；其他任何值都以 manual 启动本次运行，一个读不出的已保存标签同样
@@ -386,7 +394,7 @@ auto 是默认值，因为 manual 会为每一次文件改动、每一条命令�
 的任务都变成一连串的批准。auto 让文件改动跑起来 —— footer 写着模式，Shift+Tab 只
 差一个键 —— 并把每条 allowlist 未覆盖的命令送到 classifier 面前，后者在得不出结论
 时随时退回普通的 prompt。代价是每一次被复核的调用都向 session 自己的 provider 发
-一次 classifier 请求。smoke 套件固定设置 `ALTER_ZERO_PERMISSION_MODE=manual`，
+一次 classifier 请求。smoke 套件固定设置 `ZEROTH_PERMISSION_MODE=manual`，
 好让它的 prompt 相关阶段仍能遇到它们的 prompt（`docs/ops/smoke.md`）；Phase 64
 不带它启动，以覆盖默认值。
 
@@ -499,7 +507,7 @@ system prompt 把整个块钉死为信息而非指令 —— 其中任何内容�
 （`classifier::parse_verdict`）仍容忍爱闲聊的模型的前言，而任何没有可识别
 裁决的回复都是**错误，绝不是 allow**。该调用运行在 session 的 `ModelConfig`
 的一份无 tools 克隆上，且 thinking 被丢弃（裁决不需要推理预算）；
-`ALTER_ZERO_CLASSIFIER_MODEL` 可在同一 provider 上换成一个更便宜的 model
+`ZEROTH_CLASSIFIER_MODEL` 可在同一 provider 上换成一个更便宜的 model
 id —— Claude Code 的 small-fast-model 槽位。取消走与每个请求相同的
 `CancelToken` 轮询，而一次*因为*该轮被拆掉才失败的 classify，处理方式与被
 收割的 gate 等待相同 —— 不会有 prompt 被拉进一个正在死去的轮。
@@ -708,10 +716,28 @@ system prompt 之下。
 强制 ask 仍然会问。并且它是可见的，走的正是 classifier 裁决所用的那条通道：
 
 ```
-● Write(/tmp/alter-zero-1000/18ce…-5d77f/scratchpad/plan.md)
+● Write(/tmp/zeroth-1000/18ce…-5d77f/scratchpad/plan.md)
   ⎿  Wrote 12 lines to …/scratchpad/plan.md
   ⎿  Allowed in the session scratchpad
 ```
+
+## 工作区路径监狱
+
+`auto` 与 `edit` 模式的“文件改动别再问了”说的是**项目**，不是用户的家目录。
+一个 `write`/`edit` 的目标若落在 session 的工作区（启动时的 cwd）与 scratchpad
+之外，即便在这两个模式下也不被常设规则覆盖：`PermissionGate::allows` 返回
+false，调用落到 prompt（或者，在 headless 运行里落到无人应答的拒绝）。`master`
+是明示的“什么都行”姿态，绕过这道监狱。
+
+这道检查是 `file_change_inside`：目标里带有任何词法上的 `..` 直接拒绝；一个已
+存在的路径，或一个尚不存在的路径的父目录，会被规范化，所以项目下的一个符号
+链接无法把写入指向 `~/.ssh` 或 `.git/hooks`；相对路径对每一个根分别解析。没有
+设置工作区的 gate（一个单元测试，一个从未注入过工作区的调用方）保持过去那种
+不设监狱的姿态。executor 会再查一遍：`write`/`edit` 拒绝符号链接目标（包括悬空
+的），而不是跟随它，因为模型的路径在 gate 处被检查、而写入发生在之后 —— 在两者
+之间放下的一个链接绝不能把写入递到外面去（`run_write`/`run_edit`）。这只是
+write/edit 的监狱 —— `bash` 仍然能碰到它命令点名的任何东西，这正是 classifier
+与各道读取闸存在的原因。
 
 ## 按项目持久化（`~/.zeroth/permissions.json`）
 
@@ -723,7 +749,7 @@ system prompt 之下。
 ```json
 {
   "projects": {
-    "/home/user/Codes/rust/project/alter-zero": {
+    "/home/user/Codes/rust/project/zeroth": {
       "allow_commands": ["git status *", "python3 *"],
       "mode": "edit"
     }
@@ -745,7 +771,7 @@ system prompt 之下。
 再写回** —— 一次模式变更（Shift+Tab、`/settings` 行、文件 prompt 上的选项
 2）只改 `mode`（`record_mode`），一条命令或 MCP rule（其 prompt 上的选项 2）
 只改 `allow_commands`（`record_commands`）。这个拆分正是把
-`ALTER_ZERO_PERMISSION_MODE` 的播种挡在文件之外的原因 —— gate 的实时模式
+`ZEROTH_PERMISSION_MODE` 的播种挡在文件之外的原因 —— gate 的实时模式
 携带着播种值，否则在其下保存的一条 rule 会把播种值写到项目选定的模式上
 （`settings.json` 的规则，`docs/state/per-directory-state.md`）—— 同时也让
 同一目录里第二个实例保存的 rule 不再覆盖第一个实例期间选定的模式。
@@ -917,7 +943,7 @@ its content*），所以光标从不需要重新推导正文。尾部块收束�
 
 ## 没人可问：headless 运行
 
-headless 运行（`alter-zero -p`，`docs/cli/headless.md`）没有屏幕可放 prompt，
+headless 运行（`zeroth -p`，`docs/cli/headless.md`）没有屏幕可放 prompt，
 所以它的 gate 是**无人值守**的（`PermissionGate::set_unattended`）。在 prompt
 之前作答的一切仍然作答 —— allowlist、scratchpad 豁免、只读 fast path、一个
 `PermissionRequest` hook、classifier —— 只有最后一步变了：在 `approve_call`
@@ -944,11 +970,11 @@ headless 运行（`alter-zero -p`，`docs/cli/headless.md`）没有屏幕可放 
 
 ## 关掉它
 
-`ALTER_ZERO_PERMISSIONS=0`（或 `false`/`no`/`off`）让 session 起来时根本不挂
+`ZEROTH_PERMISSIONS=0`（或 `false`/`no`/`off`）让 session 起来时根本不挂
 gate，每个 tool 都像这个特性之前那样运行。`LlmBackend` 只在装了 gate 时才询问，
 所以直接构建 backend 的嵌入方（以及 live 集成测试）不受影响。没有 gate 也就
 没有模式：footer 右边缘那一段消失，Shift+Tab 用一个 toast 说明自己，而不是假
-装切换什么，而 `ALTER_ZERO_PERMISSION_MODE` 也无处可播种。
+装切换什么，而 `ZEROTH_PERMISSION_MODE` 也无处可播种。
 
 ## 测试
 
@@ -963,7 +989,7 @@ gate，每个 tool 都像这个特性之前那样运行。`LlmBackend` 只在装
   形状，包含 manual/master 标签，保留其他项目，垃圾 → 空文件，模式缺失 →
   auto，未知标签 → manual，auto 省略而 manual 写入），两条局部记录
   （`record_commands` 保留已保存的模式，`record_mode` 保留 allowlist，所以
-  一个播种的模式绝不会落进文件），`ALTER_ZERO_PERMISSION_MODE` 语法
+  一个播种的模式绝不会落进文件），`ZEROTH_PERMISSION_MODE` 语法
   （`mode_by_env`：未设置与空白不播种，标签任意大小写，其他一律 manual）与
   `starting_mode` 的优先级（播种值 > 保存的模式 > auto），以及 gate 的阻塞往
   返（真线程）+ 共享模式 + 播种命令。
@@ -1071,7 +1097,7 @@ gate，每个 tool 都像这个特性之前那样运行。`LlmBackend` 只在装
   空换行 bug）—— 高的 `write` 的已解决 cell 在其上清晰可见、恰好提交一次，之
   后盒子贴回底部。
 - `smoke.sh` Phase 64 —— 模式端到端，启动时不带套件的
-  `ALTER_ZERO_PERMISSION_MODE=manual`：新 session 的 footer 在任何按键之前读
+  `ZEROTH_PERMISSION_MODE=manual`：新 session 的 footer 在任何按键之前读
   作 `auto`；“auto permission”演示由离线 classifier 裁决，不弹 prompt，也不
   往 `permissions.json` 写任何东西；一次 Shift+Tab 是 master（保存为
   `"master"`，演示静默运行），第二次是 manual，保存为 `"mode": "manual"` 并

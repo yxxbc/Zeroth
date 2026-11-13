@@ -1,9 +1,9 @@
 # `/settings` — the session settings menu
 
 Every knob this app has was, until now, an environment variable you had to know
-about before launch: `ALTER_ZERO_SHOW_THINKING`, `ALTER_ZERO_TOOLS`,
-`ALTER_ZERO_CHECKPOINTS`, `ALTER_ZERO_TEMPERATURE`,
-`ALTER_ZERO_PROJECT_DOC_MAX_BYTES`, plus a hard-coded `retry::MAX_RETRIES`, a
+about before launch: `ZEROTH_SHOW_THINKING`, `ZEROTH_TOOLS`,
+`ZEROTH_CHECKPOINTS`, `ZEROTH_TEMPERATURE`,
+`ZEROTH_PROJECT_DOC_MAX_BYTES`, plus a hard-coded `retry::MAX_RETRIES`, a
 hard-coded `agent::MAX_TOOL_ITERATIONS`, and an always-on auto-compaction. `/settings` makes that inventory **visible and
 changeable mid-session**, in the shape `/model` and `/login` already established:
 an inline picker that replaces the composer, type-to-search, and one keystroke
@@ -39,26 +39,26 @@ same thing on every row and the menu never needs an edit mode.
 
 | Setting | Values | What it changes |
 |---|---|---|
-| **Hide thinking** | `false` / `true` | Whether the model's chain-of-thought streams in the live `● Thinking…` cell and collapses into a `Thought for …` line (`docs/ui/thinking-stream.md`). `true` restores the counted-and-dropped behaviour. Seeded from `ALTER_ZERO_SHOW_THINKING`. |
-| **Verbose output** | **`false`** / `true` | Whether every read, search, listing and scratchpad edit keeps a cell of its own (`true`, the tool cells exactly as they always were) or a run of them folds into one collapsed line — `● Reading 2 files, listing 1 directory…` while it runs, the dim `Read 2 files, listed 1 directory (ctrl+o to expand)` once it is over, a `write`/`edit` in the session's scratchpad its own leading `made 1 scratchpad edit +55` clause (`docs/ui/tool-groups.md`). **Off by default**, Claude Code's non-verbose view; Ctrl+O shows every call whole either way. Cycling it purge-rebuilds, so the committed conversation changes shape at once. Seeded from `ALTER_ZERO_VERBOSE`. |
+| **Hide thinking** | `false` / `true` | Whether the model's chain-of-thought streams in the live `● Thinking…` cell and collapses into a `Thought for …` line (`docs/ui/thinking-stream.md`). `true` restores the counted-and-dropped behaviour. Seeded from `ZEROTH_SHOW_THINKING`. |
+| **Verbose output** | **`false`** / `true` | Whether every read, search, listing and scratchpad edit keeps a cell of its own (`true`, the tool cells exactly as they always were) or a run of them folds into one collapsed line — `● Reading 2 files, listing 1 directory…` while it runs, the dim `Read 2 files, listed 1 directory (ctrl+o to expand)` once it is over, a `write`/`edit` in the session's scratchpad its own leading `made 1 scratchpad edit +55` clause (`docs/ui/tool-groups.md`). **Off by default**, Claude Code's non-verbose view; Ctrl+O shows every call whole either way. Cycling it purge-rebuilds, so the committed conversation changes shape at once. Seeded from `ZEROTH_VERBOSE`. |
 | **Show images** | `true` / `false` | Whether a pasted screenshot and the `read` tool's image reads are drawn as pictures in the conversation (`docs/ui/images.md`). `false (unavailable)` when the terminal can't draw one. Cycling it purge-rebuilds, so committed pictures appear or vanish at once. |
 | **Image width** | `60` / `80` / `120` | An inline picture's width **cap**, in columns — clamped to the terminal, and never used to blow a small picture up. Cycling it purge-rebuilds like **Show images**. |
 | **Auto-resize images** | `true` / `false` | Whether a large picture is downscaled to 2000×2000 before it is **sent to the model** (`docs/ui/images.md`). Nothing to do with the display, so the row stays available even on a terminal that can't draw. |
 | **Error retry** | `0` / `1` / `2` / `3` / `5` / `10` | How many times a request the provider **answers badly** (a `5xx`, a reset, a stall) is retried before the error surfaces (`llm::retry`, the `retrying n/N` status). A connection that cannot be made at all is not counted: it is **waited for**, every few seconds for as long as it takes, under the `Waiting for internet…` status (`docs/providers/offline.md`). `0` means never retry, the wait included. Was the fixed `MAX_RETRIES = 3`. |
-| **Tools** | `true` / `false` | Whether `bash`/`read`/`write`/`edit`/`agent` are offered to the model at all (`docs/tools/tools.md`). Seeded from `ALTER_ZERO_TOOLS`. Off also withdraws both halves of the `<system-reminder>` — the skills listing and the agent-type listing (`docs/agents/subagents.md`): a roster for a tool the request never carries is a dead end. |
-| **Permission mode** | `manual` / `edit` / **`auto`** / `master` | The same posture Shift+Tab cycles (`docs/state/permissions.md`) — the row is a second door onto one state, not a copy of it. **`auto` until a project saves another mode**, which it keeps per project in `permissions.json` rather than `settings.json`; seeded for a run, and never saved, from `ALTER_ZERO_PERMISSION_MODE`. |
-| **Checkpoints** | **`false`** / `true` | Per-turn working-directory snapshots (`docs/state/checkpoint.md`). **Off until a directory turns it on** (`docs/state/per-directory-state.md`); seeded from `ALTER_ZERO_CHECKPOINTS`; forced to `false`, unchangeably, when the store can't run at all (no git, no config home, or a cwd the feature refuses — see *Unavailable settings*). |
+| **Tools** | `true` / `false` | Whether `bash`/`read`/`write`/`edit`/`agent` are offered to the model at all (`docs/tools/tools.md`). Seeded from `ZEROTH_TOOLS`. Off also withdraws both halves of the `<system-reminder>` — the skills listing and the agent-type listing (`docs/agents/subagents.md`): a roster for a tool the request never carries is a dead end. |
+| **Permission mode** | `manual` / `edit` / **`auto`** / `master` | The same posture Shift+Tab cycles (`docs/state/permissions.md`) — the row is a second door onto one state, not a copy of it. **`auto` until a project saves another mode**, which it keeps per project in `permissions.json` rather than `settings.json`; seeded for a run, and never saved, from `ZEROTH_PERMISSION_MODE`. |
+| **Checkpoints** | **`false`** / `true` | Per-turn working-directory snapshots (`docs/state/checkpoint.md`). **Off until a directory turns it on** (`docs/state/per-directory-state.md`); seeded from `ZEROTH_CHECKPOINTS`; forced to `false`, unchangeably, when the store can't run at all (no git, no config home, or a cwd the feature refuses — see *Unavailable settings*). |
 | **Auto compact** | `true` / `false` | Whether the loop runs the summarization turn on its own past 90 % of the context window (`docs/architecture/compact.md`). `/compact` by hand is unaffected. |
-| **Project docs** | `true` / `false` | Whether the project's `AGENTS.md` files are re-read each turn into the context's leading user entry (`docs/state/project-doc.md`). Seeded from `ALTER_ZERO_PROJECT_DOC_MAX_BYTES=0`. |
-| **Hooks** | **`true`** / `false` | Whether the lifecycle hooks the user trusted run — the user's `~/.zeroth/hooks.json` and a project's — around tool calls, turns, and the session boundaries (`docs/tools/hooks.md`). **On until a directory turns it off** (`docs/state/per-directory-state.md`); each hook runs once it is trusted in the startup review (`docs/state/config-review.md`); seeded from `ALTER_ZERO_HOOKS`; **unavailable** when no hooks file resolved or it had nothing runnable in it. |
-| **Skills** | `true` / `false` | Whether the `skill` tool is offered and the `<system-reminder>` listing rides the context (`docs/tools/skills.md`). Seeded from `ALTER_ZERO_SKILLS`; **unavailable** when no `SKILL.md` loaded — there is nothing to turn on. |
-| **MCP** | **`true`** / `false` | Whether the MCP servers connect and the model is offered their tools and instructions (`docs/tools/mcp.md` *MCP off for the session*). **On until a directory turns it off**, the Hooks posture. Off stops every server, and each keeps its own `/mcp` enabled or disabled state, so turning the row back on brings back exactly the servers that were enabled; `/mcp` still opens and says MCP is off. Seeded from `ALTER_ZERO_MCP`; **unavailable** when no server is declared in the user's `mcp.json` or a project's. |
-| **Temperature** | `default` / `0.0` / `0.3` / `0.5` / `0.7` / `1.0` | The sampling temperature every request carries; `default` sends none and leaves it to the provider. Seeded from `ALTER_ZERO_TEMPERATURE`. |
+| **Project docs** | `true` / `false` | Whether the project's `AGENTS.md` files are re-read each turn into the context's leading user entry (`docs/state/project-doc.md`). Seeded from `ZEROTH_PROJECT_DOC_MAX_BYTES=0`. |
+| **Hooks** | **`true`** / `false` | Whether the lifecycle hooks the user trusted run — the user's `~/.zeroth/hooks.json` and a project's — around tool calls, turns, and the session boundaries (`docs/tools/hooks.md`). **On until a directory turns it off** (`docs/state/per-directory-state.md`); each hook runs once it is trusted in the startup review (`docs/state/config-review.md`); seeded from `ZEROTH_HOOKS`; **unavailable** when no hooks file resolved or it had nothing runnable in it. |
+| **Skills** | `true` / `false` | Whether the `skill` tool is offered and the `<system-reminder>` listing rides the context (`docs/tools/skills.md`). Seeded from `ZEROTH_SKILLS`; **unavailable** when no `SKILL.md` loaded — there is nothing to turn on. |
+| **MCP** | **`true`** / `false` | Whether the MCP servers connect and the model is offered their tools and instructions (`docs/tools/mcp.md` *MCP off for the session*). **On until a directory turns it off**, the Hooks posture. Off stops every server, and each keeps its own `/mcp` enabled or disabled state, so turning the row back on brings back exactly the servers that were enabled; `/mcp` still opens and says MCP is off. Seeded from `ZEROTH_MCP`; **unavailable** when no server is declared in the user's `mcp.json` or a project's. |
+| **Temperature** | `default` / `0.0` / `0.3` / `0.5` / `0.7` / `1.0` | The sampling temperature every request carries; `default` sends none and leaves it to the provider. Seeded from `ZEROTH_TEMPERATURE`. |
 | **Max tool calls** | **`0`** / `5` / `10` / `20` / `50` / `100` | How many tool **calls** one turn may run before it gives up (`llm::agent::run_agent`'s cap). **`0` is no limit, and the default** — see below. |
-| **Ask timeout** | `5m` / **`10m`** / `20m` / `30m` / `1h` / `never` | How long an `AskUserQuestion` question waits on an **idle** user before it resolves unanswered and the agent keeps working on its own judgment (`docs/tools/ask.md`) — any key press or paste starts the wait over, and the modal's closing rule counts it down. `never` stops the clock. Seeded from `ALTER_ZERO_ASK_TIMEOUT_SECS` (seconds, `0` = never), whose odd values still read whole (`1m 30s`). Read where it is used: the draw tick reads it on every reading of the idle clock, so a new value applies to a wait already running and `never` stops it at once. |
-| **Show tips** | `true` / `false` | Whether a dim `⎿  Tip: …` row hangs off the status line once a turn has run three seconds — a key or command worth knowing, the next in the catalog each turn (`docs/ui/tips.md`; Claude Code's `spinnerTipsEnabled`). **Per user, not per directory**: persisted in `tips.json` beside the walk's position, never in `settings.json`. Seeded from `ALTER_ZERO_TIPS`, which — not being a privacy switch — never withdraws the row. Needs nothing from the host, so it is never unavailable. |
-| **Update check** | `true` / `false` | Whether the app asks the repository once a day whether a newer release is out and says so under the banner (`docs/ops/update.md`: one `HEAD` of `/releases/latest`, answered by a redirect whose tag is the version — no body, no install id, nothing about you; the card names the release, `alter-zero update` and the off switch, once a day, never mid-reply). **Per user, not per directory**: persisted in `update.json`, never in `settings.json`. Seeded from `ALTER_ZERO_UPDATE_CHECK`; **unavailable** without a config home (nowhere to remember the day) **and whenever the variable forbids it** — the Telemetry rule, an environment that says no withdraws the row. `alter-zero update` on the command line is the user's own request and runs regardless. |
-| **Telemetry** | `true` / `false` | Whether the anonymous daily usage ping is sent (`TELEMETRY.md`: five fields — a payload version, a random install id, the app version, the OS and the architecture — never a prompt, path, model or key; the collector notes the country, never the address). **Per user, not per directory**: persisted in `telemetry.json`, never in `settings.json`. Seeded from `ALTER_ZERO_TELEMETRY`, outranked by `DO_NOT_TRACK=1`; **unavailable** without a config home (nowhere to keep the install id) **and whenever either variable forbids it** — alone among the rows, an environment that says no withdraws the row rather than merely seeding it, since an opt-out a keystroke could undo is not one (`TELEMETRY.md`). |
+| **Ask timeout** | `5m` / **`10m`** / `20m` / `30m` / `1h` / `never` | How long an `AskUserQuestion` question waits on an **idle** user before it resolves unanswered and the agent keeps working on its own judgment (`docs/tools/ask.md`) — any key press or paste starts the wait over, and the modal's closing rule counts it down. `never` stops the clock. Seeded from `ZEROTH_ASK_TIMEOUT_SECS` (seconds, `0` = never), whose odd values still read whole (`1m 30s`). Read where it is used: the draw tick reads it on every reading of the idle clock, so a new value applies to a wait already running and `never` stops it at once. |
+| **Show tips** | `true` / `false` | Whether a dim `⎿  Tip: …` row hangs off the status line once a turn has run three seconds — a key or command worth knowing, the next in the catalog each turn (`docs/ui/tips.md`; Claude Code's `spinnerTipsEnabled`). **Per user, not per directory**: persisted in `tips.json` beside the walk's position, never in `settings.json`. Seeded from `ZEROTH_TIPS`, which — not being a privacy switch — never withdraws the row. Needs nothing from the host, so it is never unavailable. |
+| **Update check** | `true` / `false` | Whether the app asks the repository once a day whether a newer release is out and says so under the banner (`docs/ops/update.md`: one `HEAD` of `/releases/latest`, answered by a redirect whose tag is the version — no body, no install id, nothing about you; the card names the release, `zeroth update` and the off switch, once a day, never mid-reply). **Per user, not per directory**: persisted in `update.json`, never in `settings.json`. Seeded from `ZEROTH_UPDATE_CHECK`; **unavailable** without a config home (nowhere to remember the day) **and whenever the variable forbids it** — the Telemetry rule, an environment that says no withdraws the row. `zeroth update` on the command line is the user's own request and runs regardless. |
+| **Telemetry** | `true` / `false` | Whether the anonymous daily usage ping is sent (`TELEMETRY.md`: five fields — a payload version, a random install id, the app version, the OS and the architecture — never a prompt, path, model or key; the collector notes the country, never the address). **Per user, not per directory**: persisted in `telemetry.json`, never in `settings.json`. Seeded from `ZEROTH_TELEMETRY`, outranked by `DO_NOT_TRACK=1`; **unavailable** without a config home (nowhere to keep the install id) **and whenever either variable forbids it** — alone among the rows, an environment that says no withdraws the row rather than merely seeding it, since an opt-out a keystroke could undo is not one (`TELEMETRY.md`). |
 
 ### The ceiling counts calls, not rounds
 
@@ -380,19 +380,19 @@ pattern); `apply_setting` writes each to its own file, and none of them
 ever moves into this directory's entry.
 
 Precedence at startup is the same rule the rest of the app follows — **the
-environment wins**: an explicitly set `ALTER_ZERO_*` variable overrides the saved
+environment wins**: an explicitly set `ZEROTH_*` variable overrides the saved
 value for that one setting (`tui::config::apply_setting_overrides` — including
-`ALTER_ZERO_HOOKS`, which seeds the **Hooks** row the way `ALTER_ZERO_TOOLS`
-seeds **Tools**, and `ALTER_ZERO_MCP`, which seeds **MCP** the same way).
+`ZEROTH_HOOKS`, which seeds the **Hooks** row the way `ZEROTH_TOOLS`
+seeds **Tools**, and `ZEROTH_MCP`, which seeds **MCP** the same way).
 Anything neither set nor saved takes its default.
 
-And, as with `ALTER_ZERO_MODEL`, the environment **never sticks**. A save is a
+And, as with `ZEROTH_MODEL`, the environment **never sticks**. A save is a
 read-modify-write over the file itself: the directory's entry is re-read (else
 the seed), **only the key the user cycled** moves across from the live blob
 (`SessionSettings::copy_value` / `SettingsFile::record_value`), and the entry
 is written back. Writing the merged live blob instead would have quietly
 persisted an override set for one run: turn `Error retry` up in a shell that
-happens to export `ALTER_ZERO_TOOLS=0`, and every later session in that
+happens to export `ZEROTH_TOOLS=0`, and every later session in that
 directory would have started with tools off.
 
 ### Hooks and checkpoints default to off
@@ -404,7 +404,7 @@ tree under `~/.zeroth`. The opt-in is one cycle in the directory that
 wants it, recorded there as `"checkpoints": true`. **Hooks** are **on**, and
 each hook — the user's or a project's — runs once it is trusted in the
 startup review (`docs/state/config-review.md`); a directory opts out with one cycle,
-recorded as `"hooks": false`. `ALTER_ZERO_HOOKS` / `ALTER_ZERO_CHECKPOINTS`
+recorded as `"hooks": false`. `ZEROTH_HOOKS` / `ZEROTH_CHECKPOINTS`
 seed either for a run without saving anything — which is how `smoke.sh`'s
 hooks and checkpoint phases get them. **MCP** follows Hooks: on, each server
 still connecting only once it is enabled (a project's in the startup
@@ -423,5 +423,5 @@ one config home); Phase 139 opens it on a 12-row terminal and walks its compact
 page; Phase 146 cycles **Verbose output** over a collapsed read/search group
 and checks the rebuild unfolds it (`docs/ui/tool-groups.md`); Phase 152 cycles
 **MCP** off and on against a scripted server and checks it stops, stays off
-across a relaunch, connects again, and that `ALTER_ZERO_MCP=0` is never saved
+across a relaunch, connects again, and that `ZEROTH_MCP=0` is never saved
 (`docs/tools/mcp.md`).

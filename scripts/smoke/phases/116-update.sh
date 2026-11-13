@@ -11,7 +11,7 @@ smoke_begin
 # by the release tooling's own package_dist, so the archive's layout and
 # checksum are exactly a real release's — plus install.sh, and redirects
 # /releases/latest to it. The launches below UNSET the suite-wide
-# ALTER_ZERO_UPDATE_CHECK=0 and point the app at the stub, each against a
+# ZEROTH_UPDATE_CHECK=0 and point the app at the stub, each against a
 # fresh config home. NO_PROXY keeps a developer's HTTP proxy off loopback.
 S116="${S}_update"
 UP_TMP="$(mktemp -d "$SMOKE_TMP/update.XXXXXX")"
@@ -48,7 +48,7 @@ up_stop() {
 	wait "$UP_SERVER" 2>/dev/null
 	UP_SERVER=""
 }
-UP_BASE="env -u ALTER_ZERO_UPDATE_CHECK NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_SKILLS_DIR=$SMOKE_SKILLS ALTER_ZERO_AGENTS_DIR=$SMOKE_AGENTS ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
+UP_BASE="env -u ZEROTH_UPDATE_CHECK NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
 up_quit() {
 	submit "$S116" "/quit"
 	sleep 0.6
@@ -75,7 +75,7 @@ TODAY="$(date -u +%Y-%m-%d)"
 # command, and update.json records the check, what it found, and the day
 # the card was shown.
 up_start v9.9.9
-tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ALTER_ZERO_UPDATE_URL=http://127.0.0.1:$UP_PORT ALTER_ZERO_CONFIG_DIR=$UP_TMP/home $BIN"
+tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ZEROTH_UPDATE_URL=http://127.0.0.1:$UP_PORT ZEROTH_CONFIG_DIR=$UP_TMP/home $BIN"
 up_first="$(wait_pane 10 "$S116" -S -40 -- -F "$UP_CARD")" || fail "the card never appeared under the banner"
 dump "the first launch against v9.9.9" "$up_first"
 if ! printf '%s' "$up_first" | grep -qF "v9.9.9"; then
@@ -87,7 +87,7 @@ fi
 if ! printf '%s' "$up_first" | grep -qF "zeroth update"; then
 	fail "the card does not name zeroth update"
 fi
-if ! printf '%s' "$up_first" | grep -qF "ALTER_ZERO_UPDATE_CHECK=0"; then
+if ! printf '%s' "$up_first" | grep -qF "ZEROTH_UPDATE_CHECK=0"; then
 	fail "the card lost its opt-out — clamped instead of wrapped?"
 fi
 if ! printf '%s' "$up_first" | grep -qF "releases/tag/v9.9.9"; then
@@ -116,7 +116,7 @@ up_quit
 # (b) The relaunch on the same config home the same day: no card a second
 # time, and the /settings row toggles the switch into update.json — never
 # settings.json.
-tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ALTER_ZERO_UPDATE_URL=http://127.0.0.1:$UP_PORT ALTER_ZERO_CONFIG_DIR=$UP_TMP/home $BIN"
+tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ZEROTH_UPDATE_URL=http://127.0.0.1:$UP_PORT ZEROTH_CONFIG_DIR=$UP_TMP/home $BIN"
 sleep 1.5
 up_second="$(tmux capture-pane -t "$S116" -p -S -40)"
 dump "the relaunch (no second card today)" "$up_second"
@@ -151,23 +151,23 @@ tmux send-keys -t "$S116" Escape
 sleep 0.3
 up_quit
 
-# (c) ALTER_ZERO_UPDATE_CHECK=0 on a fresh config home: nothing is checked,
+# (c) ZEROTH_UPDATE_CHECK=0 on a fresh config home: nothing is checked,
 # shown or written, and the row is UNAVAILABLE — a "send nothing" stated in
 # the environment cannot be cycled around from inside the app.
-tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ALTER_ZERO_UPDATE_CHECK=0 ALTER_ZERO_UPDATE_URL=http://127.0.0.1:$UP_PORT ALTER_ZERO_CONFIG_DIR=$UP_TMP/off $BIN"
+tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ZEROTH_UPDATE_CHECK=0 ZEROTH_UPDATE_URL=http://127.0.0.1:$UP_PORT ZEROTH_CONFIG_DIR=$UP_TMP/off $BIN"
 sleep 1.5
 up_off="$(tmux capture-pane -t "$S116" -p -S -40)"
 if printf '%s' "$up_off" | grep -qF "$UP_CARD"; then
-	fail "ALTER_ZERO_UPDATE_CHECK=0 still showed the card"
+	fail "ZEROTH_UPDATE_CHECK=0 still showed the card"
 fi
 if [ -e "$UP_TMP/off/update.json" ]; then
-	fail "ALTER_ZERO_UPDATE_CHECK=0 still wrote update.json"
+	fail "ZEROTH_UPDATE_CHECK=0 still wrote update.json"
 fi
 up_open_row
 up_off_row="$(tmux capture-pane -t "$S116" -p)"
-dump "the row under ALTER_ZERO_UPDATE_CHECK=0" "$up_off_row"
+dump "the row under ZEROTH_UPDATE_CHECK=0" "$up_off_row"
 if ! printf '%s' "$up_off_row" | grep -qE "Update check +false \\(unavailable\\)"; then
-	fail "the Update check row is not unavailable under ALTER_ZERO_UPDATE_CHECK=0"
+	fail "the Update check row is not unavailable under ZEROTH_UPDATE_CHECK=0"
 fi
 tmux send-keys -t "$S116" Escape
 sleep 0.3
@@ -178,7 +178,7 @@ up_stop
 # runs and records it, and no card is shown — a build that is up to date
 # (or ahead of the last release) is never nagged.
 up_start "v$UP_VERSION"
-tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ALTER_ZERO_UPDATE_URL=http://127.0.0.1:$UP_PORT ALTER_ZERO_CONFIG_DIR=$UP_TMP/current $BIN"
+tmux new-session -d -s "$S116" -x 100 -y 34 "$UP_BASE ZEROTH_UPDATE_URL=http://127.0.0.1:$UP_PORT ZEROTH_CONFIG_DIR=$UP_TMP/current $BIN"
 for _ in $(seq 1 50); do
 	[ "$(up_field "$UP_TMP/current/update.json" latest)" = "$UP_VERSION" ] && break
 	sleep 0.1
@@ -203,7 +203,7 @@ up_quit
 UP_BIN="$UP_TMP/bin"
 mkdir -p "$UP_BIN"
 cp "$BIN_ABS" "$UP_BIN/zeroth"
-up_out="$(env $UP_BASE NO_PROXY=127.0.0.1 ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" ALTER_ZERO_CONFIG_DIR="$UP_TMP/current" "$UP_BIN/zeroth" update 2>&1)"
+up_out="$(env $UP_BASE NO_PROXY=127.0.0.1 ZEROTH_UPDATE_URL="http://127.0.0.1:$UP_PORT" ZEROTH_CONFIG_DIR="$UP_TMP/current" "$UP_BIN/zeroth" update 2>&1)"
 up_rc=$?
 note "zeroth update when already newest (exit $up_rc)"
 printf '%s\n' "$up_out"
@@ -215,7 +215,7 @@ up_stop
 # (f) `zeroth update` from a cargo build directory is refused with the
 # checkout's own advice, whatever the repository says.
 up_start v9.9.9
-up_dev="$(env $UP_BASE ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" "$BIN_ABS" update 2>&1)"
+up_dev="$(env $UP_BASE ZEROTH_UPDATE_URL="http://127.0.0.1:$UP_PORT" "$BIN_ABS" update 2>&1)"
 up_dev_rc=$?
 note "zeroth update from target/debug (exit $up_dev_rc)"
 printf '%s\n' "$up_dev"
@@ -228,7 +228,7 @@ fi
 # a new file that still runs. The fake release IS this binary, so the
 # installer notes the version it reports rather than failing.
 up_inode_before="$(ls -i "$UP_BIN/zeroth" | awk '{ print $1 }')"
-up_upd="$(env $UP_BASE NO_PROXY=127.0.0.1 ALTER_ZERO_UPDATE_URL="http://127.0.0.1:$UP_PORT" ALTER_ZERO_CONFIG_DIR="$UP_TMP/home" "$UP_BIN/zeroth" update 2>&1)"
+up_upd="$(env $UP_BASE NO_PROXY=127.0.0.1 ZEROTH_UPDATE_URL="http://127.0.0.1:$UP_PORT" ZEROTH_CONFIG_DIR="$UP_TMP/home" "$UP_BIN/zeroth" update 2>&1)"
 up_upd_rc=$?
 note "zeroth update to v9.9.9 (exit $up_upd_rc)"
 printf '%s\n' "$up_upd"

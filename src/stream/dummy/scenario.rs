@@ -119,7 +119,7 @@ pub(in crate::stream) struct AgentStage<'a> {
     /// call asks on it exactly as the main turn's does, and the request
     /// travels the **agent** channel so the boundary stamps whose it is
     /// (`docs/state/permissions.md`). `None` runs the demo unasked, which is what
-    /// `ALTER_ZERO_PERMISSIONS=0` means.
+    /// `ZEROTH_PERMISSIONS=0` means.
     pub(in crate::stream) gate: Option<&'a PermissionGate>,
 }
 

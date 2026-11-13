@@ -38,7 +38,7 @@ caution could not cover, fails the build rather than the donation.
 
 ```
 ────────────────────────────────────────────────────────────────────────
-  ♥ Support Alter Zero
+  ♥ Support Zeroth
 
   Free and open source, developed in the open. If it earns a place in
   your terminal, a donation keeps the work going — thank you.
@@ -73,7 +73,7 @@ inset, the same dim hint row — and what sits inside it is built from parts
 the chrome already has, so the page reads as *this* app's rather than a
 form pasted into it:
 
-- **The title wears the banner's gradient.** `♥ Support Alter Zero` is
+- **The title wears the banner's gradient.** `♥ Support Zeroth` is
   washed left-to-right in the header's own accent → link gradient
   (`ui::header::gradient_spans`, the builder the mascot banner uses), bold,
   behind a heart in the palette's red — the one place that hue means

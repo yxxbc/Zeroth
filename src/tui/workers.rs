@@ -648,7 +648,7 @@ pub(crate) fn spawn_model_fetch(
     std::thread::spawn(move || {
         let result: Result<Vec<ModelEntry>, String> = match cfg {
             Some(cfg) => llm::models::fetch_models(&cfg, &cancel).map_err(|e| e.to_string()),
-            None => Err("No provider configured — set providers.toml / ALTER_ZERO_PROVIDER".into()),
+            None => Err("No provider configured — set providers.toml / ZEROTH_PROVIDER".into()),
         };
         // Don't deliver a result the picker no longer wants.
         if !cancel.is_cancelled() {

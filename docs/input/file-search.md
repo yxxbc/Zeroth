@@ -371,7 +371,7 @@ system (`malloc_trim` needs `unsafe`, which the crate forbids).
   ties by length then name, drops non-matches but keeps every match, and
   lists an empty query like a directory listing — the same order whatever
   order the walk found it in.
-- `src/tui/` (bin unit, `cargo test --bin alter-zero tui::workers`): the walk
+- `src/tui/` (bin unit, `cargo test --bin zeroth tui::workers`): the walk
   lists the tree with directories marked, skips hidden and denylisted
   entries, reports `truncated` only when its cap left an entry unlisted,
   keeps a `\` in a name as part of the name, and reads each folder into

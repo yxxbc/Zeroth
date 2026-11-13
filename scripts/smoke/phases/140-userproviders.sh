@@ -28,7 +28,7 @@ smoke_begin
 #       use that can't be used;
 #   (e) a file that does not parse at launch is a startup toast naming its
 #       line, and the shipped providers stay;
-#   (f) ALTER_ZERO_CONFIG_DIR moves the file with the rest of the state:
+#   (f) ZEROTH_CONFIG_DIR moves the file with the rest of the state:
 #       `~/.zeroth/providers.toml` is not read under it;
 #   (g) a providers.toml in the working directory is never read — a checkout
 #       must not be able to point a stored key at a host of its choosing.
@@ -92,8 +92,8 @@ for _ in $(seq 1 30); do # wait for the stub to listen
 	sleep 0.1
 done
 
-# The user layer lives in the default config home — no ALTER_ZERO_CONFIG_DIR
-# (the launch below takes the suite's out) and no ALTER_ZERO_PROVIDERS_FILE,
+# The user layer lives in the default config home — no ZEROTH_CONFIG_DIR
+# (the launch below takes the suite's out) and no ZEROTH_PROVIDERS_FILE,
 # which would stand alone instead of layering.
 P_HOME_CFG="$SMOKE_HOME/.zeroth"
 P_FILE="$P_HOME_CFG/providers.toml"
@@ -121,7 +121,7 @@ TOML
 
 # The suite's environment, then a second `env` taking its config home back
 # out, so the app resolves the default `$HOME/.zeroth` itself.
-P_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ACME_API_KEY=smoke-140 env -u ALTER_ZERO_CONFIG_DIR $BIN_ABS"
+P_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ACME_API_KEY=smoke-140 env -u ZEROTH_CONFIG_DIR $BIN_ABS"
 P_SHOWN="~/.zeroth/providers.toml"
 
 # p_close SESSION — Esc out of whatever page is open, back to the composer.
@@ -289,10 +289,10 @@ expect_lacks "$fallback" -F "Acme Cloud" "a provider from a file that does not p
 p_close "$S140"
 tmux kill-session -t "$S140" 2>/dev/null
 
-# ---- (f) ALTER_ZERO_CONFIG_DIR moves the file with the rest of the state ----
+# ---- (f) ZEROTH_CONFIG_DIR moves the file with the rest of the state ----
 # `~/.zeroth/providers.toml` holds Acme again, and must go unread: the
 # config home is elsewhere and has a file of its own. An
-# ALTER_ZERO_PROVIDERS_FILE set to nothing names no file — the empty-is-unset
+# ZEROTH_PROVIDERS_FILE set to nothing names no file — the empty-is-unset
 # rule every variable here keeps — so the config home's file still layers.
 printf '%s\n' "$P_ACME" >"$P_FILE"
 cat >"$SMOKE_CFG/providers.toml" <<'TOML'
@@ -302,11 +302,11 @@ name = "Moved Corp"
 [providers.moved.kwargs]
 api_base = "https://moved.example/v1"
 TOML
-launch -c "$P_DIR" "$S140" 150 40 "env $CFG_ENV_NOHIST ALTER_ZERO_PROVIDERS_FILE= ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+launch -c "$P_DIR" "$S140" 150 40 "env $CFG_ENV_NOHIST ZEROTH_PROVIDERS_FILE= ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 moved_start="$(pane "$S140")"
 dump "launched under a moved config home" "$moved_start"
 expect_lacks "$moved_start" -F "providers.toml:" "a toast was raised under the moved config home"
-expect_lacks "$moved_start" -F "os error" "an empty ALTER_ZERO_PROVIDERS_FILE was read as a file name"
+expect_lacks "$moved_start" -F "os error" "an empty ZEROTH_PROVIDERS_FILE was read as a file name"
 moved="$(p_key_list "$S140")" || fail "/login did not open under the moved config home"
 dump "/login under a moved config home" "$moved"
 expect_has "$moved" -F "Moved Corp" "the config home's own providers.toml was not read"

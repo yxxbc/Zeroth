@@ -192,7 +192,7 @@ changelog_link() {
 }
 
 # ---------------------------------------------------------------------------
-# Assets. One archive per target — `alter-zero-v0.1.0-x86_64-unknown-linux-gnu.tar.gz`
+# Assets. One archive per target — `zeroth-v0.1.0-x86_64-unknown-linux-gnu.tar.gz`
 # holding a directory of the same stem with the binary, LICENSE, README.md
 # and CHANGELOG.md — beside its `.sha256` in `sha256sum -c` form.
 # ---------------------------------------------------------------------------
@@ -209,11 +209,11 @@ asset_target() {
 	printf '%s\n' "${name#"$prefix"}"
 }
 # What the archive must contain, relative to its top-level directory.
-ASSET_FILES="alter-zero LICENSE README.md CHANGELOG.md"
+ASSET_FILES="zeroth LICENSE README.md CHANGELOG.md"
 asset_files() {
 	local f
 	for f in $ASSET_FILES; do
-		if [ "$f" = alter-zero ]; then manifest_name; else printf '%s\n' "$f"; fi
+		if [ "$f" = zeroth ]; then manifest_name; else printf '%s\n' "$f"; fi
 	done
 }
 

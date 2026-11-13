@@ -1572,7 +1572,7 @@ mod tests {
         let mut cfg = ModelConfig::fallback();
         cfg.model = model.to_string();
         cfg.api_base = "https://daily-cloudcode-pa.googleapis.com".to_string();
-        cfg.cache_key = Some("alter-zero-7".to_string());
+        cfg.cache_key = Some("zeroth-7".to_string());
         cfg
     }
 
@@ -1606,7 +1606,7 @@ mod tests {
         assert_eq!(body["userAgent"], "antigravity");
         let id = body["requestId"].as_str().expect("a request id");
         assert!(id.starts_with("agent-") && id.len() > 20, "{id}");
-        assert_eq!(body["request"]["sessionId"], "alter-zero-7");
+        assert_eq!(body["request"]["sessionId"], "zeroth-7");
         assert_eq!(
             body["request"]["contents"],
             serde_json::json!([{"role": "user", "parts": [{"text": "hi"}]}])

@@ -14,7 +14,7 @@ smoke_begin
 S4="${S}_overlayquit"
 tmux new-session -d -s "$S4" -x 80 -y 24
 sleep 0.3
-tmux send-keys -t "$S4" -l "$CFG_ENV ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+tmux send-keys -t "$S4" -l "$CFG_ENV ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 tmux send-keys -t "$S4" Enter
 sleep 0.6
 submit "$S4" "hello there"

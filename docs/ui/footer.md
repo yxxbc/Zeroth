@@ -7,7 +7,7 @@ below the input box's bottom rule, giving ambient session context —
 ────────────────────────────────────────────────────────────
 ❯
 ────────────────────────────────────────────────────────────
-  dummy_model_name · ~/alter-zero                      auto
+  dummy_model_name · ~/zeroth                      auto
 ```
 
 — the backend's model name and the current working directory, joined with
@@ -131,7 +131,7 @@ the banner does (`docs/ui/theme.md`). Colour marks what the row **names**; the
 punctuation between the names stays dim:
 
 ```
-  [magpie]deepseek-v4.1-flash medium fast · ~/Codes/rust/alter-zero · 0/475k (0.0%)       master
+  [magpie]deepseek-v4.1-flash medium fast · ~/Codes/rust/zeroth · 0/475k (0.0%)       master
 ```
 
 - **model** — `footer_model_color()`, the accent: what the session talks to

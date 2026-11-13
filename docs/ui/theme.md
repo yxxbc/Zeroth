@@ -210,7 +210,7 @@ columns over this catalog — the preview sits **beside** the list:
                                  2 +    print(f"Hello, {name}")
                            ● Done — greet.py greets by name now:
 
-                             greet("Alter Zero")  # Hello, Alter Zero
+                             greet("Zeroth")  # Hello, Zeroth
 
   ↑/↓ to navigate · Type to search · Enter to choose · Esc to cancel
 ────────────────────────────────────────────────────────────────────────────────
@@ -244,7 +244,7 @@ the end of the catalog, the window riding the selection):
         2 +    print(f"Hello, {name}")
   ● Done — greet.py greets by name now:
 
-    greet("Alter Zero")  # Hello, Alter Zero
+    greet("Zeroth")  # Hello, Zeroth
 
   ↑/↓ to navigate · Type to search · Enter to choose · Esc to…
 ──────────────────────────────────────────────────────────────

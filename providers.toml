@@ -48,10 +48,10 @@
 #     default, or `reasoning_effort` for OpenAI's own top-level string, which
 #     OmniRoute's route to Claude models reads (docs/providers/user-providers.md).
 #
-# The active provider/model is chosen with `ALTER_ZERO_PROVIDER` /
-# `ALTER_ZERO_MODEL`, or interactively with the `/model` picker, and persists to
+# The active provider/model is chosen with `ZEROTH_PROVIDER` /
+# `ZEROTH_MODEL`, or interactively with the `/model` picker, and persists to
 # ~/.zeroth/config.json between runs. With no API key configured — or with
-# `ALTER_ZERO_DUMMY=1` — the app falls back to the built-in dummy backend, so it
+# `ZEROTH_DUMMY=1` — the app falls back to the built-in dummy backend, so it
 # always runs offline. Add a key in-app with `/login` (saved to ~/.zeroth/.env).
 #
 # Prompt caching needs no configuration here (docs/providers/prompt-caching.md): the

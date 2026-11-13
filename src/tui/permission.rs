@@ -25,12 +25,12 @@
 //! `Notification` hook announces (`docs/tools/hooks.md`) — is the loop's to say.
 //!
 //! A session starts in **auto** unless this project saved another mode or
-//! `ALTER_ZERO_PERMISSION_MODE` seeds one for the run
+//! `ZEROTH_PERMISSION_MODE` seeds one for the run
 //! ([`PermissionsFile::starting_mode`](zeroth::permission::PermissionsFile::starting_mode)).
 //! The seed rides the gate's live rules but never reaches the file: a mode
 //! change saves only the mode, a new rule only the allowlist.
 //!
-//! `ALTER_ZERO_PERMISSIONS=0` starts the session with **no gate**: nothing
+//! `ZEROTH_PERMISSIONS=0` starts the session with **no gate**: nothing
 //! asks, every tool runs unasked, and the footer shows no mode (a mode with
 //! nothing asking would be a lie).
 
@@ -64,10 +64,10 @@ pub(crate) struct PermissionStore {
 
 impl PermissionStore {
     /// Open the store for `cwd`: build the gate (unless
-    /// `ALTER_ZERO_PERMISSIONS` is falsy) and seed it with this project's saved
+    /// `ZEROTH_PERMISSIONS` is falsy) and seed it with this project's saved
     /// command rules, so "don't ask again" survives a restart in the same
     /// directory, and with the mode the session starts in — the run's seed
-    /// (`--permission-mode`, else `ALTER_ZERO_PERMISSION_MODE`), else the
+    /// (`--permission-mode`, else `ZEROTH_PERMISSION_MODE`), else the
     /// saved mode, else auto. The seed is never saved.
     pub(crate) fn open(cwd: &Path, seed: Option<PermissionMode>) -> Self {
         let store = Self {

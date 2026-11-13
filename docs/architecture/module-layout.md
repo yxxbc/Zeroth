@@ -144,7 +144,7 @@ opening the viewport, running the loop — and everything else lives here:
 | `config.rs` | Reading the environment: providers, keys, the per-directory `/model` selections and `/settings` knobs (`docs/state/per-directory-state.md`), permission rules, the per-user `telemetry.json` (`TELEMETRY.md`), `update.json` (`docs/ops/update.md`) and `tips.json` (`docs/ui/tips.md`), paths. |
 | `bootstrap.rs` | `Session::bootstrap` / `shutdown` / `after_iteration` — assembly, teardown, loop-bottom work. |
 | `startup.rs` | The `--continue`/`--resume`/`[PROMPT]` argument resolution, `-C`'s `chdir`, the styled `--help` / usage-error printing, and the `mcp` / `update` subcommand dispatch (`docs/cli/cli.md`). |
-| `headless.rs` | `alter-zero -p`: the prompt read from the argument and stdin before the runtime, the loop that runs the same `Session` with no screen, the signals, the streams, the exit status (`docs/cli/headless.md`). |
+| `headless.rs` | `zeroth -p`: the prompt read from the argument and stdin before the runtime, the loop that runs the same `Session` with no screen, the signals, the streams, the exit status (`docs/cli/headless.md`). |
 | `recorder.rs` | `SessionRecorder`: mirroring history to a rollout file (`docs/state/resume.md`). |
 | `resume.rs` | Finding recorded sessions on disk, and the `/resume` + backtrack arms. |
 | `history_store.rs` | `InputHistoryStore` (`docs/input/history-persistence.md`). |
@@ -158,7 +158,7 @@ opening the viewport, running the loop — and everything else lives here:
 | `usage.rs` | The `/usage` page's reads: one worker per signed-in subscription, the round they answer, the wall clock its countdowns run on, the minute refresh, the empty toast, `c`'s clipboard write (`docs/providers/usage.md`). |
 | `telemetry.rs` | The once-a-day anonymous usage ping (once more on the day of an update): the install id's mint, the one-time notice under the banner, the detached send, the record of the delivered day and version (`TELEMETRY.md`). |
 | `update.rs` | The once-a-day update check: the detached `HEAD` of the repository's latest release, the `Update available` card under the banner (held back while a turn streams), the attempt's and the notice's day in `update.json` (`docs/ops/update.md`). |
-| `update_cli.rs` | The `alter-zero update` subcommand: the same check, then the one-line installer fetched to a temp file and run over this binary's own directory (`docs/ops/update.md`). |
+| `update_cli.rs` | The `zeroth update` subcommand: the same check, then the one-line installer fetched to a temp file and run over this binary's own directory (`docs/ops/update.md`). |
 | `herdr.rs` | Reporting the session's state to the herdr pane it runs in: the loop-bottom sync into the library's `herdr::Tracker` and `herdr::Reporter` worker, the failed-turn hold, the resume command's `PATH`-checked first word, the release on quit (`docs/architecture/herdr.md`). |
 | `shell.rs` | The `!` command runner and its drain/cap unit tests (`docs/input/shell-command.md`). |
 | `workers.rs` | The off-thread file-search / clipboard / model-list / device-sign-in / usage / telemetry-ping / update-check jobs. |

@@ -27,7 +27,7 @@ model: inherit
 tools: Bash, Read, Skill, mcp__*
 ---
 
-You are Alter Zero's explore subagent. …
+You are Zeroth's explore subagent. …
 ```
 
 | field | | |
@@ -69,7 +69,7 @@ markdown; an agent file names a *model* and a *tool allowlist*, and silently
 inheriting another tool's agents would change which model a task runs on and
 what it may touch.
 
-`ALTER_ZERO_AGENTS_DIR` **replaces** the whole list (the `*_DIR` convention),
+`ZEROTH_AGENTS_DIR` **replaces** the whole list (the `*_DIR` convention),
 which is also what makes a test run hermetic.
 
 ### Seeding, and the built-in fallback
@@ -82,7 +82,7 @@ it too. Deleting one brings it back next launch; to change a default, edit
 it (that is what the seeding is *for*).
 
 If the walk still ends without one of them — no writable home, an
-`ALTER_ZERO_AGENTS_DIR` pointed at a read-only directory — the embedded
+`ZEROTH_AGENTS_DIR` pointed at a read-only directory — the embedded
 definition is appended as the lowest-precedence entry. The `agent` tool's own
 schema names `general-purpose` as its default, so that type existing is a
 property the tool depends on, not a convenience.
@@ -206,6 +206,6 @@ re-broken reports again).
 | `src/llm/subagent.rs` | boundary: the root walk, the discovery, the seeding of the embedded defaults |
 | `prompts/agents/*.md` | the embedded defaults themselves |
 
-`ALTER_ZERO_AGENTS_DIR` relocates the roots. There is no separate on/off
+`ZEROTH_AGENTS_DIR` relocates the roots. There is no separate on/off
 switch: the types *are* the `agent` tool, which the `/settings` **Tools** row
 already governs.

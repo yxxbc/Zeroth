@@ -214,7 +214,7 @@ carry (Ctrl+D).
   on a rebuilt backend, from the records alone.
 - `tests/live_unfinished.rs` — the Anthropic Messages wire through a Console
   sign-in, `#[ignore]`d (the rotating refresh token writes back to
-  `ALTER_ZERO_LIVE_TOKEN_STORE`): a 40-token cap stops a count from 1 to 30
+  `ZEROTH_LIVE_TOKEN_STORE`): a 40-token cap stops a count from 1 to 30
   part way with `stop_reason: "max_tokens"`, and the continuation finishes
   it in the same turn (when written, the first round stopped at 20 and the
   second went on from 21 to `DONE`); the request an empty reply is

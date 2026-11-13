@@ -19,7 +19,7 @@ fi
 
 # the `/donate` page (docs/donate.md). The `/hooks` browser's
 # sibling over the project's crypto donation addresses: a gradient
-# `♥ Support Alter Zero` title over a dim blurb, each address as a numbered
+# `♥ Support Zeroth` title over a dim blurb, each address as a numbered
 # `❯ 1. BTC  Bitcoin` row (the ticker and the coin — no network clause)
 # over its rounded box, with the networks it is reachable on captioned
 # UNDER that box (`Network: Solana`, and the seven EVM chains on the one
@@ -47,7 +47,7 @@ sleep 0.5
 donate_open="$(tmux capture-pane -t "$S112" -p)"
 echo "==== Phase 112: the page open (BTC highlighted) ===="
 printf '%s\n' "$donate_open"
-for expect in "♥ Support Alter Zero" "Free and open source" \
+for expect in "♥ Support Zeroth" "Free and open source" \
 	"❯ 1. BTC  Bitcoin" "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7" "Network: Bitcoin (Native SegWit)" \
 	"  2. ETH  Ethereum" "0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b" \
 	"Networks: Ethereum, Linea, Base, Arbitrum, BNB Chain, OP, Polygon" \

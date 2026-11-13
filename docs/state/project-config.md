@@ -4,7 +4,7 @@ A project can now carry its own Zeroth config in a `.zeroth` directory
 at its root — `/home/user/project/.zeroth/` — so different projects load
 different hooks, MCP servers and skills. The directory name is `.zeroth`
 (the crate's name, the config home's name, and the name the skills walk already
-uses), not a second spelling. A project's `.alter-zero/` — the upstream app's
+uses), not a second spelling. A project's `.zeroth/` — the upstream app's
 directory — is **not** read, so the two applications never share project
 configuration.
 
@@ -100,18 +100,18 @@ copy read then. Mid-session edits need a restart, exactly like the
 user-level `hooks.json`/`mcp.json`, and are reviewed at the next launch.
 Skills keep their per-turn rescan.
 
-- `ALTER_ZERO_PROJECT_CONFIG` — default on; `0`/`false`/`no`/`off` turns the
+- `ZEROTH_PROJECT_CONFIG` — default on; `0`/`false`/`no`/`off` turns the
   whole project layer off: no project hooks/MCP discovery, and so nothing of
-  the project's in the review (the `ALTER_ZERO_MCP` posture). **This is the
+  the project's in the review (the `ZEROTH_MCP` posture). **This is the
   smoke suite's hermeticity switch** — `scripts/smoke.sh` sets it to `0` in
   the base env (the suite runs with cwd = a real checkout; a developer repo
   carrying `.zeroth/hooks.json` would otherwise be reviewed in every
   phase — the skills Phase 36 lesson), and the review phase turns it back on
   inside a `mktemp -d` workdir.
-- `ALTER_ZERO_HOOKS_FILE` keeps replacing the **user** file only, project
-  discovery still runs — the `ALTER_ZERO_MCP_FILE` convention, now shared by
+- `ZEROTH_HOOKS_FILE` keeps replacing the **user** file only, project
+  discovery still runs — the `ZEROTH_MCP_FILE` convention, now shared by
   both subsystems; the project layer's own kill switch is
-  `ALTER_ZERO_PROJECT_CONFIG=0`.
+  `ZEROTH_PROJECT_CONFIG=0`.
 - `trust.json` hangs off the config home like `permissions.json` — no
   override var of its own; `ZEROTH_CONFIG_DIR` moves it.
 

@@ -251,7 +251,7 @@ fn a_picture_the_boundary_found_missing_reserves_no_rows() {
         font: (10, 20),
         auto_resize: true,
     });
-    let path = "/alter-zero-tests/missing/desktop-first.png";
+    let path = "/zeroth-tests/missing/desktop-first.png";
     assert!(
         place(path, (1883, 1007), 200).is_some(),
         "a picture nobody has checked reserves its rows, as it always has"
@@ -278,8 +278,8 @@ fn a_recheck_marks_what_it_cannot_find_and_restores_what_it_can() {
     // What the boundary runs over a loaded or rebuilt conversation's
     // pictures. Its probe is a header read, so a picture it finds has its
     // size recorded (a paste's rows come from it) and one it can't is marked.
-    let here = "/alter-zero-tests/recheck/here.png";
-    let gone = "/alter-zero-tests/recheck/gone.png";
+    let here = "/zeroth-tests/recheck/here.png";
+    let gone = "/zeroth-tests/recheck/gone.png";
     recheck_pictures([here, gone], |path| (path == here).then_some((64, 48)));
     assert_eq!(known_size(here), Some((64, 48)));
     assert!(!known_missing(here));
@@ -429,7 +429,7 @@ fn the_terminal_is_asked_only_where_its_answer_could_change_the_protocol() {
         false,
         Some("xterm-256color")
     ));
-    // ALTER_ZERO_IMAGE_PROTOCOL pins it, `halfblocks` included.
+    // ZEROTH_IMAGE_PROTOCOL pins it, `halfblocks` included.
     assert!(!ask(ProtocolType::Halfblocks, true, false, Some("xterm")));
     // A multiplexer answers nothing itself, and tmux files an unknown APC
     // string as the pane's title.

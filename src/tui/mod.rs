@@ -209,7 +209,7 @@ pub(crate) struct Session<'t> {
     card_pending: std::collections::HashSet<String>,
     card_tx: tokio::sync::mpsc::UnboundedSender<(String, Option<zeroth::link_card::LinkCard>)>,
     card_rx: tokio::sync::mpsc::UnboundedReceiver<(String, Option<zeroth::link_card::LinkCard>)>,
-    /// Whether previews are on for this process (`ALTER_ZERO_LINK_CARDS`).
+    /// Whether previews are on for this process (`ZEROTH_LINK_CARDS`).
     link_cards: bool,
     /// Tail indices of each user message's first line, for the pinned prompt
     /// header: the latest one above the top of the window is drawn on a
@@ -423,11 +423,11 @@ pub(crate) struct Session<'t> {
     /// The MCP servers (`docs/tools/mcp.md`): every declared server's live
     /// connection state, the tool specs the backend folds in, and the OAuth
     /// flows. Built at every bootstrap, whatever the `/settings` **MCP** row
-    /// (seeded by `ALTER_ZERO_MCP`) says — it switches the manager on and off
+    /// (seeded by `ZEROTH_MCP`) says — it switches the manager on and off
     /// for the session, so there is always one to switch.
     mcp: zeroth::llm::mcp::McpManager,
     /// What the startup review decides over (`docs/state/config-review.md`):
-    /// `trust.json`, the user's hooks file and the project's `.alter-zero`
+    /// `trust.json`, the user's hooks file and the project's `.zeroth`
     /// layer, read once at bootstrap — every review answer and `/hooks` or
     /// `/mcp` toggle records through it, and the hooks the session runs are
     /// its trusted share.
@@ -468,7 +468,7 @@ pub(crate) struct Session<'t> {
     /// like `config.json`'s path (`docs/state/settings.md`). The live values
     /// themselves live on `App` — one copy, read where they are used; a save
     /// is a read-modify-write over the file itself, moving across only the
-    /// key the user cycled, so an `ALTER_ZERO_*` override merged in at startup
+    /// key the user cycled, so an `ZEROTH_*` override merged in at startup
     /// never becomes the saved default.
     settings_path: Option<PathBuf>,
     /// The spinner tip walk's position as `tips.json` last recorded it

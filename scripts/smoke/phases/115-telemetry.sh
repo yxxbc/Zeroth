@@ -7,7 +7,7 @@ smoke_begin
 # telemetry — one anonymous ping a day, disclosed once, off with one setting (TELEMETRY.md)
 # A local Python stub stands in for the collector: it appends every POST it
 # receives (path, user-agent, body) to a log and answers 204. The launches
-# below UNSET the suite-wide ALTER_ZERO_TELEMETRY=0 (and a developer's own
+# below UNSET the suite-wide ZEROTH_TELEMETRY=0 (and a developer's own
 # DO_NOT_TRACK) and point the app at the stub, each against a fresh config
 # home — so each is that "install"'s first launch ever. NO_PROXY keeps a
 # developer's HTTP proxy out of the loopback request.
@@ -41,7 +41,7 @@ for _ in $(seq 1 30); do # wait for the stub to listen
 	fi
 	sleep 0.1
 done
-TM_BASE="env -u ALTER_ZERO_TELEMETRY -u DO_NOT_TRACK NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_TELEMETRY_URL=http://127.0.0.1:$TM_PORT/v1/ping ALTER_ZERO_PROJECT_CONFIG=0 ALTER_ZERO_CHECKPOINTS=0 ALTER_ZERO_HISTORY_FILE=/dev/null ALTER_ZERO_SKILLS_DIR=$SMOKE_SKILLS ALTER_ZERO_AGENTS_DIR=$SMOKE_AGENTS ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
+TM_BASE="env -u ZEROTH_TELEMETRY -u DO_NOT_TRACK NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_TELEMETRY_URL=http://127.0.0.1:$TM_PORT/v1/ping ZEROTH_PROJECT_CONFIG=0 ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS"
 TM_NOTICE="sends one anonymous ping a day"
 TM_VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
 tm_quit() {
@@ -72,8 +72,8 @@ tm_open_row() {
 
 # (a) The first launch ever for this config home: the disclosure under the
 # banner, an install id minted, exactly one five-field ping posted with the
-# alter-zero user-agent, and the day recorded once the stub answered 204.
-tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ALTER_ZERO_CONFIG_DIR=$TM_CFG/home $BIN"
+# zeroth user-agent, and the day recorded once the stub answered 204.
+tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ZEROTH_CONFIG_DIR=$TM_CFG/home $BIN"
 tm_first=""
 for _ in $(seq 1 60); do # up to ~6s: the ping is a real (loopback) request
 	tm_first="$(tmux capture-pane -t "$S115" -p -S -40)"
@@ -90,7 +90,7 @@ cat "$TM_LOG" 2>/dev/null
 if ! printf '%s' "$tm_first" | grep -qF "$TM_NOTICE"; then
 	tm_fail "the first launch did not show the disclosure under the banner"
 fi
-if ! printf '%s' "$tm_first" | grep -qF "ALTER_ZERO_TELEMETRY=0"; then
+if ! printf '%s' "$tm_first" | grep -qF "ZEROTH_TELEMETRY=0"; then
 	tm_fail "the notice lost its ending — clamped instead of wrapped?"
 fi
 tm_id="$(tm_field "$TM_CFG/home/telemetry.json" install_id)"
@@ -148,7 +148,7 @@ tm_quit
 # second ping today — and the /settings row toggles the switch into
 # telemetry.json (never settings.json), turning it back on re-pinging nothing
 # because today's ping is already recorded.
-tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ALTER_ZERO_CONFIG_DIR=$TM_CFG/home $BIN"
+tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ZEROTH_CONFIG_DIR=$TM_CFG/home $BIN"
 sleep 1.5
 tm_second="$(tmux capture-pane -t "$S115" -p -S -40)"
 echo "==== Phase 115: the relaunch (no notice, no second ping) ===="
@@ -194,7 +194,7 @@ tm_quit
 
 # (c) DO_NOT_TRACK=1 against a fresh config home: nothing is minted, shown or
 # sent, and the row reads false for the run.
-tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE DO_NOT_TRACK=1 ALTER_ZERO_CONFIG_DIR=$TM_CFG/dnt $BIN"
+tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE DO_NOT_TRACK=1 ZEROTH_CONFIG_DIR=$TM_CFG/dnt $BIN"
 sleep 1.5
 tm_dnt="$(tmux capture-pane -t "$S115" -p -S -40)"
 echo "==== Phase 115: DO_NOT_TRACK=1 on a fresh config home ===="
@@ -237,16 +237,16 @@ tmux send-keys -t "$S115" Escape
 sleep 0.3
 tm_quit
 
-# (d) ALTER_ZERO_TELEMETRY=0 — the switch every other phase runs with — on a
+# (d) ZEROTH_TELEMETRY=0 — the switch every other phase runs with — on a
 # fresh config home: the same silence.
-tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ALTER_ZERO_TELEMETRY=0 ALTER_ZERO_CONFIG_DIR=$TM_CFG/off $BIN"
+tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ZEROTH_TELEMETRY=0 ZEROTH_CONFIG_DIR=$TM_CFG/off $BIN"
 sleep 1.5
 tm_off="$(tmux capture-pane -t "$S115" -p -S -40)"
 if printf '%s' "$tm_off" | grep -qF "$TM_NOTICE"; then
-	tm_fail "ALTER_ZERO_TELEMETRY=0 still showed the notice"
+	tm_fail "ZEROTH_TELEMETRY=0 still showed the notice"
 fi
 if [ -e "$TM_CFG/off/telemetry.json" ]; then
-	tm_fail "ALTER_ZERO_TELEMETRY=0 still wrote telemetry.json"
+	tm_fail "ZEROTH_TELEMETRY=0 still wrote telemetry.json"
 fi
 tm_quit
 if [ "$(tm_pings)" != "1" ]; then
@@ -285,7 +285,7 @@ for _ in $(seq 1 30); do
 	fi
 	sleep 0.1
 done
-tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ALTER_ZERO_TELEMETRY_URL=http://127.0.0.1:$TM_PORT5/v1/ping ALTER_ZERO_CONFIG_DIR=$TM_CFG/refused $BIN"
+tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ZEROTH_TELEMETRY_URL=http://127.0.0.1:$TM_PORT5/v1/ping ZEROTH_CONFIG_DIR=$TM_CFG/refused $BIN"
 sleep 1.5
 tm_refused_boot="$(wc -l <"$TM_LOG5" 2>/dev/null | tr -d ' ')"
 # One real turn, so the turn-start day check actually runs.
@@ -319,7 +319,7 @@ smoke_sed_in_place 's/"last_ping_version": *"[^"]*"/"last_ping_version": "0.0.0"
 if [ "$(tm_field "$TM_CFG/home/telemetry.json" last_ping_version)" != "0.0.0" ]; then
 	tm_fail "could not stage the pre-update file: last_ping_version did not take"
 fi
-tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ALTER_ZERO_CONFIG_DIR=$TM_CFG/home $BIN"
+tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ZEROTH_CONFIG_DIR=$TM_CFG/home $BIN"
 tm_updated=""
 for _ in $(seq 1 60); do # up to ~6s: a real (loopback) request again
 	tm_updated="$(tmux capture-pane -t "$S115" -p -S -40)"

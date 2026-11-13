@@ -27,7 +27,7 @@ fn stop(hooks: Vec<RanHook>) -> HookReport {
 }
 
 fn check_git(said: Vec<HookSaid>) -> RanHook {
-    ran("bash \"$HOME/.alter-zero/hooks/check-git.sh\"", 412, said)
+    ran("bash \"$HOME/.zeroth/hooks/check-git.sh\"", 412, said)
 }
 
 fn texts(lines: &[Line]) -> Vec<String> {
@@ -306,7 +306,7 @@ fn a_broken_hook_is_named_on_its_row_but_not_twice_under_its_own_line() {
             "  ⎿  ./notify.sh (9ms)",
             "     Config: ~/.zeroth/hooks.json",
             "  ⎿  Stop hook error: failed (exit 1): offline",
-            "  ⎿  bash \"$HOME/.alter-zero/hooks/check-git.sh\" (412ms)",
+            "  ⎿  bash \"$HOME/.zeroth/hooks/check-git.sh\" (412ms)",
             "     Config: ~/.zeroth/hooks.json",
             "  ⎿  Stop hook feedback: There are uncommitted Git changes.",
         ]
@@ -369,7 +369,7 @@ fn the_expanded_cell_lists_each_hook_with_its_time_and_file_then_what_it_said() 
             "● Ran 2 Stop hooks",
             "  ⎿  ./notify.sh (9ms)",
             "     Config: ~/.zeroth/hooks.json",
-            "  ⎿  bash \"$HOME/.alter-zero/hooks/check-git.sh\" (412ms)",
+            "  ⎿  bash \"$HOME/.zeroth/hooks/check-git.sh\" (412ms)",
             "     Config: ~/.zeroth/hooks.json",
             "  ⎿  Stop hook feedback: There are uncommitted Git changes.",
         ]

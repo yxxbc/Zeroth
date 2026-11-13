@@ -20,7 +20,7 @@ expecting a parameter.
 
 | Token | Becomes |
 |---|---|
-| `${ALTER_ZERO_SKILL_DIR}` | the absolute path of the folder holding this `SKILL.md` |
+| `${ZEROTH_SKILL_DIR}` | the absolute path of the folder holding this `SKILL.md` |
 | `${CLAUDE_SKILL_DIR}` | the same path (the second spelling exists for skills written for Claude Code) |
 
 Every rendered body is also prefixed with:

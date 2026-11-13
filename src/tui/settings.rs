@@ -344,7 +344,7 @@ impl Session<'_> {
         }
         // Persist this directory's entry as a read-modify-write over the file
         // itself, moving across only the key the user cycled — so an
-        // `ALTER_ZERO_*` override merged in at startup never sticks, and two
+        // `ZEROTH_*` override merged in at startup never sticks, and two
         // sessions in two directories never clobber each other
         // (`docs/state/settings.md`, `docs/state/per-directory-state.md`). The Telemetry
         // and Show tips rows were written above, to their own files: a

@@ -159,7 +159,7 @@ pub(crate) fn find_session_by_id(root: Option<&Path>, id: &str) -> Result<PathBu
         return Ok(as_path.to_path_buf());
     }
     let Some(root) = root else {
-        return Err("No sessions directory (set HOME or ALTER_ZERO_SESSIONS_DIR)".to_string());
+        return Err("No sessions directory (set HOME or ZEROTH_SESSIONS_DIR)".to_string());
     };
     let mut exact = Vec::new();
     let mut prefixed = Vec::new();
@@ -191,7 +191,7 @@ pub(crate) fn find_session_by_id(root: Option<&Path>, id: &str) -> Result<PathBu
     }
 }
 
-/// The sessions root: `ALTER_ZERO_SESSIONS_DIR`, else `{config_home}/sessions`
+/// The sessions root: `ZEROTH_SESSIONS_DIR`, else `{config_home}/sessions`
 /// — `~/.zeroth/sessions` by default, and *inside* a moved
 /// `ZEROTH_CONFIG_DIR`, the way the checkpoints root resolves
 /// (`config::checkpoints_root`); `None` disables recording (no HOME and no
@@ -201,7 +201,7 @@ pub(crate) fn find_session_by_id(root: Option<&Path>, id: &str) -> Result<PathBu
 /// config dir landed in the developer's own `/resume` picker.
 pub(crate) fn sessions_root() -> Option<PathBuf> {
     sessions_root_from(
-        std::env::var_os("ALTER_ZERO_SESSIONS_DIR").map(PathBuf::from),
+        std::env::var_os("ZEROTH_SESSIONS_DIR").map(PathBuf::from),
         super::config::config_home(),
     )
 }
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn sessions_root_follows_the_config_home_when_nothing_overrides_it() {
         // A moved `ZEROTH_CONFIG_DIR` takes its rollouts with it, the way
-        // the checkpoints root already does: recording into `$HOME/.alter-zero`
+        // the checkpoints root already does: recording into `$HOME/.zeroth`
         // behind a redirected config home is how the smoke suite's throwaway
         // sessions leaked into the developer's own `/resume` picker.
         let home = PathBuf::from("/cfg-home");

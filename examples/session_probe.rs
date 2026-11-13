@@ -11,7 +11,7 @@
 //!
 //! ```bash
 //! PROVIDER=openrouter MODEL=openai/gpt-4o-mini OPENROUTER_API_KEY=… \
-//!   ALTER_ZERO_CA_FILE=/root/.ccr/ca-bundle.crt \
+//!   ZEROTH_CA_FILE=/root/.ccr/ca-bundle.crt \
 //!   cargo run --example session_probe -- /path/to/workdir "the task"
 //! ```
 //!

@@ -16,7 +16,7 @@ smoke_begin
 # restore, so each launch is wrapped in a shell that holds the pane open.
 S61="${S}_cliresume"
 CLIR_DIR="$(mktemp -d "$SMOKE_TMP/cliresume.XXXXXX")"
-CLIAPP="env $CFG_ENV_NOHIST ALTER_ZERO_SESSIONS_DIR=$CLIR_DIR ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+CLIAPP="env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$CLIR_DIR ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux new-session -d -s "$S61" -x 80 -y 24 "$CLIAPP; echo CLI_APP_EXITED; sleep 60"
 sleep 0.4
 submit "$S61" "$USER_MSG"
@@ -64,7 +64,7 @@ printf '%s\n' "$cli_empty_quit_pane"
 tmux kill-session -t "$S61" 2>/dev/null
 # --continue with nothing to continue: fail fast on stderr, exit 1, no TUI.
 CLIR_EMPTY="$(mktemp -d "$SMOKE_TMP/cliempty.XXXXXX")"
-cli_nothing_msg="$(env $CFG_ENV_NOHIST ALTER_ZERO_SESSIONS_DIR="$CLIR_EMPTY" "$BIN" --continue 2>&1)"
+cli_nothing_msg="$(env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR="$CLIR_EMPTY" "$BIN" --continue 2>&1)"
 cli_nothing_exit=$?
 rm -rf "$CLIR_EMPTY" 2>/dev/null
 echo "==== Phase 61: --continue with no sessions → '$cli_nothing_msg' (exit $cli_nothing_exit) ===="

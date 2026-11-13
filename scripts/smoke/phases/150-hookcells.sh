@@ -97,7 +97,7 @@ cat >"$HC_HOOKS" <<HOOKS
     "command": "printf '%s' '{\"systemMessage\":\"smoke150 summary archived\"}'"}]}]
 }}
 HOOKS
-HC_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_HOOKS=1 ALTER_ZERO_HOOKS_FILE=$HC_HOOKS ALTER_ZERO_PROVIDERS_FILE=$HC_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+HC_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_HOOKS=1 ZEROTH_HOOKS_FILE=$HC_HOOKS ZEROTH_PROVIDERS_FILE=$HC_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 
 # hc_under PANE HEADER — the line right under the first line of PANE that
 # contains HEADER (fixed string).

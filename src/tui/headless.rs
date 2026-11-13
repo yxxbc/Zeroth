@@ -42,8 +42,8 @@ use super::{Session, config};
 /// job "succeeding" on a canned reply is the worst thing a misconfiguration
 /// could do.
 const NO_MODEL: &str = "no model is configured: sign in and pick one with /login and /model in \
-     an interactive session, or set ALTER_ZERO_PROVIDER, ALTER_ZERO_MODEL and the provider's key \
-     (ALTER_ZERO_DUMMY=1 runs the offline demo)";
+     an interactive session, or set ZEROTH_PROVIDER, ZEROTH_MODEL and the provider's key \
+     (ZEROTH_DUMMY=1 runs the offline demo)";
 
 /// How long past each MCP server's own connect budget the run waits for the
 /// servers to settle before its first request — a bound on a server the

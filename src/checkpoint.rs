@@ -110,7 +110,7 @@ pub fn store_git_dir(root: &Path, cwd: &Path) -> PathBuf {
 /// never delete.
 pub const CHECKPOINT_EXCLUDES: &[&str] = &[
     ".git/",
-    ".alter-zero/",
+    ".zeroth/",
     ".zeroth/",
     // Credentials and key material are never snapshotted: a restore's
     // `git clean` must not delete them, and the store must not copy them.
@@ -366,7 +366,7 @@ pub const SHARED_PARENTS: &[&str] = &[
 /// (measured 59 → 130 → 269 → 528 over four snapshots) and the store
 /// compounds into itself. [`CHECKPOINT_EXCLUDES`] cannot cover it — those are
 /// *name* patterns, and the root can be any path the user points
-/// `ALTER_ZERO_CHECKPOINTS_DIR` at.
+/// `ZEROTH_CHECKPOINTS_DIR` at.
 ///
 /// The line is **anchored** with a leading `/` so it matches that directory at
 /// the work tree's root and not a same-named one deeper in the project, and
@@ -374,7 +374,7 @@ pub const SHARED_PARENTS: &[&str] = &[
 /// literal (a store in `ck[1]` must exclude `ck[1]`, not `ck1`).
 #[must_use]
 pub fn store_exclude_line(work_tree: &Path, checkpoints_root: &Path) -> Option<String> {
-    // A **lexical** `strip_prefix` is not enough. `ALTER_ZERO_CHECKPOINTS_DIR`
+    // A **lexical** `strip_prefix` is not enough. `ZEROTH_CHECKPOINTS_DIR`
     // is whatever the user typed, and `cwd` is resolved when the session
     // starts, so `/tmp/link/ckpts` under a cwd of `/private/tmp/proj` — the
     // same directory spelled two ways on macOS — looks like it is outside the
@@ -585,7 +585,7 @@ impl SnapshotCost {
     }
 }
 
-/// Parse an `ALTER_ZERO_CHECKPOINT_MAX_*` value: a plain count, or a byte
+/// Parse an `ZEROTH_CHECKPOINT_MAX_*` value: a plain count, or a byte
 /// count with a binary `k`/`m`/`g` suffix (case-insensitive, `512k`, `2G`).
 /// `0` is meaningful — no limit — so only an absent or unparseable value
 /// falls back to `default`, never to an accidentally disabled guard.
@@ -608,8 +608,8 @@ pub fn parse_size_limit(value: Option<&str>, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
-/// Whether checkpoints are enabled given the `ALTER_ZERO_CHECKPOINTS` value
-/// (the `ALTER_ZERO_TOOLS` gate pattern): off for `0`/`false`/`no`/`off`
+/// Whether checkpoints are enabled given the `ZEROTH_CHECKPOINTS` value
+/// (the `ZEROTH_TOOLS` gate pattern): off for `0`/`false`/`no`/`off`
 /// (case-insensitive), on otherwise — including when unset.
 #[must_use]
 pub fn enabled_by_env(value: Option<&str>) -> bool {
@@ -641,7 +641,7 @@ pub fn git_available() -> bool {
 /// `~/.zeroth/checkpoints`) with the cwd as its detached work tree and its
 /// **own** config/index, so it never touches the user's real `.git`, staging
 /// area, branches, or global git config. A disabled store (no root, git
-/// missing, or `ALTER_ZERO_CHECKPOINTS=0`) makes every operation an inert
+/// missing, or `ZEROTH_CHECKPOINTS=0`) makes every operation an inert
 /// no-op. See `docs/state/checkpoint.md`.
 #[derive(Clone)]
 pub struct CheckpointStore {
@@ -667,7 +667,7 @@ pub struct CheckpointStore {
 
 impl CheckpointStore {
     /// Build a store snapshotting `cwd`. `root` is the checkpoints root
-    /// (`~/.zeroth/checkpoints`, or `ALTER_ZERO_CHECKPOINTS_DIR`) and
+    /// (`~/.zeroth/checkpoints`, or `ZEROTH_CHECKPOINTS_DIR`) and
     /// `capable` is whether this host can snapshot at all (a `git` binary is
     /// on PATH and the cwd is project-scoped). A `None` root or
     /// `capable == false` yields a permanently disabled store; otherwise it
@@ -776,7 +776,7 @@ impl CheckpointStore {
             // user's, no signing/hooks (never hang or fork), no auto-gc (keep
             // every snapshot reachable across the reset a restore performs).
             for (key, value) in [
-                ("user.email", "checkpoints@alter-zero.local"),
+                ("user.email", "checkpoints@zeroth.local"),
                 ("user.name", "zeroth checkpoints"),
                 ("commit.gpgsign", "false"),
                 ("gc.auto", "0"),
@@ -1135,7 +1135,7 @@ mod tests {
         // the checkpoint stores themselves. Snapshotting it means the store
         // hashing its own objects back into itself every turn: the tracked
         // file count doubles per snapshot and the store grows without bound
-        // (the reported 2 GB `.alter-zero`).
+        // (the reported 2 GB `.zeroth`).
         assert_eq!(
             refusal("/home/user/.zeroth"),
             CheckpointRefusal::StateDirectory
@@ -1154,7 +1154,7 @@ mod tests {
     fn a_cwd_that_contains_the_store_still_checkpoints() {
         // The other direction of the self-inclusion bug is answered by
         // `store_exclude_line`, not by refusal: a custom
-        // ALTER_ZERO_CHECKPOINTS_DIR *inside* the project is a configuration
+        // ZEROTH_CHECKPOINTS_DIR *inside* the project is a configuration
         // choice, and taking the whole feature away over it is a worse answer
         // than simply not staging the store.
         allowed("/home/user/proj");
@@ -1192,7 +1192,7 @@ mod tests {
 
     #[test]
     fn a_symlinked_spelling_of_one_path_still_excludes_the_store() {
-        // The failure this pins: `ALTER_ZERO_CHECKPOINTS_DIR` is whatever the
+        // The failure this pins: `ZEROTH_CHECKPOINTS_DIR` is whatever the
         // user typed, and `cwd` is resolved at startup, so on macOS
         // `/tmp/link/ckpts` under `/private/tmp/proj` is the SAME directory
         // spelled two ways. A lexical compare says "outside the tree", writes

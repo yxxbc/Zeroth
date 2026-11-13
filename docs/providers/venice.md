@@ -103,8 +103,8 @@ provider with the file's description and links the key page, and Enter saves
 the key as `VENICE_API_KEY` in `~/.zeroth/.env`. Venice issues two kinds
 of key; an **Inference Only** key is all the app needs (the Admin kind exists
 to manage keys programmatically). From the environment,
-`ALTER_ZERO_PROVIDER=venice` with `VENICE_API_KEY` exported launches on it
-directly (`ALTER_ZERO_MODEL` names the model, else `/model` picks one).
+`ZEROTH_PROVIDER=venice` with `VENICE_API_KEY` exported launches on it
+directly (`ZEROTH_MODEL` names the model, else `/model` picks one).
 
 Every other Venice knob rides the same table, and needs no copy of the
 shipped file: a block in the user's own `~/.zeroth/providers.toml`
@@ -128,7 +128,7 @@ preserves the other keys.
 
   ```sh
   VENICE_API_KEY=… cargo test --test live_caching -- --ignored --nocapture live_venice_direct
-  ALTER_ZERO_LIVE_PROVIDER=venice VENICE_API_KEY=… ALTER_ZERO_LIVE_MODEL=llama-3.3-70b scripts/live_smoke.sh
+  ZEROTH_LIVE_PROVIDER=venice VENICE_API_KEY=… ZEROTH_LIVE_MODEL=llama-3.3-70b scripts/live_smoke.sh
   ```
 
   `live_venice_direct_second_turn_reads_the_prefix_from_cache` is the

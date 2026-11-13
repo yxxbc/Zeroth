@@ -49,7 +49,7 @@ references agree on the asymmetry, so we copy it exactly:
   `cwd`, `permission_mode`, `scratchpad_dir`, `hook_event_name`, `tool_name`,
   `tool_input`, `tool_use_id`, `agent_id`, `agent_type`. `session_id` is the
   **conversation's** id — the rollout file's, the handle `--resume` takes —
-  so a hook that logs it can hand it back to `alter-zero --resume`. It is
+  so a hook that logs it can hand it back to `zeroth --resume`. It is
   known before the file exists (a fresh conversation has its id from its
   first event), moves on at a `/clear`, and becomes the resumed file's at a
   `/resume`; `transcript_path` moves with it. The first conversation's file
@@ -184,7 +184,7 @@ the standing allowlist, before the user — because it answers the same
 question: *may this run without asking?* Two consequences worth stating: a
 call a standing rule already covers never reaches it (nothing is being asked),
 and neither does any call when the permission gate is off entirely
-(`ALTER_ZERO_PERMISSIONS=0`), since there is no permission decision to make.
+(`ZEROTH_PERMISSIONS=0`), since there is no permission decision to make.
 `PreToolUse` still fires in both cases — it is about the call, not about
 asking.
 
@@ -321,7 +321,7 @@ never existed:
 - **`Notification`** fires with `notification_type` `permission_prompt`
   the moment the permission prompt is **on screen** — the moment a human
   is actually being asked, which `PermissionRequest` (consulted before the
-  classifier) cannot say. Title `Permission needed`, message `Alter Zero
+  classifier) cannot say. Title `Permission needed`, message `Zeroth
   needs your permission to use {Tool}`, matcher = the type. Claude Code's
   other notification types (idle, auth) are not modelled.
 
@@ -759,9 +759,9 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalCon
 ## Configuration and trust
 
 **Two layers, and nothing runs until it is trusted.**
-`~/.zeroth/hooks.json` (`ALTER_ZERO_HOOKS_FILE` overrides that user
-path; `ALTER_ZERO_HOOKS` gates the feature off entirely, the
-`ALTER_ZERO_PERMISSIONS` pattern) — and, since `docs/state/project-config.md`, the
+`~/.zeroth/hooks.json` (`ZEROTH_HOOKS_FILE` overrides that user
+path; `ZEROTH_HOOKS` gates the feature off entirely, the
+`ZEROTH_PERMISSIONS` pattern) — and, since `docs/state/project-config.md`, the
 project's own `{root}/.zeroth/hooks.json`, discovered at the
 nearest-`.git` root and **union-merged** after the user file
 (`HooksFile::merged` — one more entry from the loader, no precedence rules to
@@ -786,7 +786,7 @@ session continues with hooks off.
 The child is spawned through the same **tty-detach tier walk** every other
 shell child uses (`docs/tools/tty-detach.md`), so a hook that tries to prompt on
 `/dev/tty` fails fast instead of hijacking the TUI. It runs in the session's
-cwd and gets `ALTER_ZERO_PROJECT_DIR` — plus `CLAUDE_PROJECT_DIR`, so scripts
+cwd and gets `ZEROTH_PROJECT_DIR` — plus `CLAUDE_PROJECT_DIR`, so scripts
 written for Claude Code find their project root unchanged — set to the
 **project root**: the nearest `.git` ancestor, the root the project layer
 reads `.zeroth/` from, and the cwd outside a repository or when that
@@ -795,7 +795,7 @@ reaches its own scripts the same way from any subdirectory:
 
 ```json
 { "type": "command",
-  "command": "${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/format-and-test.sh" }
+  "command": "${ZEROTH_PROJECT_DIR}/.zeroth/hooks/format-and-test.sh" }
 ```
 
 It used to be the cwd, so launched in `repo/src` that command named a script
@@ -812,8 +812,8 @@ directory that should not run them opts out: one cycle records
 `"hooks": false` in its `settings.json` entry. With the row off the review
 asks nothing about hooks (none would run), and turning it back on over hooks
 waiting for trust opens the review's hooks page.
-`ALTER_ZERO_HOOKS` seeds the row for a run (`=1` on, a falsy value off — the
-`ALTER_ZERO_TOOLS` pattern) and is never saved.
+`ZEROTH_HOOKS` seeds the row for a run (`=1` on, a falsy value off — the
+`ZEROTH_TOOLS` pattern) and is never saved.
 
 ## Module layout
 
@@ -967,7 +967,7 @@ at once, the command runs at once, and the hooks still record
 previous build the notifier landed last. Each of these phases answers the
 startup review's hooks page first, trusting its fixture's hooks
 (`docs/state/config-review.md`). **Phase 134b** trusts a project's
-own `hooks.json` whose guard is `${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh`
+own `hooks.json` whose guard is `${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh`
 and launches in the repository's `src/`: the guard runs (in the cwd), the
 stub's `rm -rf build/` never does, the model reads the hook and the
 project's `hooks.json` by path, and the refusal's cell names both too — the

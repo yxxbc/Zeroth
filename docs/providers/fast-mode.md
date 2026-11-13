@@ -17,7 +17,7 @@ rides the request, and how it persists.
 ```
   ❯ ask something…
 ────────────────────────────────────────────────
-  gpt-5.5 medium fast · ~/alter-zero                (footer: {model} {mode} {tier} · {cwd})
+  gpt-5.5 medium fast · ~/zeroth                (footer: {model} {mode} {tier} · {cwd})
 ```
 
 Every speed tier the active model's listing names is a slash command of
@@ -206,7 +206,7 @@ Three requests deliberately run at **standard** whatever the session's tier:
   subagent runs on the session's config and so at the session's speed.
 - the **auto-mode classifier** (`SafetyClassifier::new` clears it beside
   the thinking mode): a verdict is a few tokens, priority processing bills
-  plan usage, and `ALTER_ZERO_CLASSIFIER_MODEL` may name a model that lists
+  plan usage, and `ZEROTH_CLASSIFIER_MODEL` may name a model that lists
   no tier at all. Codex's Guardian request sends none for the same reason.
 - nothing else: the `/compact` summary rides the tier like any other turn
   of the same model.
@@ -267,7 +267,7 @@ with the per-tier commands in place, under `CHATGPT_CODEX_REFRESH_TOKEN`:
 the same seven models, each listing exactly one tier — `Fast=priority`,
 `1.5x speed, increased usage` (`2x` on `gpt-6-astra`) — and the standard
 and the priority request each answered with a usage frame. The real binary,
-driven in tmux against the account with `ALTER_ZERO_MODEL=gpt-5.5`, listed
+driven in tmux against the account with `ZEROTH_MODEL=gpt-5.5`, listed
 `/fast` right after `/model` wearing `1.5x speed, increased usage`, toasted
 `Speed: fast — 1.5x speed, increased usage` with `gpt-5.5 medium fast` in
 the footer on the first run and `Speed: standard` on the second, and wrote

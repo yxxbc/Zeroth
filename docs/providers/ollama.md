@@ -108,7 +108,7 @@ refusal.
 
 So a host-configured provider is configured when it is **pointed at**:
 `OLLAMA_HOST` resolves (process env or `.env`), or a key resolves, or
-`ALTER_ZERO_PROVIDER` names it. That is what the `/login` row writes.
+`ZEROTH_PROVIDER` names it. That is what the `/login` row writes.
 
 ### One provider, one variable
 
@@ -179,7 +179,7 @@ would gauge against a number nobody stated. The cloud serves a model at its
 maximum, so a direct `ollama_cloud` listing and a local server's `-cloud`
 proxies are **uncapped**.
 
-`ALTER_ZERO_CONTEXT_WINDOW` outranks all of it, as it outranks every
+`ZEROTH_CONTEXT_WINDOW` outranks all of it, as it outranks every
 provider's reported window — and on this wire it is also what is *sent*, so
 it is the one knob that raises a local model past the cap.
 
@@ -357,7 +357,7 @@ so a first request on a large model can sit for tens of seconds before its
 first byte; `NET_OP_TIMEOUT` (120 s) bounds it, and a load that outlasts it
 surfaces as a retry — the load continues on the server meanwhile, so the
 retry usually lands. Changing `num_ctx` (a `/model` switch, an
-`ALTER_ZERO_CONTEXT_WINDOW`) pays the load again once.
+`ZEROTH_CONTEXT_WINDOW`) pays the load again once.
 
 ## Testing
 
@@ -382,7 +382,7 @@ content), and even the 1.7b one only does so reliably after reasoning about
 it — the model's limit, not the wire's, and worth knowing when picking a
 local model for agentic work.
 
-`scripts/smoke.sh` unsets `OLLAMA_HOST` and `ALTER_ZERO_PROVIDER` beside its
+`scripts/smoke.sh` unsets `OLLAMA_HOST` and `ZEROTH_PROVIDER` beside its
 `*_API_KEY` scrub, so a developer's own Ollama pointer never makes the
 suite's `/model` phases fetch from a server it doesn't run.
 
@@ -394,8 +394,8 @@ suite's `/model` phases fetch from a server it doesn't run.
 | `OLLAMA_API_KEY` | `ollama_cloud`'s key (ollama.com/settings/keys) — and only its own: it never configures the server-you-run provider |
 | `OLLAMA_HOST_API_KEY` | a bearer for the server `OLLAMA_HOST` names, when a proxy in front of it wants one; optional, and what `ollama` reads instead of the cloud's key |
 | `OLLAMA_CONTEXT_LENGTH` | the server's configured default window, mirrored into the window rule |
-| `ALTER_ZERO_CONTEXT_WINDOW` | outranks the rule, and is sent as `num_ctx` |
-| `ALTER_ZERO_PROVIDER=ollama` | also counts as pointing at it |
+| `ZEROTH_CONTEXT_WINDOW` | outranks the rule, and is sent as `num_ctx` |
+| `ZEROTH_PROVIDER=ollama` | also counts as pointing at it |
 
 All resolve the ordinary way (`docs/providers/llm.md`): a real process environment
 variable wins over the `.env` store.
@@ -408,7 +408,7 @@ variable wins over the `.env` store.
   rather than the tool set quietly shrinking to fit the model. Reading the
   capability into the backend's tool set is the next step.
 - The window is one value per session; there is no `/settings` row for it
-  yet (`ALTER_ZERO_CONTEXT_WINDOW` is the knob).
+  yet (`ZEROTH_CONTEXT_WINDOW` is the knob).
 - The listing is one `/api/show` per model, sequential: a cloud catalog of
   many models takes a few seconds to land in the picker (the other providers'
   lists show meanwhile).

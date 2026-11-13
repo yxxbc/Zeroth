@@ -13,7 +13,7 @@
 //! A0_VENICE_API_KEY=sk-a0-… cargo test --test live_secrets -- --ignored --nocapture
 //! ```
 //!
-//! `ALTER_ZERO_LIVE_VENICE_MODEL` overrides the model. The default is GLM
+//! `ZEROTH_LIVE_VENICE_MODEL` overrides the model. The default is GLM
 //! 4.7, not the `gpt-4o-mini` the other live suites use: every test here
 //! passes on GLM 4.7, Gemini 3.8 Flash and Qwen3 Coder 480B, while
 //! `gpt-4o-mini` reliably drops the closing quote of the JSON body it hands
@@ -51,8 +51,8 @@ struct Harness {
 /// `secrets`, with a shell registry for the interactive sessions — and no
 /// permission gate, so the model's calls run unasked.
 fn backend(secrets: &SecretRegistry) -> Harness {
-    let model = std::env::var("ALTER_ZERO_LIVE_VENICE_MODEL")
-        .unwrap_or_else(|_| "zai-org-glm-4.7".to_string());
+    let model =
+        std::env::var("ZEROTH_LIVE_VENICE_MODEL").unwrap_or_else(|_| "zai-org-glm-4.7".to_string());
     let providers = zeroth::llm::ProvidersFile::builtin();
     let sel = zeroth::llm::Selection {
         provider_id: "a0_venice".to_string(),

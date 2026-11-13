@@ -59,7 +59,7 @@ const PIPE_DRAIN_GRACE: Duration = Duration::from_secs(1);
 /// alias is set beside it deliberately: the point of implementing Claude
 /// Code's contract is that a script written for it works here unchanged, and
 /// finding the project root is the first thing such a script does.
-const PROJECT_DIR_VARS: &[&str] = &["ALTER_ZERO_PROJECT_DIR", "CLAUDE_PROJECT_DIR"];
+const PROJECT_DIR_VARS: &[&str] = &["ZEROTH_PROJECT_DIR", "CLAUDE_PROJECT_DIR"];
 
 /// What the agent loop does about a `PreToolUse` verdict.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -703,10 +703,10 @@ impl CommandHooks {
         self
     }
 
-    /// Export `dir` as `$ALTER_ZERO_PROJECT_DIR` (and `$CLAUDE_PROJECT_DIR`)
+    /// Export `dir` as `$ZEROTH_PROJECT_DIR` (and `$CLAUDE_PROJECT_DIR`)
     /// while handlers keep running in the `cwd` — the boundary passes the
     /// project root ([`crate::trust::hooks_project_dir`]), so a command
-    /// written as `${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/…` finds the
+    /// written as `${ZEROTH_PROJECT_DIR}/.zeroth/hooks/…` finds the
     /// project's scripts from any subdirectory.
     #[must_use]
     pub fn with_project_dir(mut self, dir: PathBuf) -> Self {
@@ -1865,11 +1865,11 @@ impl HookSink for CommandHooks {
     }
 }
 
-/// The `hooks.json` path: `ALTER_ZERO_HOOKS_FILE`, else
+/// The `hooks.json` path: `ZEROTH_HOOKS_FILE`, else
 /// `{config_home}/hooks.json`. Mirrors how every other config file resolves.
 #[must_use]
 pub fn hooks_file_path(config_home: Option<&Path>) -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("ALTER_ZERO_HOOKS_FILE") {
+    if let Some(path) = std::env::var_os("ZEROTH_HOOKS_FILE") {
         return Some(PathBuf::from(path));
     }
     config_home.map(|dir| dir.join("hooks.json"))
@@ -1972,10 +1972,10 @@ mod tests {
         let home = Path::new("/home/u");
         for file in [
             "/home/u/.zeroth/hooks.json",
-            "/home/u/repo/.alter-zero/hooks.json",
+            "/home/u/repo/.zeroth/hooks.json",
             // Containment is component-wise: another user's home is not `~`.
             "/home/user2/.zeroth/hooks.json",
-            "/etc/alter-zero/hooks.json",
+            "/etc/zeroth/hooks.json",
         ] {
             let file = Path::new(file);
             // A known home, none, and the homes that name no directory —
@@ -1995,8 +1995,8 @@ mod tests {
             }
         }
         assert_eq!(
-            shown_file(Path::new("/home/u/repo/.alter-zero/hooks.json"), Some(home)),
-            "~/repo/.alter-zero/hooks.json"
+            shown_file(Path::new("/home/u/repo/.zeroth/hooks.json"), Some(home)),
+            "~/repo/.zeroth/hooks.json"
         );
     }
 
@@ -2100,7 +2100,7 @@ mod tests {
         // The reported gap: a Stop hook that kept the agent going left no
         // trace inline. Its cell names the hook as a refusal does and shows
         // the feedback the agent continues on, worded as the model reads it.
-        let command = r#"bash "$HOME/.alter-zero/hooks/check-git.sh""#;
+        let command = r#"bash "$HOME/.zeroth/hooks/check-git.sh""#;
         let blocked = ran(
             HookEvent::Stop,
             HookRun {
@@ -2398,14 +2398,14 @@ mod tests {
                 reason: "tests are red".into(),
                 hook: Some(HookOrigin {
                     command: "./stop.sh".into(),
-                    file: Some("/repo/.alter-zero/hooks.json".into()),
+                    file: Some("/repo/.zeroth/hooks.json".into()),
                 }),
             }),
             (
                 "Stop hook".to_string(),
                 "Stop hook feedback: tests are red\n\
                  Hook: ./stop.sh\n\
-                 Config: /repo/.alter-zero/hooks.json"
+                 Config: /repo/.zeroth/hooks.json"
                     .to_string()
             )
         );
@@ -2730,7 +2730,7 @@ mod tests {
         // PostToolUseFailure a failure's — matched on the tool name, the
         // error in the payload, and the same answers (context the model
         // reads, a note on the cell).
-        let probe = std::env::temp_dir().join("alter-zero-hook-post-failure-probe.json");
+        let probe = std::env::temp_dir().join("zeroth-hook-post-failure-probe.json");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&format!(
             r#"{{"hooks":{{
@@ -2775,7 +2775,7 @@ mod tests {
         // Claude Code's StopFailure: the matcher is the error type, and the
         // event is the session's turn ending — a subagent's failed round is
         // not it (the tagged sink stays quiet, as for its Stop).
-        let probe = std::env::temp_dir().join("alter-zero-hook-stop-failure-probe.jsonl");
+        let probe = std::env::temp_dir().join("zeroth-hook-stop-failure-probe.jsonl");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&format!(
             r#"{{"hooks":{{"StopFailure":[{{"matcher":"rate_limit","hooks":[
@@ -2812,7 +2812,7 @@ mod tests {
         // Claude Code's Notification(permission_prompt): fired as the prompt
         // opens, observation only — a slow notifier (a webhook, a desktop
         // notification) must not delay the call once the user has answered.
-        let probe = std::env::temp_dir().join("alter-zero-hook-notification-probe.json");
+        let probe = std::env::temp_dir().join("zeroth-hook-notification-probe.json");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&format!(
             r#"{{"hooks":{{"Notification":[{{"matcher":"permission_prompt","hooks":[
@@ -2858,7 +2858,7 @@ mod tests {
     fn a_cancelled_turn_reaps_a_running_notifier() {
         // Fired off the gate's thread, the notifier still belongs to the
         // turn: an Esc kills it rather than leaving it running.
-        let probe = std::env::temp_dir().join("alter-zero-hook-notifier-reaped-probe");
+        let probe = std::env::temp_dir().join("zeroth-hook-notifier-reaped-probe");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&format!(
             r#"{{"hooks":{{"Notification":[{{"hooks":[
@@ -2935,7 +2935,7 @@ mod tests {
         // A slow notifier for the first prompt, a quick one for the second:
         // run side by side the second would land first, so a status hook
         // would end on the wrong prompt (`docs/tools/hooks.md`).
-        let log = std::env::temp_dir().join("alter-zero-hook-notify-order.log");
+        let log = std::env::temp_dir().join("zeroth-hook-notify-order.log");
         let _ = std::fs::remove_file(&log);
         let hooks = recording_hooks(
             &log,
@@ -2990,7 +2990,7 @@ mod tests {
         // never held up — but its PostToolUse does not overtake the
         // notification the prompt fired: hook events keep the order they
         // fired in (`docs/tools/hooks.md`).
-        let log = std::env::temp_dir().join("alter-zero-hook-notify-before-post.log");
+        let log = std::env::temp_dir().join("zeroth-hook-notify-before-post.log");
         let _ = std::fs::remove_file(&log);
         let hooks = recording_hooks(&log, "sleep 1; ", &["Notification", "PostToolUse"]);
         let cancel = CancelToken::new();
@@ -3007,7 +3007,7 @@ mod tests {
     fn an_event_with_no_hook_of_its_own_never_waits_on_a_notifier() {
         // Ordering is about what hooks see; a call whose event runs nothing
         // has nothing to order, so a slow notifier costs it nothing.
-        let log = std::env::temp_dir().join("alter-zero-hook-notify-no-wait.log");
+        let log = std::env::temp_dir().join("zeroth-hook-notify-no-wait.log");
         let _ = std::fs::remove_file(&log);
         let hooks = recording_hooks(&log, "sleep 2; ", &["Notification"]);
         let cancel = CancelToken::new();
@@ -3029,7 +3029,7 @@ mod tests {
         // Behind a slow notifier, a second prompt's notification waits its
         // turn; if that prompt's turn is cancelled meanwhile, nothing of it
         // runs — and the lane moves on.
-        let log = std::env::temp_dir().join("alter-zero-hook-notify-cancelled.log");
+        let log = std::env::temp_dir().join("zeroth-hook-notify-cancelled.log");
         let _ = std::fs::remove_file(&log);
         let hooks = recording_hooks(
             &log,
@@ -3059,7 +3059,7 @@ mod tests {
         // SessionEnd is last — after a notification shown before the quit —
         // and still bounded: a notifier that hangs costs the quit no more
         // than SessionEnd's own budget.
-        let log = std::env::temp_dir().join("alter-zero-hook-notify-before-end.log");
+        let log = std::env::temp_dir().join("zeroth-hook-notify-before-end.log");
         let _ = std::fs::remove_file(&log);
         let hooks = recording_hooks(&log, "sleep 0.5; ", &["Notification", "SessionEnd"]);
         hooks
@@ -3295,7 +3295,7 @@ mod tests {
 
     #[test]
     fn a_lead_sinks_stop_fires_the_stop_event_and_a_block_is_the_feedback() {
-        let probe = std::env::temp_dir().join("alter-zero-hook-stop-probe.json");
+        let probe = std::env::temp_dir().join("zeroth-hook-stop-probe.json");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&format!(
             r#"{{"hooks":{{"Stop":[{{"hooks":[{{"type":"command",
@@ -3333,7 +3333,7 @@ mod tests {
 
     #[test]
     fn a_tagged_sinks_stop_fires_subagent_stop_and_matches_the_agent_type() {
-        let probe = std::env::temp_dir().join("alter-zero-hook-substop-probe.json");
+        let probe = std::env::temp_dir().join("zeroth-hook-substop-probe.json");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&format!(
             r#"{{"hooks":{{"SubagentStop":[{{"matcher":"explore","hooks":[{{"type":"command",
@@ -3392,7 +3392,7 @@ mod tests {
     #[test]
     fn a_subagents_calls_carry_its_identity_into_the_payload() {
         // The hook writes what it was told to a file; we read it back.
-        let probe = std::env::temp_dir().join("alter-zero-hook-agent-probe.json");
+        let probe = std::env::temp_dir().join("zeroth-hook-agent-probe.json");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&pre_hook(&format!("cat > {}", probe.display())));
         let sink = hooks
@@ -3416,7 +3416,7 @@ mod tests {
         // conversation's own id (the one `--resume` takes), which the
         // recorder publishes before its file exists and moves on `/clear`
         // and `/resume`.
-        let probe = std::env::temp_dir().join("alter-zero-hook-live-ctx-probe.json");
+        let probe = std::env::temp_dir().join("zeroth-hook-live-ctx-probe.json");
         let _ = std::fs::remove_file(&probe);
         let gate = crate::permission::PermissionGate::new();
         gate.set_mode(crate::permission::PermissionMode::Edit);
@@ -3591,7 +3591,7 @@ mod tests {
         // A `/clear` or a switch while the hooks still run: nothing they
         // return applies to the session (Claude Code's rule), and the
         // handler is killed rather than left running.
-        let probe = std::env::temp_dir().join("alter-zero-hook-discarded-start-probe");
+        let probe = std::env::temp_dir().join("zeroth-hook-discarded-start-probe");
         let _ = std::fs::remove_file(&probe);
         let hooks = session_start_hooks(&format!("sleep 1; touch {}; echo stale", probe.display()));
         hooks.fire_session_start();
@@ -3859,7 +3859,7 @@ mod tests {
         // Quitting must never hang on a hook: the whole event is capped at
         // ~2 s whatever the handler's own timeout says. The matcher gates on
         // the reason, Claude Code's rule.
-        let probe = std::env::temp_dir().join("alter-zero-hook-end-probe.json");
+        let probe = std::env::temp_dir().join("zeroth-hook-end-probe.json");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&format!(
             r#"{{"hooks":{{"SessionEnd":[
@@ -3890,7 +3890,7 @@ mod tests {
         // summarization instructions; it can never block — neither reference
         // honours a block for it) and PostCompact rides its stop (which
         // never continues a summarization).
-        let probe = std::env::temp_dir().join("alter-zero-hook-compact-probe.jsonl");
+        let probe = std::env::temp_dir().join("zeroth-hook-compact-probe.jsonl");
         let _ = std::fs::remove_file(&probe);
         let file = HooksFile::parse(&format!(
             r#"{{"hooks":{{
@@ -3945,12 +3945,12 @@ mod tests {
     #[test]
     fn a_hook_found_through_the_project_dir_runs_from_a_subdirectory() {
         // The documented way to reach a project's own hook scripts:
-        // "${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/…" — which must resolve
+        // "${ZEROTH_PROJECT_DIR}/.zeroth/hooks/…" — which must resolve
         // to the project root even when the session runs in a subdirectory,
         // where the hook itself still runs.
-        let project = std::env::temp_dir().join("alter-zero-hook-project-dir");
+        let project = std::env::temp_dir().join("zeroth-hook-project-dir");
         let _ = std::fs::remove_dir_all(&project);
-        let scripts = project.join(".alter-zero").join("hooks");
+        let scripts = project.join(".zeroth").join("hooks");
         let subdir = project.join("src");
         std::fs::create_dir_all(&scripts).expect("scripts dir");
         std::fs::create_dir_all(&subdir).expect("subdir");
@@ -3970,10 +3970,8 @@ mod tests {
         let mut perms = std::fs::metadata(&guard).expect("script").permissions();
         std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
         std::fs::set_permissions(&guard, perms).expect("chmod");
-        let file = HooksFile::parse(&pre_hook(
-            "${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/guard.sh",
-        ))
-        .expect("fixture parses");
+        let file = HooksFile::parse(&pre_hook("${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh"))
+            .expect("fixture parses");
         let hooks = CommandHooks::new(
             Arc::new(file),
             HookContext::default(),
@@ -3996,16 +3994,16 @@ mod tests {
 
     #[test]
     fn the_project_dir_is_exported_under_both_names() {
-        let probe = std::env::temp_dir().join("alter-zero-hook-env-probe.txt");
+        let probe = std::env::temp_dir().join("zeroth-hook-env-probe.txt");
         let _ = std::fs::remove_file(&probe);
         let hooks = hooks_for(&pre_hook(&format!(
-            "printf '%s|%s' \"$ALTER_ZERO_PROJECT_DIR\" \"$CLAUDE_PROJECT_DIR\" > {}",
+            "printf '%s|%s' \"$ZEROTH_PROJECT_DIR\" \"$CLAUDE_PROJECT_DIR\" > {}",
             probe.display()
         )));
         let _ = hooks.pre_tool_use(&call("bash", "{}"), &CancelToken::new());
         let written = std::fs::read_to_string(&probe).expect("the hook ran");
         let (ours, theirs) = written.split_once('|').expect("both vars");
-        assert!(!ours.is_empty(), "ALTER_ZERO_PROJECT_DIR is set");
+        assert!(!ours.is_empty(), "ZEROTH_PROJECT_DIR is set");
         assert_eq!(ours, theirs, "the Claude Code alias matches");
         let _ = std::fs::remove_file(&probe);
     }

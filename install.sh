@@ -8,8 +8,8 @@
 # published beside it, and installs the binary to ~/.local/bin. Nothing is
 # installed unless the checksum matches and the binary runs.
 #
-#   ALTER_ZERO_VERSION=v0.1.0 … | sh               # pin a release (default: the latest)
-#   ALTER_ZERO_INSTALL_DIR=/usr/local/bin … | sh   # install somewhere else
+#   ZEROTH_VERSION=v0.1.0 … | sh               # pin a release (default: the latest)
+#   ZEROTH_INSTALL_DIR=/usr/local/bin … | sh   # install somewhere else
 #   … | sh -s -- --version v0.1.0 --dir ~/bin      # the same two, as flags
 #   … | sh -s -- --preview                         # the mascot alone, 10 s, installing nothing
 #   … | sh -s -- --preview 20                      # the same, for 20 s (--preview=20 too)
@@ -18,17 +18,17 @@
 # POSIX sh only — no arrays, no `local`, no `[[` — so `sh` on macOS (bash 3.2
 # in POSIX mode), dash and busybox all run it. Everything is a function and
 # the last line calls `main`, so a download cut short executes nothing.
-# ALTER_ZERO_INSTALL_BASE_URL points it at a stand-in for github.com; the
+# ZEROTH_INSTALL_BASE_URL points it at a stand-in for github.com; the
 # release tooling's selftest uses that to install from a local server.
 set -eu
 
-REPO="${ALTER_ZERO_REPO:-yxxbc/zeroth}"
+REPO="${ZEROTH_REPO:-yxxbc/zeroth}"
 # The installed binary is named after the repository's slug — Cargo.toml's
 # `name`, which is what a release archive is named after too. One variable,
 # so this repository (`yxxbc/zeroth` → `zeroth`) and a stand-in (the release
-# tooling's fixture is a repository called `example/alter-zero`) both resolve.
+# tooling's fixture is a repository called `example/zeroth`) both resolve.
 BIN="${REPO##*/}"
-BASE_URL="${ALTER_ZERO_INSTALL_BASE_URL:-https://github.com/$REPO}"
+BASE_URL="${ZEROTH_INSTALL_BASE_URL:-https://github.com/$REPO}"
 GLIBC_FLOOR_MINOR=35
 
 # ---------------------------------------------------------------------------
@@ -351,7 +351,7 @@ fetch_live() {
 # The tag the repository's "latest release" redirect points at — read off the
 # redirect itself with either fetcher, never GitHub's API: the API is
 # rate-limited per address (a shared NAT or a CI runner spends its hour's
-# allowance fast) and knows nothing of ALTER_ZERO_INSTALL_BASE_URL, so a fork
+# allowance fast) and knows nothing of ZEROTH_INSTALL_BASE_URL, so a fork
 # asking it would be handed this repository's newest tag.
 latest_tag() {
 	if [ "$fetcher" = curl ]; then
@@ -391,8 +391,8 @@ main() {
 	# Before anything can `fail`: the glyphs and colours in its message come
 	# from here, and `set -u` would stop it on an unset one.
 	setup_looks
-	want="${ALTER_ZERO_VERSION:-}"
-	dir="${ALTER_ZERO_INSTALL_DIR:-$HOME/.local/bin}"
+	want="${ZEROTH_VERSION:-}"
+	dir="${ZEROTH_INSTALL_DIR:-$HOME/.local/bin}"
 	preview_secs=''
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -449,8 +449,8 @@ main() {
 		case "$want" in v*) tag="$want" ;; *) tag="v$want" ;; esac
 		how="pinned"
 	else
-		tag=$(latest_tag) || fail "could not reach $BASE_URL/releases/latest" "Check your connection, or pin a release with ALTER_ZERO_VERSION=vX.Y.Z."
-		case "$tag" in v[0-9]*) ;; *) fail "could not work out the latest release" "The redirect ended at '$tag'. Pin one with ALTER_ZERO_VERSION=vX.Y.Z." ;; esac
+		tag=$(latest_tag) || fail "could not reach $BASE_URL/releases/latest" "Check your connection, or pin a release with ZEROTH_VERSION=vX.Y.Z."
+		case "$tag" in v[0-9]*) ;; *) fail "could not work out the latest release" "The redirect ended at '$tag'. Pin one with ZEROTH_VERSION=vX.Y.Z." ;; esac
 		how="latest"
 	fi
 	version="${tag#v}"
@@ -494,8 +494,8 @@ main() {
 		previous=$("$BIN" --version 2>/dev/null | awk '{ print $2 }') || previous=""
 	fi
 
-	mkdir -p "$dir" 2>/dev/null || fail "cannot create $(pretty "$dir")" "Pick another place: ALTER_ZERO_INSTALL_DIR=\$HOME/bin"
-	[ -w "$dir" ] || fail "$(pretty "$dir") is not writable" "Pick a directory you own: ALTER_ZERO_INSTALL_DIR=\$HOME/bin"
+	mkdir -p "$dir" 2>/dev/null || fail "cannot create $(pretty "$dir")" "Pick another place: ZEROTH_INSTALL_DIR=\$HOME/bin"
+	[ -w "$dir" ] || fail "$(pretty "$dir") is not writable" "Pick a directory you own: ZEROTH_INSTALL_DIR=\$HOME/bin"
 	# Land beside the old binary, then move over it: a running zeroth
 	# keeps its mapped file and the new one appears whole, never half-written.
 	staged="$dir/.$BIN.$$"

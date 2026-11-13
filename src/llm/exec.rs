@@ -1574,7 +1574,7 @@ fn create_parents(path: &Path) -> std::io::Result<()> {
 /// A unique temp path under the system temp dir for a test file.
 #[cfg(test)]
 fn temp_path(name: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("alter-zero-exec-test-{name}"))
+    std::env::temp_dir().join(format!("zeroth-exec-test-{name}"))
 }
 
 #[cfg(test)]
@@ -2341,7 +2341,7 @@ os.write(1, b"\n")'"#;
         // id and as the log's basename — twice, never as a separate label.
         let task = crate::background::LaunchedTask {
             id: "bvyo7tkbe".to_string(),
-            output_path: std::path::PathBuf::from("/tmp/alter-zero-0/s1/bvyo7tkbe.output"),
+            output_path: std::path::PathBuf::from("/tmp/zeroth-0/s1/bvyo7tkbe.output"),
         };
         for text in [
             background_launch_text(&task),
@@ -2357,7 +2357,7 @@ os.write(1, b"\n")'"#;
                 "the session id, and the log's basename: {text}"
             );
             assert!(
-                text.contains("/tmp/alter-zero-0/s1/bvyo7tkbe.output"),
+                text.contains("/tmp/zeroth-0/s1/bvyo7tkbe.output"),
                 "the log is the model's progress channel: {text}"
             );
             assert!(text.lines().count() <= 2, "short: {text}");
@@ -2420,10 +2420,8 @@ os.write(1, b"\n")'"#;
         static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        let dir = std::env::temp_dir().join(format!(
-            "alter-zero-exec-bg-test-{}-{seq}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("zeroth-exec-bg-test-{}-{seq}", std::process::id()));
         // The helper `main()` installs, so a terminal session starts where
         // there is no `setsid` binary too (macOS).
         let helper = crate::subprocess::test_detach_helper().map(std::path::Path::to_path_buf);

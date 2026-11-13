@@ -12,7 +12,7 @@ smoke_begin
 # a concurrent session of the developer's own is never mistaken for it).
 S91="${S}_scratchpad"
 SP_TMP="$(mktemp -d "$SMOKE_TMP/pad.XXXXXX")"
-SPAPP="env $CFG_ENV_NOHIST TMPDIR=$SP_TMP ALTER_ZERO_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+SPAPP="env $CFG_ENV_NOHIST TMPDIR=$SP_TMP ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 tmux new-session -d -s "$S91" -x 80 -y 24 "$SPAPP"
 sp_dir=""
 for _ in $(seq 1 60); do
@@ -37,8 +37,8 @@ tmux kill-session -t "$S91" 2>/dev/null
 echo "==== Phase 91: scratchpad='${sp_dir#"$SP_TMP"}', task output='${sp_out#"$SP_TMP"}' ===="
 if [ -z "$sp_dir" ]; then
 	fail "no scratchpad directory was created under the session root"
-elif ! printf '%s' "$sp_dir" | grep -qE "^$SP_TMP/alter-zero-[0-9]+/[^/]+/scratchpad$"; then
-	fail "the scratchpad is not at {tmp}/alter-zero-{uid}/{session}/scratchpad (got '$sp_dir')"
+elif ! printf '%s' "$sp_dir" | grep -qE "^$SP_TMP/zeroth-[0-9]+/[^/]+/scratchpad$"; then
+	fail "the scratchpad is not at {tmp}/zeroth-{uid}/{session}/scratchpad (got '$sp_dir')"
 fi
 if [ -z "$sp_out" ]; then
 	fail "a backgrounded command left no interim output file"

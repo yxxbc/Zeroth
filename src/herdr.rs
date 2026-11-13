@@ -39,7 +39,7 @@ use crate::ask::AskQuestion;
 use crate::permission::{self, PermissionKind, PermissionRequest};
 
 /// The app's own off switch for a run.
-pub const DISABLE_ENV: &str = "ALTER_ZERO_HERDR";
+pub const DISABLE_ENV: &str = "ZEROTH_HERDR";
 
 /// `1` on every process herdr starts in a pane — herdr's own marker, which
 /// its integrations and its agent skill all require to be exactly `1`.
@@ -151,7 +151,7 @@ pub fn pane(var: impl Fn(&str) -> Option<String>) -> Option<Pane> {
     })
 }
 
-/// The off half of the grammar every `ALTER_ZERO_*` on/off flag uses.
+/// The off half of the grammar every `ZEROTH_*` on/off flag uses.
 fn falsy(value: &str) -> bool {
     matches!(
         value.trim().to_ascii_lowercase().as_str(),
@@ -1049,7 +1049,7 @@ mod tests {
             vars.push((DISABLE_ENV, off));
             assert_eq!(pane(env(&vars)), None, "{DISABLE_ENV}={off:?}");
         }
-        // Anything else leaves it on — the grammar every ALTER_ZERO_* flag
+        // Anything else leaves it on — the grammar every ZEROTH_* flag
         // uses.
         let mut vars = IN_PANE.to_vec();
         vars.push((DISABLE_ENV, "1"));
@@ -1370,11 +1370,11 @@ mod tests {
         // other character is refused (and the refusal takes the state
         // report it rode in with).
         for bin in [
-            "target/debug/alter-zero",
-            "/usr/local/bin/alter-zero",
+            "target/debug/zeroth",
+            "/usr/local/bin/zeroth",
             "",
-            "alter zero",
-            "-alter-zero",
+            "zeroth zero",
+            "-zeroth",
             "alter+zero",
             "altér-zero",
         ] {

@@ -454,7 +454,7 @@ fn the_detail_page_wraps_the_status_message_and_marks_a_cut_source() {
     let mut app = App::new();
     app.open_hooks_menu(
         HooksOverview::from_file(&file),
-        Some("~/.config/deeply/nested/path/to/alter-zero/hooks.json".into()),
+        Some("~/.config/deeply/nested/path/to/zeroth/hooks.json".into()),
         true,
     );
     press(&mut app, KeyCode::Enter); // matchers
@@ -486,7 +486,7 @@ fn every_built_hooks_row_fits_its_width() {
         let mut app = App::new();
         app.open_hooks_menu(
             overview(),
-            Some("~/.config/deeply/nested/path/to/alter-zero/hooks.json".into()),
+            Some("~/.config/deeply/nested/path/to/zeroth/hooks.json".into()),
             false,
         );
         for step in 0..4 {

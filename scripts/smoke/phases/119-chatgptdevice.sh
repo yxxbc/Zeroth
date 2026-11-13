@@ -10,7 +10,7 @@ smoke_begin
 # and the device row runs a flow that talks to OpenAI's auth server: a code
 # request, a poll until the user approves the code on OpenAI's page, then the
 # token exchange. A local Python stub stands in for that server, reached
-# through ALTER_ZERO_OPENAI_ISSUER, answering Codex's own wire shapes: the
+# through ZEROTH_OPENAI_ISSUER, answering Codex's own wire shapes: the
 # code with a STRING interval, two "not yet" polls (a 403 and then a 404 —
 # the reference reads either as pending), then the grant carrying the
 # server-minted PKCE verifier, and a token set whose access token claims a
@@ -87,7 +87,7 @@ for _ in $(seq 1 30); do # wait for the stub to listen
 done
 # NO_PROXY keeps a developer's HTTP proxy out of the loopback requests.
 DC_ISSUER="http://127.0.0.1:$DC_PORT"
-launch "$S119" 100 32 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_OPENAI_ISSUER=$DC_ISSUER $APP"
+launch "$S119" 100 32 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_OPENAI_ISSUER=$DC_ISSUER $APP"
 
 # Into the subscription list, and onto the ChatGPT Codex row by NAME (Phase
 # 104's rule: the list is alphabetical by provider id, so counting Downs would

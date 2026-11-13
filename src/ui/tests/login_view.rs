@@ -359,7 +359,7 @@ fn the_env_path_hint_wraps_at_narrow_widths() {
     use crate::ui::login_view::key_onboarding_lines;
     let mut app = login_app_provider();
     let onboarding = app.key_onboarding.as_mut().unwrap();
-    onboarding.env_path = "~/.config/alter-zero/deeply/nested/credentials.env".into();
+    onboarding.env_path = "~/.config/zeroth/deeply/nested/credentials.env".into();
     let lines = key_onboarding_lines(onboarding, 40, 200);
     for line in &lines {
         assert!(

@@ -131,7 +131,7 @@ fn an_mcp_row_with_no_servers_is_unavailable_and_keeps_its_preference() {
 
 #[test]
 fn a_cycled_mcp_row_is_what_the_directory_records_and_its_override_never_sticks() {
-    // `ALTER_ZERO_MCP=0` rides the live blob for one run: cycling another row
+    // `ZEROTH_MCP=0` rides the live blob for one run: cycling another row
     // must not write it, cycling this one does — in this directory only.
     let live = SessionSettings {
         mcp: false,
@@ -296,7 +296,7 @@ fn temperature_cycles_from_default_through_the_offered_values() {
 
 #[test]
 fn a_value_the_menu_does_not_offer_cycles_back_into_the_list() {
-    // An ALTER_ZERO_TEMPERATURE=0.42 override (or a hand-edited file) is shown
+    // An ZEROTH_TEMPERATURE=0.42 override (or a hand-edited file) is shown
     // faithfully, but one press rejoins the offered cycle rather than wedging.
     let mut s = SessionSettings {
         temperature: Some(0.42),
@@ -329,7 +329,7 @@ fn the_permission_row_reads_the_mode_it_is_given_and_never_stores_one() {
 
 #[test]
 fn the_permission_row_reads_disabled_and_unavailable_with_no_gate() {
-    // ALTER_ZERO_PERMISSIONS=0 runs with no gate at all: App carries no mode,
+    // ZEROTH_PERMISSIONS=0 runs with no gate at all: App carries no mode,
     // so the row says so rather than pretending `manual` is in force.
     let s = SessionSettings::default();
     assert!(!s.is_available(SettingKey::PermissionMode, None));
@@ -469,7 +469,7 @@ fn parse_of_garbage_or_unknown_keys_degrades_to_the_defaults() {
 
 #[test]
 fn copy_value_moves_exactly_one_setting_and_never_the_environment() {
-    // The write path's whole point: an `ALTER_ZERO_*` override merged over the
+    // The write path's whole point: an `ZEROTH_*` override merged over the
     // file at startup must not be persisted when the user changes something
     // else. The boundary keeps the file's own blob and moves across only the
     // key that was cycled.
@@ -597,7 +597,7 @@ fn record_value_moves_one_key_onto_the_directory_entry_seeded_from_the_file() {
     let live = SessionSettings {
         error_retry: 5,
         hide_thinking: true,
-        tools: false, // an ALTER_ZERO_TOOLS=0 override, this run only
+        tools: false, // an ZEROTH_TOOLS=0 override, this run only
         ..SessionSettings::default()
     };
     file.record_value("/a", SettingKey::HideThinking, &live);
@@ -877,7 +877,7 @@ fn an_ask_timeout_of_never_stops_the_clock() {
 
 #[test]
 fn an_ask_timeout_the_menu_does_not_offer_reads_whole_and_cycles_back_in() {
-    // `ALTER_ZERO_ASK_TIMEOUT_SECS=90` sets a wait the menu never lists: it
+    // `ZEROTH_ASK_TIMEOUT_SECS=90` sets a wait the menu never lists: it
     // still reads as the limit it is, and a cycle joins the list at its start.
     let mut s = SessionSettings {
         ask_timeout_secs: 90,

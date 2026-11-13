@@ -82,7 +82,7 @@ pub const DEFAULT_PROJECT: &str = "aicode-consumers";
 
 /// The agy CLI release the `User-Agent` names. The backend serves its full
 /// catalog only to a recent enough client, and answers a model it hides with
-/// 404; `ALTER_ZERO_ANTIGRAVITY_USER_AGENT` replaces the whole string when
+/// 404; `ZEROTH_ANTIGRAVITY_USER_AGENT` replaces the whole string when
 /// Google moves the gate.
 const CLI_VERSION: &str = "1.4.0";
 
@@ -99,11 +99,11 @@ pub const REFRESH_ENV_VAR: &str = "ANTIGRAVITY_REFRESH_TOKEN";
 pub const PROJECT_ENV: &str = "ANTIGRAVITY_PROJECT_ID";
 
 /// The variable that replaces the agy CLI `User-Agent`. Read at the boundary.
-pub const USER_AGENT_ENV: &str = "ALTER_ZERO_ANTIGRAVITY_USER_AGENT";
+pub const USER_AGENT_ENV: &str = "ZEROTH_ANTIGRAVITY_USER_AGENT";
 
 /// The variable that moves Google's OAuth host (the token and userinfo
 /// calls) — the smoke suite's stand-in. Read at the boundary.
-pub const OAUTH_BASE_ENV: &str = "ALTER_ZERO_GOOGLE_OAUTH_BASE";
+pub const OAUTH_BASE_ENV: &str = "ZEROTH_GOOGLE_OAUTH_BASE";
 
 /// How long the sign-in page waits for the browser — the countdown it shows.
 pub const AUTH_TIMEOUT: Duration = Duration::from_secs(600);

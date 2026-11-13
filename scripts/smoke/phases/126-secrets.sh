@@ -282,7 +282,7 @@ EOF
 # launch keeps a real input-history file, so the message typed with the value
 # can prove ↑ recall's file never holds it.
 HIST_FILE="$SMOKE_TMP/history.jsonl"
-REAL_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_HISTORY_FILE=$HIST_FILE ALTER_ZERO_PROVIDERS_FILE=$PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+REAL_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_HISTORY_FILE=$HIST_FILE ZEROTH_PROVIDERS_FILE=$PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 launch -c "$WORK" "$S126B" 100 40 "$REAL_APP"
 # Typed with the value itself: the provider must read the placeholder.
 submit "$S126B" "use the demo token, it is $VALUE"

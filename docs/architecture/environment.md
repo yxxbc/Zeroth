@@ -4,7 +4,7 @@ Date: 2026-07-19
 
 ## Goal
 
-Give the "Alter Zero" agent **context awareness** of where and when it runs:
+Give the "Zeroth" agent **context awareness** of where and when it runs:
 the current **date**, **os**, **user** and **cwd** ride in the system prompt
 every session. Without them the model guesses the date, assumes a platform,
 can't tell whether it is root, and has no idea which directory its
@@ -30,7 +30,7 @@ The `{date}`/`{os}`/`{user}`/`{cwd}` placeholders are filled at runtime, e.g.:
 Date Sunday 2026-07-19
 OS linux (Ubuntu 24.04.4 LTS)
 User linuztx
-CWD /home/linuztx/alter-zero
+CWD /home/linuztx/zeroth
 ```
 
 ## Where it sits in the prompt
@@ -42,7 +42,7 @@ four in a headless run:
 persona        prompts/zeroth.md   (who you are)
 environment    prompts/environment.md  (where/when you are, as which user)   ← this doc
 scratchpad     prompts/scratchpad.md   (where your scratch goes, docs/tools/scratchpad.md)
-headless       prompts/headless.md     (nobody is watching — alter-zero -p only, docs/cli/headless.md)
+headless       prompts/headless.md     (nobody is watching — zeroth -p only, docs/cli/headless.md)
 ```
 
 `persona → environment`, joined by `augment_with_environment`, then the
@@ -84,11 +84,11 @@ read can't live in the pure, deterministically-tested library. So the split is:
    - `passwd_name(contents, uid)` and `user_label(uid, name)` are the user
      line's parse and its wording ([below](#the-user-line)).
 
-3. **A blank base stays blank.** The "empty `ALTER_ZERO_SYSTEM_PROMPT` → no
+3. **A blank base stays blank.** The "empty `ZEROTH_SYSTEM_PROMPT` → no
    system message" contract (`docs/architecture/context.md`) is preserved:
    `augment_with_environment` returns a blank base unchanged, so
    `configure` still drops it to `None`. Any non-empty prompt — the default
-   persona *or* a custom `ALTER_ZERO_SYSTEM_PROMPT` — gets the environment
+   persona *or* a custom `ZEROTH_SYSTEM_PROMPT` — gets the environment
    block, because context awareness is orthogonal to persona.
 
 ## The user line

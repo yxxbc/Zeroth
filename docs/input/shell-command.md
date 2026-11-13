@@ -288,7 +288,7 @@ The `?` shortcuts band gains a `! for shell command` entry.
   notice (req 2). **Phase 22**: a `!` command with >100KB output
   (`seq 1 50000`) commits its whole retained head inline — numeric rows on
   screen, no `+N lines (ctrl+o to expand)` hint — closed by the `…`
-  truncation marker, writes **no** `/tmp/alter-zero-shell-*.txt` file (the
+  truncation marker, writes **no** `/tmp/zeroth-shell-*.txt` file (the
   output is capped in memory, never saved), and the Ctrl+O view ends with the
   same `…`.
 

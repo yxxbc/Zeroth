@@ -47,7 +47,7 @@ configured` or `◯ unconfigured`.
 **Configured means pointed at** (`tui::config::is_configured`, the rule
 `docs/providers/ollama.md` set out for Ollama): the provider's address variable
 resolves (`OLLAMA_HOST`, `LMSTUDIO_HOST`), or a key resolves, or
-`ALTER_ZERO_PROVIDER` names it. A server a user's own block fixes in place,
+`ZEROTH_PROVIDER` names it. A server a user's own block fixes in place,
 with no address variable, is configured by that block alone
 (`Provider::configured_by_definition`, `docs/providers/user-providers.md`). Configured
 is also which providers `/model` fetches from. A server counted configured
@@ -99,7 +99,7 @@ without being pointed at would paint `LM Studio unavailable` in red on every
   | answered with N models | *(passes: saves, closes, toasts `Connected to {name} — N models …`)* |
   | could not connect: refused | `Nothing is answering at {host} — is {name}'s server running?` |
   | could not connect: the name did not resolve | `Could not find {host} — check the address.` |
-  | could not connect: the certificate is untrusted | `{host}'s certificate is not trusted — it may be self-signed. Point ALTER_ZERO_CA_FILE at its CA certificate, then test again.` |
+  | could not connect: the certificate is untrusted | `{host}'s certificate is not trusted — it may be self-signed. Point ZEROTH_CA_FILE at its CA certificate, then test again.` |
   | could not connect: an https request to a plain-http server | `{host} does not speak https — try http:// instead.` |
   | timed out | `{host} did not answer in time — check the address, and that nothing blocks the port.` |
   | answered 401 or 403 | *(asks for a token: the next section)* |
@@ -313,9 +313,9 @@ internal CA. The connection test fails such a server at the TLS handshake,
 and the page says so and how to get past it:
 
 > `gpu-box:8443's certificate is not trusted — it may be self-signed. Point
-> ALTER_ZERO_CA_FILE at its CA certificate, then test again.`
+> ZEROTH_CA_FILE at its CA certificate, then test again.`
 
-`ALTER_ZERO_CA_FILE` (or `SSL_CERT_FILE`) adds trust roots to every request
+`ZEROTH_CA_FILE` (or `SSL_CERT_FILE`) adds trust roots to every request
 this process makes (`llm::http_client`). It is read when the first client is
 built, so it is set before launch.
 
@@ -344,7 +344,7 @@ rather than built, so its shape is agreed before any code exists:
    one shared HTTP client (`llm::http_client` caches clients per timeout), a
    handshake that reads a certificate it did not verify, and a new file the
    whole session trusts. Each is security-relevant code and deserves its own
-   review. `ALTER_ZERO_CA_FILE` covers the need meanwhile, and the failure
+   review. `ZEROTH_CA_FILE` covers the need meanwhile, and the failure
    names it.
 
 ## Upgrading
@@ -446,5 +446,5 @@ phase.
   has loaded it.
 - **No Ctrl+T for LM Studio** (above).
 - **No "save anyway"** for an address that fails its test (above).
-- **Self-signed certificates** are trusted through `ALTER_ZERO_CA_FILE`; asking
+- **Self-signed certificates** are trusted through `ZEROTH_CA_FILE`; asking
   to accept one is designed above, not built.

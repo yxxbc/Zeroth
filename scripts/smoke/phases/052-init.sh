@@ -25,10 +25,10 @@ WORK52="$(smoke_real_path "$(mktemp -d "$SMOKE_TMP/init.XXXXXX")")"
 mkdir -p "$WORK52/.git"
 printf '# Contributor guide\n\nSmoke sentinel: Umbral-Kite-77.\n' >"$WORK52/AGENTS.md"
 # The app runs in the temp cwd (-c), so the binary must be an absolute path.
-# The suite exports ALTER_ZERO_PROJECT_DOC_MAX_BYTES=0 (lib.sh); this phase
+# The suite exports ZEROTH_PROJECT_DOC_MAX_BYTES=0 (lib.sh); this phase
 # is the one that reads the planted AGENTS.md, so it drops the override.
 tmux new-session -d -s "$S52" -x 160 -y 30 -c "$WORK52" \
-	"env -u ALTER_ZERO_PROJECT_DOC_MAX_BYTES $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=2000 $BIN_ABS"
+	"env -u ZEROTH_PROJECT_DOC_MAX_BYTES $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=2000 $BIN_ABS"
 sleep 0.5
 tmux send-keys -t "$S52" C-d
 sleep 0.4

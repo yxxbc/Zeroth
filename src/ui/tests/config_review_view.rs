@@ -58,11 +58,11 @@ fn hooks_page() -> ReviewPage {
             },
             ReviewSection {
                 scope: Some("Project".to_string()),
-                path: "~/repo/.alter-zero/hooks.json".to_string(),
+                path: "~/repo/.zeroth/hooks.json".to_string(),
                 items: vec![hook(
                     "PreToolUse",
                     "bash",
-                    "${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/guard.sh",
+                    "${ZEROTH_PROJECT_DIR}/.zeroth/hooks/guard.sh",
                     None,
                 )],
             },
@@ -147,7 +147,7 @@ fn the_hooks_page_shows_each_hook_verbatim_under_its_file() {
         "cargo fmt && cargo clippy --all-targets -- -D warnings",
     );
     let was = find(&texts, "was: cargo fmt");
-    let project = find(&texts, "Project · ~/repo/.alter-zero/hooks.json");
+    let project = find(&texts, "Project · ~/repo/.zeroth/hooks.json");
     let guard = find(&texts, "[✔] PreToolUse · bash");
     let trust = find(&texts, REVIEW_TRUST_LABEL);
     let skip = find(&texts, REVIEW_SKIP_LABEL);
@@ -447,7 +447,7 @@ fn a_long_file_heading_wraps_whole() {
     // Which file a hook comes from is half of what the review says, and a
     // path's tail is its file name — so a heading wraps rather than cut.
     let mut page = hooks_page();
-    let long = format!("/tmp/{}/project/.alter-zero/hooks.json", "deep".repeat(20));
+    let long = format!("/tmp/{}/project/.zeroth/hooks.json", "deep".repeat(20));
     page.sections[1].path = long.clone();
     let app = review_app(vec![page]);
     let lines = config_review_lines(&app, 60, TALL);

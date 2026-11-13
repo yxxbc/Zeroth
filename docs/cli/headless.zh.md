@@ -1,18 +1,18 @@
-# Headless 模式 — `alter-zero -p`
+# Headless 模式 — `zeroth -p`
 
-`alter-zero -p "prompt"` 在**没有屏幕**的情况下运行一个 prompt：没有 inline
+`zeroth -p "prompt"` 在**没有屏幕**的情况下运行一个 prompt：没有 inline
 viewport、没有 raw 模式、没有光标查询、没有按键读取，什么都不问。答复写到
 stdout，任何出错的东西写到 stderr —— 加上 `--verbose` 时运行的每一步也写过去
 —— 进程退出时带一个脚本可以据以分支的状态码。它是所有不是"终端前的人"的东西
 的入口 —— cron 任务、CI 步骤、n8n 节点、基准测试 harness、流水线里的某一阶段。
 
 ```
-$ alter-zero -p "Reply with exactly: OK"
+$ zeroth -p "Reply with exactly: OK"
 OK
-$ git diff origin/main | alter-zero -p "Review this diff; list real bugs only"
-$ alter-zero -p --output-format json "Summarize the failing tests" | jq -r .result
-$ alter-zero -p -c "Run the suite again and compare with last night"
-$ alter-zero -p --permission-mode master --max-turns 40 -C ~/proj < task.md
+$ git diff origin/main | zeroth -p "Review this diff; list real bugs only"
+$ zeroth -p --output-format json "Summarize the failing tests" | jq -r .result
+$ zeroth -p -c "Run the suite again and compare with last night"
+$ zeroth -p --permission-mode master --max-turns 40 -C ~/proj < task.md
 ```
 
 ## 它为什么一直缺席
@@ -33,7 +33,7 @@ configured`）；是一个从不回应查询的 pty 时超时；是一个 `0x0` 
 ```text
 error: could not start the interface: No such device or address (os error 6)
 It needs a terminal; to run without one (cron, CI, a script), use print mode:
-alter-zero -p "your prompt"
+zeroth -p "your prompt"
 ```
 
 ## 参考实现的做法（调研结论）
@@ -79,7 +79,7 @@ hooks、记录器、压缩与 subagent —— 只是跑在一个什么都不绘�
 ## 调用方式
 
 ```
-alter-zero -p [OPTIONS] [PROMPT]
+zeroth -p [OPTIONS] [PROMPT]
 ```
 
 | Flag | Meaning |
@@ -93,19 +93,19 @@ alter-zero -p [OPTIONS] [PROMPT]
 | `-c`, `--continue` / `-r`, `--resume <ID>` | Send the prompt into that conversation (as without `-p`). |
 
 语法是 `cli::parse` 的（`docs/cli/cli.md`）：`-p` 是一个开关，prompt 仍是那个
-唯一的位置参数，所以 `alter-zero -p "…"` 读起来与 Claude Code 的一样。用法错误
+唯一的位置参数，所以 `zeroth -p "…"` 读起来与 Claude Code 的一样。用法错误
 以 `2` 退出并给出 clap 形状的尾部信息：`--output-format`、`--max-turns` 或
 `--verbose` 没有配 `-p`、未知的格式或模式、`--max-turns 0`、某个 flag 给两次，
 以及 `-p` 与裸 `--resume` 同给 —— 选择器是一个屏幕，所以 headless 运行必须点名
 它的 session。
 
-`--permission-mode` 和 `-C` 在 TUI 里也能用：前者就是 `ALTER_ZERO_PERMISSION_MODE`
+`--permission-mode` 和 `-C` 在 TUI 里也能用：前者就是 `ZEROTH_PERMISSION_MODE`
 本就提供的运行种子值（它优先于该变量和项目已保存的模式，且从不被保存）；后者是
 在任何东西读取工作目录之前的一次 `chdir` —— 这也是为什么它先于 `--continue`
 在*那里*寻找最新对话。
 
 `--max-turns` 计的是 Claude Code 所计的东西 —— **模型回复**（lead agent 发出的
-请求），而不是 alter-zero 的 turn（一个 turn 是一整轮交流，无论它的 tool 循环
+请求），而不是 zeroth 的 turn（一个 turn 是一整轮交流，无论它的 tool 循环
 取了多少次回复）。每个请求从一份预算里取一个，这份预算由 prompt 的 turn 和该次
 运行开启的每一个后续 turn 共享；subagent 的请求和压缩的请求不计入。预算用尽时
 下一个请求绝不发出：turn 以 `Stopped after N model replies — the run's
@@ -131,7 +131,7 @@ alter-zero -p [OPTIONS] [PROMPT]
 读：`{prompt}\n\n<stdin>\n{input}\n</stdin>`。空白输入什么也不加。
 
 **管道**绝不被截断。shell 的 `|` 在其写入方结束时结束，所以等它不会损失任何
-东西 —— `./slow-tests.sh 2>&1 | alter-zero -p "summarize the failures"` 会把整份
+东西 —— `./slow-tests.sh 2>&1 | zeroth -p "summarize the failures"` 会把整份
 日志送过去，无论测试先安静了多久 —— 而一个几秒后就把它截断的运行会拿光秃秃的
 指令作答并以 0 退出，这是最糟糕的失败方式。代价是：如果父进程握着一个管道
 开着却从不往里写（Python 的 `Popen(stdin=PIPE)` 从不关闭），运行会等它，并在
@@ -161,11 +161,11 @@ socket 就不去管它，并在 stderr 上留一条说明。一旦它说了什�
    没有任何东西进入 ↑ 输入历史；`--continue`/`--resume` 加载**不会把工作树恢复**
    到该对话的最后一个 checkpoint（见 *Resume*）。错误 toast —— 一个无法解析的
    `SKILL.md`、某个 provider 文件的问题 —— 写成 stderr 上的一行
-   `alter-zero: …`；信息 toast 只在 `--verbose` 下写出。
+   `zeroth: …`；信息 toast 只在 `--verbose` 下写出。
 3. **没有模型就不运行**：当 provider、模型和 key 都解析不出来时，TUI 回退到
    离线 demo。headless 运行则拒绝（退出 1，并点名 `/login` 和
-   `ALTER_ZERO_PROVIDER`/`ALTER_ZERO_MODEL` 变量）—— 一个 CI 任务在罐头 demo
-   答复上"成功"，是配置错误所能造成的最严重的失败。`ALTER_ZERO_DUMMY=1` 仍然
+   `ZEROTH_PROVIDER`/`ZEROTH_MODEL` 变量）—— 一个 CI 任务在罐头 demo
+   答复上"成功"，是配置错误所能造成的最严重的失败。`ZEROTH_DUMMY=1` 仍然
    强制使用 demo，测试正是这样离线运行的。
 4. **MCP 服务器先安定下来**：TUI 在后台连接服务器，一个 turn 就直接在没有连上
    的那些的情况下运行；headless 运行几秒就结束，所以它会等到没有服务器处于
@@ -178,7 +178,7 @@ socket 就不去管它，并在 stderr 上留一条说明。一旦它说了什�
 6. **循环运行到 session 空闲**：没有 turn 在进行、没有排队的东西、没有 subagent
    在跑。一个后台 agent 的完成会开启 TUI 会开启的那个后续 turn，所以"启动
    critic agent，写一份报告"确实会作报告。这个等待是有界的：一旦只剩后台 agent，
-   运行最多等待 `ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS`（默认 600，`0` 表示不等），
+   运行最多等待 `ZEROTH_HEADLESS_AGENT_WAIT_SECS`（默认 600，`0` 表示不等），
    然后停掉仍在工作的那些，在 stderr 上点名它们，并以它最后的回复结束 ——
    一个永不完成的 agent 不能永远占住一个 cron 任务。已经到手的 notice 绝不被
    截断：它的后续 turn 就要来了。后台 **shell** 不等 —— 用 `&` 启动的 dev
@@ -242,7 +242,7 @@ hook、auto 模式的分类器。变化的是最后一步：headless 的 gate �
 
 启动审查（`docs/state/config-review.md`）是一个屏幕，所以它从不打开：一个没有
 人信任过的 hook 或项目 MCP 服务器**保持关闭**，与审查被拒绝之后完全一样，而
-stderr 会说明有什么在等待、以及在该目录里交互式地运行 `alter-zero` 会询问它。
+stderr 会说明有什么在等待、以及在该目录里交互式地运行 `zeroth` 会询问它。
 headless 运行从不自行信任任何东西。
 
 ### Resume
@@ -264,7 +264,7 @@ checkpoint：在流水线里，树是流水线把它弄成的样子（一次 `gi
 
 **stderr** 除非有需要说的东西否则是安静的 —— Claude Code 的姿态，也正是 cron
 任务想要的，因为 cron 会把任务写出的任何东西邮寄出去。一次顺利的运行在那里
-什么也不写。它总会说的：一次运行为什么失败（`alter-zero: HTTP 401: …`、
+什么也不写。它总会说的：一次运行为什么失败（`zeroth: HTTP 401: …`、
 `interrupted by SIGTERM`、`--max-turns` 上限）、没人能批准的调用、它停掉的后台
 工作、它等待过或放着不管的 stdin、它正在等过去的一次故障、为审查而暂扣的
 hooks 和 MCP 服务器、一条错误 toast。**`--verbose`** 在每一种格式下都追加下面
@@ -279,8 +279,8 @@ call 之前的叙述绝不会被误当作结果。
 ### `text`
 
 ```
-$ alter-zero -p --verbose "Run the tests and fix what fails"
-alter-zero 0.18.0 · gpt-5.5 · ~/proj · auto · session 18a9f2c33d41e5b6-1a2b   ← stderr
+$ zeroth -p --verbose "Run the tests and fix what fails"
+zeroth 0.18.0 · gpt-5.5 · ~/proj · auto · session 18a9f2c33d41e5b6-1a2b   ← stderr
 ● Bash(cargo test)                                                           ← stderr
   ⎿ exit 101 · 240 lines
 I'll fix the empty-input case first.                                         ← stderr
@@ -392,7 +392,7 @@ headless 运行；批量层加上准入（`--concurrency`）、逐 job 的输出
 - **没有输入历史。** 自动化的 prompt 不是用户键入的东西；TUI 里的 ↑ 不应走过
   一个 cron 任务的 prompt。
 - **目前没有 `--output-schema`、`-o FILE`、`--ephemeral` 或 `--model`**：
-  stdout 重定向已经涵盖了 `-o`，而 `ALTER_ZERO_PROVIDER`/`ALTER_ZERO_MODEL`
+  stdout 重定向已经涵盖了 `-o`，而 `ZEROTH_PROVIDER`/`ZEROTH_MODEL`
   已经为一次运行钉住了模型。
 
 ## 测试
@@ -430,7 +430,7 @@ headless 运行；批量层加上准入（`--concurrency`）、逐 job 的输出
   请求里没有 `askuserquestion`；一个后台 subagent 被等待，其完成答复了本次
   运行，而一个永不完成的在等待耗尽后被停掉；一个留着的运行中命令被停掉并被
   点名。
-- `scripts/smoke.sh` Phase 153：从 tmux 窗格运行 `alter-zero -p --verbose` ——
+- `scripts/smoke.sh` Phase 153：从 tmux 窗格运行 `zeroth -p --verbose` ——
   日志和答复在终端上，其模式不变（`stty -g`），原始字节流中没有任何 TUI 的
   转义（没有 DSR、没有备用屏、没有隐藏光标、没有括号粘贴、没有同步更新）；
   以及带 `--permission-mode master -C <dir>` 启动的 TUI 在其页脚点名这两者。

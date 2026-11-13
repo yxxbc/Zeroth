@@ -52,7 +52,7 @@ const HISTORY_MAX_ENTRY_BYTES: usize = 100 * 1024;
 /// compaction. Best-effort — every failure is swallowed (persistence must never
 /// kill the TUI, like [`SessionRecorder`] and `save_settings`).
 pub(crate) struct InputHistoryStore {
-    /// The history file (`ALTER_ZERO_HISTORY_FILE`, else
+    /// The history file (`ZEROTH_HISTORY_FILE`, else
     /// `{config_home}/history.jsonl` — beside `config.json`/`.env`, which
     /// `ZEROTH_CONFIG_DIR` already redirects). `None` disables persistence
     /// (no HOME and no override).
@@ -64,7 +64,7 @@ pub(crate) struct InputHistoryStore {
 
 impl InputHistoryStore {
     pub(crate) fn new() -> Self {
-        let path = std::env::var_os("ALTER_ZERO_HISTORY_FILE")
+        let path = std::env::var_os("ZEROTH_HISTORY_FILE")
             .map(PathBuf::from)
             .or_else(|| config_home().map(|dir| dir.join("history.jsonl")));
         Self {

@@ -102,7 +102,7 @@ printf '[providers.stub]\nname = "Stub"\n\n[providers.stub.kwargs]\napi_base = "
 WORK="$(work_dir minified)"
 mkdir -p "$WORK/src"
 # No permission gate: the write and the read run unasked.
-MW_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ALTER_ZERO_PERMISSIONS=0 ALTER_ZERO_PROVIDERS_FILE=$PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
+MW_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_PERMISSIONS=0 ZEROTH_PROVIDERS_FILE=$PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=stand-in $BIN_ABS"
 S138C="${S}_writeminified"
 launch -c "$WORK" "$S138C" 100 40 "$MW_APP"
 submit "$S138C" "smoke138c write the stylesheet and read it back"

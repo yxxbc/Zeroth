@@ -41,7 +41,7 @@ park until the user decides.
     `Declined`, or `Chat` (the "Chat about this" row) — or, with the user
     away, `TimedOut { answers, after }` (*The timeout*, below);
   - the two texts of every resolution: the **cell display**
-    (`answered_display` — `User answered Alter Zero's questions:`, the
+    (`answered_display` — `User answered Zeroth's questions:`, the
     headline naming *this* agent through the single `zeroth::APP_NAME`,
     over `· Q → A`
     rows; `declined_display`/`chat_display` — the headline over
@@ -156,7 +156,7 @@ park until the user decides.
   rule).
 
 - **The resolved cell** — `ui::tool` special-cases the ask tool: the
-  first output line ("User answered Alter Zero's questions:") becomes the `●`
+  first output line ("User answered Zeroth's questions:") becomes the `●`
   header (green for a submission, red for a decline/chat) and the `· Q → A`
   rows render in the `⎿` gutter, wrapped — the reference's committed
   transcript, in this agent's name. While the call runs the generic `● AskUserQuestion(…)` header
@@ -164,7 +164,7 @@ park until the user decides.
 
 - **The loop** — `Session.ask: AskGate`, always attached (bootstrap →
   `ModelSession` → every backend build, `DummyAi` included; asking is not a
-  permission and does not follow `ALTER_ZERO_PERMISSIONS`).
+  permission and does not follow `ZEROTH_PERMISSIONS`).
   `StreamEvent::AskUser` opens the prompt; `Action::ResolveAsk` posts the
   decision on the gate; the loop bottom releases abandoned requests as
   `Declined` (the permission release's twin) and `/clear` clears the board.
@@ -261,7 +261,7 @@ available, and the turn keeps going.
   back.
 - **Changing it.** The `/settings` **Ask timeout** row cycles `5m` / `10m` /
   `20m` / `30m` / `1h` / `never`, per directory (`docs/state/settings.md`);
-  `ALTER_ZERO_ASK_TIMEOUT_SECS` seeds it for a run in seconds, `0` meaning
+  `ZEROTH_ASK_TIMEOUT_SECS` seeds it for a run in seconds, `0` meaning
   never — any value, which is how the smoke suite sits one out in eight
   seconds (Phase 128).
 
@@ -269,7 +269,7 @@ The clock's rules are pure — `ask::AskTimer`, read with injected instants
 and unit-tested like everything else here — and only time itself lives at
 the boundary (`tui::ask`), the toast deadline's pattern. The timer keeps
 **when the wait started**, never a deadline: no wait is ever added to an
-`Instant`, so an `ALTER_ZERO_ASK_TIMEOUT_SECS` past anything a clock can
+`Instant`, so an `ZEROTH_ASK_TIMEOUT_SECS` past anything a clock can
 reach reads as a very long countdown instead of overflowing. Each reading
 (`AskTimer::tick`) takes whether a question waits (`App::has_pending_asks`),
 the open one's id (a different one opening starts the wait over, so every

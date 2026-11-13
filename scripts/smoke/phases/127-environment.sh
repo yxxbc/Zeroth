@@ -92,7 +92,7 @@ E_CWD="$(cd "$E_DIR" && pwd -P)"
 # NO_PROXY keeps a developer's HTTP proxy out of the loopback requests; the
 # provider and model are pinned so the real backend activates with nothing
 # saved.
-launch -c "$E_DIR" "$S127" 100 40 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ALTER_ZERO_PROVIDERS_FILE=$E_PROVIDERS ALTER_ZERO_PROVIDER=stub ALTER_ZERO_MODEL=stub-model STUB_API_KEY=smoke-127 $APP_ABS"
+launch -c "$E_DIR" "$S127" 100 40 "env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 ZEROTH_PROVIDERS_FILE=$E_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=smoke-127 $APP_ABS"
 submit "$S127" "$USER_MSG"
 replied="$(wait_pane 10 "$S127" -F "Stub reply.")" || fail "the stub's reply never streamed in"
 dump "the turn against the stub" "$replied"

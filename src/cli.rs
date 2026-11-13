@@ -74,7 +74,7 @@ pub struct SessionArgs {
     /// anything reads the working directory, `--continue`'s search included.
     pub cwd: Option<PathBuf>,
     /// `--permission-mode`: the run's permission posture — the flag form of
-    /// `ALTER_ZERO_PERMISSION_MODE`, outranking it and the project's saved
+    /// `ZEROTH_PERMISSION_MODE`, outranking it and the project's saved
     /// mode, and never saved (`docs/state/permissions.md`).
     pub permission_mode: Option<PermissionMode>,
     /// `-p` / `--print`: run headless with these options — no screen, the
@@ -386,7 +386,7 @@ const MAIN_DOC: HelpDoc = HelpDoc {
 const MCP_DOC: HelpDoc = HelpDoc {
     title: "zeroth mcp",
     description: "\
-Manage MCP servers in the user config file (ALTER_ZERO_MCP_FILE, else
+Manage MCP servers in the user config file (ZEROTH_MCP_FILE, else
 ~/.zeroth/mcp.json) from a script — inside the app, /mcp manages them live.",
     usage: &[
         (
@@ -1935,7 +1935,7 @@ Print mode:
             page.contains("\n  -e, --env KEY=VALUE   Environment"),
             "{page}"
         );
-        assert!(page.contains("ALTER_ZERO_MCP_FILE"), "{page}");
+        assert!(page.contains("ZEROTH_MCP_FILE"), "{page}");
         let styled = help(HelpPage::Mcp, HelpStyle::Ansi);
         assert!(
             styled.starts_with("\x1b[1;36mzeroth mcp\x1b[0m\n"),
