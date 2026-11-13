@@ -337,9 +337,11 @@ It lands as an opt-in mode first and becomes the default only on parity.
    fetched and the terminal can draw pictures; the image store loads it from
    the card cache at paint time. The fetch is one worker thread per URL (at
    most eight in flight), 5 s/512 KiB/`text/html` for the page and
-   2 MiB/`image/*` for the cover, private hosts and redirects to them refused,
-   cached across restarts (covers under a 32 MiB oldest-first budget). The
-   `/links` page remains.
+   2 MiB/`image/*` for the cover; hosts are refused after **resolution**
+   (`host_is_private`: the string rules plus every address the name answers,
+   so `nip.io`, IPv6-mapped and hex spellings are caught), and a redirect is
+   re-checked the same way. Cards are cached across restarts (covers under a
+   32 MiB oldest-first budget); the `/links` page remains.
 4. **B — only if needed.** Overlay-scoped mouse and a `/links` page remain a
    useful stopgap for inline mode, and their hit map is a subset of C's, but
    they are not the target.

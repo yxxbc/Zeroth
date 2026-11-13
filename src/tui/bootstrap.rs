@@ -264,6 +264,9 @@ impl<'t> Session<'t> {
         // (`docs/tools/scratchpad.md`). Nothing to point at = no exemption.
         if let Some(gate) = permissions.gate() {
             gate.set_scratchpad(scratchpad_dir.clone());
+            // The path jail: a `write`/`edit` outside the project and the
+            // scratchpad asks even in auto/edit mode (`docs/state/permissions.md`).
+            gate.set_workspace(Some(cwd.clone()));
             // Nobody can answer a prompt in a headless run: what would ask
             // is refused instead, and the model is told (docs/cli/headless.md).
             if headless {

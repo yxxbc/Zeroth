@@ -17,7 +17,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use zeroth::link_card::{Cover, LinkCard, is_private_host};
+use zeroth::link_card::{Cover, LinkCard, host_is_private};
 
 /// How long one page may take.
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -100,7 +100,7 @@ fn fetch(url: &str) -> Option<LinkCard> {
     if !matches!(parsed.scheme(), "http" | "https") {
         return None;
     }
-    if parsed.host_str().is_none_or(is_private_host) {
+    if parsed.host_str().is_none_or(host_is_private) {
         return None;
     }
     let client = client()?;
@@ -133,7 +133,7 @@ fn client() -> Option<reqwest::blocking::Client> {
         .timeout(TIMEOUT)
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= REDIRECTS
-                || attempt.url().host_str().is_none_or(is_private_host)
+                || attempt.url().host_str().is_none_or(host_is_private)
             {
                 attempt.stop()
             } else {
@@ -164,7 +164,7 @@ fn attach_cover(card: &mut LinkCard, image: &str, page: &str) {
     else {
         return;
     };
-    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none_or(is_private_host) {
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none_or(host_is_private) {
         return;
     }
     let Some(client) = client() else {

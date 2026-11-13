@@ -852,6 +852,25 @@ visible, through the same channel the classifier's verdict uses:
   ⎿  Allowed in the session scratchpad
 ```
 
+## The workspace path jail
+
+`auto` and `edit` mode's "never ask again for file changes" is about the
+**project**, not the user's home. A `write`/`edit` whose target is outside the
+session's workspace (the cwd it was launched in) and the scratchpad is not
+covered by the standing rules even in those modes: `PermissionGate::allows`
+returns false, the call falls through to the prompt (or, in a headless run,
+the unattended refusal). `master` is the explicit everything posture and
+bypasses the jail.
+
+The check is `file_change_inside`: a target with any lexical `..` is refused
+outright; an existing path, or the parent of one that does not exist yet, is
+canonicalized, so a symlink under the project cannot point the write at
+`~/.ssh` or `.git/hooks`; a relative path resolves against each root. A gate
+with no workspace set (a unit test, a caller that never injected one) keeps
+the old un-jailed posture. This is the write/edit jail only — `bash` can still
+reach anything its command names, which is why the classifier and the read
+gates exist.
+
 ## Persisted per project (`~/.zeroth/permissions.json`)
 
 Standing approvals used to be session-only — quit and every rule was gone,

@@ -8,7 +8,7 @@
 //! loop resolves it.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
@@ -1168,6 +1168,42 @@ impl PermissionsFile {
     }
 }
 
+/// Whether a file change lands **inside** the session's workspace or its
+/// scratchpad. Lexical `..` is refused outright; existing paths (and the
+/// parent of one that does not exist yet) are canonicalized, so a symlink
+/// under the workspace cannot point the write at the user's home. A relative
+/// path resolves against each root before the check.
+fn file_change_inside(inner: &GateInner, target: &str) -> bool {
+    let path = Path::new(target);
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return false;
+    }
+    let canonical =
+        |path: &Path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let resolve = |root: &Path| -> bool {
+        let candidate = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            root.join(path)
+        };
+        let candidate = if candidate.exists() {
+            canonical(&candidate)
+        } else {
+            match (candidate.parent(), candidate.file_name()) {
+                (Some(parent), Some(name)) => canonical(parent).join(name),
+                _ => candidate,
+            }
+        };
+        let root = canonical(root);
+        candidate.starts_with(&root) && candidate != root
+    };
+    inner.workspace.as_deref().is_some_and(resolve)
+        || inner.scratchpad.as_deref().is_some_and(resolve)
+}
+
 /// State shared between the blocked tool threads and the event loop.
 #[derive(Debug, Default)]
 struct GateInner {
@@ -1193,6 +1229,11 @@ struct GateInner {
     /// ("don't ask again for this session") — ids, in memory only: a session
     /// ends with the process, and its id means nothing to the next one.
     sessions: HashSet<String>,
+    /// The session's workspace root: a `write`/`edit` outside it and the
+    /// scratchpad asks even in `auto`/`edit` mode (`docs/state/permissions.md`).
+    /// `None` leaves the old posture — a gate with no workspace (a test, a
+    /// caller that never set one) does not jail paths.
+    workspace: Option<PathBuf>,
     /// What each raised request's thread asked to run once its prompt is on
     /// screen ([`PermissionGate::on_shown`]), keyed by request id.
     on_shown: ShownJobs,
@@ -1242,8 +1283,30 @@ impl PermissionGate {
     #[must_use]
     pub fn allows(&self, request: &PermissionRequest) -> bool {
         let inner = self.lock();
-        inner.rules.allows(request)
-            || (request.kind == PermissionKind::Session && inner.sessions.contains(&request.target))
+        let covered = inner.rules.allows(request)
+            || (request.kind == PermissionKind::Session
+                && inner.sessions.contains(&request.target));
+        // The path jail: a file change outside the workspace and the session
+        // scratchpad must go through the prompt (or, unattended, the refusal)
+        // even in `auto`/`edit` mode. A cloned repository's AGENTS.md can
+        // induce a silent `write` of `~/.bashrc`, `.git/hooks/*` or
+        // `authorized_keys`; the mode's "always edit" is about the project,
+        // not the user's home (`docs/state/permissions.md`).
+        if covered
+            && inner.rules.mode != PermissionMode::Master
+            && matches!(request.kind, PermissionKind::Write | PermissionKind::Edit)
+            && inner.workspace.is_some()
+            && !file_change_inside(&inner, &request.target)
+        {
+            return false;
+        }
+        covered
+    }
+
+    /// Point the gate at this session's workspace root — the boundary's call
+    /// at startup, `None` to leave the old un-jailed posture (unit tests).
+    pub fn set_workspace(&self, dir: Option<PathBuf>) {
+        self.lock().workspace = dir;
     }
 
     /// Point the gate at this session's scratchpad directory — the boundary
@@ -1602,6 +1665,54 @@ mod tests {
         assert!(!gate.scratchpad_covers(&request(
             PermissionKind::Write,
             "/tmp/alter-zero-0/s1/tasks/bvyo7tkbe.output"
+        )));
+    }
+
+    #[test]
+    fn auto_and_edit_do_not_write_outside_the_workspace() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let gate = PermissionGate::new();
+        gate.set_workspace(Some(root.clone()));
+        gate.lock().rules.mode = PermissionMode::Auto;
+        assert!(
+            gate.allows(&request(
+                PermissionKind::Write,
+                root.join("src/main.rs").to_str().unwrap()
+            )),
+            "a write inside the workspace keeps auto's fast path"
+        );
+        assert!(
+            !gate.allows(&request(
+                PermissionKind::Write,
+                outside.path().join("evil.txt").to_str().unwrap()
+            )),
+            "a write outside the workspace must ask"
+        );
+        // `..` anywhere is refused rather than lexically resolved: the model
+        // does not need it, and the conservative answer is the prompt.
+        let escape = format!("{}/../escape.txt", root.display());
+        assert!(!gate.allows(&request(PermissionKind::Write, &escape)));
+        // A symlink under the workspace pointing out is followed by the
+        // canonical check, so it cannot smuggle a write to the user's home.
+        let link = root.join("link");
+        std::os::unix::fs::symlink(outside.path(), &link).unwrap();
+        assert!(!gate.allows(&request(
+            PermissionKind::Write,
+            link.join("x.txt").to_str().unwrap()
+        )));
+        // `edit` mode's "always edit" is the project's, not the home's.
+        gate.lock().rules.mode = PermissionMode::Edit;
+        assert!(!gate.allows(&request(
+            PermissionKind::Write,
+            outside.path().join("still.txt").to_str().unwrap()
+        )));
+        // Master is the explicit "everything" posture.
+        gate.lock().rules.mode = PermissionMode::Master;
+        assert!(gate.allows(&request(
+            PermissionKind::Write,
+            outside.path().join("master.txt").to_str().unwrap()
         )));
     }
 

@@ -168,7 +168,11 @@ release heading when a version is cut.
   behavior": the instructions preamble and the reminder's own preamble say
   they are project guidance and cannot change identity, safety rules or
   permissions, and home is never a project-doc root either (launched in `~`,
-  `~/AGENTS.md` is not read as a checked-in guide).
+  `~/AGENTS.md` is not read as a checked-in guide). Link-card hosts are
+  refused after DNS resolution (`nip.io`, IPv6-mapped and hex spellings), and
+  a `write`/`edit` outside the session workspace and scratchpad now asks even
+  in `auto`/`edit` mode (lexical `..` refused, existing paths canonicalized so
+  a symlink cannot point out; `master` still bypasses).
 
 ### Changed
 

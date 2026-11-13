@@ -139,6 +139,65 @@ pub fn is_private_host(host: &str) -> bool {
     false
 }
 
+/// Whether `ip` is one a preview must never connect to — the address-level
+/// twin of [`is_private_host`], used after a name resolves.
+#[must_use]
+pub fn is_private_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.is_multicast()
+                || v4.is_documentation()
+        }
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_unique_local()
+                || v6.is_unicast_link_local()
+                || v6.is_multicast()
+                || v6
+                    .to_ipv4_mapped()
+                    .is_some_and(|v4| is_private_ip(IpAddr::V4(v4)))
+        }
+    }
+}
+
+/// Whether `host` must never be fetched, **after resolving it**: the string
+/// rules plus every address the name answers with, so `127.0.0.1.nip.io`,
+/// a hex/octal IP spelling, or a name that rebinds to the LAN is refused. A
+/// name that does not resolve is refused too (the request would fail anyway,
+/// and a resolver error must not become an allow). The check and the eventual
+/// connection are separate look-ups, so a malicious resolver could still
+/// answer differently between them; the web fetcher's `.resolve` pin is the
+/// stronger form and a later step here.
+#[must_use]
+pub fn host_is_private(host: &str) -> bool {
+    use std::net::ToSocketAddrs;
+    if is_private_host(host) {
+        return true;
+    }
+    let host = host.trim_matches(['[', ']']);
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        return is_private_ip(ip);
+    }
+    let Ok(addresses) = (host, 0u16).to_socket_addrs() else {
+        return true;
+    };
+    let mut any = false;
+    for address in addresses {
+        any = true;
+        if is_private_ip(address.ip()) {
+            return true;
+        }
+    }
+    !any
+}
+
 /// Find a `<meta property="key" content="…">` (or `name="key"`); the tag's
 /// attributes may come in either order.
 fn meta(html: &str, key: &str) -> Option<String> {
@@ -288,5 +347,38 @@ mod tests {
         );
         assert_eq!(host_of("http://a.test").as_deref(), Some("a.test"));
         assert_eq!(host_of("not a url"), None);
+    }
+}
+
+#[cfg(test)]
+mod address_tests {
+    use super::*;
+    use std::net::IpAddr;
+
+    #[test]
+    fn private_addresses_are_refused_after_resolution_too() {
+        for literal in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "192.168.0.1",
+            "172.16.5.4",
+            "169.254.1.1",
+            "0.0.0.0",
+            "::1",
+            "fc00::1",
+            "fe80::1",
+            "::ffff:127.0.0.1",
+        ] {
+            let ip: IpAddr = literal.parse().expect("a literal");
+            assert!(is_private_ip(ip), "{literal} is private");
+        }
+        for literal in ["8.8.8.8", "1.1.1.1", "2001:4860:4860::8888"] {
+            let ip: IpAddr = literal.parse().expect("a literal");
+            assert!(!is_private_ip(ip), "{literal} is public");
+        }
+        assert!(host_is_private("localhost"));
+        assert!(host_is_private("[::1]"));
+        assert!(host_is_private("127.0.0.1"));
+        assert!(!host_is_private("8.8.8.8"));
     }
 }
