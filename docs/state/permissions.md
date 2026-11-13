@@ -170,6 +170,15 @@ only what it needs, handing the rest back to the siblings. The first chunk —
 the agent tree that asked, else the asked-about call itself — is never
 dropped, so the prompt stays a question about something on screen.
 
+The asked-about call is read from the request's **call id**
+(`PermissionRequest::call_id`, the same id its batch summary and `ToolStart`
+carry), not assumed to be the queue front. A parallel batch asks every call's
+permission in the model's order *before* any call starts, so the fifth
+question arrives while five `⎿ Waiting…` cells sit in the queue — the prompt
+lifts the fifth one to the front of its context, with the earlier cells behind
+it (`asked_first`, `docs/tools/parallel-tools.md`). A request no wire call
+made (a scripted turn, a resumed prompt) keeps the old queue order.
+
 When the page **flows** (a body taller than the terminal), the context flows
 with it — provided it is *static*. A queued `⎿ Waiting…` cell is: the approve
 seam runs before its `ToolStart`, so nothing can change while the answer is

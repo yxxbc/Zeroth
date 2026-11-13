@@ -161,7 +161,9 @@ impl ToolExecutor for RealToolExecutor {
         let session = |parsed: Result<SessionCall, String>,
                        on_output: &mut dyn FnMut(ToolProgress<'_>)| {
             match parsed {
-                Ok(session) => run_session(session, cancel, background, origin, on_output),
+                Ok(session) => {
+                    run_session(session, cancel, background, origin, &call.id, on_output)
+                }
                 Err(e) => arg_error(e),
             }
         };
@@ -172,6 +174,7 @@ impl ToolExecutor for RealToolExecutor {
                 background,
                 origin,
                 self.detach_helper.as_deref(),
+                &call.id,
                 on_output,
             ),
             tools::BASH_SEND_TOOL => session(
@@ -290,6 +293,7 @@ fn run_bash(
     background: Option<&BackgroundRegistry>,
     origin: Option<&BgOrigin>,
     detach_helper: Option<&Path>,
+    call_id: &str,
     on_output: &mut dyn FnMut(ToolProgress<'_>),
 ) -> ToolOutcome {
     let args: BashArgs = match tools::parse_args(arguments) {
@@ -306,11 +310,19 @@ fn run_bash(
         registry.clear_background_request();
     }
     if let Some(registry) = background
-        && let Some(outcome) = run_tty(&args, cancel, registry, origin, on_output)
+        && let Some(outcome) = run_tty(&args, cancel, registry, origin, call_id, on_output)
     {
         return outcome;
     }
-    run_piped(&args, cancel, background, origin, detach_helper, on_output)
+    run_piped(
+        &args,
+        cancel,
+        background,
+        origin,
+        detach_helper,
+        call_id,
+        on_output,
+    )
 }
 
 /// `bash` on a **pipe** — the fallback where no terminal can be had
@@ -327,6 +339,7 @@ fn run_piped(
     background: Option<&BackgroundRegistry>,
     origin: Option<&BgOrigin>,
     detach_helper: Option<&Path>,
+    call_id: &str,
     on_output: &mut dyn FnMut(ToolProgress<'_>),
 ) -> ToolOutcome {
     // Nowhere to keep a background command: a `wait: 0` is refused, while a
@@ -419,8 +432,8 @@ fn run_piped(
         // subagent's executor never consumes the Ctrl+B latch — that targets
         // the main turn's command (or its agent group's wait loop), not
         // whatever bash a subagent happens to be running concurrently.
-        let handoff =
-            origin.is_none() && background.is_some_and(BackgroundRegistry::take_background_request);
+        let handoff = origin.is_none()
+            && background.is_some_and(|registry| registry.take_background_request_for(call_id));
         let waited_out = start.elapsed() >= wait;
         if let Some(registry) = background
             && (handoff || waited_out)
@@ -550,6 +563,7 @@ fn run_tty(
     cancel: &CancelToken,
     registry: &BackgroundRegistry,
     origin: Option<&BgOrigin>,
+    call_id: &str,
     on_output: &mut dyn FnMut(ToolProgress<'_>),
 ) -> Option<ToolOutcome> {
     use crate::background::TtyLaunchError;
@@ -576,7 +590,7 @@ fn run_tty(
     }
     // The session was created with this call as its waiter, so even a
     // command that exits before the wait below begins leaves its exit here.
-    let handoff = || origin.is_none() && registry.take_background_request();
+    let handoff = || origin.is_none() && registry.take_background_request_for(call_id);
     // The running cell shows what the report will say as it builds up —
     // settled lines appended, the rows in reach redrawn in place.
     let on_output =
@@ -701,6 +715,7 @@ fn run_session(
     cancel: &CancelToken,
     background: Option<&BackgroundRegistry>,
     origin: Option<&BgOrigin>,
+    call_id: &str,
     on_output: &mut dyn FnMut(ToolProgress<'_>),
 ) -> ToolOutcome {
     use crate::pty::keys::{
@@ -797,7 +812,7 @@ fn run_session(
     if origin.is_none() {
         registry.clear_background_request();
     }
-    let handoff = || origin.is_none() && registry.take_background_request();
+    let handoff = || origin.is_none() && registry.take_background_request_for(call_id);
     let end = if parts.is_empty() {
         // A bare kill has nothing to wait for before it; a bare wait waits.
         (!call.kill).then(|| {

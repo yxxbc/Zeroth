@@ -308,6 +308,7 @@ fn live_deepwiki_tool_descriptions_drive_the_permission_prompt() {
     assert!(!description.trim().is_empty());
 
     let request = PermissionRequest {
+        call_id: None,
         id: "perm_0".to_string(),
         kind: PermissionKind::Mcp,
         target: wire,

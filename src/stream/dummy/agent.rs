@@ -517,6 +517,7 @@ fn ask_at_gate(
     cancel: &CancelToken,
 ) -> Gated {
     let mut request = PermissionRequest {
+        call_id: None,
         id: gate.next_id(),
         kind: PermissionKind::Bash,
         target: command.to_string(),

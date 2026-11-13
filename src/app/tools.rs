@@ -493,6 +493,24 @@ impl App {
         &self.tool_queue
     }
 
+    /// The call Ctrl+B should hand to the background: the first running cell
+    /// that offers the hand-off (a `Bash`, a session wait, the `!` shell),
+    /// with its wire id. `None` when no such call is running — the key then
+    /// raises the **global** latch, which the agent group's or the shell's
+    /// wait loop consumes (a `!` shell cell names no call).
+    ///
+    /// Naming the call is what keeps a parallel batch honest: the hint is
+    /// drawn under each running command, and the user's key press backgrounds
+    /// the first of them — never whichever runner happens to poll first
+    /// (`docs/tools/background.md`).
+    #[must_use]
+    pub fn background_target(&self) -> Option<&str> {
+        self.tool_queue
+            .iter()
+            .filter(|tool| tool.status == ToolStatus::Running && tool.backgroundable())
+            .find_map(|tool| tool.call_id.as_deref())
+    }
+
     /// Finish the in-flight tool call with its final `output` and outcome
     /// (`ok` → [`ToolStatus::Ok`], else [`ToolStatus::Failed`]), record it in the
     /// history, and remove it from the front of the live queue — the next batch
@@ -908,6 +926,25 @@ pub struct ToolCall {
 }
 
 impl ToolCall {
+    /// Whether Ctrl+B has something to hand to the background for this call:
+    /// a model `bash`, a `!` shell run, or a wait on a session (the wait ends
+    /// — the session already runs there). The same set the live cell draws
+    /// the hint on (`ui::tool::ctrl_b_hint`); the renderer asks per cell, and
+    /// [`App::background_target`] picks the first running one.
+    #[must_use]
+    pub fn backgroundable(&self) -> bool {
+        if self.shell {
+            return true;
+        }
+        matches!(
+            self.name.as_str(),
+            "Bash"
+                | crate::llm::tools::BASH_WAIT_DISPLAY
+                | crate::llm::tools::BASH_SEND_DISPLAY
+                | crate::llm::tools::BASH_SESSION_TOOL_DISPLAY
+        )
+    }
+
     /// Add a provenance note after any this call already carries: one call
     /// can collect several — its approval, a `PreToolUse` hook's, a
     /// `PostToolUse` hook's — and its cell's one dim row shows them all, in

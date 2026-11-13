@@ -374,6 +374,7 @@ fn n_is_inert_on_a_question_without_previews() {
 fn an_ask_arriving_while_a_permission_prompt_is_open_queues_behind_it() {
     let mut app = App::new();
     app.open_permission(PermissionRequest {
+        call_id: None,
         id: "perm_0".to_string(),
         kind: PermissionKind::Write,
         target: "a.py".to_string(),
@@ -396,6 +397,7 @@ fn a_permission_arriving_while_the_ask_is_open_queues_behind_it() {
     let mut app = App::new();
     app.open_ask(request("ask_0", vec![coffee_question()]));
     app.open_permission(PermissionRequest {
+        call_id: None,
         id: "perm_0".to_string(),
         kind: PermissionKind::Write,
         target: "a.py".to_string(),
@@ -651,6 +653,7 @@ fn a_question_takes_the_footer_selections_with_the_composer() {
 
 fn permission(id: &str) -> PermissionRequest {
     PermissionRequest {
+        call_id: None,
         id: id.to_string(),
         kind: PermissionKind::Write,
         target: "a.py".to_string(),

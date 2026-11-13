@@ -186,6 +186,17 @@ growing invalidates the cache.
 The single-`!`-shell preview (its `⎿ Running… (Ns)` elapsed row) is unchanged: the
 shell is never batched (queue length 1, `shell` flag).
 
+Two surfaces that used to assume the queue front now ask the **id**:
+
+- The **permission prompt** lifts the call its request names
+  (`PermissionRequest::call_id`) to the front of the context
+  (`ui::permission_view::asked_first`), so a batch's fifth question shows the
+  fifth cell even though the first four are still queued ahead of it.
+- **Ctrl+B** names the first running command cell
+  (`App::background_target` → `BackgroundRegistry::request_background_for`),
+  and only that call's runner takes the latch; its siblings keep running
+  (`docs/tools/background.md`).
+
 ## Interrupting a batch
 
 Esc — or a backend error — mid-batch ends every call the model asked for at
@@ -281,23 +292,18 @@ than a cell per call — the tree is a roster, not a transcript.
 
 ## Limitations
 
-- The permission prompt's context assumes the asked-about call is the queue
-  front. A parallel batch asks every call's permission **before** the first
-  `ToolStart`, so a prompt for call 5 of 6 shows call 1's context and can
-  collapse call 5 into `+N more waiting`. Batches that prompt therefore gain no
-  overlap (the waits are serialized in the pre-pass) and can show the wrong
-  context; a serial batch never does. The prompt still names the request's own
-  tool/args, so the command being asked about is never ambiguous.
-- Ctrl+B is one latch shared by every foreground `bash` in flight. In a
-  multi-`bash` batch the first runner to poll it backgrounds itself, which may
-  not be the cell the hint was drawn under; keying the latch by call id is the
-  next step (`docs/tools/background.md`).
 - A batch's cells resolve only after the **whole** batch finishes, so an Esc
   that lands while a slow sibling still runs records a sibling that already
   succeeded as `Interrupted by user`; its side effect is on disk. The resolution
   order is the model's, deliberately — the next iteration can resolve each
   worker's call as it finishes without reordering the records, since records
   already carry `position` (`docs/providers/prompt-caching.md`).
+- A parallel batch still asks every call's permission **before** the first
+  `ToolStart`, so the waits are serialized in the pre-pass and the batch gains
+  no overlap while the user decides. The prompt's *context* is right — it leads
+  with the asked-about call by its id (`docs/state/permissions.md`) — but the
+  approvals themselves cannot run concurrently (one modal, one question at a
+  time).
 - `write`/`edit` on two distinct paths may still race through an **aliased**
   path the canonicalizer cannot see (a symlink created during the batch), and a
   `bash` batch can of course make its own calls depend on each other. The gate

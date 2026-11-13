@@ -468,6 +468,7 @@ mod tests {
 
     fn mcp_request(target: &str, body: &str, detail: Option<&str>) -> PermissionRequest {
         PermissionRequest {
+            call_id: None,
             id: String::new(),
             kind: PermissionKind::Mcp,
             target: target.to_string(),
@@ -510,6 +511,7 @@ mod tests {
     #[test]
     fn a_bash_request_keeps_the_command_prompt_shape() {
         let request = PermissionRequest {
+            call_id: None,
             id: String::new(),
             kind: PermissionKind::Bash,
             target: "ls -la".to_string(),
@@ -530,6 +532,7 @@ mod tests {
         // (docs/tools/interactive-shell.md): the program it goes to decides what
         // the keys do, so the classifier reads both.
         let request = PermissionRequest {
+            call_id: None,
             id: String::new(),
             kind: PermissionKind::Session,
             target: "b7x2k9m1q".to_string(),
@@ -845,6 +848,7 @@ mod tests {
         // header — so what is being decided can never blur into what already
         // happened.
         let request = PermissionRequest {
+            call_id: None,
             id: String::new(),
             kind: PermissionKind::Bash,
             target: "ls -la".to_string(),

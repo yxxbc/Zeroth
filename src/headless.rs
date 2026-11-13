@@ -2116,6 +2116,7 @@ mod tests {
     ) -> crate::permission::UnattendedRefusal {
         crate::permission::UnattendedRefusal {
             request: PermissionRequest {
+                call_id: None,
                 id: "p1".into(),
                 kind,
                 target: target.into(),

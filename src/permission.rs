@@ -135,6 +135,15 @@ pub enum PermissionKind {
 pub struct PermissionRequest {
     /// The gate id this request is resolved by ([`PermissionGate::next_id`]).
     pub id: String,
+    /// The **call** this request is about, when the asker has one — the same
+    /// id the call's `ToolStart` and its batch summary carry
+    /// (`docs/tools/parallel-tools.md`). A parallel batch asks every call's
+    /// permission in the model's order *before* any of them starts, so the
+    /// prompt cannot assume the asked-about call is the queue front: this id
+    /// is what lets it show **that** call's `● name(args)` cell as its
+    /// context, with the rest behind it. `None` for a request no wire call
+    /// made — a scripted turn, a resumed prompt, a session hand-off.
+    pub call_id: Option<String>,
     pub kind: PermissionKind,
     /// The file path (`Write`/`Edit`), the whole command (`Bash`), the
     /// `mcp__server__tool` wire name (`Mcp` — the rule key), or the session
@@ -1428,6 +1437,7 @@ mod tests {
 
     fn request(kind: PermissionKind, target: &str) -> PermissionRequest {
         PermissionRequest {
+            call_id: None,
             id: "perm_0".to_string(),
             kind,
             target: target.to_string(),

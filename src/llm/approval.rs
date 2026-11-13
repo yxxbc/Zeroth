@@ -80,6 +80,7 @@ pub fn permission_request(
             };
             Some(PermissionRequest {
                 id: String::new(),
+                call_id: Some(call.id.clone()),
                 kind,
                 target: args.path,
                 body,
@@ -96,6 +97,7 @@ pub fn permission_request(
                     .ok()?;
             Some(PermissionRequest {
                 id: String::new(),
+                call_id: Some(call.id.clone()),
                 kind: PermissionKind::Edit,
                 target: args.path,
                 body: render_numbered_diff(&tools::diff_lines(&old, &result.new_content)),
@@ -108,6 +110,7 @@ pub fn permission_request(
             let args: BashArgs = tools::parse_args(&call.arguments).ok()?;
             Some(PermissionRequest {
                 id: String::new(),
+                call_id: Some(call.id.clone()),
                 kind: PermissionKind::Bash,
                 target: args.command,
                 body: String::new(),
@@ -127,17 +130,21 @@ pub fn permission_request(
         // the no-prompt arm below by name.
         tools::BASH_SEND_TOOL => {
             let args: tools::SendArgs = tools::parse_args(&call.arguments).ok()?;
-            session_request(&args.session_id, &args.input, agent, describe)
+            let mut request = session_request(&args.session_id, &args.input, agent, describe)?;
+            request.call_id = Some(call.id.clone());
+            Some(request)
         }
         // The legacy tool: only a call that types something asks.
         tools::BASH_SESSION_TOOL_NAME => {
             let args: SessionArgs = tools::parse_args(&call.arguments).ok()?;
-            session_request(
+            let mut request = session_request(
                 &args.session_id,
                 args.input.as_deref().unwrap_or_default(),
                 agent,
                 describe,
-            )
+            )?;
+            request.call_id = Some(call.id.clone());
+            Some(request)
         }
         // An MCP call asks too (`docs/tools/mcp.md`): the wire name is the target
         // (the rule key option 2 remembers), the arguments the one-line
@@ -146,6 +153,7 @@ pub fn permission_request(
         // server's own description of the tool.
         name if crate::mcp::is_mcp_tool(name) => Some(PermissionRequest {
             id: String::new(),
+            call_id: Some(call.id.clone()),
             kind: PermissionKind::Mcp,
             target: name.to_string(),
             body: crate::mcp::pretty_args(&call.arguments),
@@ -181,6 +189,7 @@ fn session_request(
     };
     Some(PermissionRequest {
         id: String::new(),
+        call_id: None,
         kind: PermissionKind::Session,
         target: id,
         body: crate::pty::keys::display_input(input),

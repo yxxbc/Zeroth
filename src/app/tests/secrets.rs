@@ -633,6 +633,7 @@ fn a_note_typed_onto_a_question_carries_the_placeholder() {
 fn feedback_on_a_refused_call_carries_the_placeholder() {
     let mut app = root_app();
     let request = PermissionRequest {
+        call_id: None,
         id: "p1".to_string(),
         kind: PermissionKind::Bash,
         target: "mysql -u root".to_string(),

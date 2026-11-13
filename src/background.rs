@@ -459,6 +459,23 @@ impl std::fmt::Debug for SessionHandle {
     }
 }
 
+/// What a raised Ctrl+B latch targets. Until a batch could run several
+/// commands at once the latch was one bool, and the first runner to poll took
+/// it; with overlapping calls the TUI knows **which cell** it drew the hint
+/// under, so it can say so and leave the siblings' runners alone.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+enum BackgroundRequest {
+    /// No latch is up.
+    #[default]
+    Lowered,
+    /// Any foreground run may take it — an agent group's wait loop, the `!`
+    /// shell, or a command whose cell names no call id.
+    Any,
+    /// Only the run for this call takes it: the call whose running cell the
+    /// hint was drawn under.
+    Call(String),
+}
+
 struct Inner {
     /// The launch counter — mixed into each id roll's entropy seed so two
     /// launches inside one clock tick still differ.
@@ -466,7 +483,7 @@ struct Inner {
     tasks: HashMap<String, Task>,
     /// The Ctrl+B latch: the loop raises it while a foreground command runs;
     /// the runner's poll loop consumes it (see `docs/tools/background.md`).
-    background_request: bool,
+    background_request: BackgroundRequest,
     /// The completion notice board (see [`PendingNotice`]).
     pending_notices: Vec<PendingNotice>,
     /// The last [`PendingNotice::seq`] handed out.
@@ -569,7 +586,7 @@ impl BackgroundRegistry {
             inner: Arc::new(Mutex::new(Inner {
                 next_id: 0,
                 tasks: HashMap::new(),
-                background_request: false,
+                background_request: BackgroundRequest::Lowered,
                 pending_notices: Vec::new(),
                 notice_seq: 0,
                 retracted: HashSet::new(),
@@ -1302,25 +1319,57 @@ impl BackgroundRegistry {
         }
     }
 
-    /// Raise the Ctrl+B latch: the running foreground command's poll loop
-    /// consumes it via [`take_background_request`] and hands itself off.
+    /// Raise the Ctrl+B latch for **any** foreground run: the next runner to
+    /// poll (an agent group's wait loop, the `!` shell, a command whose cell
+    /// names no call id) consumes it via [`take_background_request`] and hands
+    /// itself off.
     ///
     /// [`take_background_request`]: BackgroundRegistry::take_background_request
     pub fn request_background(&self) {
-        self.inner.lock().expect("registry lock").background_request = true;
+        self.inner.lock().expect("registry lock").background_request = BackgroundRequest::Any;
     }
 
-    /// Consume the Ctrl+B latch (returns whether one was pending).
+    /// Raise the Ctrl+B latch for the call `call_id` alone: only that call's
+    /// runner takes it. What the TUI raises when several commands run at once
+    /// and the hint was drawn under one cell — its siblings keep running.
+    pub fn request_background_for(&self, call_id: &str) {
+        self.inner.lock().expect("registry lock").background_request =
+            BackgroundRequest::Call(call_id.to_string());
+    }
+
+    /// Consume a **global** Ctrl+B latch (returns whether one was pending). A
+    /// latch aimed at a particular call is left for that call's runner.
     #[must_use]
     pub fn take_background_request(&self) -> bool {
         let mut inner = self.inner.lock().expect("registry lock");
-        std::mem::take(&mut inner.background_request)
+        if inner.background_request == BackgroundRequest::Any {
+            inner.background_request = BackgroundRequest::Lowered;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Consume the Ctrl+B latch when it targets `call_id` (or is global):
+    /// whether this run was the one the user asked to background.
+    #[must_use]
+    pub fn take_background_request_for(&self, call_id: &str) -> bool {
+        let mut inner = self.inner.lock().expect("registry lock");
+        match std::mem::take(&mut inner.background_request) {
+            BackgroundRequest::Lowered => false,
+            BackgroundRequest::Any => true,
+            BackgroundRequest::Call(target) if target == call_id => true,
+            request @ BackgroundRequest::Call(_) => {
+                inner.background_request = request;
+                false
+            }
+        }
     }
 
     /// Drop a stale Ctrl+B latch — every foreground command clears it as it
     /// starts, so a press that missed one command can't background the next.
     pub fn clear_background_request(&self) {
-        self.inner.lock().expect("registry lock").background_request = false;
+        self.inner.lock().expect("registry lock").background_request = BackgroundRequest::Lowered;
     }
 
     /// Post a model-facing note onto the notice board, tagged with nothing —
@@ -2997,6 +3046,28 @@ mod tests {
             !reg.take_background_request(),
             "a stale raise can be cleared"
         );
+    }
+
+    #[test]
+    fn a_targeted_background_request_belongs_to_its_call() {
+        let (reg, _rx) = registry();
+        reg.request_background_for("c1");
+        assert!(
+            !reg.take_background_request_for("c2"),
+            "a sibling's runner leaves it"
+        );
+        assert!(
+            !reg.take_background_request(),
+            "the global take leaves a targeted one alone"
+        );
+        assert!(
+            reg.take_background_request_for("c1"),
+            "its own runner takes it"
+        );
+        assert!(!reg.take_background_request_for("c1"), "…exactly once");
+        // A global raise still reaches a runner that polls by id.
+        reg.request_background();
+        assert!(reg.take_background_request_for("c9"));
     }
 
     #[test]

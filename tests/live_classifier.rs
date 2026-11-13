@@ -106,6 +106,7 @@ fn live_venice_classifier_prompt_view_and_synthetic_verdicts() {
     ] {
         let request = PermissionRequest {
             id: String::new(),
+            call_id: None,
             kind: PermissionKind::Bash,
             target: command.to_string(),
             body: String::new(),

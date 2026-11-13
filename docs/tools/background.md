@@ -124,14 +124,14 @@ executor (`llm::exec`), and the `!` shell runner:
   already-read output — the bytes as read — to a fresh monitor thread
   mid-run, which takes `prior` as its first chunk into the same fold as the
   rest, so a bar interrupted mid-line finishes as one line.
-- `request_background()` / `take_background_request()` is the Ctrl+B flag: the
-  loop sets it when the front running `bash`/`!` command is on screen; the
-  runner's poll loop consumes it (and clears any stale request when a new
-  command starts). A parallel `bash` batch can have several runners in flight,
-  so the flag is best-effort there: the first runner to poll it backgrounds
-  itself, which may not be the visible cell (`docs/tools/parallel-tools.md`,
-  *Limitations*). Serial and lone commands — the case the key was designed for —
-  remain exact.
+- `request_background()` / `take_background_request()` is the **global** Ctrl+B
+  latch (an agent group's wait loop, the `!` shell); `request_background_for(id)` /
+  `take_background_request_for(id)` is the **targeted** form. The TUI raises the
+  targeted one when a command cell is running: `App::background_target` names the
+  first running `Bash`/session-wait cell, so a parallel batch backgrounds that
+  call and its siblings' runners leave the latch alone. Every runner still clears
+  any stale request when a new command starts, so a press that missed one command
+  can't background the next. A global raise is also taken by a targeted runner.
 - `kill(id)` / `kill_all()` send `SIGKILL` to the process **group** directly
   (synchronously — quit must not depend on monitor-thread scheduling) after
   marking the task killed, so the monitor reports `killed: true`.

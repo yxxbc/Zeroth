@@ -1353,6 +1353,7 @@ fn a_stopped_agents_prompts_leave_the_screen_and_the_rest_stay() {
     // its queued ones drop, all released like any abandoned request. Another
     // agent's stay put.
     let asked_by = |id: &str, agent: &str| crate::permission::PermissionRequest {
+        call_id: None,
         id: id.into(),
         kind: crate::permission::PermissionKind::Bash,
         target: "ls".into(),

@@ -665,7 +665,7 @@ impl AgentRun {
                         // A subagent's parallel calls are not aggregated: its
                         // session view keeps a cell per call (`docs/tools/mcp.md`).
                         batch: None,
-                        call_id: None,
+                        call_id: item.call_id.clone(),
                         position: None,
                         run: crate::stream::ToolRun::default(),
                     });
@@ -676,8 +676,10 @@ impl AgentRun {
                     .adopt(items.iter().map(|item| item.name.as_str()));
             }
             StreamEvent::ToolStart {
-                // A subagent's calls are serial; the queue front is its call.
-                call_id: _,
+                // A subagent's calls are serial, so the queue front is its
+                // call; the id still rides onto the record and lets the
+                // agent view's permission prompt lead with the right cell.
+                call_id,
                 name,
                 args,
                 detail,
@@ -705,6 +707,7 @@ impl AgentRun {
                         front.name.clone_from(name);
                         front.args.clone_from(args);
                         front.arguments.clone_from(arguments);
+                        front.call_id.clone_from(call_id);
                     }
                     _ => {
                         // A call no batch announced is its round's whole
@@ -729,7 +732,7 @@ impl AgentRun {
                             context_output: None,
                             approval_note: None,
                             batch: None,
-                            call_id: None,
+                            call_id: call_id.clone(),
                             position: None,
                             run: crate::stream::ToolRun::default(),
                         });
@@ -3515,6 +3518,52 @@ mod tests {
         assert!(
             matches!(&run.history[run.history.len() - 2], HistoryItem::Message(m) if m.text == "Found it."),
             "the reply settles ahead of the cell: {:?}",
+            run.history
+        );
+    }
+
+    #[test]
+    fn a_subagents_cells_keep_the_wire_ids_its_events_carry() {
+        // The agent view's permission prompt leads with the asked-about cell,
+        // so the cell must know the id its request names — even though the
+        // subagent's own queue is serial.
+        let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
+        run.apply(&StreamEvent::ToolBatch(vec![
+            ToolCallSummary {
+                call_id: Some("c1".into()),
+                name: "Bash".into(),
+                args: "one".into(),
+            },
+            ToolCallSummary {
+                call_id: Some("c2".into()),
+                name: "Bash".into(),
+                args: "two".into(),
+            },
+        ]));
+        assert_eq!(run.tool_queue[0].call_id.as_deref(), Some("c1"));
+        assert_eq!(run.tool_queue[1].call_id.as_deref(), Some("c2"));
+        run.apply(&StreamEvent::ToolStart {
+            call_id: Some("c1".into()),
+            name: "Bash".into(),
+            args: "one".into(),
+            detail: None,
+            arguments: None,
+        });
+        assert_eq!(
+            run.tool_queue[0].call_id.as_deref(),
+            Some("c1"),
+            "the running cell keeps the id"
+        );
+        run.apply(&StreamEvent::ToolEnd {
+            call_id: Some("c1".into()),
+            output: "ok".into(),
+            ok: true,
+            truncated: false,
+            run: crate::stream::ToolRun::default(),
+        });
+        assert!(
+            matches!(run.history.last(), Some(HistoryItem::Tool(tool)) if tool.call_id.as_deref() == Some("c1")),
+            "the record keeps it too: {:?}",
             run.history
         );
     }

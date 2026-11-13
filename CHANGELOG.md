@@ -47,10 +47,12 @@ release heading when a version is cut.
   `ToolRejected`, `ToolBackgrounded`) carries the call's id, and the app
   routes each one to its own cell: a batch's workers flip their cells to
   `Running` as they start, each tails its own output, and a chunk can never
-  land on a sibling's cell. Records still resolve in the model's order. The
-  permission prompt's context and Ctrl+B remain front-based (documented
-  limitations), and the `!` shell / scripted backends keep the id-less front
-  path unchanged (`docs/tools/parallel-tools.md`).
+  land on a sibling's cell. Records still resolve in the model's order. A
+  permission prompt now leads its context with the call its request names
+  (even when earlier siblings are still queued), and Ctrl+B backgrounds the
+  first running command by its call id, so a sibling's runner never takes
+  the latch. The `!` shell / scripted backends keep the id-less front path
+  unchanged (`docs/tools/parallel-tools.md`).
 
 - **Session files now record how each tool call ran and what each model
   request cost.** Every `tool` line in a rollout

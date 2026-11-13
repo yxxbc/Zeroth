@@ -241,6 +241,7 @@ impl Stage<'_> {
         detail: Option<&str>,
     ) -> PermissionRequest {
         PermissionRequest {
+            call_id: None,
             id: self.gate.next_id(),
             kind,
             target: target.to_string(),

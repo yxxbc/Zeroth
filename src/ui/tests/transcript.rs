@@ -953,6 +953,7 @@ fn the_quit_hint_tells_the_truth_about_esc() {
     // still waiting on. The hint and the key read the same `modal_open`.
     let mut asking = backtrack_app();
     asking.open_permission(crate::permission::PermissionRequest {
+        call_id: None,
         id: "p1".to_string(),
         kind: crate::permission::PermissionKind::Bash,
         target: "rm -rf /".to_string(),

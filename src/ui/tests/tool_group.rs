@@ -469,6 +469,7 @@ fn the_permission_prompt_keeps_the_open_group_above_the_call_it_asks_about() {
         args: "ls -la".to_string(),
     }]);
     app.open_permission(crate::permission::PermissionRequest {
+        call_id: None,
         id: "p1".to_string(),
         kind: crate::permission::PermissionKind::Bash,
         target: "ls -la".to_string(),

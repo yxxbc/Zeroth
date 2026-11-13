@@ -358,6 +358,12 @@ fn mcp_rows(request: &PermissionRequest, width: u16, budget: usize) -> (Vec<Line
 /// "the subagent TUI shows the Agent cell" bug
 /// (`docs/agents/agent-view-streaming.md`).
 fn context_chunks(app: &App, width: u16) -> Vec<Vec<Line<'static>>> {
+    // The request names the call it is about; the prompt's first chunk is
+    // that call, even when an earlier sibling was queued before it (a
+    // parallel batch approves its calls in model order before any starts).
+    let asked = app
+        .permission()
+        .and_then(|prompt| prompt.request.call_id.as_deref());
     if let Some(run) = app.viewed_agent() {
         // Only the agent whose view is up has its cells on this screen. A
         // request from anywhere else — the main turn, a sibling agent — is a
@@ -369,7 +375,11 @@ fn context_chunks(app: &App, width: u16) -> Vec<Vec<Line<'static>>> {
         {
             return Vec::new();
         }
-        return queue_chunks(run.tool_queue.iter(), width, app.path_display());
+        return queue_chunks(
+            asked_first(run.tool_queue.iter(), asked).into_iter(),
+            width,
+            app.path_display(),
+        );
     }
     let mut chunks = Vec::new();
     let agents = live_agent_group_lines(app, width);
@@ -385,7 +395,11 @@ fn context_chunks(app: &App, width: u16) -> Vec<Vec<Line<'static>>> {
     {
         return vec![batch];
     }
-    let mut queue = queue_chunks(app.tool_queue().iter(), width, app.path_display());
+    let mut queue = queue_chunks(
+        asked_first(app.tool_queue().iter(), asked).into_iter(),
+        width,
+        app.path_display(),
+    );
     // The open read/search group the asked-about call follows, at rest
     // (docs/ui/tool-groups.md) — merged into that call's chunk, so the budget
     // that may collapse the siblings never drops the call being asked about.
@@ -403,6 +417,36 @@ fn context_chunks(app: &App, width: u16) -> Vec<Vec<Line<'static>>> {
     }
     chunks.extend(queue);
     chunks
+}
+
+/// The queue with the **asked-about** call moved to the front: the prompt's
+/// first chunk is the call the question is about, and the rest keep their
+/// queue order behind it. A request that names no call (a scripted or resumed
+/// prompt), or whose call is no longer queued, leaves the order as it stands.
+/// What makes a parallel batch's prompt show the fifth call it is asking
+/// about rather than the first one it announced.
+fn asked_first<'a>(
+    queue: impl Iterator<Item = &'a ToolCall>,
+    asked: Option<&str>,
+) -> Vec<&'a ToolCall> {
+    let calls: Vec<&ToolCall> = queue.collect();
+    let Some(asked_index) = asked.and_then(|asked| {
+        calls
+            .iter()
+            .position(|tool| tool.call_id.as_deref() == Some(asked))
+    }) else {
+        return calls;
+    };
+    let mut ordered = Vec::with_capacity(calls.len());
+    ordered.push(calls[asked_index]);
+    ordered.extend(
+        calls
+            .iter()
+            .enumerate()
+            .filter(|(position, _)| *position != asked_index)
+            .map(|(_, tool)| *tool),
+    );
+    ordered
 }
 
 /// One chunk per queued call — each call's ordinary collapsed cell, drawn at

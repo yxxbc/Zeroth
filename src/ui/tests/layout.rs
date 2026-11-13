@@ -269,6 +269,7 @@ fn region_is_modal_only_while_a_permission_prompt_is_open() {
     let mut app = App::new();
     assert!(!region_is_modal(&app));
     app.open_permission(crate::permission::PermissionRequest {
+        call_id: None,
         id: "perm_0".to_string(),
         kind: crate::permission::PermissionKind::Write,
         target: "hello.py".to_string(),

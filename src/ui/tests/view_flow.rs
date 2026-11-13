@@ -111,6 +111,7 @@ fn a_covering_modal_suppresses_the_flow() {
     let mut app = tall_mcp_app();
     assert!(view_flow(&app, 60, 20, NO_CAP).is_some());
     app.open_permission(PermissionRequest {
+        call_id: None,
         id: "perm_0".to_string(),
         kind: PermissionKind::Bash,
         target: "echo hi".to_string(),
@@ -212,6 +213,7 @@ fn a_screen_tall_permission_prompt_flows_its_top() {
     let body: String = (1..=200).map(|n| format!("{n:>3} line {n}\n")).collect();
     let mut app = App::new();
     app.open_permission(PermissionRequest {
+        call_id: None,
         id: "perm_flow".to_string(),
         kind: PermissionKind::Write,
         target: "big.py".to_string(),
@@ -239,6 +241,7 @@ fn a_screen_tall_permission_prompt_flows_its_top() {
     // A prompt that fits keeps the ordinary modal geometry — no flow.
     let mut small = App::new();
     small.open_permission(PermissionRequest {
+        call_id: None,
         id: "perm_small".to_string(),
         kind: PermissionKind::Bash,
         target: "echo hi".to_string(),

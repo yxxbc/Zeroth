@@ -12,6 +12,7 @@ use crate::stream::{AgentSpec, ToolCallSummary};
 
 fn request(kind: PermissionKind, target: &str, body: &str) -> PermissionRequest {
     PermissionRequest {
+        call_id: None,
         id: "perm_0".to_string(),
         kind,
         target: target.to_string(),
@@ -870,6 +871,80 @@ fn the_context_rows_count_against_the_body_budget() {
     }
 }
 
+// --- a parallel batch's prompt (docs/tools/parallel-tools.md) ---
+
+/// An app asking about the **second** call of a three-call batch, all still
+/// `Waiting` — the shape a real batch produces (the approve seam pre-runs
+/// before any `ToolStart`).
+fn pending_second_of_three() -> App {
+    let mut app = App::new();
+    app.start_tool_batch(&[
+        ToolCallSummary {
+            call_id: Some("c1".to_string()),
+            name: "Bash".to_string(),
+            args: "setup the workspace".to_string(),
+        },
+        ToolCallSummary {
+            call_id: Some("c2".to_string()),
+            name: "Bash".to_string(),
+            args: "run the tests".to_string(),
+        },
+        ToolCallSummary {
+            call_id: Some("c3".to_string()),
+            name: "Bash".to_string(),
+            args: "clean the build".to_string(),
+        },
+    ]);
+    let mut request = request(PermissionKind::Bash, "run the tests", "");
+    request.id = "perm_1".to_string();
+    request.call_id = Some("c2".to_string());
+    app.open_permission(request);
+    app
+}
+
+#[test]
+fn a_parallel_prompts_context_leads_with_the_call_it_asks_about() {
+    // The batch was approved in model order, so the queue's front is the first
+    // call — but the question is about the second. Its cell must be the one
+    // drawn directly over the prompt (the budget protects the first chunk),
+    // with the siblings behind it, not the other way round.
+    let app = pending_second_of_three();
+    let text: Vec<String> = permission_lines(&app, 80, 40).iter().map(plain).collect();
+    let cells: Vec<&String> = text
+        .iter()
+        .filter(|row| row.starts_with("● Bash("))
+        .collect();
+    assert_eq!(cells.len(), 3, "all three context cells show: {text:?}");
+    assert!(
+        cells[0].contains("run the tests"),
+        "the asked-about call leads its siblings: {text:?}"
+    );
+    assert!(
+        cells[1..]
+            .iter()
+            .any(|cell| cell.contains("setup the workspace"))
+            && cells[1..]
+                .iter()
+                .any(|cell| cell.contains("clean the build")),
+        "the siblings keep their slots behind it: {text:?}"
+    );
+}
+
+#[test]
+fn a_parallel_prompt_without_a_call_id_keeps_queue_order() {
+    // A scripted request names no call: the front stays the context's first
+    // chunk, exactly as before the id existed.
+    let mut app = App::new();
+    app.start_tool_batch(&[ToolCallSummary {
+        call_id: None,
+        name: "Bash".to_string(),
+        args: "first".to_string(),
+    }]);
+    app.open_permission(request(PermissionKind::Bash, "first", ""));
+    let text: Vec<String> = permission_lines(&app, 70, 30).iter().map(plain).collect();
+    assert_eq!(text[0], "● Bash(first)", "the queue front leads: {text:?}");
+}
+
 // --- the MCP prompt (docs/tools/mcp.md) ---
 
 /// An app asking about a `deepwiki - read_wiki_structure` call, with the
@@ -1444,6 +1519,7 @@ fn a_session_prompts_description_row_is_dim() {
             &app_with(PermissionRequest {
                 detail: None,
                 ..crate::permission::PermissionRequest {
+                    call_id: None,
                     id: String::new(),
                     kind: PermissionKind::Session,
                     target: "b1".to_string(),

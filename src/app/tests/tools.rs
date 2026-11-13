@@ -1200,3 +1200,22 @@ fn a_resolution_for_an_id_no_longer_live_is_a_noop() {
     assert_eq!(app.history.len(), history);
     assert!(app.tool_queue().is_empty());
 }
+
+#[test]
+fn ctrl_b_targets_the_first_running_command_by_id() {
+    // The hint is drawn under every running command; the key press names the
+    // first of them, so a sibling's runner never consumes the latch.
+    let mut app = App::new();
+    app.start_tool_batch(&id_batch());
+    app.start_tool_for(Some("c2"), "Bash", "run c2", None);
+    app.start_tool_for(Some("c1"), "Bash", "run c1", None);
+    assert_eq!(
+        app.background_target(),
+        Some("c1"),
+        "the queue's first running command, not the worker that started last"
+    );
+    app.end_tool_for(Some("c1"), "done", true);
+    assert_eq!(app.background_target(), Some("c2"));
+    app.end_tool_for(Some("c2"), "done", true);
+    assert_eq!(app.background_target(), None, "nothing left to background");
+}

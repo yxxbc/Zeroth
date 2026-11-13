@@ -237,6 +237,7 @@ fn a_modal_prompt_holds_the_tip_back_until_it_closes() {
     let mut app = seeded(0);
     turn(&mut app);
     app.open_permission(crate::permission::PermissionRequest {
+        call_id: None,
         id: "p1".to_string(),
         kind: crate::permission::PermissionKind::Write,
         target: "hello.py".to_string(),

@@ -6,6 +6,7 @@ use crate::permission::{PermissionDecision, PermissionKind, PermissionMode, Perm
 
 fn request(id: &str, kind: PermissionKind, target: &str) -> PermissionRequest {
     PermissionRequest {
+        call_id: None,
         id: id.to_string(),
         kind,
         target: target.to_string(),

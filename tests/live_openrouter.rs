@@ -602,6 +602,7 @@ fn live_amended_rejection_still_steers_the_model_a_turn_later() {
     // on the instruction a turn later.)
     let feedback = "use the sentinel port 4821";
     let request = PermissionRequest {
+        call_id: None,
         id: String::new(),
         kind: PermissionKind::Write,
         target: "config.py".to_string(),
@@ -2357,6 +2358,7 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
 /// A `bash` [`PermissionRequest`] for the classifier tests.
 fn bash_request(command: &str, description: Option<&str>) -> PermissionRequest {
     PermissionRequest {
+        call_id: None,
         id: String::new(),
         kind: PermissionKind::Bash,
         target: command.to_string(),
@@ -2510,6 +2512,7 @@ fn live_classifier_reads_the_context_when_judging_fit() {
 /// description as the detail (`docs/tools/mcp.md`).
 fn mcp_request(wire: &str, args: &str, description: Option<&str>) -> PermissionRequest {
     PermissionRequest {
+        call_id: None,
         id: String::new(),
         kind: PermissionKind::Mcp,
         target: wire.to_string(),

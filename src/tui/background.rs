@@ -165,9 +165,16 @@ impl Session<'_> {
     }
 
     /// Ctrl+B on a running command: raise the latch the runner's poll loop
-    /// consumes to hand its child off.
+    /// consumes to hand its child off. When several commands run at once
+    /// (a parallel batch) the latch names the call the hint was drawn under
+    /// — the first running cell offering the hand-off — so a sibling runner
+    /// leaves it alone; with no such cell (the agent group's wait, the `!`
+    /// shell) the latch is global, as it always was.
     pub(crate) fn move_to_background(&self) {
-        self.registry.request_background();
+        match self.app.background_target() {
+            Some(call_id) => self.registry.request_background_for(call_id),
+            None => self.registry.request_background(),
+        }
     }
 
     /// Settle the notice the in-flight agent just read — board note `seq`

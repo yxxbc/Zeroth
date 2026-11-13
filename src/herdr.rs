@@ -916,6 +916,7 @@ mod tests {
 
     fn permission(kind: PermissionKind, target: &str) -> PermissionRequest {
         PermissionRequest {
+            call_id: None,
             id: "p1".to_string(),
             kind,
             target: target.to_string(),
