@@ -45,6 +45,7 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/markdown.md`](ui/markdown.md): Assistant markdown rendering
 - [`ui/mascot.md`](ui/mascot.md): The banner mascot and the `/mascot` picker
 - [`ui/overlay-repaint.md`](ui/overlay-repaint.md): Overlay repaint — copying text out of Ctrl+O / Ctrl+D while a turn runs
+- [`ui/rich-links.md`](ui/rich-links.md): Rich links — clickable paths, preview cards, and screen ownership (Design)
 - [`ui/shortcuts.md`](ui/shortcuts.md): `?` shortcuts band — keyboard-shortcut help below the box
 - [`ui/slow-stream.md`](ui/slow-stream.md): Slow streams — a few tokens a second through the inline pipeline
 - [`ui/spinner.md`](ui/spinner.md): The status spinner styles and the `/spinner` picker

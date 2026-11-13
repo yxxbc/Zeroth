@@ -1,5 +1,10 @@
 # Clickable links — OSC 8 hyperlinks for wrapped URLs
 
+This page is the URL half. Clickable **file paths** in prose and tool output,
+link **preview cards**, and click-to-expand are designed separately, together
+with the screen-ownership trade-off they raise:
+[`rich-links.md`](rich-links.md).
+
 ## The bug
 
 A URL wider than the room left on its row hard-breaks across display rows —
