@@ -37,7 +37,11 @@ echo "==== Phase 102: /skills on the first launch ===="
 printf '%s\n' "$skillseed_menu"
 expect_has "$skillseed_menu" -F "flaredantic" "the first launch's /skills does not list flaredantic"
 expect_has "$skillseed_menu" -F "skill-creator" "the first launch's /skills does not list skill-creator"
-expect_has "$skillseed_menu" -F "yt-dlp" "the first launch's /skills does not list yt-dlp"
+# The picker only shows the rows that fit above its description panel. Filter
+# by name so adding another built-in cannot push yt-dlp below the viewport.
+tmux send-keys -t "$S102" -l "yt-dlp"
+skillseed_yt_dlp="$(wait_pane 10 "$S102" -E '^  → yt-dlp([[:space:]]|$)')"
+expect_has "$skillseed_yt_dlp" -F "yt-dlp" "the first launch's /skills does not list yt-dlp"
 if printf '%s' "$skillseed_menu" | grep -q "web-search"; then
 	fail "web-search is still seeded as a skill — search is the native web_search/web_fetch tools now"
 fi
