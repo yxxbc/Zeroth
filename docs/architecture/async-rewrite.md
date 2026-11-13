@@ -17,6 +17,14 @@ already in this codebase; this change ports the rest.
 > Note: for *typing latency* on this app the win is marginal (already ~1 ms,
 > dominated by terminal I/O). This rewrite is for architectural fidelity to
 > codex, chosen deliberately.
+>
+> **Measured later, and only half true** (`docs/architecture/input-latency.md`,
+> 2026-11-12): the ~1 ms figure holds while the app is idle. `MIN_FRAME_INTERVAL`
+> is a floor for *every* requester, so as soon as anything animates — a
+> streaming reply, the status shimmer, an open band — a keypress's earliest
+> paint is `last frame + 8.33 ms`, and a competitor's benchmark measured
+> 7.36 ms per keystroke under load against its own 0.39 ms. The floor coalesces
+> correctly; it just does not know a keypress from an animation tick.
 
 ## Pieces
 

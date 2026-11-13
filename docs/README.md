@@ -15,6 +15,7 @@ How the crate is put together: module layout, the async loop, the context, token
 
 - [`architecture/async-rewrite.md`](architecture/async-rewrite.md): Async runtime rewrite (codex-style)
 - [`architecture/compact.md`](architecture/compact.md): /compact — summarize the conversation to free context
+- [`architecture/concurrency.md`](architecture/concurrency.md): Concurrency — where the turn blocks, and what runs at once
 - [`architecture/context-usage.md`](architecture/context-usage.md): `/context` — what fills the context window
 - [`architecture/context.md`](architecture/context.md): The conversation context, vision attachments, and the Ctrl+D debug view
 - [`architecture/dummy-backend.md`](architecture/dummy-backend.md): The dummy backend and its scenario registry
