@@ -39,7 +39,7 @@ EXPECT_REPLY="Happy to help"
 # this one marker means "the turn finished streaming" whatever prompt was sent.
 SETTLED_REPLY="Two commands away"
 # The startup banner's tier-independent title word (docs/ui/header.md).
-HEADER_MARK="Alter Zero"
+HEADER_MARK="Zeroth"
 # A committed turn summary (an ERE; anchor it with ^ where it must start a
 # row): the past tense of the status verb the turn ended on, then " for {n}"
 # (`app::STATUS_VERBS`, docs/ui/status-indicator.md). Wait on this wherever any

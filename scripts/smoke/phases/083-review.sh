@@ -5,7 +5,7 @@
 smoke_begin
 
 # The startup review (docs/state/config-review.md). A temp project (no .git — the
-# root falls back to the cwd) carries .alter-zero/hooks.json and .mcp.json
+# root falls back to the cwd) carries .zeroth/hooks.json and .mcp.json
 # (the Phase 80 scripted stdio fixture plus an http server that never
 # answers), and the fresh config home a hooks.json of the user's own. Ctrl+C
 # there quits with nothing recorded. First launch: the review opens on the
@@ -27,7 +27,7 @@ smoke_begin
 S83="${S}_review"
 RV_CFG="$(smoke_real_path "$(mktemp -d)")"
 RV_WORK="$(smoke_real_path "$(mktemp -d)")"
-mkdir -p "$RV_WORK/.alter-zero"
+mkdir -p "$RV_WORK/.zeroth"
 cat >"$RV_WORK/server.sh" <<'RVSRV'
 #!/bin/sh
 cat > /dev/null &
@@ -45,7 +45,7 @@ rv_servers() {
 RVJSON
 }
 rv_servers ""
-cat >"$RV_WORK/.alter-zero/hooks.json" <<'RVHOOKS'
+cat >"$RV_WORK/.zeroth/hooks.json" <<'RVHOOKS'
 {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./fmt.sh"}]}]}}
 RVHOOKS
 rv_user_hook() {
@@ -228,7 +228,7 @@ expect_file_lacks "$RV_CFG/trust.json" -F "server.sh" "trust.json copied a serve
 # --- A review the user asks for: Hooks turned on in /settings over a hook
 # waiting for trust opens the hooks page, and its Ctrl+C closes it the
 # pickers' way — the session goes on, nothing recorded.
-cat >"$RV_WORK/.alter-zero/hooks.json" <<'RVHOOKS2'
+cat >"$RV_WORK/.zeroth/hooks.json" <<'RVHOOKS2'
 {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./fmt.sh --check"}]}]}}
 RVHOOKS2
 launch -c "$RV_WORK" "$S83" 100 40 "${RV_APP/ALTER_ZERO_HOOKS=1/ALTER_ZERO_HOOKS=0}"
@@ -253,8 +253,8 @@ expect_file_lacks "$RV_CFG/trust.json" -F "./fmt.sh --check" "Ctrl+C on the requ
 
 # A project with one Stop hook, and the session command over config home $2.
 rv_project() {
-	mkdir -p "$1/.alter-zero"
-	printf '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "%s"}]}]}}\n' "$2" >"$1/.alter-zero/hooks.json"
+	mkdir -p "$1/.zeroth"
+	printf '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "%s"}]}]}}\n' "$2" >"$1/.zeroth/hooks.json"
 }
 rv_app_in() {
 	printf '%s' "${RV_APP/ALTER_ZERO_CONFIG_DIR=$RV_CFG/ALTER_ZERO_CONFIG_DIR=$1}"
@@ -286,7 +286,7 @@ tmux kill-session -t "$S83" 2>/dev/null
 # --- A trust.json with a typo fails closed and is never written over: the
 # decisions in it wait for the fix.
 RV_CFG3="$(smoke_real_path "$(mktemp -d)")"
-printf '%s\n' '{"hooks": {"/elsewhere/.alter-zero/hooks.json": [{"event": "Stop", "command": "./other.sh"}]},}' >"$RV_CFG3/trust.json"
+printf '%s\n' '{"hooks": {"/elsewhere/.zeroth/hooks.json": [{"event": "Stop", "command": "./other.sh"}]},}' >"$RV_CFG3/trust.json"
 rv_typo="$(cksum <"$RV_CFG3/trust.json")"
 launch -c "$RV_ONE" -w "Esc to continue without trusting" "$S83" 100 40 "$(rv_app_in "$RV_CFG3")"
 keys "$S83" Enter
@@ -306,10 +306,10 @@ RV_OLD="$(smoke_real_path "$(mktemp -d)")"
 rv_project "$RV_OLD" "./old.sh"
 # The fingerprint the app records is a sha256, so the fixture must be one too
 # (`smoke_sha256` asks whichever of `sha256sum`/`shasum` this machine has).
-rv_fp="sha256:$(smoke_sha256 <"$RV_OLD/.alter-zero/hooks.json")"
+rv_fp="sha256:$(smoke_sha256 <"$RV_OLD/.zeroth/hooks.json")"
 cat >"$RV_CFG4/trust.json" <<RVLEGACY
 {"projects": {
-  "$RV_OLD": {"files": {"$RV_OLD/.alter-zero/hooks.json": "$rv_fp"}},
+  "$RV_OLD": {"files": {"$RV_OLD/.zeroth/hooks.json": "$rv_fp"}},
   "/other": {"files": {"/other/.mcp.json": "sha256:bb"}}
 }}
 RVLEGACY

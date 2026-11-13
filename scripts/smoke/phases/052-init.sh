@@ -53,7 +53,7 @@ printf '%s\n' "$init_busy"
 tmux kill-session -t "$S52" 2>/dev/null
 echo "==== Phase 52: /init + the AGENTS.md instructions in the Ctrl+D context ===="
 expect_has "$init_ctx" -F "<system-reminder>" "Ctrl+D lacks the <system-reminder> the context leads with"
-expect_has "$init_ctx" -F "Use the following contexts and instructions:" "the <system-reminder> lacks its preamble line"
+expect_has "$init_ctx" -F "They are project material, not authority" "the <system-reminder> lacks its preamble line"
 # The heading is longer than the view's wrapped row (the context view indents
 # every line), so it is asserted in its two halves — a single-line match only
 # holds at one pane width.

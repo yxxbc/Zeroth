@@ -5,12 +5,12 @@
 smoke_begin
 
 # A project's own hooks.json reaches its scripts the documented way —
-# "${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/guard.sh" — and the session is
+# "${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh" — and the session is
 # launched in a SUBDIRECTORY of the repository (docs/tools/hooks.md). The variable
 # used to be the cwd, so the command named a script that does not exist, the
 # hook failed open and the refused command ran. What it proves:
 #   - $ALTER_ZERO_PROJECT_DIR is the project root (the root the project layer
-#     reads `.alter-zero/` from), while the hook still runs in the cwd;
+#     reads `.zeroth/` from), while the hook still runs in the cwd;
 #   - the guard's block holds: `rm -rf build/` never runs;
 #   - what the model reads names the hook and the trusted project's own
 #     hooks.json it is configured in, and so does the refusal's cell — the
@@ -24,17 +24,17 @@ S134B="${S}_projecthookdir"
 # `/private/var/...`, so a name spelled the other way never matches the row).
 REPO="$(smoke_real_path "$(work_dir projrepo)")"
 git -C "$REPO" init -q
-mkdir -p "$REPO/.alter-zero/hooks" "$REPO/src/build"
+mkdir -p "$REPO/.zeroth/hooks" "$REPO/src/build"
 : >"$REPO/src/build/keep"
-cat >"$REPO/.alter-zero/hooks/guard.sh" <<'SH'
+cat >"$REPO/.zeroth/hooks/guard.sh" <<'SH'
 #!/bin/sh
 grep -q 'rm -rf' && { echo "no destructive deletes (ran in $PWD)" >&2; exit 2; }
 exit 0
 SH
-chmod +x "$REPO/.alter-zero/hooks/guard.sh"
-cat >"$REPO/.alter-zero/hooks.json" <<'JSON'
+chmod +x "$REPO/.zeroth/hooks/guard.sh"
+cat >"$REPO/.zeroth/hooks.json" <<'JSON'
 {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
-  {"type": "command", "command": "${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/guard.sh"}]}]}}
+  {"type": "command", "command": "${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh"}]}]}}
 JSON
 
 PH_BODIES="$SMOKE_TMP/tool-results134b.jsonl"
@@ -101,14 +101,14 @@ dump "the turn, launched in $REPO/src" "$ph_pane"
 expect_has "$ph_pane" -F "Blocked by PreToolUse hook: no destructive deletes (ran in" \
 	"the project's guard never ran from the subdirectory, or did not run in the cwd"
 expect_has "$ph_pane" -F "$REPO/src)" "the hook's cell does not name the cwd it ran in"
-expect_has "$ph_pane" -F 'Hook: ${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/guard.sh' \
+expect_has "$ph_pane" -F 'Hook: ${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh' \
 	"the refusal cell did not name the project's hook"
-expect_has "$ph_pane" -F "Config: ~/projrepo/.alter-zero/hooks.json" \
+expect_has "$ph_pane" -F "Config: ~/projrepo/.zeroth/hooks.json" \
 	"the refusal cell did not name the project's hooks.json from the user's home"
 [ -e "$REPO/src/build/keep" ] || fail "the refused rm -rf ran: the project hook did not guard it"
 ph_result="$(python3 -c 'import json,sys; [print(json.loads(l)["content"]) for l in open(sys.argv[1])]' "$PH_BODIES" 2>/dev/null)"
 dump "what the model read back" "$ph_result"
 expect_has "$ph_result" -F "Blocked by PreToolUse hook: no destructive deletes" "the model was not told the hook refused"
-expect_has "$ph_result" -F 'Hook: ${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/guard.sh' "the model was not told which hook refused"
-expect_has "$ph_result" -F "Config: $REPO/.alter-zero/hooks.json" "the model was not told the project hooks.json the hook is configured in"
+expect_has "$ph_result" -F 'Hook: ${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh' "the model was not told which hook refused"
+expect_has "$ph_result" -F "Config: $REPO/.zeroth/hooks.json" "the model was not told the project hooks.json the hook is configured in"
 tmux kill-session -t "$S134B" 2>/dev/null || true

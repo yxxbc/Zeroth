@@ -53,11 +53,11 @@ fi
 # The clap-shaped trailer (docs/cli/cli.md): `error: {message}`, the mcp `Usage:`
 # block, `For more information, try '--help'.` — never the whole page.
 for expect in "error: mcp add needs a --url or a command" \
-	"Usage: alter-zero mcp add <name>" \
+	"Usage: zeroth mcp add <name>" \
 	"For more information, try '--help'."; do
 	expect_has "$mcp84_bad" -F "$expect" "the grammar error is missing '$expect'"
 done
-expect_lacks "$mcp84_bad" -F "alter-zero mcp — manage MCP servers" "a grammar error dumped the whole help page instead of the usage trailer"
+expect_lacks "$mcp84_bad" -F "zeroth mcp — manage MCP servers" "a grammar error dumped the whole help page instead of the usage trailer"
 # A pre-registered OAuth client (docs/cli/mcp-cli.md): --client-id and
 # --callback-port go into the entry, the secret — read from
 # MCP_CLIENT_SECRET, never the command line — into the owner-only token

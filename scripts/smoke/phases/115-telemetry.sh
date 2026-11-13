@@ -114,10 +114,10 @@ if [ "$(tm_pings)" != "1" ]; then
 fi
 tm_line="$(head -1 "$TM_LOG" 2>/dev/null)"
 case "$tm_line" in
-"/v1/ping alter-zero/$TM_VERSION "*) ;;
-*) tm_fail "the ping did not hit /v1/ping with the alter-zero/$TM_VERSION user-agent: '$tm_line'" ;;
+"/v1/ping zeroth/$TM_VERSION "*) ;;
+*) tm_fail "the ping did not hit /v1/ping with the zeroth/$TM_VERSION user-agent: '$tm_line'" ;;
 esac
-tm_body="${tm_line#/v1/ping alter-zero/$TM_VERSION }"
+tm_body="${tm_line#/v1/ping zeroth/$TM_VERSION }"
 # The body is the seven fields and nothing else — the shape docs/telemetry.md
 # promises — with the id the file holds and the crate's own version. `distro`
 # is Linux-only and absent from the body entirely elsewhere, so it is required
@@ -347,7 +347,7 @@ if [ "$(tm_pings)" != "2" ]; then
 fi
 tm_line2="$(sed -n 2p "$TM_LOG" 2>/dev/null)"
 case "$tm_line2" in
-"/v1/ping alter-zero/$TM_VERSION "*"\"id\":\"$tm_id\""*"\"version\":\"$TM_VERSION\""*) ;;
+"/v1/ping zeroth/$TM_VERSION "*"\"id\":\"$tm_id\""*"\"version\":\"$TM_VERSION\""*) ;;
 *) tm_fail "the update-day ping did not carry the same id and the crate's version: '$tm_line2'" ;;
 esac
 if printf '%s' "$tm_updated" | grep -qF "$TM_NOTICE"; then

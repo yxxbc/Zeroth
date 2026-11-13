@@ -120,7 +120,7 @@ hn_events
 expect_eq "$(hn_events | tr '\n' ' ')" "PreToolUse Notification PostToolUse " \
 	"the call's hooks out of order — the notification must keep its place"
 expect_eq "$(hn_field Notification notification_type)" "permission_prompt" "the notification's type"
-expect_eq "$(hn_field Notification message)" "Alter Zero needs your permission to use Bash" \
+expect_eq "$(hn_field Notification message)" "Zeroth needs your permission to use Bash" \
 	"the notification's message"
 [ -s "$HN_RAN" ] || fail "the approved command never ran"
 hn_ran="$(cat "$HN_RAN" 2>/dev/null || echo 0)"

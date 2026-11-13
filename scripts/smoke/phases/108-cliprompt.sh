@@ -10,7 +10,7 @@ smoke_begin
 # quit still prints the resume hint; `--resume {id} "again please"` reloads
 # the transcript and runs the prompt as the next turn in the SAME rollout
 # file; `-c "…"` does the same for the newest session here. And the help
-# page: on the pane's tty it opens on 'Alter Zero' in the bold-cyan heading
+# page: on the pane's tty it opens on 'Zeroth' in the bold-cyan heading
 # escape and carries the [PROMPT] argument, through a pipe the same page
 # holds no escape at all, and a grammar error prints the clap-shaped trailer
 # with exit 2. The pane must OUTLIVE the app to capture what it prints after
@@ -48,8 +48,8 @@ tmux kill-session -t "$S108" 2>/dev/null
 # the cyan `36m` landing right before the word) opens on the bold-cyan title.
 tmux new-session -d -s "$S108" -x 100 -y 40 "$BIN --help; echo CLI_APP_EXITED; sleep 60"
 wait_for 4 "$S108" -F "CLI_APP_EXITED"
-clip_help_raw="$(tmux capture-pane -t "$S108" -p -e)"
-clip_help_text="$(tmux capture-pane -t "$S108" -p)"
+clip_help_raw="$(tmux capture-pane -t "$S108" -p -e -S -400)"
+clip_help_text="$(tmux capture-pane -t "$S108" -p -S -400)"
 echo "==== Phase 108: --help on the pane's tty ===="
 printf '%s\n' "$clip_help_text" | head -24
 tmux kill-session -t "$S108" 2>/dev/null
@@ -60,8 +60,8 @@ tmux kill-session -t "$S108" 2>/dev/null
 # stay, every escape goes.
 tmux new-session -d -s "$S108" -x 100 -y 40 "env NO_COLOR=1 $BIN --help; echo CLI_APP_EXITED; sleep 60"
 wait_for 4 "$S108" -F "CLI_APP_EXITED"
-clip_help_nocolor_raw="$(tmux capture-pane -t "$S108" -p -e)"
-clip_help_nocolor="$(tmux capture-pane -t "$S108" -p)"
+clip_help_nocolor_raw="$(tmux capture-pane -t "$S108" -p -e -S -400)"
+clip_help_nocolor="$(tmux capture-pane -t "$S108" -p -S -400)"
 echo "==== Phase 108: --help on a tty under NO_COLOR=1 ===="
 printf '%s\n' "$clip_help_nocolor" | head -6
 tmux kill-session -t "$S108" 2>/dev/null
@@ -91,16 +91,16 @@ expect_has "$clip_continue_pane" -F "❯ and once more" "-c \"prompt\" did not r
 if [ "$clip_files" != "1" ]; then
 	fail "the prompt turns should append to the SAME rollout file, found $clip_files files"
 fi
-if [ "$(printf '%s\n' "$clip_help_text" | head -1)" != "Alter Zero" ]; then
-	fail "--help on a tty does not open on 'Alter Zero' (got '$(printf '%s\n' "$clip_help_text" | head -1)')"
+if [ "$(printf '%s\n' "$clip_help_text" | head -1)" != "Zeroth" ]; then
+	fail "--help on a tty does not open on 'Zeroth' (got '$(printf '%s\n' "$clip_help_text" | head -1)')"
 fi
-expect_has "$clip_help_raw" -F "36mAlter Zero" "--help on a tty does not wear the bold-cyan heading escape on its title"
+expect_has "$clip_help_raw" -F "36mZeroth" "--help on a tty does not wear the bold-cyan heading escape on its title"
 expect_has "$clip_help_raw" -F "36mUsage:" "--help on a tty does not wear the heading escape on 'Usage:'"
 # …and the same page under NO_COLOR=1 keeps every word and drops every escape
 # (`cli::colour_enabled`) — the production behaviour the suite's own `unset
 # NO_COLOR` relies on being real.
-if [ "$(printf '%s\n' "$clip_help_nocolor" | head -1)" != "Alter Zero" ]; then
-	fail "--help under NO_COLOR=1 does not open on 'Alter Zero'"
+if [ "$(printf '%s\n' "$clip_help_nocolor" | head -1)" != "Zeroth" ]; then
+	fail "--help under NO_COLOR=1 does not open on 'Zeroth'"
 fi
 expect_has "$clip_help_nocolor" -F "Usage:" "--help under NO_COLOR=1 lost its 'Usage:' section"
 if printf '%s' "$clip_help_nocolor_raw" | grep -qE "3[0-9]m|1m"; then
@@ -108,8 +108,8 @@ if printf '%s' "$clip_help_nocolor_raw" | grep -qE "3[0-9]m|1m"; then
 	printf '%s\n' "$clip_help_nocolor_raw" | head -4 | cat -v >&2
 fi
 expect_has "$clip_help_text" -F "[PROMPT]" "--help does not name the [PROMPT] argument"
-if [ "$clip_help_piped_exit" != "0" ] || [ "$(printf '%s\n' "$clip_help_piped" | head -1)" != "Alter Zero" ]; then
-	fail "piped --help should exit 0 opening on 'Alter Zero' (exit $clip_help_piped_exit)"
+if [ "$clip_help_piped_exit" != "0" ] || [ "$(printf '%s\n' "$clip_help_piped" | head -1)" != "Zeroth" ]; then
+	fail "piped --help should exit 0 opening on 'Zeroth' (exit $clip_help_piped_exit)"
 fi
 expect_lacks "$clip_help_piped" -F "$(printf '\033')" "piped --help carries an escape sequence"
 if [ "$clip_usage_err_exit" != "2" ]; then

@@ -23,7 +23,7 @@ echo "==== Phase 86: the startup banner (default crest) ===="
 printf '%s\n' "$mascot_boot"
 # The default banner: crest's crown row beside the bold title row.
 expect_has "$mascot_boot" -F "▙▄▙▄▟▄▟" "the default crest mascot is missing from the startup banner"
-expect_has "$mascot_boot" -F "Alter Zero (v" "the banner's title row is missing"
+expect_has "$mascot_boot" -F "Zeroth (v" "the banner's title row is missing"
 tmux send-keys -t "$S86" -l "/mascot"
 sleep 0.4
 mascot_palette="$(tmux capture-pane -t "$S86" -p)"

@@ -11,7 +11,7 @@ smoke_begin
 # numbered options with their descriptions, the multi-select checkboxes with
 # their unnumbered Submit row, the side-by-side preview panel with the notes
 # line, the review page, and — after Submit answers — the committed green
-# "User answered Alter Zero's questions:" cell; the composer draft typed before
+# "User answered Zeroth's questions:" cell; the composer draft typed before
 # the modal must be stashed and handed back.
 S68="${S}_ask"
 APP_ASK="env $CFG_ENV_NOHIST ALTER_ZERO_STARTUP_DELAY_MS=800 $BIN"
@@ -80,7 +80,7 @@ tmux send-keys -t "$S68" Enter
 ask_done=""
 for _ in $(seq 1 250); do
 	cap="$(tmux capture-pane -t "$S68" -p)"
-	if printf '%s' "$cap" | grep -qF "User answered Alter Zero's questions:" &&
+	if printf '%s' "$cap" | grep -qF "User answered Zeroth's questions:" &&
 		printf '%s' "$cap" | grep -qF "a draft typed while it asks"; then
 		ask_done="$cap"
 		break
