@@ -613,6 +613,8 @@ impl<'t> Session<'t> {
             full_press: None,
             full_select: None,
             full_start: 0,
+            full_user_starts: Vec::new(),
+            full_sticky_rows: 0,
             context: ui::ContextCache::new(),
             burst: PasteBurst::new(),
             clocks: StatusClocks::started_now(),

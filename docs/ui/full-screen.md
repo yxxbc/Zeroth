@@ -210,6 +210,10 @@ still applies.
   window to that tail line (`full_top`), so new output does not move it;
   reaching the bottom resumes follow-tail. The keys are claimed only when the
   boundary marked the app full-screen, so the inline composer keeps them.
+  When the user message that owns the top of the window has scrolled above it,
+  its first line is **pinned** on one reserved row (the latest user message
+  above the window), so the question stays with its answer; while the prompt
+  itself is visible no row is spent (`sticky_line`, `full_user_starts`).
 - **Mouse.** Capture is on for the session (and disabled on exit). The last
   painted conversation rows are the hit map (`full_window`): moving over a link
   underlines its run, a left click with no drag opens it through the platform

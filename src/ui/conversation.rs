@@ -51,6 +51,23 @@ pub fn conversation_lines(
     paths: &PathDisplay,
     verbose: bool,
 ) -> Vec<Line<'static>> {
+    conversation_lines_tracked(history, width, paths, verbose, |_, _, _| {})
+}
+
+/// [`conversation_lines`] with a per-item report: after an item's own rows are
+/// appended (its image block included, its trailing spacer not), `built` gets
+/// its history index and `[start, start + count)` in the returned lines. A
+/// collapsed group or MCP run is one report-less block — it holds tool cells,
+/// not the messages a caller tracks. The full-screen mode uses this to know
+/// where each user message's pinned header starts (`docs/ui/full-screen.md`).
+#[must_use]
+pub fn conversation_lines_tracked(
+    history: &[HistoryItem],
+    width: u16,
+    paths: &PathDisplay,
+    verbose: bool,
+    mut built: impl FnMut(usize, usize, usize),
+) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     let mut index = 0;
     while index < history.len() {
@@ -71,6 +88,8 @@ pub fn conversation_lines(
             continue;
         }
         let item = &history[index];
+        let item_index = index;
+        let start = lines.len();
         index += 1;
         match item {
             // A task tool call renders NOTHING inline — no cell, no spacer:
@@ -101,6 +120,7 @@ pub fn conversation_lines(
         // flush at the left margin (`docs/ui/images.md`). Empty for everything
         // else, and for every session where images are off.
         lines.extend(super::image::image_block_lines(item, width));
+        built(item_index, start, lines.len() - start);
         // Blank spacer after every item — except a shell command's header:
         // its cell stays flush ([`is_shell_header`]).
         if !is_shell_header(item) {

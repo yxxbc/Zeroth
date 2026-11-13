@@ -23,7 +23,8 @@ release heading when a version is cut.
   and the footer painted into one owned frame, instead of committing finished
   rows into the terminal's scrollback (`ZEROTH_TUI=full` does the same).
   Streaming, tool cells, resizes, Ctrl+O and the full-screen pages work;
-  PageUp/PageDown, Ctrl+Home/End and the wheel scroll the conversation, and
+  PageUp/PageDown, Ctrl+Home/End and the wheel scroll the conversation, with
+  the user message that owns the window's top pinned above its scrolled reply;
   mouse capture adds link hover/click (through the system opener) and
   drag-select/copy. Click-to-expand, link cards and editor handoff are the next
   phases. The inline viewport remains the default (`docs/ui/full-screen.md`).

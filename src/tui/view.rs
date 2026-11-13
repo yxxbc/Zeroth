@@ -36,7 +36,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
 
-use zeroth::app::{App, DebugPage, HistoryItem, View};
+use zeroth::app::{App, DebugPage, HistoryItem, Role, View};
 use zeroth::images;
 use zeroth::links;
 use zeroth::paste;
@@ -262,22 +262,43 @@ impl Session<'_> {
             let tail = self.full_tail_lines();
             let screen = self.term.screen();
             let live_h = usize::from(height.min(screen.height));
-            let conv_h = usize::from(screen.height).saturating_sub(live_h);
-            let max_top = tail.len().saturating_sub(conv_h);
-            let start = self.full_top.map_or(max_top, |top| top.min(max_top));
-            let end = (start + conv_h).min(tail.len());
+            let conv_area = usize::from(screen.height).saturating_sub(live_h);
+            let window_start = |content_h: usize| {
+                let max_top = tail.len().saturating_sub(content_h);
+                self.full_top.map_or(max_top, |top| top.min(max_top))
+            };
+            let mut content_h = conv_area;
+            let mut start = window_start(content_h);
+            // The latest user message above the window's top is pinned on one
+            // reserved row, so the question stays with its answer while the
+            // reply is scrolled (`docs/ui/full-screen.md`).
+            let mut sticky = sticky_line(&tail, &self.full_user_starts, start);
+            if sticky.is_some() && content_h > 1 {
+                content_h -= 1;
+                start = window_start(content_h);
+                sticky = sticky_line(&tail, &self.full_user_starts, start);
+            } else if content_h <= 1 {
+                sticky = None;
+            }
+            let end = (start + content_h).min(tail.len());
             let mut window: Vec<Line<'static>> = tail[start..end].to_vec();
             self.full_start = start;
             self.apply_hover(&mut window);
             self.apply_selection(&mut window);
             self.full_len = tail.len();
-            self.full_conv_h = conv_h;
-            // The hit map is the window the user can see — the same rows the
-            // viewport paints (`full_window`, `docs/ui/full-screen.md`).
+            self.full_conv_h = content_h;
+            self.full_sticky_rows = usize::from(sticky.is_some());
+            // The hit map is the content window the user can see — the same
+            // rows the viewport paints below the pinned row (`full_window`).
             self.full_window = window.clone();
+            let mut painted = Vec::with_capacity(window.len() + self.full_sticky_rows);
+            if let Some(sticky) = sticky {
+                painted.push(sticky);
+            }
+            painted.extend(window);
             let app = &self.app;
             return self.term.draw_full_with_tail(
-                &window,
+                &painted,
                 height,
                 |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
                 app,
@@ -336,34 +357,63 @@ impl Session<'_> {
         {
             return lines.clone();
         }
-        let mut lines = match self.app.viewed_agent() {
+        let (mut lines, mut user_starts) = match self.app.viewed_agent() {
             Some(run) => {
                 // An agent's session view keeps a cell per call: its cells are
                 // keyed on the records its own run makes
                 // (`docs/agents/agent-view-streaming.md`).
                 let history = ui::committed_history(&run.history, &run.tool_queue, None).to_vec();
                 recheck_pictures(&history);
-                let mut lines =
-                    ui::conversation_lines(&history, width, self.app.path_display(), true);
+                let mut starts = Vec::new();
+                let mut lines = ui::conversation_lines_tracked(
+                    &history,
+                    width,
+                    self.app.path_display(),
+                    true,
+                    |index, start, _| {
+                        if matches!(
+                            &history[index],
+                            HistoryItem::Message(message) if message.role == Role::User
+                        ) {
+                            starts.push(start);
+                        }
+                    },
+                );
                 if let Some(text) = run.streaming.as_deref().filter(|text| !text.is_empty()) {
                     lines.extend(self.agent_render.committed_rows(text, width));
                 }
-                lines
+                (lines, starts)
             }
             None => {
-                let mut lines = ui::conversation_lines(
+                let mut starts = Vec::new();
+                let mut lines = ui::conversation_lines_tracked(
                     &self.app.history,
                     width,
                     self.app.path_display(),
                     self.app.settings().verbose,
+                    |index, start, _| {
+                        if matches!(
+                            &self.app.history[index],
+                            HistoryItem::Message(message) if message.role == Role::User
+                        ) {
+                            starts.push(start);
+                        }
+                    },
                 );
                 if let Some(text) = self.app.streaming_text().filter(|text| !text.is_empty()) {
-                    lines.extend(ui::message_lines(zeroth::app::Role::Assistant, text, width));
+                    lines.extend(ui::message_lines(Role::Assistant, text, width));
                 }
-                lines
+                (lines, starts)
             }
         };
-        lines = ui::banner_tail(ui::header_lines(&self.app, width), lines);
+        let banner = ui::header_lines(&self.app, width);
+        // `banner_tail` puts the banner and one blank row above the
+        // conversation; the user-message offsets follow it.
+        let offset = banner.len() + 1;
+        for start in &mut user_starts {
+            *start += offset;
+        }
+        lines = ui::banner_tail(banner, lines);
         // A framed view opened over this screen flows its page the same way
         // the inline rebuild does (`docs/ui/view-flow.md`).
         let flow = self.current_view_flow();
@@ -371,6 +421,7 @@ impl Session<'_> {
         if let Some(flow) = flow {
             lines.extend(flow.lines);
         }
+        self.full_user_starts = user_starts;
         self.full_tail = Some((
             viewing_agent,
             generation,
@@ -825,6 +876,21 @@ impl Session<'_> {
         let id = carrier_at(line, col)?;
         links::link_url(id).map(|url| url.to_string())
     }
+}
+
+/// The user message whose first line is the latest one above `start` — the
+/// pinned prompt header when that line has scrolled off the top. `None` when
+/// the prompt is already the window's first row (or there is none above it).
+fn sticky_line(
+    tail: &[Line<'static>],
+    user_starts: &[usize],
+    start: usize,
+) -> Option<Line<'static>> {
+    let position = user_starts
+        .iter()
+        .rev()
+        .find(|&&position| position < start)?;
+    tail.get(*position).cloned()
 }
 
 /// The interned link id of the span covering column `col` on `line`, if any.

@@ -190,6 +190,14 @@ pub(crate) struct Session<'t> {
     /// The tail index of the first painted conversation row — how screen rows
     /// map back to `full_select`/`full_tail`.
     full_start: usize,
+    /// Tail indices of each user message's first line, for the pinned prompt
+    /// header: the latest one above the top of the window is drawn on a
+    /// reserved row so the question stays with its answer while the reply is
+    /// scrolled (`docs/ui/full-screen.md`).
+    full_user_starts: Vec<usize>,
+    /// How many rows at the top of the conversation area the pinned prompt
+    /// takes (0 or 1) — mouse coordinates are relative to the content below it.
+    full_sticky_rows: usize,
     /// The Ctrl+D overlay's built context window, rebuilt only when its
     /// signature changes — per frame the O(conversation) derivation starved
     /// the scroll keys on a big context (`docs/architecture/context.md`).

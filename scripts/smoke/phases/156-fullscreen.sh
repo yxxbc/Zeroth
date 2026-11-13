@@ -54,6 +54,19 @@ sleep 0.5
 back="$(tmux capture-pane -p -t "$S_FULL")"
 expect_has "$back" -F "Two commands away" "Ctrl+End did not return to the conversation's tail"
 
+# The prompt stays pinned while its reply is scrolled: shrink the pane so the
+# conversation no longer fits, return to the tail, and the first conversation
+# row must be the user's message (docs/ui/full-screen.md).
+tmux resize-window -t "$S_FULL" -x 90 -y 20
+sleep 0.6
+tmux send-keys -t "$S_FULL" C-End
+sleep 0.5
+pinned="$(tmux capture-pane -p -t "$S_FULL")"
+echo "==== Phase 156: captured pane (the prompt pinned above its scrolled reply) ===="
+printf '%s\n' "$pinned" | sed -n '1,6p'
+expect_eq "$(printf '%s\n' "$pinned" | head -1)" "❯ hello" \
+	"the user prompt is not pinned at the top of its scrolled reply"
+
 # Quit, then read the recording: entry and exit must both be real
 # alternate-screen switches, so the shell is never stranded on the alt screen.
 tmux send-keys -t "$S_FULL" C-c

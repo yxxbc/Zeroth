@@ -437,8 +437,7 @@ impl Session<'_> {
                 self.scroll_full(Scroll::Lines(3));
             }
             MouseEventKind::Moved => {
-                let hover = (usize::from(mouse.row) < self.full_conv_h)
-                    .then_some((mouse.column, mouse.row));
+                let hover = self.content_row(&mouse).map(|row| (mouse.column, row));
                 if self.full_hover != hover {
                     self.full_hover = hover;
                     self.frame.schedule_frame();
@@ -473,7 +472,10 @@ impl Session<'_> {
                             self.toast(format!("Copy failed: {reason}"), ToastKind::Error);
                         }
                     }
-                } else if clicked && let Some(url) = self.full_link_at(mouse.column, mouse.row) {
+                } else if clicked
+                    && let Some(row) = self.content_row(&mouse)
+                    && let Some(url) = self.full_link_at(mouse.column, row)
+                {
                     self.open_full_link(&url);
                 }
                 self.frame.schedule_frame();
@@ -484,10 +486,17 @@ impl Session<'_> {
     }
 
     /// A mouse event's cell as a **tail** position, when it lands in the
-    /// painted conversation window.
+    /// painted conversation window below the pinned prompt row.
     fn full_cell(&self, mouse: &MouseEvent) -> Option<(usize, u16)> {
-        (usize::from(mouse.row) < self.full_conv_h)
-            .then_some((self.full_start + usize::from(mouse.row), mouse.column))
+        self.content_row(mouse)
+            .map(|row| (self.full_start + usize::from(row), mouse.column))
+    }
+
+    /// The conversation-content row under the pointer (0-based, below the
+    /// pinned prompt's row), when the pointer is inside it.
+    fn content_row(&self, mouse: &MouseEvent) -> Option<u16> {
+        let row = usize::from(mouse.row).checked_sub(self.full_sticky_rows)?;
+        (row < self.full_conv_h).then(|| u16::try_from(row).unwrap_or(u16::MAX))
     }
 
     /// Open a link the screen-owning mode's mouse found: the same three
