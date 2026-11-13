@@ -31,10 +31,20 @@ use crate::skills::{
 /// on a fresh install is what is authored in `prompts/skills/` — beside every
 /// other `include_str!`'d markdown this crate embeds, and editable on disk
 /// once it is there.
-const BUILTIN_SKILL_FILES: [(&str, &str); 6] = [
+const BUILTIN_SKILL_FILES: [(&str, &str); 8] = [
     (
         "flaredantic/SKILL.md",
         include_str!("../../prompts/skills/flaredantic/SKILL.md"),
+    ),
+    (
+        "frontend-design/SKILL.md",
+        include_str!("../../prompts/skills/frontend-design/SKILL.md"),
+    ),
+    // Apache-2.0 like this crate; carried so the attribution travels with
+    // the seeded copy.
+    (
+        "frontend-design/LICENSE.txt",
+        include_str!("../../prompts/skills/frontend-design/LICENSE.txt"),
     ),
     (
         "flaredantic/reference.md",
@@ -119,7 +129,7 @@ pub fn skill_roots(
 /// The two per-directory skill roots, in precedence order.
 fn project_dirs(dir: &Path) -> Vec<PathBuf> {
     vec![
-        dir.join(".alter-zero").join("skills"),
+        dir.join(".zeroth").join("skills"),
         dir.join(".claude").join("skills"),
     ]
 }
@@ -465,22 +475,22 @@ mod tests {
 
     #[test]
     fn the_roots_run_project_first_then_personal() {
-        // The personal `.alter-zero/skills` hangs off the **config home**, not
+        // The personal `.zeroth/skills` hangs off the **config home**, not
         // raw $HOME, so it follows ZEROTH_CONFIG_DIR like every other
         // per-user file here (hooks.json, permissions.json, settings.json).
         let roots = skill_roots(
             Path::new("/work"),
             None,
-            Some(Path::new("/cfg/.alter-zero")),
+            Some(Path::new("/cfg/.zeroth")),
             Some(Path::new("/home/u")),
             None,
         );
         assert_eq!(
             roots,
             vec![
-                PathBuf::from("/work/.alter-zero/skills"),
+                PathBuf::from("/work/.zeroth/skills"),
                 PathBuf::from("/work/.claude/skills"),
-                PathBuf::from("/cfg/.alter-zero/skills"),
+                PathBuf::from("/cfg/.zeroth/skills"),
                 PathBuf::from("/home/u/.claude/skills"),
             ]
         );
@@ -496,7 +506,7 @@ mod tests {
         let roots = skill_roots(
             home,
             Some(home),
-            Some(Path::new("/home/u/.zeroth")),
+            Some(Path::new("/cfg/.zeroth")),
             Some(home),
             None,
         );
@@ -507,7 +517,7 @@ mod tests {
         assert_eq!(
             roots,
             vec![
-                PathBuf::from("/home/u/.zeroth/skills"),
+                PathBuf::from("/cfg/.zeroth/skills"),
                 PathBuf::from("/home/u/.claude/skills"),
             ]
         );
@@ -522,7 +532,7 @@ mod tests {
         let roots = skill_roots(
             Path::new("/work"),
             Some(Path::new("/work/..")),
-            Some(Path::new("/cfg/.alter-zero")),
+            Some(Path::new("/cfg/.zeroth")),
             Some(Path::new("/home/u")),
             Some(Path::new("/override")),
         );
@@ -552,9 +562,9 @@ mod tests {
         assert_eq!(
             roots,
             vec![
-                PathBuf::from("/work/repo/src/.alter-zero/skills"),
+                PathBuf::from("/work/repo/src/.zeroth/skills"),
                 PathBuf::from("/work/repo/src/.claude/skills"),
-                PathBuf::from("/work/repo/.alter-zero/skills"),
+                PathBuf::from("/work/repo/.zeroth/skills"),
                 PathBuf::from("/work/repo/.claude/skills"),
             ]
         );
@@ -574,7 +584,7 @@ mod tests {
         assert_eq!(
             roots,
             vec![
-                PathBuf::from("/work/.alter-zero/skills"),
+                PathBuf::from("/work/.zeroth/skills"),
                 PathBuf::from("/work/.claude/skills"),
             ]
         );
@@ -1217,6 +1227,36 @@ mod tests {
     }
 
     #[test]
+    fn seeded_frontend_design_is_listed_and_carries_its_license() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path().join("skills");
+        assert!(seed_builtin_skills(&root).is_empty());
+        let (skills, errors) = discover_skills(std::slice::from_ref(&root));
+        assert!(errors.is_empty(), "{errors:?}");
+        let registry = SkillRegistry::new(skills);
+        let listing = registry.listing(crate::skills::listing_budget(None));
+        assert!(listing.contains("- frontend-design: "), "{listing}");
+        assert!(!listing.contains("design lead"), "body stays on demand");
+
+        let call = ToolCallRequest {
+            id: "design".into(),
+            name: "skill".into(),
+            arguments: serde_json::json!({"skill": "frontend-design"}).to_string(),
+        };
+        let outcome = run_skill_tool(&registry, &mut LoadedSkills::default(), &call);
+        assert!(outcome.ok, "{}", outcome.output);
+        let body = outcome.context.expect("loaded body");
+        assert!(body.contains(&format!(
+            "Base directory for this skill: {}",
+            root.join("frontend-design").display()
+        )));
+        assert!(body.contains("design lead"));
+        let license = std::fs::read_to_string(root.join("frontend-design").join("LICENSE.txt"))
+            .expect("seeded license");
+        assert!(license.contains("Apache License"));
+    }
+
+    #[test]
     fn seeded_yt_dlp_is_listed_and_loads_on_demand() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path().join("skills");
@@ -1312,6 +1352,7 @@ mod tests {
                     || name.starts_with("test_")
                     || name == "__pycache__"
                     || name.ends_with(".pyc")
+                    || (dir == root && name == "README.md")
                 {
                     continue;
                 }
@@ -1395,8 +1436,8 @@ mod tests {
     #[test]
     fn the_built_in_root_is_the_config_homes_skills_dir() {
         assert_eq!(
-            builtin_skills_dir(Some(Path::new("/cfg/.alter-zero")), None),
-            Some(PathBuf::from("/cfg/.alter-zero/skills")),
+            builtin_skills_dir(Some(Path::new("/cfg/.zeroth")), None),
+            Some(PathBuf::from("/cfg/.zeroth/skills")),
         );
     }
 
@@ -1408,7 +1449,7 @@ mod tests {
         // empty temp dir.
         assert_eq!(
             builtin_skills_dir(
-                Some(Path::new("/cfg/.alter-zero")),
+                Some(Path::new("/cfg/.zeroth")),
                 Some(Path::new("/tmp/mine"))
             ),
             None,

@@ -64,7 +64,7 @@ pub const TIPS: &[&str] = &[
     "Start a session with a prompt: zeroth \"fix the failing test\"",
     "Run /theme to change the colour theme",
     "Press ↑ on an empty prompt to recall a message you sent before",
-    "Define your own subagent types in .alter-zero/agents/<name>.md",
+    "Define your own subagent types in .zeroth/agents/<name>.md",
     "Run /spinner to restyle the spinner above this tip",
     "Run /skills to turn individual skills on or off",
     "Run /mcp to manage MCP servers, or zeroth mcp add to add one",
@@ -206,7 +206,7 @@ mod tests {
     fn every_command_a_tip_names_is_in_the_palette() {
         // A renamed or retired command must not leave a tip pointing at
         // nothing: every whitespace-delimited `/word` a tip names is a
-        // `COMMANDS` row (a path like `.alter-zero/agents` never starts a
+        // `COMMANDS` row (a path like `.zeroth/agents` never starts a
         // token with `/`, so it is not mistaken for one).
         for tip in TIPS {
             for token in tip.split_whitespace() {

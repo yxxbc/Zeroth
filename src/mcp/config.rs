@@ -835,7 +835,7 @@ pub fn resolve_config(
 
 /// Merge the scopes into the declared server list, first occurrence of a
 /// name winning (the Claude Code precedence, minus the scopes we don't
-/// model): the project's `.alter-zero/mcp.json`, then the compat
+/// model): the project's `.zeroth/mcp.json`, then the compat
 /// `.mcp.json`, then the user file (`docs/state/project-config.md`). Order:
 /// project entries first (each file's order), then the user's — both
 /// project files' entries stay contiguous under the Project scope, so the
@@ -1049,7 +1049,7 @@ mod tests {
         );
         let approved: std::collections::BTreeSet<String> = ["ok".to_string()].into();
         let (merged, held) = merge_project_scopes(
-            Some((&alter, "/repo/.alter-zero/mcp.json", &approved)),
+            Some((&alter, "/repo/.zeroth/mcp.json", &approved)),
             None,
             Some((&user, "~/mcp.json")),
         );
@@ -1077,7 +1077,7 @@ mod tests {
         let user = parse_mcp_file(r#"{"mcpServers": {"wiki": {"url": "https://u"}}}"#);
         let approved: std::collections::BTreeSet<String> = ["wiki".to_string()].into();
         let (merged, held) = merge_project_scopes(
-            Some((&alter, "/repo/.alter-zero/mcp.json", &approved)),
+            Some((&alter, "/repo/.zeroth/mcp.json", &approved)),
             None,
             Some((&user, "~/mcp.json")),
         );
@@ -1097,11 +1097,11 @@ mod tests {
         );
         let user = parse_mcp_file(r#"{"mcpServers": {"wiki": {"url": "https://u"}}}"#);
         let merged = merge_scopes(
-            Some((&alter, "/repo/.alter-zero/mcp.json")),
+            Some((&alter, "/repo/.zeroth/mcp.json")),
             Some((&compat, "/repo/.mcp.json")),
             Some((&user, "~/mcp.json")),
         );
-        // First name wins across [.alter-zero/mcp.json, .mcp.json, user] —
+        // First name wins across [.zeroth/mcp.json, .mcp.json, user] —
         // and both project files' entries stay contiguous under the Project
         // scope so the `/mcp` headings render once.
         let summary: Vec<(&str, McpScope, &str)> = merged
@@ -1111,8 +1111,8 @@ mod tests {
         assert_eq!(
             summary,
             vec![
-                ("wiki", McpScope::Project, "/repo/.alter-zero/mcp.json"),
-                ("docs", McpScope::Project, "/repo/.alter-zero/mcp.json"),
+                ("wiki", McpScope::Project, "/repo/.zeroth/mcp.json"),
+                ("docs", McpScope::Project, "/repo/.zeroth/mcp.json"),
                 ("team", McpScope::Project, "/repo/.mcp.json"),
             ]
         );

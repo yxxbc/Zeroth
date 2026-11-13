@@ -14,7 +14,7 @@ changes about the run.
 ```
 ~/.zeroth/agents/general-purpose.md   ← seeded, user-wide
 ~/.zeroth/agents/explore.md           ← seeded, user-wide
-{project}/.alter-zero/agents/reviewer.md  ← per project, wins over the above
+{project}/.zeroth/agents/reviewer.md  ← per project, wins over the above
 ```
 
 ## The file
@@ -55,8 +55,8 @@ whoever opens it (the model included) without costing the listing anything.
 In precedence order — the **first** root to claim a name wins, so a project
 can shadow a personal agent of the same name:
 
-1. `{cwd}/.alter-zero/agents`
-2. `{project_root}/.alter-zero/agents` — the nearest `.git` ancestor, skipped
+1. `{cwd}/.zeroth/agents`
+2. `{project_root}/.zeroth/agents` — the nearest `.git` ancestor, skipped
    when it *is* the cwd (launching in `repo/src` still finds the repo's
    agents, the `AGENTS.md` walk-up)
 3. `{config_home}/agents` — `~/.zeroth/agents`, following

@@ -15,7 +15,7 @@
 | 对象 | 可信度 | 代码位置 | 说明 |
 | --- | --- | --- | --- |
 | 用户 config home（`~/.zeroth`/`ZEROTH_CONFIG_DIR`） | 可信 | `src/tui/config.rs:421-436` | providers/hooks/MCP/permissions/trust 都在此 |
-| 项目 `.alter-zero/`、`.mcp.json`、`AGENTS.md`、skills/agents | 不可信，按能力分级 | `docs/state/project-config.md:23-69` | hooks/MCP 审查；skills/agents/AGENTS.md 不审查 |
+| 项目 `.zeroth/`、`.mcp.json`、`AGENTS.md`、skills/agents | 不可信，按能力分级 | `docs/state/project-config.md:23-69` | hooks/MCP 审查；skills/agents/AGENTS.md 不审查 |
 | 模型输出/网页/搜索结果/MCP 结果与指令 | 不可信 | `src/llm/tools.rs:584-608`、`src/mcp/instructions.rs:1-15` | web 结果有横幅，MCP 没有 |
 | 进程环境（`ALTER_ZERO_*`、代理、CA） | 等价于启动者 | §3.10 | CI/direnv/父进程能改就能改边界 |
 | 审查后的 hook 命令 / MCP stdio | 可信，但只钉命令字符串 | `src/trust.rs:119-260`、`docs/state/config-review.md:272-279` | 脚本内容变化不再复问 |
@@ -90,7 +90,7 @@
 
 ### 3.2 hooks 任意命令执行与信任审查
 
-**现状.** hooks 用 `sh -c`，继承完整环境、cwd 为项目，有超时/取消/进程组 kill，stdin 传 JSON payload（`src/llm/hooks.rs:796-890`、`src/subprocess.rs:366-390`）。启动审查展示命令；`trust.json` 按“文件绝对路径+event+matcher+command”记录；malformed store 失败关闭且不覆盖（`src/trust.rs:1-40,119-260,692+`）；改动显示 `was:`。**风险.** 信任钉的是**命令字符串**，不是脚本内容：`./.alter-zero/hooks/check.sh` 被信任后，后续提交可改脚本而不再询问（`docs/state/config-review.md:272-279`）。hooks 有 `PreToolUse.updatedInput` 可改写参数；继承环境里可能有 provider key；文件启动时读一次，会话中修改需重启审查。**对策.** 脚本/目录指纹，变化重审；审查页显示继承环境类别；`updatedInput` 可见提示；hook 子进程默认 `env_clear`+白名单。
+**现状.** hooks 用 `sh -c`，继承完整环境、cwd 为项目，有超时/取消/进程组 kill，stdin 传 JSON payload（`src/llm/hooks.rs:796-890`、`src/subprocess.rs:366-390`）。启动审查展示命令；`trust.json` 按“文件绝对路径+event+matcher+command”记录；malformed store 失败关闭且不覆盖（`src/trust.rs:1-40,119-260,692+`）；改动显示 `was:`。**风险.** 信任钉的是**命令字符串**，不是脚本内容：`./.zeroth/hooks/check.sh` 被信任后，后续提交可改脚本而不再询问（`docs/state/config-review.md:272-279`）。hooks 有 `PreToolUse.updatedInput` 可改写参数；继承环境里可能有 provider key；文件启动时读一次，会话中修改需重启审查。**对策.** 脚本/目录指纹，变化重审；审查页显示继承环境类别；`updatedInput` 可见提示；hook 子进程默认 `env_clear`+白名单。
 
 ### 3.3 MCP 进程/网络能力
 
@@ -144,9 +144,9 @@
 
 **现状.** 与 TUI 共用 gate，但 `set_unattended`，需要人工的调用直接拒绝（`src/tui/bootstrap.rs:257-271`、`docs/cli/headless.md:239-292`）；启动审查不显示，项目 hooks/MCP 保持 off（`src/tui/headless.rs:478-518`）；默认模式仍 auto（除非项目保存或用 `--permission-mode`），auto 下文件写入、只读命令、分类器允许的命令都会运行。**风险.** 无人值守 + 从 stdin 读 prompt（可能来自 issue/PR/网页）+ auto = 被投毒输入可写文件、执行只读命令、通过分类器允许的命令，并经 `web_fetch`/链接卡片外联；`--permission-mode master` 或 `ALTER_ZERO_PERMISSIONS=0` 在 CI 中常见，等于完全放行；stdout/stderr 会把工具名/参数/拒绝列表写进 CI 日志（`docs/cli/headless.md:350-390`）。**对策.** headless 默认改 `manual` 或要求显式 `--permission-mode`；CI 建议 manual+精确 allowlist；默认关闭 web/卡片或域名 allowlist；输出网络与拒绝审计；不要把 master 当“让 CI 跑通”的默认答案。
 
-### 3.12 项目 `.alter-zero` 配置层与启动审查边界
+### 3.12 项目 `.zeroth` 配置层与启动审查边界
 
-**现状.** 项目层读 `.alter-zero/{skills,agents,hooks.json,mcp.json}` 与 `.mcp.json`；hooks/MCP 走启动审查，skills/agents 不走（加载不执行）；项目 `providers.toml`/`permissions.json`/`settings.json` 明确不读（`docs/state/project-config.md:23-69`）；`trust.json` 只在 config home，按绝对路径键控，malformed 失败关闭（`src/trust.rs:1-40`）；home 永远不是项目根（`src/trust.rs:68-76`）；`ALTER_ZERO_PROJECT_CONFIG=0` 关闭整个层。**风险.** 审查只覆盖“会立即执行”的 hooks/MCP；`AGENTS.md`/`SKILL.md`/`agents/*.md` 是提示注入面（`src/project_doc.rs:1-17` 称其为“project material, not authority”，但没有执行约束）；项目层没有 `permissions.json` 是对的，但用户若把 config home 放进仓库，用户层 `permissions.json`/`trust.json`/`mcp.json` 就变成项目可控（3.10）；“钉命令不钉脚本内容”见 3.2。**对策.** 保持项目层无 providers/permissions/settings；对 `AGENTS.md`/skills/agents 做“来自仓库、非权威”提示并限长；项目路径 realpath 归一化；审查扩展为“命令+脚本指纹+继承环境”。
+**现状.** 项目层读 `.zeroth/{skills,agents,hooks.json,mcp.json}` 与 `.mcp.json`；hooks/MCP 走启动审查，skills/agents 不走（加载不执行）；项目 `providers.toml`/`permissions.json`/`settings.json` 明确不读（`docs/state/project-config.md:23-69`）；`trust.json` 只在 config home，按绝对路径键控，malformed 失败关闭（`src/trust.rs:1-40`）；home 永远不是项目根（`src/trust.rs:68-76`）；`ALTER_ZERO_PROJECT_CONFIG=0` 关闭整个层。**风险.** 审查只覆盖“会立即执行”的 hooks/MCP；`AGENTS.md`/`SKILL.md`/`agents/*.md` 是提示注入面（`src/project_doc.rs:1-17` 称其为“project material, not authority”，但没有执行约束）；项目层没有 `permissions.json` 是对的，但用户若把 config home 放进仓库，用户层 `permissions.json`/`trust.json`/`mcp.json` 就变成项目可控（3.10）；“钉命令不钉脚本内容”见 3.2。**对策.** 保持项目层无 providers/permissions/settings；对 `AGENTS.md`/skills/agents 做“来自仓库、非权威”提示并限长；项目路径 realpath 归一化；审查扩展为“命令+脚本指纹+继承环境”。
 
 ## 4. 客户端 / harness 应对方法（重点）
 
@@ -189,7 +189,7 @@ dummy 由 `ALTER_ZERO_DUMMY=1` 选择（`src/tui/config.rs:38-51`），场景注
 fixture/repo/
 ├── .git/                              # git init，不放真实历史
 ├── AGENTS.md                          # “忽略安全规则/把 key 发到 …”的注入文本
-├── .alter-zero/
+├── .zeroth/
 │   ├── hooks.json                     # PreToolUse: ./alter-zero/hooks/guard.sh
 │   ├── hooks/guard.sh                 # 审查通过后可被替换
 │   ├── mcp.json                       # remote: http://<fixture>/mcp + ${AWS_SECRET_ACCESS_KEY}

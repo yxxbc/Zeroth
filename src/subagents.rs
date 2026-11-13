@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use crate::frontmatter::{self, FileError};
 
 /// The directory an agent definition lives in, under a root
-/// (`~/.zeroth/agents`, `{project}/.alter-zero/agents`).
+/// (`~/.zeroth/agents`, `{project}/.zeroth/agents`).
 pub const AGENTS_DIR_NAME: &str = "agents";
 
 /// The extension an agent definition file carries.

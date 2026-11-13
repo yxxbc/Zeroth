@@ -1,18 +1,20 @@
-# Project-level `.alter-zero` config — hooks, MCP servers, skills, agents
+# Project-level `.zeroth` config — hooks, MCP servers, skills, agents
 
-A project can now carry its own alter-zero config in a `.alter-zero` directory
-at its root — `/home/user/project/.alter-zero/` — so different projects load
-different hooks, MCP servers and skills. The directory name is `.alter-zero`
+A project can now carry its own Zeroth config in a `.zeroth` directory
+at its root — `/home/user/project/.zeroth/` — so different projects load
+different hooks, MCP servers and skills. The directory name is `.zeroth`
 (the crate's name, the config home's name, and the name the skills walk already
-uses), not a second spelling.
+uses), not a second spelling. A project's `.alter-zero/` — the upstream app's
+directory — is **not** read, so the two applications never share project
+configuration.
 
 The **project root** is the nearest ancestor-or-self of the cwd carrying a
 `.git` entry (`project_doc::find_project_root` — the `AGENTS.md`/skills/MCP
-walk-up, so launching in `repo/src` still finds `repo/.alter-zero`), falling
+walk-up, so launching in `repo/src` still finds `repo/.zeroth`), falling
 back to the cwd itself in a directory that isn't a repo — **except the home
 directory, which is never a project** (`trust::is_project_root`, the
 `checkpoint::cwd_scope` instinct): launched in `~` the fallback root would
-make `{root}/.alter-zero` the user's own config home, and the layer would
+make `{root}/.zeroth` the user's own config home, and the layer would
 rediscover the user's `hooks.json`/`mcp.json` as "project config" and read
 the user's own files twice. In `~` the layer is simply off, while the same
 files keep loading as the user layer they are. A per-file identity guard in `tui::trust` catches
@@ -24,11 +26,11 @@ What the project layer reads:
 
 | file                            | what                                        | merge rule                                   |
 | ------------------------------- | ------------------------------------------- | -------------------------------------------- |
-| `{root}/.alter-zero/skills/`    | project skills (already shipped, unchanged) | first-root-wins walk (`docs/tools/skills.md`)      |
-| `{root}/.alter-zero/agents/`    | project subagent types (outside the gate, like skills) | first-root-wins walk (`docs/agents/subagents.md`) |
-| `{root}/.alter-zero/hooks.json` | project lifecycle hooks — **new**           | **union** after the user file (see below)    |
-| `{root}/.alter-zero/mcp.json`   | project MCP servers — **new**               | first-name-wins, ahead of `.mcp.json`        |
-| `{root}/.mcp.json`              | Claude-Code-compat MCP servers (existing)   | first-name-wins, after `.alter-zero/mcp.json` |
+| `{root}/.zeroth/skills/`    | project skills (already shipped, unchanged) | first-root-wins walk (`docs/tools/skills.md`)      |
+| `{root}/.zeroth/agents/`    | project subagent types (outside the gate, like skills) | first-root-wins walk (`docs/agents/subagents.md`) |
+| `{root}/.zeroth/hooks.json` | project lifecycle hooks — **new**           | **union** after the user file (see below)    |
+| `{root}/.zeroth/mcp.json`   | project MCP servers — **new**               | first-name-wins, ahead of `.mcp.json`        |
+| `{root}/.mcp.json`              | Claude-Code-compat MCP servers (existing)   | first-name-wins, after `.zeroth/mcp.json` |
 
 Not among them: a `providers.toml`. A provider block in a checkout could
 point a stored key at a host of the checkout's choosing, and unlike a hook it
@@ -80,10 +82,10 @@ copy), any block wins, `deny` > `ask` > `allow`, contexts concatenate. A
 malformed project file is a red toast naming it and the project's hooks stay
 off; the user's own hooks still load (each layer fails alone).
 
-**MCP: first name wins** across `[{root}/.alter-zero/mcp.json,
+**MCP: first name wins** across `[{root}/.zeroth/mcp.json,
 {root}/.mcp.json, {config_home}/mcp.json]` — the existing project-shadows-user
 precedence with the app-specific file ahead of the compat file (the skills
-convention: `.alter-zero` outranks `.claude`) — for the servers the review
+convention: `.zeroth` outranks `.claude`) — for the servers the review
 **enabled**; a project server still waiting for its answer, or declined, is
 listed after the user's and so never shadows a user server of the same name
 out of the session (`mcp::merge_project_scopes`). Both project files are
@@ -103,7 +105,7 @@ Skills keep their per-turn rescan.
   the project's in the review (the `ALTER_ZERO_MCP` posture). **This is the
   smoke suite's hermeticity switch** — `scripts/smoke.sh` sets it to `0` in
   the base env (the suite runs with cwd = a real checkout; a developer repo
-  carrying `.alter-zero/hooks.json` would otherwise be reviewed in every
+  carrying `.zeroth/hooks.json` would otherwise be reviewed in every
   phase — the skills Phase 36 lesson), and the review phase turns it back on
   inside a `mktemp -d` workdir.
 - `ALTER_ZERO_HOOKS_FILE` keeps replacing the **user** file only, project

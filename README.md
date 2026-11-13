@@ -328,7 +328,7 @@ If `~/.alter-zero/` exists from a previous install, the first launch copies `con
 | `~/.zeroth/.env` | Keys and tokens saved through `/login` |
 | `~/.zeroth/agents/` and `~/.zeroth/skills/` | Your shared agent definitions and skills |
 | `~/.zeroth/hooks.json` and `~/.zeroth/mcp.json` | Your shared hooks and MCP servers |
-| `.alter-zero/` in a project | Project-specific `agents/`, `skills/`, `hooks.json`, and `mcp.json` |
+| `.zeroth/` in a project | Project-specific `agents/`, `skills/`, `hooks.json`, and `mcp.json` |
 | `AGENTS.md` | Project instructions read by the agent |
 
 Claude Code-style `.claude/skills/` and `.mcp.json` files are also supported. Hooks, yours and a project's, and a project's MCP servers run only after you approve them when the app starts.

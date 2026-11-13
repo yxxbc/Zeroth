@@ -66,7 +66,7 @@ pub fn fingerprint(bytes: &[u8]) -> String {
 ///
 /// The **home directory is never a project** (the `checkpoint::cwd_scope`
 /// instinct): a cwd with no `.git` ancestor falls back to itself as the
-/// root, and launched in `~` that makes `{root}/.alter-zero` the user's own
+/// root, and launched in `~` that makes `{root}/.zeroth` the user's own
 /// config home — the layer would rediscover the user's `hooks.json` and
 /// `mcp.json` as "project config". The boundary skips the layer instead (the
 /// per-file identity guard in `tui::trust` catches the same collision when
@@ -80,8 +80,8 @@ pub fn is_project_root(root: &Path, home: Option<&Path>) -> bool {
 /// and Claude Code's `$CLAUDE_PROJECT_DIR` — given the session's `cwd` and
 /// the nearest `.git` ancestor-or-self `found` there: that root when it is
 /// one ([`is_project_root`]), else the `cwd`. The root the project layer
-/// reads `.alter-zero/` from, so a project's `hooks.json` reaching its own
-/// scripts as `${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/…` finds them
+/// reads `.zeroth/` from, so a project's `hooks.json` reaching its own
+/// scripts as `${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/…` finds them
 /// from any subdirectory (`docs/tools/hooks.md`).
 #[must_use]
 pub fn hooks_project_dir(cwd: &Path, found: Option<&Path>, home: Option<&Path>) -> PathBuf {
@@ -91,19 +91,19 @@ pub fn hooks_project_dir(cwd: &Path, found: Option<&Path>, home: Option<&Path>) 
     }
 }
 
-/// The project's hooks file: `{root}/.alter-zero/hooks.json`.
+/// The project's hooks file: `{root}/.zeroth/hooks.json`.
 #[must_use]
 pub fn project_hooks_file(root: &Path) -> PathBuf {
-    root.join(".alter-zero").join("hooks.json")
+    root.join(".zeroth").join("hooks.json")
 }
 
 /// The project's MCP files in precedence order: the app-specific
-/// `.alter-zero/mcp.json` first (the skills convention — `.alter-zero`
+/// `.zeroth/mcp.json` first (the skills convention — `.zeroth`
 /// outranks the compat name), then the Claude-Code-compat `.mcp.json`.
 #[must_use]
 pub fn project_mcp_files(root: &Path) -> [PathBuf; 2] {
     [
-        root.join(".alter-zero").join("mcp.json"),
+        root.join(".zeroth").join("mcp.json"),
         root.join(".mcp.json"),
     ]
 }
@@ -743,7 +743,7 @@ mod tests {
     }
 
     const USER: &str = "/home/u/.zeroth/hooks.json";
-    const PROJECT: &str = "/repo/.alter-zero/hooks.json";
+    const PROJECT: &str = "/repo/.zeroth/hooks.json";
     const MCP: &str = "/repo/.mcp.json";
 
     fn hooks(text: &str) -> HooksFile {
@@ -803,7 +803,7 @@ mod tests {
     fn the_hooks_project_dir_is_the_root_the_project_layer_reads() {
         let home = Some(Path::new("/home/u"));
         // Launched in a subdirectory: the repository's root, where the
-        // project's `.alter-zero/hooks.json` and its scripts live.
+        // project's `.zeroth/hooks.json` and its scripts live.
         assert_eq!(
             hooks_project_dir(Path::new("/repo/src"), Some(Path::new("/repo")), home),
             PathBuf::from("/repo")
@@ -814,7 +814,7 @@ mod tests {
             PathBuf::from("/tmp/scratch")
         );
         // A repository at home is never the project (`is_project_root`):
-        // `{home}/.alter-zero` is the user's own config home.
+        // `{home}/.zeroth` is the user's own config home.
         assert_eq!(
             hooks_project_dir(
                 Path::new("/home/u/code/x"),
@@ -837,21 +837,21 @@ mod tests {
     }
 
     #[test]
-    fn the_project_paths_hang_off_the_alter_zero_dir() {
+    fn the_project_paths_hang_off_the_zeroth_dir() {
         let root = Path::new("/repo");
         assert_eq!(
             project_hooks_file(root),
-            PathBuf::from("/repo/.alter-zero/hooks.json")
+            PathBuf::from("/repo/.zeroth/hooks.json")
         );
         let [preferred, compat] = project_mcp_files(root);
-        assert_eq!(preferred, PathBuf::from("/repo/.alter-zero/mcp.json"));
+        assert_eq!(preferred, PathBuf::from("/repo/.zeroth/mcp.json"));
         assert_eq!(compat, PathBuf::from("/repo/.mcp.json"));
     }
 
     #[test]
     fn the_home_directory_is_never_a_project() {
         // Launching in `~` resolves the fallback root to the home dir, where
-        // `{root}/.alter-zero` IS the user's own config home.
+        // `{root}/.zeroth` IS the user's own config home.
         assert!(!is_project_root(
             Path::new("/home/me"),
             Some(Path::new("/home/me"))
@@ -1026,10 +1026,9 @@ mod tests {
         let store = TrustFile::parse(&text).expect("recorded store parses");
         assert!(store.is_hook_trusted(PROJECT, &hook("Stop", "", "cargo fmt")));
         assert!(!store.is_hook_trusted(USER, &hook("Stop", "", "cargo fmt")));
-        assert!(!store.is_hook_trusted(
-            "/other/.alter-zero/hooks.json",
-            &hook("Stop", "", "cargo fmt")
-        ));
+        assert!(
+            !store.is_hook_trusted("/other/.zeroth/hooks.json", &hook("Stop", "", "cargo fmt"))
+        );
     }
 
     #[test]
@@ -1253,7 +1252,7 @@ mod tests {
         let store = TrustFile::parse(&text).expect("recorded store parses");
         let reviews = review_servers(
             &store,
-            &[("/repo/.alter-zero/mcp.json", &alter), (MCP, &compat)],
+            &[("/repo/.zeroth/mcp.json", &alter), (MCP, &compat)],
         );
         let summary: Vec<(&str, &str, ServerTrust)> = reviews
             .iter()
@@ -1262,9 +1261,9 @@ mod tests {
         assert_eq!(
             summary,
             vec![
-                ("fresh", "/repo/.alter-zero/mcp.json", ServerTrust::New),
+                ("fresh", "/repo/.zeroth/mcp.json", ServerTrust::New),
                 // First file declaring a name counts.
-                ("shared", "/repo/.alter-zero/mcp.json", ServerTrust::New),
+                ("shared", "/repo/.zeroth/mcp.json", ServerTrust::New),
                 ("on", MCP, ServerTrust::Enabled),
                 ("off", MCP, ServerTrust::Disabled),
                 (
@@ -1639,7 +1638,7 @@ mod tests {
         // Two sessions answer at once, each having read the store before
         // the other wrote. Each records over the file as it is when it
         // answers, so the second keeps the first's answer.
-        let other = "/other/.alter-zero/hooks.json";
+        let other = "/other/.zeroth/hooks.json";
         let first = recorded_hooks(
             "",
             PROJECT,

@@ -18,6 +18,14 @@ release heading when a version is cut.
 
 ### Added
 
+- **`frontend-design`, an Apache-2.0 built-in skill.** Anthropic's official
+  design-guidance skill is embedded and seeded like the other built-ins,
+  with its `LICENSE.txt` beside the `SKILL.md`; `prompts/skills/README.md`
+  now records every built-in's provenance and the licensing rule (nothing is
+  copied without a redistribution grant — the personal `~/.claude/skills`
+  and the unlicensed `~/.alter-zero/skills` entries are deliberately not
+  shipped).
+
 - **Clickable file paths in replies.** Assistant prose and inline code now
   link path-like tokens (`src/app.rs:42`, `./scripts/run.sh`,
   `~/notes/today.md`) to their absolute, percent-encoded `file://` URI through
@@ -188,6 +196,14 @@ release heading when a version is cut.
   a symlink cannot point out; `master` still bypasses).
 
 ### Changed
+
+- **Project-level config now lives in `.zeroth/`.** The project layer reads
+  `{root}/.zeroth/{skills,agents,hooks.json,mcp.json}` (plus the
+  Claude-Code-compat `{root}/.mcp.json`); a project's `.alter-zero/` is no
+  longer read, so Zeroth and the upstream app can sit in the same repository
+  without sharing hooks, MCP servers, skills or agents. This is a breaking
+  change for a project that relied on the old directory — move it to
+  `.zeroth/` (`docs/state/project-config.md`).
 
 - **The one-line installer is Zeroth's, and its mascot moves.**
   `install.sh` now resolves releases from `yxxbc/zeroth` and installs the

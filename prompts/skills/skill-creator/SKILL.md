@@ -40,9 +40,9 @@ executes on load.
 
 | Root | Use it for |
 |---|---|
-| `<cwd>/.alter-zero/skills` | this project (preferred for project skills) |
+| `<cwd>/.zeroth/skills` | this project (preferred for project skills) |
 | `<cwd>/.claude/skills` | this project, shared with Claude Code |
-| `<project root>/.alter-zero/skills` | the repo, when the cwd is a subdirectory |
+| `<project root>/.zeroth/skills` | the repo, when the cwd is a subdirectory |
 | `<config home>/skills` | personal, every project (usually `~/.zeroth/skills`) |
 | `~/.claude/skills` | personal, shared with Claude Code |
 

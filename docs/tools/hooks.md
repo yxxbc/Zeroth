@@ -529,7 +529,7 @@ and in Ctrl+O, every hook that ran with what it said under it:
 
 ```
 ● Ran 1 Stop hook
-  ⎿  bash "$HOME/.alter-zero/hooks/check-git.sh" (0.4s)
+  ⎿  bash "$HOME/.zeroth/hooks/check-git.sh" (0.4s)
      Config: ~/.zeroth/hooks.json
   ⎿  Stop hook feedback: There are uncommitted Git changes. Review the
      changes and commit the relevant files with a descriptive commit
@@ -762,7 +762,7 @@ printf '%s' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalCon
 `~/.zeroth/hooks.json` (`ALTER_ZERO_HOOKS_FILE` overrides that user
 path; `ALTER_ZERO_HOOKS` gates the feature off entirely, the
 `ALTER_ZERO_PERMISSIONS` pattern) — and, since `docs/state/project-config.md`, the
-project's own `{root}/.alter-zero/hooks.json`, discovered at the
+project's own `{root}/.zeroth/hooks.json`, discovered at the
 nearest-`.git` root and **union-merged** after the user file
 (`HooksFile::merged` — one more entry from the loader, no precedence rules to
 invent: `select`'s existing dedup-by-command keeps the user's copy of a
@@ -789,13 +789,13 @@ shell child uses (`docs/tools/tty-detach.md`), so a hook that tries to prompt on
 cwd and gets `ALTER_ZERO_PROJECT_DIR` — plus `CLAUDE_PROJECT_DIR`, so scripts
 written for Claude Code find their project root unchanged — set to the
 **project root**: the nearest `.git` ancestor, the root the project layer
-reads `.alter-zero/` from, and the cwd outside a repository or when that
+reads `.zeroth/` from, and the cwd outside a repository or when that
 ancestor is the home directory (`trust::hooks_project_dir`). So a project
 reaches its own scripts the same way from any subdirectory:
 
 ```json
 { "type": "command",
-  "command": "${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/format-and-test.sh" }
+  "command": "${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/format-and-test.sh" }
 ```
 
 It used to be the cwd, so launched in `repo/src` that command named a script
@@ -967,11 +967,11 @@ at once, the command runs at once, and the hooks still record
 previous build the notifier landed last. Each of these phases answers the
 startup review's hooks page first, trusting its fixture's hooks
 (`docs/state/config-review.md`). **Phase 134b** trusts a project's
-own `hooks.json` whose guard is `${ALTER_ZERO_PROJECT_DIR}/.alter-zero/hooks/guard.sh`
+own `hooks.json` whose guard is `${ALTER_ZERO_PROJECT_DIR}/.zeroth/hooks/guard.sh`
 and launches in the repository's `src/`: the guard runs (in the cwd), the
 stub's `rm -rf build/` never does, the model reads the hook and the
 project's `hooks.json` by path, and the refusal's cell names both too — the
-file from the phase's own home, `~/projrepo/.alter-zero/hooks.json`.
+file from the phase's own home, `~/projrepo/.zeroth/hooks.json`.
 
 Three layers cover the rest:
 
@@ -1051,7 +1051,7 @@ Verified against both sources, and chosen — not accidental:
 - **A PermissionRequest hook that abstains loses its warnings** — the
   fail-open posture has no channel to the user from that position; a
   deciding verdict carries them on its note.
-- **The hooks files are read once, at bootstrap.** A `.alter-zero/hooks.json`
+- **The hooks files are read once, at bootstrap.** A `.zeroth/hooks.json`
   that appears (or changes) mid-session is a restart away, and the startup
   review asks about it then (`docs/state/config-review.md`).
 - **Trust pins the command, not what it reads.** `./fmt.sh` stays trusted when

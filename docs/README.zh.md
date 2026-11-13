@@ -144,7 +144,7 @@
 - [`state/init.md`](state/init.md)：`/init` —— 生成 AGENTS.md 贡献指南（codex 的 `/init`）
 - [`state/per-directory-state.md`](state/per-directory-state.md)：按目录记的状态 —— `/model`、`/settings`、`/mascot`、`/spinner` 记住目录
 - [`state/permissions.md`](state/permissions.md)：工具权限请求
-- [`state/project-config.md`](state/project-config.md)：项目级 `.alter-zero` 配置 —— hooks、MCP 服务器、skills、agents
+- [`state/project-config.md`](state/project-config.md)：项目级 `.zeroth` 配置 —— hooks、MCP 服务器、skills、agents
 - [`state/project-doc.md`](state/project-doc.md)：上下文窗口里的 AGENTS.md —— codex 的项目文档（设计）
 - [`state/resume.md`](state/resume.md)：`/resume` —— 接上一个已保存的会话（rollout 文件 + 会话选择器）
 - [`state/rollout-records.md`](state/rollout-records.md)：rollout 对每次调用与请求记录了些什么

@@ -80,9 +80,9 @@ pub fn agent_roots(
     roots
 }
 
-/// A directory's own agent root: `{dir}/.alter-zero/agents`.
+/// A directory's own agent root: `{dir}/.zeroth/agents`.
 fn project_dir(dir: &Path) -> PathBuf {
-    dir.join(".alter-zero").join(AGENTS_DIR_NAME)
+    dir.join(".zeroth").join(AGENTS_DIR_NAME)
 }
 
 /// The roots this environment resolves to — [`agent_roots`] with the
@@ -284,8 +284,8 @@ mod tests {
         assert_eq!(
             roots,
             vec![
-                std::path::PathBuf::from("/repo/src/.alter-zero/agents"),
-                std::path::PathBuf::from("/repo/.alter-zero/agents"),
+                std::path::PathBuf::from("/repo/src/.zeroth/agents"),
+                std::path::PathBuf::from("/repo/.zeroth/agents"),
                 std::path::PathBuf::from("/home/u/.zeroth/agents"),
             ]
         );
@@ -318,7 +318,7 @@ mod tests {
         );
         assert_eq!(
             roots,
-            vec![std::path::PathBuf::from("/repo/.alter-zero/agents")]
+            vec![std::path::PathBuf::from("/repo/.zeroth/agents")]
         );
     }
 

@@ -256,7 +256,7 @@ Two consequences at the boundary:
   setting not working, and the walk should carry on wherever the next
   session starts — with `SessionSettings::tips` `#[serde(skip)]` beside the
   other two.
-- The **project-level `.alter-zero/`** layer (`docs/state/project-config.md`) is
+- The **project-level `.zeroth/`** layer (`docs/state/project-config.md`) is
   a different axis: files *inside* the project, behind the startup review
   (`docs/state/config-review.md`). Both files here live in the user's config home,
   keyed by directory, and need no review — nothing in them executes.

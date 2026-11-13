@@ -63,9 +63,9 @@ its own project:
 
 | # | Root | Scope |
 |---|------|-------|
-| 1 | `<cwd>/.alter-zero/skills` | directory |
+| 1 | `<cwd>/.zeroth/skills` | directory |
 | 2 | `<cwd>/.claude/skills` | directory (compat) |
-| 3 | `<project root>/.alter-zero/skills` | project |
+| 3 | `<project root>/.zeroth/skills` | project |
 | 4 | `<project root>/.claude/skills` | project (compat) |
 | 5 | `{config_home}/skills` | personal (`~/.zeroth/skills`) |
 | 6 | `~/.claude/skills` | personal (compat) |
@@ -81,9 +81,9 @@ reason project keeps it over personal: the more specific root wins.
 
 **The home directory is never a project.** Rows 1–4 are skipped when the cwd
 — or the walked-up project root — is `$HOME`: launched in `~`, the cwd rule
-would otherwise resurrect `~/.alter-zero/skills`, the pre-fork personal
+would otherwise resurrect `~/.zeroth/skills`, the pre-fork personal
 root, as "project skills". Personal skills come from rows 5–6 only. This was
-a real incident: a `SKILL.md` under `~/.alter-zero/skills` told the model to
+a real incident: a `SKILL.md` under `~/.zeroth/skills` told the model to
 adopt a persona that waived permission and scope, and an unrelated
 `zeroth -p 你是谁` loaded it because `~` had no project rule to stop it.
 
@@ -122,11 +122,15 @@ there is nothing here that executes on discovery.
 
 ### Built-in skills
 
-Four skills ship with the binary: **`skill-creator`**, **`jina-reader`**,
-**`yt-dlp`** and **`flaredantic`**. All use the same seed and discovery path
-described below. `web-search` was the fifth and is **retired**: search and
-page-reading are the native `web_search`/`web_fetch` tools now
-([`docs/tools/web-search.md`](web-search.md)), and its `scripts/` are gone.
+Five skills ship with the binary: **`skill-creator`**, **`jina-reader`**,
+**`yt-dlp`**, **`flaredantic`** and **`frontend-design`**. All use the same
+seed and discovery path described below. `frontend-design` is Anthropic's
+official design-guidance skill, Apache-2.0; its `LICENSE.txt` is seeded beside
+the `SKILL.md` so the attribution travels with the copy
+(`prompts/skills/README.md` records every built-in's provenance). `web-search`
+is **retired**: search and page-reading are the native
+`web_search`/`web_fetch` tools now ([`docs/tools/web-search.md`](web-search.md)),
+and its `scripts/` are gone.
 
 #### `skill-creator`
 
@@ -797,7 +801,7 @@ here unchanged (`hooks::claude_code_alias`, `docs/tools/hooks.md`).
 | Where | What |
 |---|---|
 | `src/skills.rs` | **pure**: `SkillMetadata`, frontmatter parse, name validation, listing + budget, body render, the `SkillRegistry` handle |
-| `prompts/skills/` | embedded and seeded built-ins: `skill-creator` and `flaredantic` (`SKILL.md` + `reference.md` each), `jina-reader` and `yt-dlp` (one `SKILL.md` each). `web-search` was removed with the native `web_search`/`web_fetch` tools |
+| `prompts/skills/` | embedded and seeded built-ins: `skill-creator` and `flaredantic` (`SKILL.md` + `reference.md` each), `jina-reader` and `yt-dlp` (one `SKILL.md` each), `frontend-design` (`SKILL.md` + `LICENSE.txt`). `README.md` records provenance and licensing; `web-search` was removed with the native `web_search`/`web_fetch` tools |
 | `src/llm/skill.rs` | root resolution, the `read_dir` walk, the built-in seed (`seed_builtin_skills`), context-derived `LoadedSkills`, and the tool executor (`run_skill_tool`) |
 | `src/llm/tools.rs` | `skill_spec()`, `display_name`, `summarize_call` |
 | `src/llm/backend.rs` | `with_skills` — the `with_tasks` pattern |

@@ -13,7 +13,7 @@ that need one.
 Two scopes over three files, first occurrence of a name winning (the Claude
 Code precedence, minus the `local` scope we don't model):
 
-- **Project**: `{project_root}/.alter-zero/mcp.json` first (the app-specific
+- **Project**: `{project_root}/.zeroth/mcp.json` first (the app-specific
   location, `docs/state/project-config.md`), then `{project_root}/.mcp.json` (the
   Claude-Code-compat convention, checked into the repo) — both at the
   nearest-`.git` root (the `AGENTS.md` walk-up,
