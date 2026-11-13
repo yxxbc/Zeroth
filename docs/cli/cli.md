@@ -47,6 +47,8 @@ Options:
                                  prints — or pick it from a list, given no ID
   -C, --cwd <DIR>                Run in DIR instead of the current directory
       --permission-mode <MODE>   manual, edit, auto or master, for this run only
+      --fullscreen               Run the terminal UI on the alternate screen
+                                 (experimental; ZEROTH_TUI=full does the same)
   -h, --help                     Print help
   -V, --version                  Print version
 
@@ -160,6 +162,11 @@ The grammar (`cli::parse`):
   parked behind it would either start a fresh conversation on Esc or have
   to be dropped: two surprising outcomes for one flag, so the grammar
   says no up front.
+- **`--fullscreen`** opts into the experimental screen-owning TUI
+  (`docs/ui/full-screen.md`): the conversation is painted on the alternate
+  screen instead of committed to scrollback. `ZEROTH_TUI=full` does the
+  same from the environment, and the flag is refused with `-p` — a print
+  run has no screen for it to own.
 
 ### The `--help` page
 

@@ -18,6 +18,15 @@ release heading when a version is cut.
 
 ### Added
 
+- **Experimental screen-owning mode: `--fullscreen`.** The terminal UI can run
+  on the alternate screen with the conversation, the live region, the composer
+  and the footer painted into one owned frame, instead of committing finished
+  rows into the terminal's scrollback (`ZEROTH_TUI=full` does the same).
+  Streaming, tool cells, resizes, Ctrl+O and the full-screen pages work; mouse,
+  scrolling through the conversation, selection/copy and link cards are the
+  next phases. The inline viewport remains the default
+  (`docs/ui/full-screen.md`).
+
 - **A parallel tool batch now runs — and streams — several calls at once in
   the TUI.** Every call-scoped stream event (`ToolStart`, `ToolEnd`,
   `ToolOutput`, `ToolScreen`, `ToolTitle`, `ToolNote`, `ToolAnswered`,

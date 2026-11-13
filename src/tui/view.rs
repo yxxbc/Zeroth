@@ -240,8 +240,32 @@ impl Session<'_> {
         // forming table re-renders just its own block), so the status animation
         // never re-renders the whole reply — and inject its row count so the
         // layout reserves it. See `docs/ui/markdown.md`, `docs/ui/table-streaming.md`.
-        let preview = self.stream_preview_lines();
+        //
+        // The screen-owning mode already paints the streaming reply as part of
+        // the conversation (`full_tail_lines`), so its strip previews nothing:
+        // an empty preview with a zero-row budget, not the `None` fallback
+        // (which renders the last line again).
+        let fullscreen = self.term.fullscreen();
+        let preview = if fullscreen {
+            self.app.set_stream_preview_rows(0);
+            Some(Vec::new())
+        } else {
+            self.stream_preview_lines()
+        };
         let height = self.live_region_height();
+        // The screen-owning mode paints the conversation and the live region
+        // into one frame (`docs/ui/full-screen.md`); the inline mode keeps its
+        // bottom-anchored region and scrollback commits.
+        if fullscreen {
+            let tail = self.full_tail_lines();
+            let app = &self.app;
+            return self.term.draw_full_with_tail(
+                &tail,
+                height,
+                |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
+                app,
+            );
+        }
         let app = &self.app;
         // `term` places the cursor from the final (content-anchored) viewport
         // via `ui::cursor_position`, which mirrors render_live's layout exactly.
@@ -250,6 +274,84 @@ impl Session<'_> {
             |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
             app,
         )
+    }
+
+    /// The screen-owning mode's conversation rows: the startup banner, the
+    /// finished history, the in-flight reply, and — inside an agent session
+    /// view — that agent's own transcript. Cached by
+    /// `(agent view, generation, width, streaming length)`: the frame is
+    /// painted every draw, so re-rendering the whole conversation per 120-fps
+    /// frame would be O(n²) over a reply (`docs/ui/full-screen.md`).
+    fn full_tail_lines(&mut self) -> Vec<ratatui::text::Line<'static>> {
+        let width = self.term.screen().width;
+        let theme = ui::active_theme();
+        let viewing_agent = self.app.viewed_agent().is_some();
+        let generation = if viewing_agent {
+            self.app.agents_generation()
+        } else {
+            self.app.history_generation()
+        };
+        let stream_len = if viewing_agent {
+            self.app
+                .viewed_agent()
+                .and_then(|run| run.streaming.as_deref())
+                .map_or(0, str::len)
+        } else {
+            self.app.streaming_text().map_or(0, str::len)
+        };
+        if let Some((agent, g, w, s, t, lines)) = &self.full_tail
+            && *agent == viewing_agent
+            && *g == generation
+            && *w == width
+            && *s == stream_len
+            && *t == theme
+        {
+            return lines.clone();
+        }
+        let mut lines = match self.app.viewed_agent() {
+            Some(run) => {
+                // An agent's session view keeps a cell per call: its cells are
+                // keyed on the records its own run makes
+                // (`docs/agents/agent-view-streaming.md`).
+                let history = ui::committed_history(&run.history, &run.tool_queue, None).to_vec();
+                recheck_pictures(&history);
+                let mut lines =
+                    ui::conversation_lines(&history, width, self.app.path_display(), true);
+                if let Some(text) = run.streaming.as_deref().filter(|text| !text.is_empty()) {
+                    lines.extend(self.agent_render.committed_rows(text, width));
+                }
+                lines
+            }
+            None => {
+                let mut lines = ui::conversation_lines(
+                    &self.app.history,
+                    width,
+                    self.app.path_display(),
+                    self.app.settings().verbose,
+                );
+                if let Some(text) = self.app.streaming_text().filter(|text| !text.is_empty()) {
+                    lines.extend(ui::message_lines(zeroth::app::Role::Assistant, text, width));
+                }
+                lines
+            }
+        };
+        lines = ui::banner_tail(ui::header_lines(&self.app, width), lines);
+        // A framed view opened over this screen flows its page the same way
+        // the inline rebuild does (`docs/ui/view-flow.md`).
+        let flow = self.current_view_flow();
+        self.flowed_view = flow.as_ref().map(|flow| flow.signature);
+        if let Some(flow) = flow {
+            lines.extend(flow.lines);
+        }
+        self.full_tail = Some((
+            viewing_agent,
+            generation,
+            width,
+            stream_len,
+            theme,
+            lines.clone(),
+        ));
+        lines
     }
 
     /// Render the full-screen tool-output overlay. Clamps the scroll to the

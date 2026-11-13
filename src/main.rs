@@ -78,7 +78,14 @@ async fn tui_main(startup: Startup) -> io::Result<()> {
     // No terminal behind us (cron, CI, a pipe), or one that never answered
     // the cursor query: say so and name print mode rather than end on the
     // io::Error's Debug form. init unwinds the modes it set before it fails.
-    let mut term = match InlineViewport::init(ui::LIVE_MIN_HEIGHT) {
+    // The screen-owning mode (`docs/ui/full-screen.md`) is opt-in for now:
+    // `--fullscreen` or `ZEROTH_TUI=full`.
+    let fullscreen = startup.fullscreen || zeroth::term::fullscreen_requested();
+    let mut term = match if fullscreen {
+        InlineViewport::init_full()
+    } else {
+        InlineViewport::init(ui::LIVE_MIN_HEIGHT)
+    } {
         Ok(term) => term,
         Err(err) => {
             let arg0 = std::env::args().next();

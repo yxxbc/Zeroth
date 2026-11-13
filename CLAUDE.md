@@ -92,6 +92,11 @@ below are the canaries.
    history, paint the region in one synchronized frame. An ordinary overlay
    return is **not** a rebuild: commits queue while the overlay is up, and the
    return flushes them.
+   **This invariant describes the inline default.** The opt-in screen-owning
+   mode (`--fullscreen` / `ZEROTH_TUI=full`, `docs/ui/full-screen.md`) paints a
+   whole frame from history into the alternate screen; its `reflow` and
+   `insert_before` take the full-screen branches, and its own scroll contract is
+   the one to keep there. Do not mix the two.
 4. **Tool calls interleave with text.** A `ToolStart` finalises the assistant
    text before it as its own history message. A parallel batch is announced up
    front (`ToolBatch` → `App::tool_queue`); the running call shows live while its

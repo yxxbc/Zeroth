@@ -205,6 +205,18 @@ pub struct InlineViewport {
     /// method that would paint returns at once and every commit is dropped
     /// as it is queued, so the session runs whole and shows nothing.
     headless: bool,
+    /// The **screen-owning** mode (`docs/ui/full-screen.md`): the whole
+    /// alternate screen belongs to the app, the conversation is painted from
+    /// `App`/history each frame instead of being committed into scrollback,
+    /// and the scroll/diff baseline is `overlay_prev`. Entered by
+    /// [`init_full`](InlineViewport::init_full); `OVERLAY_ACTIVE` stays true
+    /// for the session so the panic hook and [`restore`](InlineViewport::restore)
+    /// leave the alternate screen like an overlay would.
+    full: bool,
+    /// The cursor seat (and visibility) of the last full-screen frame — what
+    /// lets an unchanged frame stay completely silent, so a terminal selection
+    /// over it survives.
+    full_seat: Option<(u16, u16, bool)>,
 }
 
 /// Where a viewport's escapes go: the terminal — or, for a headless run,
@@ -348,7 +360,162 @@ impl InlineViewport {
             images,
             typeahead: replies.typed,
             headless: false,
+            full: false,
+            full_seat: None,
         })
+    }
+
+    /// Enter the **screen-owning** mode (`docs/ui/full-screen.md`): the same
+    /// raw mode, startup query and modes as [`init`], then the alternate
+    /// screen and the whole terminal as the viewport. Every frame is composed
+    /// by the caller and diff-painted like an overlay
+    /// ([`draw_full`](InlineViewport::draw_full)); the conversation is *not*
+    /// committed into scrollback. [`restore`](InlineViewport::restore) and the
+    /// panic hook leave the alternate screen (`OVERLAY_ACTIVE` stays set for
+    /// the session).
+    ///
+    /// [`init`]: InlineViewport::init
+    pub fn init_full() -> io::Result<Self> {
+        let keyboard_enhanced = !keyboard_enhancement_disabled(
+            std::env::var(DISABLE_KEYBOARD_ENHANCEMENT_ENV)
+                .ok()
+                .as_deref(),
+        );
+        install_panic_hook(keyboard_enhanced);
+        enable_raw_mode()?;
+        Self::init_full_in_raw_mode(keyboard_enhanced).inspect_err(|_| {
+            if keyboard_enhanced {
+                let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);
+            }
+            let _ = execute!(io::stdout(), DisableBracketedPaste);
+            let _ = disable_raw_mode();
+            let _ = execute!(io::stdout(), Show);
+        })
+    }
+
+    fn init_full_in_raw_mode(keyboard_enhanced: bool) -> io::Result<Self> {
+        let mut viewport = Self::init_in_raw_mode(1, keyboard_enhanced)?;
+        viewport.enter_full_screen()?;
+        Ok(viewport)
+    }
+
+    /// The alternate-screen half of [`init_full`]: switch, size the viewport
+    /// to the whole screen, drop both diff baselines and hand the image store
+    /// to the new screen buffer (kitty keeps one per screen).
+    ///
+    /// [`init_full`]: InlineViewport::init_full
+    fn enter_full_screen(&mut self) -> io::Result<()> {
+        OVERLAY_ACTIVE.store(true, Ordering::SeqCst);
+        queue!(
+            self.backend,
+            Hide,
+            EnterAlternateScreen,
+            CrosstermClear(CrosstermClearType::All)
+        )?;
+        Backend::flush(&mut self.backend)?;
+        let size = self.backend.size()?;
+        self.screen = Rect::new(0, 0, size.width, size.height);
+        self.view = self.screen;
+        self.prev = None;
+        self.overlay_prev = None;
+        self.painted_bottom = self.screen.height;
+        self.images.enter_screen(true);
+        self.full = true;
+        Ok(())
+    }
+
+    /// Whether this viewport owns the whole screen
+    /// ([`init_full`](InlineViewport::init_full)).
+    #[must_use]
+    pub const fn fullscreen(&self) -> bool {
+        self.full
+    }
+
+    /// Paint one whole-screen frame in the screen-owning mode: the caller
+    /// composes every cell of the screen into `render`, `height` is the live
+    /// region's height at the bottom (the cursor seat), and the frame is
+    /// diffed against the previous one exactly like an overlay frame. The
+    /// conversation above the live region is painted by
+    /// [`draw_full_with_tail`](InlineViewport::draw_full_with_tail).
+    pub fn draw_full(
+        &mut self,
+        height: u16,
+        render: impl FnOnce(Rect, &mut Buffer),
+        app: &App,
+    ) -> io::Result<()> {
+        if self.headless || self.screen.width == 0 || self.screen.height == 0 {
+            return Ok(());
+        }
+        let height = height.clamp(1, self.screen.height.max(1));
+        let live = Rect::new(
+            0,
+            self.screen.height.saturating_sub(height),
+            self.screen.width,
+            height,
+        );
+        let (x, y) = ui::cursor_position(live, app);
+        let visible = ui::cursor_visible(app);
+        let mut buf = Buffer::empty(self.screen);
+        render(self.screen, &mut buf);
+        self.images.stamp(&mut buf);
+        let paint = overlay_paint(self.overlay_prev.as_ref(), &buf);
+        // Nothing changed and the cursor is already where it belongs: emit
+        // nothing, so a terminal selection over a still screen survives (the
+        // overlay-repaint rule, `docs/ui/overlay-repaint.md`).
+        if matches!(paint, OverlayPaint::Unchanged) && self.full_seat == Some((x, y, visible)) {
+            return Ok(());
+        }
+        queue!(self.backend, BeginSynchronizedUpdate)?;
+        queue!(self.backend, Hide)?;
+        let drawn = match paint {
+            OverlayPaint::Unchanged => Ok(()),
+            OverlayPaint::Diff(updates) => self.draw_cells(updates.into_iter()),
+            OverlayPaint::Full => {
+                let width = self.screen.width as usize;
+                self.draw_cells(visible_cells(&buf.content, width, Position::new(0, 0)))
+            }
+        };
+        let seated = self.backend.set_cursor_position(Position::new(x, y));
+        let shown = if visible {
+            queue!(self.backend, Show)
+        } else {
+            Ok(())
+        };
+        let ended = queue!(self.backend, EndSynchronizedUpdate);
+        let painted = drawn
+            .and(seated)
+            .and(shown)
+            .and(ended)
+            .and_then(|()| Backend::flush(&mut self.backend));
+        self.overlay_prev = painted.is_ok().then_some(buf);
+        self.full_seat = painted.is_ok().then_some((x, y, visible));
+        painted
+    }
+
+    /// [`draw_full`](InlineViewport::draw_full) with the conversation `tail`
+    /// above the live region: the last `screen_height - live_height` rows of
+    /// `tail` are painted at the top (follow-tail), then `render` paints the
+    /// live region at the bottom.
+    pub fn draw_full_with_tail(
+        &mut self,
+        tail: &[Line<'static>],
+        height: u16,
+        render: impl FnOnce(Rect, &mut Buffer),
+        app: &App,
+    ) -> io::Result<()> {
+        let tail = tail.to_vec();
+        self.draw_full(
+            height,
+            move |area, buf| {
+                let live_h = height.clamp(1, area.height.max(1)).min(area.height);
+                let conv_h = area.height.saturating_sub(live_h);
+                let conv = Rect::new(area.x, area.y, area.width, conv_h);
+                paint_full_lines(&tail, conv, buf);
+                let live = Rect::new(area.x, area.y + conv_h, area.width, live_h);
+                render(live, buf);
+            },
+            app,
+        )
     }
 
     /// A viewport with no terminal at all, for a headless run
@@ -376,6 +543,8 @@ impl InlineViewport {
             images: ImageStore::disabled(),
             typeahead: Vec::new(),
             headless: true,
+            full: false,
+            full_seat: None,
         }
     }
 
@@ -676,7 +845,7 @@ impl InlineViewport {
     /// [`reflow`]: InlineViewport::reflow
     /// [`restore`]: InlineViewport::restore
     pub fn insert_before(&mut self, lines: Vec<Line<'static>>) {
-        if self.headless {
+        if self.headless || self.full {
             return;
         }
         self.pending.extend(lines);
@@ -796,6 +965,9 @@ impl InlineViewport {
     /// [`insert_before`]: InlineViewport::insert_before
     /// [`draw`]: InlineViewport::draw
     pub fn set_view_height(&mut self, height: u16) {
+        if self.full {
+            return;
+        }
         self.view.height = height.clamp(1, self.screen.height.max(1));
     }
 
@@ -849,6 +1021,8 @@ impl InlineViewport {
         // re-records the real one).
         self.painted_bottom = self.painted_bottom.min(height);
         self.prev = None; // geometry moved under us; repaint in full next draw
+        // The full-screen frame's seat is a screen coordinate too.
+        self.full_seat = None;
         // …and the alt screen the emulator just reflowed under us. The area
         // check in `overlay_paint` is NOT enough on its own: a resize burst can
         // coalesce into one frame (`on_resize` asks for a frame, but the
@@ -890,6 +1064,9 @@ impl InlineViewport {
     ) -> io::Result<()> {
         if self.headless {
             return Ok(());
+        }
+        if self.full {
+            return self.draw_full_with_tail(&tail, height, render, app);
         }
         let height = height.clamp(1, self.screen.height.max(1));
         // Take, don't clear: `clear` keeps the Vec's high-water capacity for
@@ -968,6 +1145,13 @@ impl InlineViewport {
         if self.headless {
             return Ok(());
         }
+        if self.full {
+            // The screen is already ours: a page replaces the frame and the
+            // next full draw repaints it. No alternate-screen hop, no clear.
+            self.overlay_prev = None;
+            self.full_seat = None;
+            return Ok(());
+        }
         // Record the switch BEFORE emitting it: if the write fails part-way,
         // the exit paths still emit a LeaveAlternateScreen (harmless when the
         // terminal never actually switched) rather than risk stranding it.
@@ -1018,6 +1202,13 @@ impl InlineViewport {
     /// [`reflow`]: InlineViewport::reflow
     pub fn exit_overlay(&mut self) -> io::Result<()> {
         if self.headless {
+            return Ok(());
+        }
+        if self.full {
+            // No screen to return to: the next full frame repaints over the
+            // page. Drop both baselines so it paints every changed cell.
+            self.overlay_prev = None;
+            self.full_seat = None;
             return Ok(());
         }
         execute!(self.backend, LeaveAlternateScreen)?;
@@ -1130,6 +1321,21 @@ impl InlineViewport {
     pub fn restore(&mut self) -> io::Result<()> {
         if self.headless {
             return Ok(());
+        }
+        if self.full {
+            // The whole session ran on the alternate screen: leave it and reset
+            // the modes, with no inline cursor dance — the shell's own screen
+            // (and cursor) returns exactly as it was before startup.
+            if OVERLAY_ACTIVE.swap(false, Ordering::SeqCst) {
+                let _ = execute!(self.backend, LeaveAlternateScreen);
+            }
+            if self.keyboard_enhanced {
+                let _ = execute!(self.backend, PopKeyboardEnhancementFlags);
+            }
+            let _ = execute!(self.backend, DisableBracketedPaste);
+            let _ = execute!(self.backend, Show);
+            let _ = disable_raw_mode();
+            return Backend::flush(&mut self.backend);
         }
         // Safety net for exits that break out of the event loop with the
         // Ctrl+O overlay still up (stdin closing, an EventStream error — paths
@@ -1368,6 +1574,20 @@ impl InlineViewport {
 /// `/resume` picker and Ctrl+D context view). Missing any one of them leaves the
 /// tear alive in that view alone, which is why `smoke.sh` Phase 41 now checks
 /// the inline pane *and* the Ctrl+O overlay.
+/// Paint the last rows of `lines` into `area` — the screen-owning mode's
+/// follow-tail conversation window. The lines are already wrapped for the
+/// width; `Paragraph` draws them as-is and leaves the remaining cells blank.
+fn paint_full_lines(lines: &[Line<'static>], area: Rect, buf: &mut Buffer) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    let start = lines.len().saturating_sub(usize::from(area.height));
+    if start == lines.len() {
+        return;
+    }
+    Paragraph::new(lines[start..].to_vec()).render(area, buf);
+}
+
 /// What one alternate-screen frame has to write, given the frame the overlay
 /// last painted there (`prev`) and the one being drawn (`next`).
 ///
@@ -1524,6 +1744,21 @@ fn install_panic_hook(keyboard_enhanced: bool) {
 /// `CODEX_TUI_DISABLE_KEYBOARD_ENHANCEMENT`). See `docs/input/shift-enter.md`.
 const DISABLE_KEYBOARD_ENHANCEMENT_ENV: &str = "ALTER_ZERO_DISABLE_KEYBOARD_ENHANCEMENT";
 
+/// Environment selector for the screen-owning mode: `ZEROTH_TUI=full`
+/// (`docs/ui/full-screen.md`). A *value* selector, not a truthy gate — any
+/// other value (or none) leaves the inline viewport, so a typo can never move
+/// a user's screen.
+#[must_use]
+pub fn fullscreen_requested() -> bool {
+    fullscreen_value(std::env::var("ZEROTH_TUI").ok().as_deref())
+}
+
+/// [`fullscreen_requested`]'s pure half, unit-tested.
+#[must_use]
+pub fn fullscreen_value(value: Option<&str>) -> bool {
+    value.is_some_and(|value| value.trim().eq_ignore_ascii_case("full"))
+}
+
 /// How long the startup read waits for the cursor report before giving up —
 /// the budget crossterm's own `position()` had, which this read replaced.
 const STARTUP_REPLY_TIMEOUT: Duration = Duration::from_secs(2);
@@ -1632,9 +1867,20 @@ mod tests {
     use ratatui::style::Style;
 
     use super::{
-        HEADLESS_SIZE, InlineViewport, OverlayPaint, keyboard_enhancement_disabled, overlay_paint,
-        visible_cells,
+        HEADLESS_SIZE, InlineViewport, OverlayPaint, fullscreen_value,
+        keyboard_enhancement_disabled, overlay_paint, visible_cells,
     };
+
+    #[test]
+    fn fullscreen_is_selected_by_value_not_truthiness() {
+        // docs/ui/full-screen.md: only `full` opts in — `1`, `yes` and a typo
+        // leave the inline viewport, so an env mistake cannot move the screen.
+        assert!(fullscreen_value(Some("full")));
+        assert!(fullscreen_value(Some(" FULL ")));
+        assert!(!fullscreen_value(Some("1")));
+        assert!(!fullscreen_value(Some("yes")));
+        assert!(!fullscreen_value(None));
+    }
 
     #[test]
     fn a_headless_viewport_paints_nothing_and_keeps_nothing() {

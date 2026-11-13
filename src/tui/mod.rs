@@ -151,6 +151,20 @@ pub(crate) struct Session<'t> {
     /// closes and warmed at the loop bottom so it never opens cold
     /// (`docs/ui/tool-view-performance.md`).
     transcript: ui::TranscriptCache,
+    /// The screen-owning mode's conversation tail, cached by
+    /// `(history generation, width, streaming length)`: the full-screen frame
+    /// repaints from history every draw (no scrollback commit), and
+    /// re-rendering the whole conversation per 120-fps frame would be O(n²)
+    /// over a reply. Recomputed once per chunk/item, not per frame
+    /// (`docs/ui/full-screen.md`).
+    full_tail: Option<(
+        bool,
+        u64,
+        u16,
+        usize,
+        zeroth::app::Theme,
+        Vec<ratatui::text::Line<'static>>,
+    )>,
     /// The Ctrl+D overlay's built context window, rebuilt only when its
     /// signature changes — per frame the O(conversation) derivation starved
     /// the scroll keys on a big context (`docs/architecture/context.md`).

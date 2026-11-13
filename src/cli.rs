@@ -80,6 +80,10 @@ pub struct SessionArgs {
     /// `-p` / `--print`: run headless with these options — no screen, the
     /// answer on stdout (`docs/cli/headless.md`). `None` is the TUI.
     pub print: Option<PrintOptions>,
+    /// `--fullscreen`: run the terminal UI in the **screen-owning** mode on
+    /// the alternate screen rather than the inline viewport
+    /// (`docs/ui/full-screen.md`). `ZEROTH_TUI=full` does the same.
+    pub fullscreen: bool,
 }
 
 /// A headless run's own options (`docs/cli/headless.md`) — the flags that mean
@@ -312,6 +316,12 @@ const MAIN_DOC: HelpDoc = HelpDoc {
                     literal: "    --permission-mode",
                     placeholder: " <MODE>",
                     description: "manual, edit, auto or master, for this run only",
+                },
+                Row {
+                    literal: "    --fullscreen",
+                    placeholder: "",
+                    description: "Run the terminal UI on the alternate screen\n\
+                                  (experimental; ZEROTH_TUI=full does the same)",
                 },
                 Row {
                     literal: "-h, --help",
@@ -566,6 +576,7 @@ where
     let mut out_dir: Option<PathBuf> = None;
     let mut permission_mode: Option<PermissionMode> = None;
     let mut cwd: Option<PathBuf> = None;
+    let mut fullscreen: Option<()> = None;
     let mut args = args.into_iter().peekable();
     // `mcp` routes as the FIRST argument only (docs/cli/mcp-cli.md) — anywhere
     // else it is a prompt like any other word, so the session grammar is
@@ -636,6 +647,13 @@ where
                     return Err(format!("{flag} takes no value"));
                 }
                 set_once(&mut verbose, (), "--verbose")?;
+                continue;
+            }
+            "--fullscreen" => {
+                if value.is_some() {
+                    return Err(format!("{flag} takes no value"));
+                }
+                set_once(&mut fullscreen, (), "--fullscreen")?;
                 continue;
             }
             "--output-format" => {
@@ -772,12 +790,18 @@ where
             "--resume needs a session id to send a prompt into (or use --continue)".to_string(),
         );
     }
+    // The screen-owning mode is a TUI, not a print run: the two are
+    // contradictory, so the grammar says no rather than silently ignoring one.
+    if fullscreen.is_some() && print.is_some() {
+        return Err("--fullscreen needs the terminal UI (not --print)".to_string());
+    }
     Ok(Cli::Session(SessionArgs {
         start,
         prompt,
         cwd,
         permission_mode,
         print,
+        fullscreen: fullscreen.is_some(),
     }))
 }
 
@@ -1424,6 +1448,34 @@ mod tests {
     }
 
     #[test]
+    fn fullscreen_is_a_tui_flag_and_refuses_a_screenless_run() {
+        let Ok(Cli::Session(args)) = parsed(&["--fullscreen", "x"]) else {
+            panic!("--fullscreen parses as a session run");
+        };
+        assert!(args.fullscreen, "the flag reaches the session args");
+        assert_eq!(args.prompt.as_deref(), Some("x"));
+        assert!(matches!(
+            parsed(&["--fullscreen"]),
+            Ok(Cli::Session(SessionArgs {
+                fullscreen: true,
+                ..
+            }))
+        ));
+        let err = parsed(&["-p", "--fullscreen", "x"]).expect_err("headless has no screen");
+        assert!(
+            err.contains("--fullscreen") && err.contains("--print"),
+            "{err}"
+        );
+        let err = parsed(&["--fullscreen=1"]).expect_err("a value on --fullscreen");
+        assert!(
+            err.contains("--fullscreen") && err.contains("no value"),
+            "{err}"
+        );
+        let err = parsed(&["--fullscreen", "--fullscreen"]).expect_err("twice");
+        assert!(err.contains("more than once"), "{err}");
+    }
+
+    #[test]
     fn verbose_turns_on_the_step_log_of_a_print_run() {
         let verbose = printed(
             Some("x"),
@@ -1754,6 +1806,8 @@ Options:
                                  prints — or pick it from a list, given no ID
   -C, --cwd <DIR>                Run in DIR instead of the current directory
       --permission-mode <MODE>   manual, edit, auto or master, for this run only
+      --fullscreen               Run the terminal UI on the alternate screen
+                                 (experimental; ZEROTH_TUI=full does the same)
   -h, --help                     Print help
   -V, --version                  Print version
 

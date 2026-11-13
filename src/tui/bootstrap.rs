@@ -69,6 +69,7 @@ impl<'t> Session<'t> {
             prompt,
             permission_mode,
             print,
+            fullscreen: _,
         } = startup;
         // A headless run (docs/cli/headless.md): the same session, with nothing
         // shown and nobody to ask. Its prompt is the headless loop's to
@@ -599,6 +600,7 @@ impl<'t> Session<'t> {
             render: ui::StreamRender::new(),
             agent_render: ui::StreamRender::new(),
             transcript: ui::TranscriptCache::new(),
+            full_tail: None,
             context: ui::ContextCache::new(),
             burst: PasteBurst::new(),
             clocks: StatusClocks::started_now(),

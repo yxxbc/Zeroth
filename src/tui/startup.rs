@@ -36,6 +36,8 @@ pub(crate) struct Startup {
     /// `-p`: run headless, reporting this way (`docs/cli/headless.md`) — the
     /// prompt above then already holds what stdin added. `None` is the TUI.
     pub(crate) print: Option<zeroth::cli::PrintOptions>,
+    /// `--fullscreen`: the screen-owning TUI (`docs/ui/full-screen.md`).
+    pub(crate) fullscreen: bool,
 }
 
 /// The `--continue`/`--resume` directive — the session to install before the
@@ -98,6 +100,7 @@ pub(crate) fn resolve_cli() -> Result<Startup, i32> {
             cwd,
             permission_mode,
             print,
+            fullscreen,
         }) => {
             let began = Instant::now();
             let batch = print.as_ref().is_some_and(|options| options.jobs.is_some());
@@ -127,6 +130,7 @@ pub(crate) fn resolve_cli() -> Result<Startup, i32> {
                 prompt,
                 permission_mode,
                 print,
+                fullscreen,
             })
         }
     }

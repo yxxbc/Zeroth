@@ -1,7 +1,10 @@
 # The screen-owning TUI — full-screen mode (design)
 
-**Status: proposed.** Owner decision to pursue; nothing here is implemented.
-The inline viewport remains the default until this mode reaches parity.
+**Status: phase 1 (skeleton) implemented.** `--fullscreen` or
+`ZEROTH_TUI=full` paints the conversation and the live region into one
+alternate-screen frame. Scrolling, own selection/copy, mouse and cards are the
+next phases; the inline viewport remains the default until the parity checklist
+below is green.
 
 ## Why
 
@@ -188,6 +191,28 @@ the reply because late metadata may legally change the frame's height (the
 scroll anchor keeps the reading position). The fetch/cache policy on that page
 still applies.
 
+## What the skeleton does today
+
+- `--fullscreen` (or `ZEROTH_TUI=full`) enters the alternate screen after the
+  usual startup query; every exit path — a normal quit, an error, a panic —
+  leaves it (`OVERLAY_ACTIVE` is used for the session, so the existing panic
+  hook and `restore` do the teardown).
+- `Session::draw_conversation` composes one frame: the banner, the finished
+  history, the in-flight reply as an assistant message, then the live region,
+  composer and footer at the bottom. The conversation follows its tail (the
+  last `screen − live` rows); a short conversation starts at the top.
+- The strip's streaming preview is suppressed in this mode (the reply is
+  already in the conversation), and the tail is cached by
+  `(agent view, history generation, width, streaming length)` so a 120-fps
+  animation frame does not re-render the whole conversation.
+- Ctrl+O, the context view and every full-screen page paint over the frame
+  through the existing overlay path; leaving a page repaints the frame. A
+  resize re-wraps from history at the new width.
+- **Not yet:** scrolling back through the conversation (PageUp/Home/wheel),
+  own selection/copy, mouse capture and hit-testing, click-to-expand, link
+  cards, suspend (`Ctrl+Z`) / editor handoff, and agent-view parity beyond the
+  transcript tail. They are the phases below.
+
 ## Mode selection and rollout
 
 - **Opt-in first:** `--fullscreen` (name to settle) plus a config key
@@ -230,14 +255,15 @@ still applies.
 
 ## Phases
 
-1. **Skeleton.** `--fullscreen`: alt-screen lifecycle, frame from
-   history + live region + composer + status, follow-tail scroll, keyboard
-   only, exit/panic restore. Acceptance: a dummy turn streams, resizes, and
-   leaves the terminal clean.
-2. **Parity.** Agents/agent view, prompts, pickers, images, toasts, queue,
-   backtrack, resume/clear, Ctrl+O, resize anchors; the parity checklist green.
-3. **Mouse.** Capture, hit map, hover, click links, click-to-expand, wheel,
-   drag-select/copy.
+1. **Skeleton — done.** `--fullscreen`: alt-screen lifecycle, frame from
+   history + live region + composer + status, follow-tail, keyboard only,
+   exit/panic restore, a resize re-wrap, and Phase 156 driving it end to end.
+2. **Parity — next.** Agents/agent view, prompts, pickers, images, toasts,
+   queue, backtrack, resume/clear, Ctrl+O, resize anchors; the parity checklist
+   green.
+3. **Mouse and scrolling.** Capture, hit map, hover, click links,
+   click-to-expand, wheel, drag-select/copy, and the conversation scroll model
+   (PageUp/Home/End) the skeleton does not have yet.
 4. **Rich links.** Bare paths everywhere; cards inline; the preview policy.
 5. **Default decision.** Flip the default, keep `--inline`, evaluate removal.
 
