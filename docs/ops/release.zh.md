@@ -8,8 +8,8 @@
 release 构建、校验和、发布说明，以及承载它们的 GitHub release。版本号从不被
 敲两遍，workflow 跑的每一步都是开发者能在笔记本上跑的命令，而整条流水线可以
 彩排——构建、验证、说明——什么都不发布。在这之前既没有 CI 也没有打包好的
-release；`v0.1.0` 是第一个，而工具链正是让它能被有信心地切出来、而不是靠
-手工的原因。
+release；第一个 release 通过这条流水线切出，而工具链正是让它能被有信心地
+切出来、而不是靠手工的原因。
 
 ## 形状
 
@@ -18,7 +18,7 @@ scripts/release.sh prepare X.Y.Z     # bump + roll the changelog (a commit's wor
 git commit … && git tag -a vX.Y.Z -m "zeroth vX.Y.Z" && git push origin HEAD vX.Y.Z
         │
         ▼  .github/workflows/release.yml
-   check ──► gate ──► build ×4 ──► publish
+   check ──► gate ──► smoke ──► build ×4 ──► publish
 ```
 
 1. **`check`** —— tag 点名 Cargo.toml 的版本，而 Cargo.lock、README 的版本
@@ -27,11 +27,15 @@ git commit … && git tag -a vX.Y.Z -m "zeroth vX.Y.Z" && git push origin HEAD v
 2. **`gate`** —— `CLAUDE.md` 里的 pre-commit 闸门，未改动：`cargo fmt
    --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test`、
    `cargo doc --no-deps --lib`。
-3. **`build`** —— 每个 target 一个 job（下面的矩阵），各自跑
+3. **`smoke`** —— 在 tmux 里对真实二进制跑终端 I/O 边界
+   （`docs/ops/smoke.md`），形状与 `ci.yml` 的 job 相同：每核一个 worker，
+   然后并行那一趟失败的阶段串行重跑一次，才判红。单元闸门看不见终端路径，
+   而一个 tag 是最不该第一次看到它出错的地方。
+4. **`build`** —— 每个 target 一个 job（下面的矩阵），各自跑
    `scripts/release.sh build TARGET` 再对它的输出跑
    `scripts/release.sh verify dist`，并把 `dist/` 作为一个 workflow artifact
    上传。
-4. **`publish`** —— 下载每一个 `dist/`，*一起*验证它们，把说明
+5. **`publish`** —— 下载每一个 `dist/`，*一起*验证它们，把说明
    （`scripts/release.sh notes`）渲染进 job summary，然后要么发布
    （`scripts/release.sh publish`），要么在彩排时打印它本该运行的确切 `gh`
    命令。
@@ -78,21 +82,21 @@ changelog 是描述一个 release 的唯一地方——`notes` 只读它，从�
 GitHub 自动生成的「what's changed」提交清单被考虑过而没用：提交主题是写给
 reviewer 的，changelog 条目是写给用户的，两者很少读起来一样。
 
-**一个小节可以带标题。** 它的第一行可以是一行**粗体**——`**Alter Zero
+**一个小节可以带标题。** 它的第一行可以是一行**粗体**——`**Zeroth
 Initial Release**`——给这个 release 命名，而不是列出它的某一项改动。这不需要
 任何机制：小节按写下的样子渲染，所以那一行就以它本来就是的粗体文字出现在说明
 里，压在 `### Added` 各节之上而不压过它们。标题（heading）试过又被拿掉了——
 `##` 渲染得比它所引出的小节更大，于是那个名字朝它所该引出的一堆改动喊。
 
-release 本身只由它的 **tag** 命名（`v0.1.0`），这是有意的。在那里追加一个
-标题——`v0.1.0 — Alter Zero Initial Release`——在 releases 列表里读起来是噪声，
+release 本身只由它的 **tag** 命名（`vX.Y.Z`），这是有意的。在那里追加一个
+标题——`vX.Y.Z — Zeroth Initial Release`——在 releases 列表里读起来是噪声，
 那里每一行已经是版本号，而视线在扫数字；那句话属于有人打开这个 release 去读的
 地方。两种都行：一个小节直接从 `### Added` 开始的，得到同样直接从那里开始的
 说明，而每个 `prepare` 出来的小节起初都是那样。
 
 **贡献者是 GitHub 来渲染的，不是我们。** release 页面已经在 body 和资产之间
 显示它们，作为从 release 自己的提交里读出的头像。一行
-`**Contributors** name, name` 曾被写在 body 下面，在 `v0.1.0` 上发布过，然后被
+`**Contributors** name, name` 曾被写在 body 下面，在第一个 release 上发布过，然后被
 拿掉：那又是那块东西，以纯文本，直接压在真品上面，而文字在「一眼告诉你是谁」
 上输给头像。它的 `git log` 正是 publish job 的 `fetch-depth: 0` 的用途，所以
 checkout 随它一起回到了默认的浅克隆。
@@ -196,7 +200,7 @@ release、一个被篡改的校验和（什么都不安装，而且输出说明�
 | `publish VERSION [DIST] [--notes FILE] [--dry-run]` | `verify`，组装 `SHA256SUMS`，然后 `gh release create` **作为 draft**，带说明和每个资产，然后 `gh release edit --draft=false`（`--latest`，除非是 pre-release）。 |
 | `download VERSION [DIST] [--from URL]` | 把一个已发布的 release 拉回空的 `dist/`：它的 `SHA256SUMS`，然后它列出的每个资产，用 curl 或 wget（不用 `gh`），每个旁边放着 `build` 会留下的那份 `.sha256`，然后 `verify`。`--from` 点名另一个仓库根。 |
 | `prepare VERSION` | 版本 bump 与 changelog 滚动，然后 `check`，然后要运行的 commit/tag/push。 |
-| `selftest` | 250 多条由 fixture 驱动的断言，覆盖以上全部。 |
+| `selftest` | 203 条由 fixture 驱动的断言，覆盖以上全部。 |
 
 `check` 的规则：
 
@@ -278,10 +282,13 @@ git tag -a v0.2.0 -m "zeroth v0.2.0"
 git push origin HEAD v0.2.0
 ```
 
-`v0.1.0` 不需要 `prepare`：Cargo.toml 已经写着 `0.1.0`，`CHANGELOG.md` 也带着
-它的小节，所以第一个 release 只是一个 tag——从 `main` 上
-`git tag -a v0.1.0 -m "zeroth v0.1.0" && git push origin v0.1.0`——最好在
-一次彩排运行之后。小节的日期是它被写下的那天；如果不同，把它改成打 tag 那天。
+第一个 release 不能是 `0.1.0`：继承下来的 changelog 已经占着那个小节，
+`0.1.1` 到 `0.18.0` 也一样，而 `prepare` 拒绝一个已经有小节的版本。选
+`0.19.0` 接在上游最后一个 release 后面延续这条累积的线，或者选 `1.0.0`
+在它之上开始 Zeroth 自己的线——然后 `scripts/release.sh prepare <version>`
+一步把 `[Unreleased]` 滚进新小节，并更新 Cargo.toml、Cargo.lock 和 README
+badge。小节的日期是它被写下的那天；如果不同，把它改成打 tag 那天。打 tag
+之前先跑一次彩排。
 
 当一个版本在进展中时，改动落在 `## [Unreleased]` 之下、Keep a Changelog 的各
 组里（`Added`、`Changed`、`Deprecated`、`Removed`、`Fixed`、`Security`），
@@ -298,10 +305,10 @@ git push origin HEAD v0.2.0
 运行在这里让 phase 58 和 61 失败——权限 prompt 在它的等待里「从未出现」——而
 两者单独都通过。于是这个 job 在判红之前，把并行那一趟失败的东西各串行重跑一次，
 并在第一趟失败时把两趟的日志都留作 artifact，于是一个 flake 留下证据而不是一个
-绿方块。release workflow 重跑闸门和工具链 job，而不是信任一次可能没在那个打了
-tag 的提交上跑过的 CI。smoke 套件在 CI 里，因为它是终端 I/O 边界唯一的自动化
-覆盖（`docs/ops/smoke.md`）；它不在 release workflow 里，后者的 tag 是 CI 已经
-证明过的提交。
+绿方块。release workflow 重跑闸门、smoke 套件和工具链 job，而不是信任一次
+可能没在那个打了 tag 的提交上跑过的 CI——tag 可以从一个 CI 从未见过的分支
+推出去。smoke 套件两边都有，因为它是终端 I/O 边界唯一的自动化覆盖
+（`docs/ops/smoke.md`），而 release 是最不该第一次看到终端路径出错的地方。
 
 ## 决定
 

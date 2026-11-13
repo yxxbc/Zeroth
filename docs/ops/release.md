@@ -10,8 +10,9 @@ checksums, release notes, and the GitHub release that carries them. Nothing
 about a version is typed twice, every step the workflow runs is a command a
 developer can run on a laptop, and the whole pipeline can be rehearsed —
 builds, verification, notes — without publishing anything. There was no CI
-and no packaged release before this; `v0.1.0` is the first, and the tooling
-is what lets it be cut with confidence rather than by hand.
+and no packaged release before this; the first release is cut through this
+pipeline, and the tooling is what lets it be cut with confidence rather than
+by hand.
 
 ## The shape
 
@@ -20,7 +21,7 @@ scripts/release.sh prepare X.Y.Z     # bump + roll the changelog (a commit's wor
 git commit … && git tag -a vX.Y.Z -m "zeroth vX.Y.Z" && git push origin HEAD vX.Y.Z
         │
         ▼  .github/workflows/release.yml
-   check ──► gate ──► build ×4 ──► publish
+   check ──► gate ──► smoke ──► build ×4 ──► publish
 ```
 
 1. **`check`** — the tag names Cargo.toml's version, and Cargo.lock, the
@@ -30,10 +31,15 @@ git commit … && git tag -a vX.Y.Z -m "zeroth vX.Y.Z" && git push origin HEAD v
 2. **`gate`** — the pre-commit gate from `CLAUDE.md`, unchanged: `cargo fmt
    --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`,
    `cargo doc --no-deps --lib`.
-3. **`build`** — one job per target (the matrix below), each running
+3. **`smoke`** — the terminal I/O boundary over the real binary in tmux
+   (`docs/ops/smoke.md`), the same shape as `ci.yml`'s job: one worker per
+   core, then whatever failed re-runs serially once before the job is red.
+   The unit gate cannot see a terminal path, and a tag is the last place it
+   should first go wrong.
+4. **`build`** — one job per target (the matrix below), each running
    `scripts/release.sh build TARGET` then `scripts/release.sh verify dist`
    on its own output, and uploading `dist/` as a workflow artifact.
-4. **`publish`** — downloads every `dist/`, verifies them *together*,
+5. **`publish`** — downloads every `dist/`, verifies them *together*,
    renders the notes (`scripts/release.sh notes`) into the job summary, and
    either publishes (`scripts/release.sh publish`) or, on a rehearsal,
    prints the exact `gh` commands it would have run.
@@ -89,7 +95,7 @@ a commit subject is written for a reviewer, a changelog entry for a user,
 and the two rarely read the same.
 
 **A section may carry a title.** Its first line may be a single **bold**
-line — `**Alter Zero Initial Release**` — naming the release rather than
+line — `**Zeroth Initial Release**` — naming the release rather than
 listing one of its changes. It needs no machinery: the section is rendered
 as written, so the line arrives in the notes as the bold text it already
 is, sitting over the `### Added` sections without out-shouting them. A
@@ -97,8 +103,8 @@ heading was tried and came back out — `##` renders larger than the
 sections it introduces, so the name shouted over the changes it was
 supposed to introduce.
 
-The release itself is named by its **tag alone** (`v0.1.0`), deliberately.
-A title appended there — `v0.1.0 — Alter Zero Initial Release` — reads as
+The release itself is named by its **tag alone** (`vX.Y.Z`), deliberately.
+A title appended there — `vX.Y.Z — Zeroth Initial Release` — reads as
 noise in a releases list, where every row is already a version and the eye
 is scanning for numbers; the sentence belongs where someone has opened the
 release to read it. It is optional either way: a section that starts
@@ -108,7 +114,7 @@ straight on `### Added` gets notes that do too, which is what every
 **Contributors are GitHub's to render, not ours.** The release page
 already shows them between the body and the assets, as avatars read off
 the release's own commits. A `**Contributors** name, name` line under the
-body was written, published on `v0.1.0`, and removed: it was that block
+body was written, published on the first release, and removed: it was that block
 again in plain text, directly above the real one, and text loses to
 avatars at telling you who at a glance. Its `git log` is what the publish
 job's `fetch-depth: 0` was for, so the checkout went back to the default
@@ -237,7 +243,7 @@ tree, which is how the selftest drives them against fixtures.
 | `publish VERSION [DIST] [--notes FILE] [--dry-run]` | `verify`, assemble `SHA256SUMS`, then `gh release create` **as a draft** with notes and every asset, then `gh release edit --draft=false` (`--latest` unless a pre-release). |
 | `download VERSION [DIST] [--from URL]` | A published release back into an empty `dist/`: its `SHA256SUMS`, then every asset it lists, with curl or wget (no `gh`), each beside its `.sha256` as `build` leaves it, then `verify`. `--from` names another repository root. |
 | `prepare VERSION` | The version bump and changelog roll, then `check`, then the commit/tag/push to run. |
-| `selftest` | 250-odd fixture-driven assertions over all of the above. |
+| `selftest` | 203 fixture-driven assertions over all of the above. |
 
 `check`'s rules:
 
@@ -330,11 +336,14 @@ git tag -a v0.2.0 -m "zeroth v0.2.0"
 git push origin HEAD v0.2.0
 ```
 
-`v0.1.0` needs no `prepare`: Cargo.toml already says `0.1.0` and
-`CHANGELOG.md` carries its section, so the first release is the tag alone —
-`git tag -a v0.1.0 -m "zeroth v0.1.0" && git push origin v0.1.0` from
-`main` — ideally after one rehearsal run. The section's date is the day it
-was written; edit it to the tag's day if that differs.
+The first release cannot be `0.1.0`: the inherited changelog already owns
+that section, and `0.1.1` through `0.18.0` besides, while `prepare` refuses
+a version that already has one. Choose `0.19.0` to continue the cumulative
+line from the last upstream release, or `1.0.0` to start Zeroth's own line
+above it — then `scripts/release.sh prepare <version>` rolls
+`[Unreleased]` into the new section and updates Cargo.toml, Cargo.lock and
+the README badge in one step. The section's date is the day it was written;
+edit it to the tag's day if that differs. Run one rehearsal before the tag.
 
 While a version is in progress, changes land under `## [Unreleased]` in
 Keep a Changelog's groups (`Added`, `Changed`, `Deprecated`, `Removed`,
@@ -354,11 +363,13 @@ run on a four-core box here failed phases 58 and 61 — the permission
 prompt "never showed" inside its wait — and both passed alone. So the job
 re-runs whatever failed in the parallel pass serially, once, before it is
 called red, and keeps both passes' logs as an artifact whenever the first
-pass failed, so a flake leaves evidence instead of a green square. The release workflow repeats the gate and the
-tooling jobs rather than trusting a CI run that may not have happened on
-the tagged commit. The smoke suite is in CI because it is the only
-automated coverage of the terminal I/O boundary (`docs/ops/smoke.md`); it is
-not in the release workflow, whose tag is a commit CI has already proven.
+pass failed, so a flake leaves evidence instead of a green square. The
+release workflow repeats the gate, the smoke suite and the tooling jobs
+rather than trusting a CI run that may not have happened on the tagged
+commit — the tag can be pushed from a branch no CI run ever saw. The smoke
+suite is in both because it is the only automated coverage of the terminal
+I/O boundary (`docs/ops/smoke.md`), and a release is the last place a red
+terminal path should first be seen.
 
 ## Decisions
 

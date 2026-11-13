@@ -207,7 +207,7 @@ U_APP="env -u ANTHROPIC_CONSOLE_REFRESH_TOKEN -u OPENAI_CHATGPT_REFRESH_TOKEN NO
 
 # ---- (a) the palette lists /usage; the page reads all three ----
 launch -c "$U_DIR" "$S145" 110 44 "$U_APP"
-wait_for 10 "$S145" -F "cline-pass/glm-5.3" || fail "the ClinePass model never reached the footer"
+wait_for 10 "$S145" -F "[cline_pass]glm-5.3" || fail "the ClinePass model never reached the footer"
 type_text "$S145" "/usa"
 palette="$(wait_pane 5 "$S145" -F "Show your subscriptions' usage limits")" ||
 	fail "/usage is missing from the slash-command palette"
@@ -242,8 +242,8 @@ expect_has "$page" -F "Details at https://app.cline.bot/dashboard/subscription?p
 	"the highlighted section's own page is not linked"
 [ "$(printf '%s\n' "$page" | grep -c "Details at")" -eq 1 ] || fail "the page links more than the highlighted section"
 expect_has "$page" -F "↑↓ select  r refresh  c copy link  esc close" "the hint does not name c"
-expect_lacks "$page" -F "cline-pass/glm-5.3 medium" "the footer is still showing under the page"
-expect_lacks "$page" -F "cline-pass/glm-5.3 ·" "the footer is still showing under the page"
+expect_lacks "$page" -F "[cline_pass]glm-5.3 medium" "the footer is still showing under the page"
+expect_lacks "$page" -F "[cline_pass]glm-5.3 ·" "the footer is still showing under the page"
 # The spent window is red, its `limit reached` too, and the 81% one amber —
 # read off the raw SGR.
 sgr="$(tmux capture-pane -t "$S145" -p -e)"
@@ -292,7 +292,7 @@ keys "$S145" C-o
 back="$(wait_pane 5 "$S145" -F "3 subscriptions")" || fail "Ctrl+O did not bring the page back"
 expect_has "$back" -E "❯ ChatGPT Codex" "the page lost its highlight behind the overlay"
 keys "$S145" Escape
-closed="$(wait_pane 5 "$S145" -F "cline-pass/glm-5.3")" || fail "Esc did not close the page back to the composer"
+closed="$(wait_pane 5 "$S145" -F "[cline_pass]glm-5.3")" || fail "Esc did not close the page back to the composer"
 expect_lacks "$closed" -F "3 subscriptions" "the page is still on screen after Esc"
 
 # ---- (e) reopened: the last numbers at once, refreshing ----

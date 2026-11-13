@@ -276,6 +276,14 @@ fn spawn_antigravity_login(
     tx: tokio::sync::mpsc::UnboundedSender<DeviceEvent>,
 ) {
     std::thread::spawn(move || {
+        // Before sending anyone to a browser page that would otherwise hang
+        // for ten minutes, find out whether Google answers at all. This is a
+        // blocking request, so it belongs here on the worker — never on the
+        // async event loop that started us (`start_device_login`).
+        if let llm::antigravity::Reach::Unreachable(why) = llm::antigravity::probe_reach() {
+            let _ = tx.send(DeviceEvent::Done(Err(why)));
+            return;
+        }
         let signin = match llm::antigravity::begin_signin() {
             Ok(signin) => signin,
             Err(e) => {

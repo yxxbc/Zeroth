@@ -250,7 +250,7 @@ keys "$S137" Enter
 wait_for 5 "$S137" -F "Switched model to cline-pass/smoke-137" || fail "the ClinePass model was not selected"
 footer="$(wait_pane 5 "$S137" -F "0/200k")"
 dump "the footer on the plan's model" "$footer"
-expect_has "$footer" -F "cline-pass/smoke-137 medium" "the footer did not carry the borrowed thinking level"
+expect_has "$footer" -F "[cline_pass]smoke-137 medium" "the footer did not carry the borrowed thinking level"
 expect_has "$footer" -F "0/200k (0.0%)" "the footer did not gauge against the borrowed window"
 
 # Send a message: the turn mints an access token first, the stub refuses the

@@ -85,9 +85,50 @@ jobs:
       - run: cargo test
       - run: cargo doc --no-deps --lib
 
+  smoke:
+    # The terminal I/O boundary has no unit tests; the smoke suite is the only
+    # automated coverage of it, and a release tag is the last place a red
+    # terminal path should first be seen. Same shape as ci.yml's smoke job:
+    # one worker per core, then whatever failed re-runs serially once.
+    name: smoke suite (tmux)
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: debug
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: The phase readers and the selector
+        run: bash scripts/smoke/selftest.sh
+      - run: cargo build
+      - name: Run every phase, one worker per core
+        id: parallel
+        continue-on-error: true
+        run: scripts/smoke.sh -j "$(nproc)"
+      - name: Re-run the failed phases alone before calling the job red
+        if: steps.parallel.outcome == 'failure'
+        run: |
+          cp -r target/smoke/logs target/smoke/logs-parallel
+          scripts/smoke.sh --failed --serial
+      - name: Keep the logs
+        if: failure() || steps.parallel.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-logs
+          path: |
+            target/smoke/logs
+            target/smoke/logs-parallel
+          if-no-files-found: ignore
+          retention-days: 7
+
   build:
     name: build ${{ matrix.target }}
-    needs: [check, gate]
+    needs: [check, gate, smoke]
     strategy:
       fail-fast: false
       matrix:

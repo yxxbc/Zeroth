@@ -58,7 +58,10 @@ poll 5 test -S "$HD_SOCK" || fail "the herdr stub never bound its socket"
 # type into the pane's shell, so the app only offers one it can find there.
 mkdir -p "$SMOKE_TMP/bin"
 ln -s "$BIN_ABS" "$SMOKE_TMP/bin/zeroth"
-HD_PANE="HERDR_ENV=1 HERDR_PANE_ID=w1:p3 HERDR_SOCKET_PATH=$HD_SOCK PATH=$SMOKE_TMP/bin:$PATH"
+# PATH is quoted for tmux's shell: a developer's PATH can hold a space
+# (`~/Library/Application Support/…`), and an unquoted `env PATH=…` splits
+# there and the app never starts. `$SMOKE_TMP` never contains one.
+HD_PANE="HERDR_ENV=1 HERDR_PANE_ID=w1:p3 HERDR_SOCKET_PATH=$HD_SOCK PATH=\"$SMOKE_TMP/bin:$PATH\""
 HD_APP="env $CFG_ENV_NOHIST $HD_PANE ZEROTH_STARTUP_DELAY_MS=1500 $BIN"
 
 hd_count() {

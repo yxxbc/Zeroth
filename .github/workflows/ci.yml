@@ -5,8 +5,8 @@
 # too), the smoke suite over the real binary in tmux, the release tooling's
 # own fixture tests plus the version/changelog agreement, and the scripts the
 # built-in web-search skill seeds.
-# The release workflow re-runs the gate and the tooling tests before it builds
-# anything.
+# The release workflow re-runs the gate, the tooling tests and the smoke suite
+# before it builds anything.
 name: CI
 
 on:

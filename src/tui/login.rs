@@ -107,17 +107,17 @@ impl Session<'_> {
         };
         let cancel = CancelToken::new();
         self.device_cancel = Some(cancel.clone());
-        // Before Antigravity sends anyone to a browser page that would
-        // otherwise hang for ten minutes, find out whether Google answers at
-        // all — and say which ambient variable would hijack the credential if
-        // there is one (`docs/providers/antigravity.md`).
+        // Name any ambient variable that would hijack the credential, if
+        // there is one (`docs/providers/antigravity.md`). The reachability
+        // probe is NOT run here: it is a blocking HTTP request, and this is
+        // the async event loop — a 30-second HEAD would freeze the UI (and a
+        // blocking reqwest client cannot even be built in an async context).
+        // The sign-in worker runs it before it opens the browser page and
+        // reports an unreachable Google as `Done(Err(..))`, which paints the
+        // reason on the page the core already opened.
         if self.models.subscription_auth(provider)
             == Some(zeroth::llm::config::AuthScheme::GoogleAntigravity)
         {
-            if let llm::antigravity::Reach::Unreachable(why) = llm::antigravity::probe_reach() {
-                self.app.fail_device_login(why);
-                return;
-            }
             let ambient = llm::antigravity::ambient_google_keys_present();
             if !ambient.is_empty() {
                 self.toast(

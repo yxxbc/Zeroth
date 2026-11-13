@@ -321,7 +321,7 @@ cat >"$SMOKE_CFG/config.json" <<'CONFIG'
 { "provider": "lmstudio", "model": "qwen/qwen3-8b" }
 CONFIG
 launch "$S141F" 100 32 "env LMSTUDIO_HOST=$dead $L_APP"
-wait_for 10 "$S141F" -F "qwen/qwen3-8b" || fail "the session did not start on LM Studio's model"
+wait_for 10 "$S141F" -F "[lmstudio]qwen3-8b" || fail "the session did not start on LM Studio's model"
 submit "$S141F" "hello"
 stopped="$(wait_pane 30 "$S141F" -F "is LM Studio's server running?")" ||
 	fail "a stopped LM Studio was not reported (still waiting as if offline?)"
@@ -348,7 +348,7 @@ tmux kill-session -t "$S141F" 2>/dev/null
 # ---- (j) a prompt longer than the loaded context: advice, not an empty reply ----
 S141J="${S}_local_overflow"
 launch "$S141J" 100 32 "env LMSTUDIO_HOST=127.0.0.1:$L_OVERFLOW $L_APP"
-wait_for 10 "$S141J" -F "qwen/qwen3-8b" || fail "the overflow session did not start on LM Studio's model"
+wait_for 10 "$S141J" -F "[lmstudio]qwen3-8b" || fail "the overflow session did not start on LM Studio's model"
 submit "$S141J" "hello"
 overflow="$(wait_pane 15 "$S141J" -F "context window too small")" ||
 	fail "LM Studio's overflow frame was not surfaced (an empty reply?)"

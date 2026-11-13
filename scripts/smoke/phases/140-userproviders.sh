@@ -129,7 +129,7 @@ p_close() {
 	local _
 	for _ in 1 2 3 4; do
 		pane_has "$1" -F "dummy_model_name ·" && return 0
-		pane_has "$1" -F "acme/coder-large ·" && return 0
+		pane_has "$1" -F "[acme]coder-large ·" && return 0
 		keys "$1" Escape
 		sleep 0.3
 	done
@@ -193,7 +193,7 @@ dump "/model over the user's provider" "$picker"
 expect_has "$picker" -E "acme/coder-large +\[acme\]" "the model rows are not tagged with the user's provider"
 expect_lacks "$picker" -F "unavailable" "a provider fetch failed"
 keys "$S140" Enter
-wait_for 5 "$S140" -F "acme/coder-large ·" || fail "picking a model did not switch the footer to it"
+wait_for 5 "$S140" -F "[acme]coder-large ·" || fail "picking a model did not switch the footer to it"
 first="$(p_turn "$S140" "hello acme" 1)" || fail "the first turn never settled"
 reply="$(pane "$S140")"
 dump "a turn against the user's provider" "$reply"

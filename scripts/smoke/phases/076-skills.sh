@@ -29,6 +29,11 @@ expect_lacks "$skills_pane" -F "references/palette.md" "the skill body's text le
 # model was sent (the ToolOutcome::context split, docs/tools/skills.md).
 tmux send-keys -t "$S76" C-d
 sleep 0.6
+# The context view opens on its last message and owns the screen (no
+# scrollback: `-S` cannot reach rows above the viewport). The base-directory
+# header is the entry's first row, so jump to the top before reading it.
+tmux send-keys -t "$S76" Home
+sleep 0.3
 skills_ctx="$(tmux capture-pane -t "$S76" -p -S -400)"
 echo "==== Phase 76: the Ctrl+D context ===="
 printf '%s\n' "$skills_ctx"

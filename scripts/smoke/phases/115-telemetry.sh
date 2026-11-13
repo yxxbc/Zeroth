@@ -315,8 +315,12 @@ wait "$TM_SERVER5" 2>/dev/null
 # notice again, no new install id. Keyed on the day alone this launch stayed
 # silent until midnight UTC, and the dashboard kept the install on the old
 # version for the day it had updated (docs/telemetry.md *When it is sent*).
-smoke_sed_in_place 's/"last_ping_version": *"[^"]*"/"last_ping_version": "0.0.0"/' "$TM_CFG/home/telemetry.json"
-if [ "$(tm_field "$TM_CFG/home/telemetry.json" last_ping_version)" != "0.0.0" ]; then
+# The staged version must DIFFER from the crate's, or this launch is not an
+# update at all (`should_ping` keys on both the day and the version). Derive
+# it, so bumping Cargo.toml never silently turns this check into a no-op.
+TM_OLD_VERSION="$TM_VERSION-pre"
+smoke_sed_in_place "s/\"last_ping_version\": *\"[^\"]*\"/\"last_ping_version\": \"$TM_OLD_VERSION\"/" "$TM_CFG/home/telemetry.json"
+if [ "$(tm_field "$TM_CFG/home/telemetry.json" last_ping_version)" != "$TM_OLD_VERSION" ]; then
 	tm_fail "could not stage the pre-update file: last_ping_version did not take"
 fi
 tmux new-session -d -s "$S115" -x 100 -y 30 "$TM_BASE ZEROTH_CONFIG_DIR=$TM_CFG/home $BIN"

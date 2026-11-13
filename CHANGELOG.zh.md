@@ -54,7 +54,7 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
   悬停/点击（经由系统打开器）、拖选/复制、tool call/思考/组的**点击展开**
   （它的 Ctrl+O 形态，就地钉住）、**点击放置 composer 的光标**，以及一行里
   孤零零一个 URL 的**预览卡**（站点/标题/描述，页面有 `og:image` 时再加一张
-  封面缩略图；只取一次并缓存，封面预算 32 MiB，`ALTER_ZERO_LINK_CARDS=0`
+  封面缩略图；只取一次并缓存，封面预算 32 MiB，`ZEROTH_LINK_CARDS=0`
   关闭）。编辑器交接是下一个阶段。内联 viewport 仍是默认
   （`docs/ui/full-screen.md`）。
 
@@ -70,7 +70,7 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
   （`docs/tools/parallel-tools.md`）。
 
 - **session 文件现在记录每个 tool call 是怎么跑的，以及每次模型请求花了多少
-  钱。** rollout（`~/.alter-zero/sessions/…/rollout-*.jsonl`）里的每一条
+  钱。** rollout（`~/.zeroth/sessions/…/rollout-*.jsonl`）里的每一条
   `tool` 行都带着命令的 `exit_code`、这个 call 跑了多久（`duration_ms`），
   以及失败时的原因（`error_kind`：`tool_error`、`timed_out`、`interrupted`、
   `rejected`、`classifier_denied`、`hook_blocked`、`approval_required`、
@@ -101,7 +101,7 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
   `permission_denials` 字段上报；auto 模式的安全检查判不下来的 call（那是
   错误，不是拒绝）最多重试一次，而不是永久拒绝；起不来的一次运行仍会打印一个
   JSON 结果；永不结束的后台 agent 会在
-  `ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS`（默认 10 分钟）之后被停掉。没有终端时
+  `ZEROTH_HEADLESS_AGENT_WAIT_SECS`（默认 10 分钟）之后被停掉。没有终端时
   不用 `-p` 启动，app 现在会说它需要一个终端并点名 `-p`，而不是以
   `Error: Os { code: 6, … }` 收场。
 
@@ -116,7 +116,7 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
   档位乘在每次 chat 请求的 OpenRouter `reasoning` 对象里，有些 OpenAI 兼容
   服务器不理它：OmniRoute 通向 Claude 模型的路由只读 OpenAI 自己的顶层
   `reasoning_effort`，所以为它们选定的档位什么也没改变。
-  `~/.alter-zero/providers.toml` 里一块设了
+  `~/.zeroth/providers.toml` 里一块设了
   `reasoning_param = "reasoning_effort"` 的配置现在改为把档位作为那个字符串
   发出，**off** 发 `none`（`docs/providers/user-providers.md`）。
 
@@ -126,7 +126,7 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
   启用的那些。这个选择和 **Hooks** 一样按目录保存。MCP 关着时，`/mcp` 仍能
   打开并说明这一点 —— 在列表上，也在它持有的每个服务器的页面上，写作
   `◯ off` —— 启动时的那次复核也会等 MCP 重新打开之后，才来问项目的服务器。
-  `ALTER_ZERO_MCP=0` 现在让一次运行以一个该行关闭的 session 启动，而从前它会
+  `ZEROTH_MCP=0` 现在让一次运行以一个该行关闭的 session 启动，而从前它会
   把 MCP 摘掉直到重启（`docs/tools/mcp.md`）。
 
 - **在回合边缘运行的 hook 现在会显示它们做了什么。** 一个让 agent 继续走下去
@@ -149,6 +149,19 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
 
 ### 修复
 
+- **Antigravity 登录不再冻结——也不再让界面崩溃。** 它的可达性探测（一次
+  30 秒的 `HEAD`）跑在 async 事件循环上，并在那里构建 blocking 的 `reqwest`
+  客户端。界面在整个探测期限内冻结，而在 async 上下文里丢弃那个客户端会以
+  `Cannot drop a runtime in a context where blocking is not allowed` panic，
+  就在登录页打开的那一刻。探测现在跑在登录 worker 上，flow 的其余部分本来
+  就在那里阻塞；Google 不可达仍然在浏览器打开之前报告在页面上
+  （`docs/providers/antigravity.md`、冒烟阶段 148）。
+- **一次失败的启动会把终端原样还回去，一个字节都不差。** 在 macOS 上，当
+  canonical 输入恢复时驱动会置起 `PENDIN`，而即使没有任何 pending 输入，
+  `stty -g` 也会把它报告成模式变了。现在每一条恢复路径——失败的 `init`、
+  正常退出和 panic hook——都会服务输入队列并清掉它，于是
+  `zeroth "prompt"` 在没有终端应答时也能把 pane 精确还原（`src/term.rs`、
+  冒烟阶段 153）。
 - **剩余的 harness 安全 P0。** auto 模式的只读快路径不再放过点名私钥、云凭证、
   dotenv 文件、令牌库或环境变量的命令（`cat ~/.ssh/id_rsa`、
   `base64 ~/.aws/credentials`、`printenv`、`echo $OPENAI_API_KEY`）：这些一律
@@ -180,6 +193,12 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
 
 ### 变更
 
+- **一次发布在构建任何东西之前先跑终端套件。** Release workflow 现在和单元
+  闸门一起，把 tmux 冒烟套件当作 gate，于是一个 tag 不能再从一个终端边界是
+  红的提交里产出四个已验证的归档。套件本身也跟上了改名：过时的横幅、argv 和
+  `.alter-zero` fixture，以及旧的 `provider/model` footer 断言都已更新，
+  更新日的遥测 fixture 也不再 stage 它正在测试的那个版本
+  （`docs/ops/release.md`）。
 - **残留的 `alter-zero` 名称已全部清除 —— 破坏性改名。** 所有
   `ALTER_ZERO_*` 覆盖变量改为 `ZEROTH_*`，没有回退：用旧变量的脚本、hook
   与 CI 都得改名。会话临时根是
@@ -201,7 +220,7 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
 - **那个一行安装脚本是 Zeroth 自己的了，它的 mascot 也动了。**
   `install.sh` 现在从 `yxxbc/zeroth` 解析发布并安装 `zeroth` 这个二进制，
   按仓库 slug 命名，就像发布归档按 Cargo.toml 的 `name` 命名一样；
-  `ALTER_ZERO_REPO` 可以为 fixture 发布覆盖这个 slug。它的横幅是 app 默认的
+  `ZEROTH_REPO` 可以为 fixture 发布覆盖这个 slug。它的横幅是 app 默认的
   `crest` mascot，用横幅的渐变画出来，在终端上会动 —— 色调沿行向下走、冠饰
   摆动、眼睛眨 —— 大约一秒半，然后作为 Download 行的 spinner，报告已经落了
   多少字节。`--preview`（也可写作 `--proview`）单独播放 mascot，默认十秒，
@@ -754,6 +773,7 @@ Zeroth 的开发基线。第一个打上标签的发布将决定它从哪个版�
   第十行：这些行放得下的一条仍整个显示，需要更多空间的那条在最后一行被切断并
   标上 `…`。当被切断的那一行是文件的最后一行时，它下面那一行仍指向 Ctrl+O。
   Ctrl+O 和权限 prompt 仍整行显示每一行（`docs/ui/long-lines.md`）。
+
 ## [0.17.0] - 2026-10-27
 
 ### 新增

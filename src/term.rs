@@ -280,6 +280,7 @@ impl InlineViewport {
             let _ = execute!(io::stdout(), DisableBracketedPaste);
             let _ = disable_raw_mode();
             let _ = execute!(io::stdout(), Show);
+            clear_pending_reprint();
         })
     }
 
@@ -391,6 +392,7 @@ impl InlineViewport {
             let _ = execute!(io::stdout(), DisableBracketedPaste);
             let _ = disable_raw_mode();
             let _ = execute!(io::stdout(), Show);
+            clear_pending_reprint();
         })
     }
 
@@ -1337,6 +1339,7 @@ impl InlineViewport {
             let _ = execute!(self.backend, DisableBracketedPaste);
             let _ = execute!(self.backend, Show);
             let _ = disable_raw_mode();
+            clear_pending_reprint();
             return Backend::flush(&mut self.backend);
         }
         // Safety net for exits that break out of the event loop with the
@@ -1394,6 +1397,9 @@ impl InlineViewport {
                 write!(self.backend, "\r\n")?;
             }
         }
+        // The modes are back; clear the driver's transient PENDIN so a caller
+        // that snapshots `stty -g` sees exactly the state it had before.
+        clear_pending_reprint();
         Backend::flush(&mut self.backend)
     }
 
@@ -1737,6 +1743,7 @@ fn install_panic_hook(keyboard_enhanced: bool) {
         let _ = execute!(io::stdout(), DisableBracketedPaste);
         let _ = disable_raw_mode();
         let _ = execute!(io::stdout(), Show);
+        clear_pending_reprint();
         previous(info);
     }));
 }
@@ -1794,6 +1801,38 @@ impl AsFd for TtyInput {
             Self::Stdin(stdin) => stdin.as_fd(),
             Self::Device(file) => file.as_fd(),
         }
+    }
+}
+
+/// Clear the line discipline's transient `PENDIN` after raw mode ends.
+///
+/// crossterm restores the termios saved by [`enable_raw_mode`] exactly, but on
+/// macOS the driver raises `PENDIN` ("input pending re-print") when canonical
+/// input resumes — even when nothing is queued. `stty -g` reports it as a
+/// changed mode, which breaks the promise that a failed launch leaves the
+/// terminal as it found it (`docs/cli/headless.md`). The bit only asks for a
+/// reprint of pending input, and a process on its way out has none to lose;
+/// clearing it is best effort, so a terminal we cannot reopen never turns a
+/// successful restore into an error.
+fn clear_pending_reprint() {
+    let Ok(tty) = TtyInput::open() else { return };
+    let Ok(mut termios) = rustix::termios::tcgetattr(&tty) else {
+        return;
+    };
+    if termios
+        .local_modes
+        .contains(rustix::termios::LocalModes::PENDIN)
+    {
+        termios
+            .local_modes
+            .remove(rustix::termios::LocalModes::PENDIN);
+        // macOS keeps PENDIN set until the input queue is serviced: a plain
+        // `tcsetattr` re-raises it. FIONREAD services the queue without
+        // consuming a byte, so ask for the count first (and ignore it), then
+        // write the cleared flags back; TCSANOW would re-raise PENDIN even
+        // after this, TCSADRAIN does not.
+        let _ = rustix::io::ioctl_fionread(&tty);
+        let _ = rustix::termios::tcsetattr(&tty, OptionalActions::Drain, &termios);
     }
 }
 

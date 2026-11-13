@@ -80,7 +80,7 @@ release heading when a version is cut.
   Ctrl+O form, pinned in place), **click-to-place the composer's caret**, and
   **preview cards** for a URL alone on a line (site/title/description and a
   cover thumbnail when the page has an `og:image`; fetched once and cached,
-  32 MiB cover budget, `ALTER_ZERO_LINK_CARDS=0` disables). Editor handoff is
+  32 MiB cover budget, `ZEROTH_LINK_CARDS=0` disables). Editor handoff is
   the next phase. The inline viewport remains the default
   (`docs/ui/full-screen.md`).
 
@@ -99,7 +99,7 @@ release heading when a version is cut.
 
 - **Session files now record how each tool call ran and what each model
   request cost.** Every `tool` line in a rollout
-  (`~/.alter-zero/sessions/…/rollout-*.jsonl`) carries the command's
+  (`~/.zeroth/sessions/…/rollout-*.jsonl`) carries the command's
   `exit_code`, how long the call ran (`duration_ms`) and, when it failed,
   why (`error_kind`: `tool_error`, `timed_out`, `interrupted`, `rejected`,
   `classifier_denied`, `hook_blocked`, `approval_required`,
@@ -138,7 +138,7 @@ release heading when a version is cut.
   could not decide (an error, not a denial) is retried once at most rather
   than refused for good; a run that cannot start still prints a JSON
   result; and a background agent that never finishes is
-  stopped after `ALTER_ZERO_HEADLESS_AGENT_WAIT_SECS` (10 minutes by
+  stopped after `ZEROTH_HEADLESS_AGENT_WAIT_SECS` (10 minutes by
   default). Launched without `-p` where there is no terminal, the app now
   says it needs one and names `-p` instead of ending on
   `Error: Os { code: 6, … }`.
@@ -156,7 +156,7 @@ release heading when a version is cut.
   OpenRouter's `reasoning` object, which some OpenAI-compatible servers
   ignore: OmniRoute's route to Claude models reads only OpenAI's own
   top-level `reasoning_effort`, so a level picked for one of them changed
-  nothing. A block in `~/.alter-zero/providers.toml` that sets
+  nothing. A block in `~/.zeroth/providers.toml` that sets
   `reasoning_param = "reasoning_effort"` now sends the level as that string
   instead, with `none` for **off** (`docs/providers/user-providers.md`).
 
@@ -168,7 +168,7 @@ release heading when a version is cut.
   like **Hooks**. While MCP is off, `/mcp` still opens and says so, on the
   list and on the page of each server it holds as `◯ off`, and the startup
   review waits to ask about a project's servers until MCP is turned back
-  on. `ALTER_ZERO_MCP=0` now starts a session with the row off for that
+  on. `ZEROTH_MCP=0` now starts a session with the row off for that
   run, where it used to remove MCP until a restart (`docs/tools/mcp.md`).
 
 - **Hooks that run at a turn's edges now show what they did.** A Stop hook
@@ -194,6 +194,22 @@ release heading when a version is cut.
 
 ### Fixed
 
+- **The Antigravity sign-in no longer freezes — or crashes — the interface.**
+  Its reachability probe (a 30-second `HEAD`) ran on the async event loop and
+  built a blocking `reqwest` client there. The UI was frozen for the probe's
+  whole deadline, and dropping that client inside async context panicked with
+  `Cannot drop a runtime in a context where blocking is not allowed` the
+  moment the sign-in page opened. The probe now runs on the sign-in worker,
+  where the rest of the flow already blocks; an unreachable Google is still
+  reported on the page before the browser opens
+  (`docs/providers/antigravity.md`, smoke Phase 148).
+- **A failed launch leaves the terminal byte-for-byte as it found it.** On
+  macOS the driver raises `PENDIN` when canonical input resumes, and
+  `stty -g` reports it as a changed mode even with nothing pending. Every
+  restore path — a failed `init`, a normal quit and the panic hook — now
+  services the input queue and clears it, so `zeroth "prompt"` with no
+  answering terminal restores the pane exactly (`src/term.rs`, smoke
+  Phase 153).
 - **The remaining harness-security P0s.** Auto mode's read-only fast path no
   longer waves through a command naming private keys, cloud credentials,
   dotenv files, token stores or the environment (`cat ~/.ssh/id_rsa`,
@@ -231,6 +247,15 @@ release heading when a version is cut.
 
 ### Changed
 
+- **A release runs the terminal suite before it builds anything.** The
+  Release workflow now gates on the tmux smoke suite as well as the unit
+  gate, so a tag cannot produce four verified archives from a commit whose
+  terminal boundary is red. The suite itself was brought back in step with
+  the rename: its stale banner, argv and `.alter-zero` fixtures and its old
+  `provider/model` footer expectations are updated, and the update-day
+  telemetry fixture no longer stages the version it is testing against
+  (`docs/ops/release.md`).
+
 - **The remaining `alter-zero` names are gone — a breaking rename.** Every
   `ALTER_ZERO_*` override is now `ZEROTH_*` with no fallback: scripts, hooks
   and CI using an old variable must switch names. The session temp root is
@@ -254,7 +279,7 @@ release heading when a version is cut.
 - **The one-line installer is Zeroth's, and its mascot moves.**
   `install.sh` now resolves releases from `yxxbc/zeroth` and installs the
   `zeroth` binary, named after the repository slug the way a release
-  archive is named after Cargo.toml's `name`; `ALTER_ZERO_REPO` overrides
+  archive is named after Cargo.toml's `name`; `ZEROTH_REPO` overrides
   the slug for a fixture release. Its banner is the app's default `crest`
   mascot, drawn in the banner gradient, and on a terminal it animates —
   the tint walking down the rows, the crest swinging, the eyes blinking —
