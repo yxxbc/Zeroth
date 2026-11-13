@@ -432,6 +432,7 @@ fn round(calls: &[(&str, &str)]) -> Vec<crate::stream::RoundCall> {
 /// The batch announcement's entry for one cell.
 fn summary(name: &str, args: &str) -> ToolCallSummary {
     ToolCallSummary {
+        call_id: None,
         name: name.to_string(),
         args: args.to_string(),
     }

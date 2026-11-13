@@ -323,28 +323,32 @@ pub struct App {
     /// [`set_stream_preview_rows`]: App::set_stream_preview_rows
     /// [`set_status_times`]: App::set_status_times
     stream_preview_rows: u16,
-    /// The live tool calls of the current turn, front-first: the front is the
-    /// running (status [`ToolStatus::Running`]) or about-to-run call, and any
-    /// calls behind it are [`ToolStatus::Waiting`] siblings of a **parallel
-    /// batch** (`start_tool_batch`), shown as `⎿ Waiting…` until each starts.
-    /// Empty when no tool is in flight. A lone tool (the `!` shell, the dummy's
-    /// single calls) is a one-element queue. A parallel batch resolves its
-    /// cells in model order, so at most one call is ever `Running`, and it is
-    /// always the front. Private: read the
-    /// active call through [`current_tool`](App::current_tool) and the whole
-    /// batch through [`tool_queue`](App::tool_queue). See `docs/tools/parallel-tools.md`.
+    /// The live tool calls of the current turn, front-first: the calls still
+    /// in flight, each [`ToolStatus::Running`] (its own live cell and tail)
+    /// or [`ToolStatus::Waiting`] (a batch sibling whose worker has not
+    /// picked it up yet, shown as `⎿ Waiting…`). Empty when no tool is in
+    /// flight. A lone tool (the `!` shell, the dummy's single calls) is a
+    /// one-element queue. Every event addresses its call by
+    /// [`ToolCall::call_id`] ([`start_tool_for`](App::start_tool_for)), so
+    /// several calls of one parallel batch can run — and stream — at once;
+    /// records still land in the model's order. Private: read the queue
+    /// through [`tool_queue`](App::tool_queue). See `docs/tools/parallel-tools.md`.
     tool_queue: VecDeque<ToolCall>,
     /// The calls the model is still **generating** this round, previewed
     /// live — a `write` streams into its cell as its content arrives — and
     /// the previewed ones the announced batch took over
     /// (`docs/ui/write-streaming.md`). Live-only: nothing here is ever recorded.
     tool_drafts: ToolDrafts,
-    /// The running call's **live** rows — the tail of its `output` the next
+    /// The **running** calls' **live** rows, keyed by the call's routing id
+    /// ([`ToolCall::call_id`]; the empty key is a queue-front call no id
+    /// announced — the `!` shell, a scripted test). Each entry is the tail of
+    /// that call's `output` the next
     /// [`push_tool_screen`](App::push_tool_screen) replaces
-    /// (`docs/tools/interactive-shell.md`), and when each last changed, so the
-    /// running cell's window can follow the rows still moving
-    /// (`docs/ui/tool-streaming.md`). Empty whenever a call starts or resolves.
-    tool_live: LiveTail,
+    /// (`docs/tools/interactive-shell.md`), and when each row last changed, so
+    /// the running cell's window can follow the rows still moving
+    /// (`docs/ui/tool-streaming.md`). An entry is dropped whenever its call
+    /// starts or resolves.
+    tool_live: std::collections::HashMap<String, LiveTail>,
     /// Bumped by every change to the running call's output or header, so the
     /// transcript cache sees a same-length redraw (`45%` → `46%`).
     tool_revision: u64,
@@ -1336,6 +1340,10 @@ impl App {
         // the session spent stays in the ledger (`docs/architecture/context-usage.md`).
         self.last_usage = None;
         self.tool_queue.clear();
+        // Every running call was wiped with the conversation: its live rows go
+        // too, and the next transcript rebuild sees the empty queue.
+        self.tool_live.clear();
+        self.tool_revision += 1;
         self.tool_drafts.clear();
         self.status = None;
         // A message the running turn never got to read goes with it: the user

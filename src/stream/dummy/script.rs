@@ -305,7 +305,10 @@ pub const MARKDOWN_TOUR: &str = concat!(
 pub(super) fn tool_output_events(output: &str) -> Vec<StreamEvent> {
     output
         .split_inclusive('\n')
-        .map(|line| StreamEvent::ToolOutput(line.to_string()))
+        .map(|line| StreamEvent::ToolOutput {
+            call_id: None,
+            chunk: line.to_string(),
+        })
         .collect()
 }
 

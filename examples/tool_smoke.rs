@@ -135,7 +135,7 @@ fn main() {
             StreamEvent::ToolAnswered { display, .. } => {
                 println!("\n\x1b[90m[{display}]\x1b[0m");
             }
-            StreamEvent::ToolNote(note) => {
+            StreamEvent::ToolNote { note, .. } => {
                 println!("\n\x1b[90m[{note}]\x1b[0m");
             }
             StreamEvent::ToolBatch(items) => {
@@ -169,7 +169,7 @@ fn main() {
             StreamEvent::ToolStart { name, args, .. } => {
                 println!("\n\x1b[34m● {name}({args})\x1b[0m");
             }
-            StreamEvent::ToolOutput(chunk) => {
+            StreamEvent::ToolOutput { chunk, .. } => {
                 // Live output streamed while the tool runs — the TUI tails it in
                 // the running cell (docs/ui/tool-streaming.md). Print it dim, inline.
                 print!("\x1b[90m{chunk}\x1b[0m");
@@ -183,7 +183,7 @@ fn main() {
                 use std::io::Write;
                 let _ = std::io::stdout().flush();
             }
-            StreamEvent::ToolTitle(title) => {
+            StreamEvent::ToolTitle { title, .. } => {
                 println!("\x1b[34m  ↳ {title}\x1b[0m");
             }
             StreamEvent::ToolEnd {
@@ -191,6 +191,7 @@ fn main() {
                 ok,
                 truncated,
                 run,
+                ..
             } => {
                 let color = if ok { "\x1b[32m" } else { "\x1b[31m" };
                 let head: String = output.lines().take(8).collect::<Vec<_>>().join("\n");

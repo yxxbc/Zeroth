@@ -39,15 +39,15 @@ as printed where the settled cell reshapes a JSON line for display.)
 
 ## The protocol — `ToolOutput` and `ToolScreen`
 
-Two events carry the **currently-running** tool's live output, between its
-`ToolStart` and `ToolEnd`:
+Two events carry a **running** tool's live output, between its `ToolStart` and
+`ToolEnd`:
 
 ```rust
-/// A chunk of the running tool's output, appended as it is produced.
-ToolOutput(String),
+/// A chunk of one running tool's output, appended as it is produced.
+ToolOutput { call_id: Option<String>, chunk: String },
 /// The running tool's output as it builds up: `settled` text appended for
 /// good, `live` rows replacing the `live` rows sent last.
-ToolScreen { settled: String, live: String },
+ToolScreen { call_id: Option<String>, settled: String, live: String },
 ```
 
 `ToolOutput` is the append-only form — the offline dummy's scripted commands
@@ -55,26 +55,29 @@ stream with it. `ToolScreen` is what the real executor sends: a line still
 being drawn (a progress bar redrawn with `\r`, a prompt taking its answer)
 travels as `live` and is **replaced** by the next update instead of stacking
 a row per frame, and a line that is final travels once as `settled`
-(`docs/tools/interactive-shell.md` *Streaming the running cell*). Both target the
-**front** of `App::tool_queue` (the only `Running` call — a parallel batch
-resolves its cells in model order, so the visible running call is always the
-front; a worker behind it has no live sink, and its output is dropped rather
-than misattributed; see `docs/tools/parallel-tools.md`). A backend that never
-streams simply omits them — `ToolStart`/`ToolEnd` still work unchanged.
+(`docs/tools/interactive-shell.md` *Streaming the running cell*). Both name the
+call they belong to (`call_id`, the same id its `ToolStart` and the batch
+summary carry): a parallel batch's workers run at once, so **several cells may
+be `Running`** and each tails its own rows — a chunk is routed to the cell whose
+id it names, never to whatever cell happens to be in front
+(`docs/tools/parallel-tools.md`). A backend that never streams simply omits
+them — `ToolStart`/`ToolEnd` still work unchanged.
 
 ## App state — `push_tool_output` / `push_tool_screen`
 
-`App::push_tool_output(chunk)` appends `chunk` to the front call's `output`;
-`App::push_tool_screen(settled, live)` truncates the `live` tail it appended
-last (`App::tool_live_len`), appends `settled`, then the new `live`
-(`app::apply_tool_screen`, which the subagent fold in `agents` shares). Both
-act **only when the front call is `Running`** (a no-op otherwise), and both
-bump `App::tool_revision`, which the Ctrl+O transcript cache signs on — a
-redraw can leave the output the same length. Neither counts tokens — the
-tally is charged once, from the authoritative `ToolEnd` output, in
-`end_tool` (which overwrites `output` with the final framed text). So the live
-tail and the final cell never double-count, and the final cell is always exact
-even if an update was dropped.
+`App::push_tool_output_for(call_id, chunk)` appends `chunk` to that call's
+`output`; `App::push_tool_screen_for(call_id, settled, live)` truncates the
+`live` tail that call appended last (its entry in `App::tool_live`, keyed by the
+call id), appends `settled`, then the new `live` (`app::apply_tool_screen`,
+which the subagent fold in `agents` shares). Both act **only when the named call
+is `Running`** (a no-op otherwise), and both bump `App::tool_revision`, which
+the Ctrl+O transcript cache signs on — a redraw can leave the output the same
+length. Neither counts tokens — the tally is charged once, from the
+authoritative `ToolEnd` output, in `end_tool` (which overwrites `output` with
+the final framed text). So the live tail and the final cell never double-count,
+and the final cell is always exact even if an update was dropped. The
+`None`-id twins (`push_tool_output`, `push_tool_screen`) target the queue front,
+the serial path (`!` shell, a scripted call).
 
 ## The executor — `run_bash` streams folded output
 
@@ -379,15 +382,16 @@ Two pieces make this work, and both already existed except one:
   and re-arms a ~30 fps draw whenever a turn is active, so `ToolOutput` deltas
   reach `App::push_tool_output` and the overlay repaints — no overlay-specific
   wiring needed.
-- **The `TranscriptCache` signature** (`ui::TranscriptSig`) must notice the
+- **The `TranscriptCache` signature** (`ui::TranscriptSig`) must notice a
   running call's output growing, or the cached transcript never rebuilds and the
-  overlay goes static. The signature's tool-queue term is
-  `(queue length, front status, **front output length**)` — the third field is
-  the fix: a lone running call's length and status don't change while it streams,
-  but its `output.len()` does, so each delta invalidates the cache and the
-  overlay re-renders (and, being **tail-following** by default —
-  `App::tool_follow` / `settle_tool_scroll`, engaged on open — scrolls the new
-  output into view). The unit test
+  overlay goes static. The signature's tool-queue term is the queue length plus
+  **each live call's status and output length** — the per-call part is the fix:
+  a running call's length and status don't change while it streams, but its
+  `output.len()` does, so each delta invalidates the cache and the overlay
+  re-renders (and, being **tail-following** by default — `App::tool_follow` /
+  `settle_tool_scroll`, engaged on open — scrolls the new output into view).
+  With a parallel batch several cells stream at once, so the term covers them
+  all rather than only the front. The unit test
   `transcript_cache_rebuilds_as_a_running_bash_streams_output` locks it; smoke
   Phase 40 proves it end-to-end (a running `Bash(ping)` cell streams into the
   overlay while its siblings still show `⎿ Waiting…`).

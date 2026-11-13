@@ -285,7 +285,7 @@ fn the_download_demo_keeps_its_finished_bars_below_the_moving_ones() {
     let frames: Vec<&str> = events
         .iter()
         .filter_map(|e| match e {
-            StreamEvent::ToolScreen { settled, live } => {
+            StreamEvent::ToolScreen { settled, live, .. } => {
                 assert!(settled.is_empty(), "everything stays in reach: {settled:?}");
                 Some(live.as_str())
             }
@@ -377,7 +377,7 @@ fn the_interactive_demo_answers_prompts_through_a_session() {
     let titles: Vec<&str> = events
         .iter()
         .filter_map(|e| match e {
-            StreamEvent::ToolTitle(title) => Some(title.as_str()),
+            StreamEvent::ToolTitle { title, .. } => Some(title.as_str()),
             _ => None,
         })
         .collect();
@@ -437,7 +437,7 @@ fn the_interactive_demo_answers_prompts_through_a_session() {
         .iter()
         .take_while(|e| !matches!(e, StreamEvent::ToolEnd { .. }))
         .filter_map(|e| match e {
-            StreamEvent::ToolScreen { settled, live } => {
+            StreamEvent::ToolScreen { settled, live, .. } => {
                 assert!(settled.is_empty(), "everything stays in reach: {settled:?}");
                 Some(live.as_str())
             }

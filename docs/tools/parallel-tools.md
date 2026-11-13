@@ -1,10 +1,11 @@
 # Parallel tool calls — the visible batch + `⎿ Waiting…`
 
 When the model requests **several tool calls in one assistant turn** (e.g. three
-`Bash` commands at once), the TUI now shows **all of them up front**: the one
-executing renders live (a blinking grey bullet over `⎿ Running…`, then its
-output — `docs/ui/tool-pulse.md`), and the ones not yet
-started render as dim `⎿ Waiting…` cells — Claude-Code's parallel-tool look:
+`Bash` commands at once), the TUI shows **all of them up front**: every call a
+worker has picked up renders live (its own blinking grey bullet over its own
+tailed output — `docs/ui/tool-pulse.md`), possibly several at once, and the ones
+no worker has reached yet render as dim `⎿ Waiting…` cells — Claude-Code's
+parallel-tool look:
 
 ```
 ● Bash(ping -c 20 google.com)
@@ -15,18 +16,19 @@ started render as dim `⎿ Waiting…` cells — Claude-Code's parallel-tool loo
      +5 lines (9s)
 
 ● Bash(ping -c 20 facebook.com)
-  ⎿  Waiting…
+  ⎿  64 bytes from … icmp_seq=3 ttl=117 time=71.0 ms
+     +2 lines (9s)
 
 ● Bash(ping -c 20 x.com)
   ⎿  Waiting…
 ```
 
-The running call **tails its live output** (the last lines + a `+N lines (Ns ·
-timeout …)` footer, its own clock beside the timeout it runs under) as it
-streams — see `docs/ui/tool-streaming.md`; the `⎿ Waiting…` siblings are unchanged,
-except a queued `Write` whose file streamed into its cell while the round was
-generated: it keeps that file's first ten numbered rows under its `Waiting…`
-corner, so the cell neither collapses nor grows back when it resolves
+Every running call **tails its own live output** (the last lines + a `+N lines
+(Ns · timeout …)` footer, its clock beside the timeout it runs under) as it
+streams — see `docs/ui/tool-streaming.md`; the `⎿ Waiting…` siblings are
+unchanged, except a queued `Write` whose file streamed into its cell while the
+round was generated: it keeps that file's first ten numbered rows under its
+`Waiting…` corner, so the cell neither collapses nor grows back when it resolves
 (`docs/ui/write-streaming.md`). Only in the live strip: the permission prompt's
 context cells keep the one-row `⎿ Waiting…`, since the prompt shows the file.
 
@@ -57,62 +59,84 @@ loop. The gate is `llm::tools::batch_is_parallelizable`:
 
 The display predates the executor: the visible batch was built so every call is
 announced up front, then resolved in the model's order. That ordering is now
-also the concurrency contract — the cells still resolve in the announced order
-even when jobs finish in another — so the app's one-`Running`-call model is
-never violated. The concurrent executor reuses the same Waiting/Running/Ok/Failed
-cell states; only `llm` gained a worker pool.
+also the *record* contract — the cells still resolve in the announced order even
+when jobs finish in another — while the **execution and the live strip overlap**.
+Each event that belongs to one call names it (`call_id`), so a chunk from the
+second worker can never land on the first call's cell. The concurrent executor
+reuses the same Waiting/Running/Ok/Failed cell states; only `llm` gained a worker
+pool, and `app` gained an id-keyed route beside its order. The announced order
+remains what `ToolCall::position` replays into the next request.
 
 ## The mechanism
 
 ### Protocol (`stream/event.rs`)
 
 A new event announces the batch **before** the first `ToolStart`, carrying a
-small named struct per call (`ToolCallSummary { name, args }` — the *same* two
-strings the call's own `ToolStart` carries, so a `⎿ Waiting…` header matches the
-header it shows once running):
+small named struct per call (`ToolCallSummary { name, args, call_id }` — the
+*same* strings the call's own `ToolStart` carries, so a `⎿ Waiting…` header
+matches the header it shows once running, and the id its later events carry):
 
 ```rust
-pub struct ToolCallSummary { pub name: String, pub args: String }
+pub struct ToolCallSummary {
+    pub name: String,
+    pub args: String,
+    /// The provider's id for the call; `None` for a scripted/dummy batch.
+    pub call_id: Option<String>,
+}
 
 /// The model requested a batch of tool calls this round, announced up front so
 /// the UI can show every call — the ones not yet executing as `⎿ Waiting…`.
-/// Execution transitions them via ToolStart/ToolEnd one at a time, in this
-/// order, whether it runs serially or on the worker pool.
 ToolBatch(Vec<ToolCallSummary>),
 ```
 
-The existing `ToolStart{name,args}` / `ToolEnd{output,ok,truncated}` pair is
-unchanged. A backend that never batches (the `!` shell) simply never sends
-`ToolBatch` — a lone `ToolStart` still works.
+Every call-scoped event gained the same `call_id`: `ToolStart`, `ToolEnd`,
+`ToolAnswered`, `ToolRejected`, `ToolNote`, `ToolOutput`, `ToolScreen`,
+`ToolTitle`, and `ToolBackgrounded` (which keeps its own `id` — the background
+registry's task id — beside it). `None` means "the queue front", which is the
+serial path (`!` shell, scripted test) exactly as before.
+
+The `ToolStart`/`ToolEnd` pair's payload is otherwise unchanged. A backend that
+never batches (the `!` shell) simply never sends `ToolBatch` — a lone
+`ToolStart` still works.
 
 ### App state (`app/tools.rs`)
 
 `current_tool: Option<ToolCall>` becomes a **queue**: `tool_queue:
-VecDeque<ToolCall>`. The front is the running (or about-to-run) call; the rest
-are `ToolStatus::Waiting`.
+VecDeque<ToolCall>`. Each call is `Waiting` (no worker reached it), `Running`
+(its worker announced it), or resolved and gone.
 
 - `ToolStatus` gains a `Waiting` variant (dim, rendered `⎿ Waiting…`).
-- `start_tool_batch(&[(name,args)])` fills the queue with `Waiting` calls,
-  each stamped with the batch's own id (`ToolCall::batch`, a plain counter).
-  Nothing in *this* feature reads it; it is what lets a later renderer tell
-  one round's parallel calls from two rounds' sequential ones — the MCP run
-  collapse (`docs/tools/mcp.md`). A lone call's is `None`.
-- `start_tool(name,args)` flips the **front** `Waiting` → `Running`; with an empty
-  queue (the dummy's lone tools, the `!` shell) it pushes a fresh `Running` call —
-  so the single-tool path is byte-for-byte the old behaviour.
-- `end_tool(output,ok)` pops the **front**, finalizes it (Ok/Failed), records it in
-  `history`, and returns it to commit — the next call becomes the front.
-- `current_tool()` returns the front (unchanged call sites keep working).
-- `tool_queue()` exposes the whole batch for rendering.
+- `start_tool_batch(&[ToolCallSummary])` fills the queue with `Waiting` cells,
+  each carrying its summary's `call_id` (and, when a round announced it, the
+  provider's arguments and position). Each call is also stamped with the
+  batch's own id (`ToolCall::batch`, a plain counter) — what lets a later
+  renderer tell one round's parallel calls from two rounds' sequential ones
+  (the MCP run collapse, `docs/tools/mcp.md`). A lone call's is `None`.
+- `start_tool_for(call_id, name, args, arguments)` flips **that** `Waiting` cell
+  to `Running`; an id no cell holds pushes a fresh `Running` call (a lone call
+  whose start names its id). `start_tool(name,args,…)` is the `None` twin and
+  keeps the serial path byte-for-byte: flip the front `Waiting`, else push.
+- `end_tool_for(call_id, output, ok)` removes the cell that id names — not
+  necessarily the front — finalizes it (Ok/Failed), records it in `history`,
+  and returns it to commit. `end_tool`/`reject_tool`/`answer_tool`/
+  `background_tool` keep their `None` twins; `*_for` variants take the id.
+- The live-output setters (`push_tool_output_for`, `push_tool_screen_for`,
+  `set_tool_title_for`, `set_tool_note_for`, `set_tool_run_for`,
+  `set_tool_truncated_for`) all address the call by id, and `live_tail_for`
+  (`App::live_tail_for`) returns **that call's** live rows — two concurrent
+  `bash` cells each follow their own progress redraws.
+- `current_tool()` still returns the front (old call sites keep working), and
+  `tool_queue()` exposes the whole batch for rendering. With several cells
+  `Running`, the front is only the model's first call, not "the" running one.
 - On interrupt / backend error **every** call in the queue resolves as `Failed`
-  (`Interrupted by user` / `Interrupted by a backend error`) — the running (or
-  permission-waiting) front call and each `Waiting` sibling behind it, in the
-  batch's order (`App::fail_live_queue`) — and each one is recorded and
-  committed above the notice. A call that never started is still a call the
-  model made: its cell stays on screen, and its record keeps it in the next
-  request's context (see *Interrupting a batch* below). The
+  (`Interrupted by user` / `Interrupted by a backend error`) — running and
+  `Waiting` cells alike, in the batch's order (`App::fail_live_queue`) — and
+  each one is recorded and committed above the notice. A call that never started
+  is still a call the model made: its cell stays on screen, and its record keeps
+  it in the next request's context (see *Interrupting a batch* below). The
   undo-the-submission fast path keys off an **empty** queue
-  (`tool_queue.is_empty()`), the old `current_tool.is_none()`.
+  (`tool_queue.is_empty()`), the old `current_tool.is_none()`. A resolution
+  event for a call already resolved (Esc got there first) is a no-op.
 
 ### Backend (`llm::agent::run_agent`)
 
@@ -132,10 +156,15 @@ Jobs execute on `min(worker count, jobs)` scoped threads fed by one atomic
 index. A worker checks the turn's `CancelToken` before it picks a job up, so a
 call the serial loop would never have reached after Esc is not started; the
 resolution pass answers it as `Interrupted` without firing a
-`PostToolUseFailure` hook for a tool that never ran. Resolutions and
-`PostToolUse` hooks still happen on the loop thread, in model order, after the
-workers join. `ToolProgress` streams only for the first call, which is the
-queue's front; a later call's live output is dropped rather than misattributed.
+`PostToolUseFailure` hook for a tool that never ran. **Each worker announces its
+own call when it actually starts it** — its `ToolStart` and notes, built on the
+loop thread beforehand because `session_command` is not `Sync` — so every call
+being executed shows `Running`, and its `ToolProgress` (`ToolScreen`/`ToolTitle`)
+carries that call's `call_id`. Resolutions and `PostToolUse` hooks still happen
+on the loop thread, in model order, after the workers join; the pass announces
+only a step no worker reached (a refusal, or a job Esc cancelled before
+dispatch), so no note is sent twice and every `ToolStart` has exactly one
+`ToolStart`-shaped event on screen.
 
 The backend supplies the same secret-expanded executor and classifier log it
 gives the serial loop, just through `Sync` closures: `ParallelTools::execute`
@@ -147,10 +176,12 @@ The streaming strip's **preview** slot renders the *whole* live queue (each call
 collapsed cell, blank-line-separated), not just one call. `preview_rows` /
 `preview_lines` size and draw from the same queue walk so the box + cursor
 geometry stay exact (guarded by the existing `debug_assert`). A `Waiting` cell is
-`● name(args)` + a dim `⎿ Waiting…` row; the Ctrl+O transcript's live tail walks
+`● name(args)` + a dim `⎿ Waiting…` row; **every `Running` cell tails its own
+live rows** (`App::live_tail_for`), and the Ctrl+O transcript's live tail walks
 the whole queue too, so a waiting call is never hidden. The `TranscriptCache`
-signature keys off `(queue length, front status)` so a Waiting→Running flip or a
-call committing invalidates the cache.
+signature keys off the queue's length and each call's `(status, output length)`,
+so a Waiting→Running flip, a second call starting, or either call's output
+growing invalidates the cache.
 
 The single-`!`-shell preview (its `⎿ Running… (Ns)` elapsed row) is unchanged: the
 shell is never batched (queue length 1, `shell` flag).
@@ -250,23 +281,23 @@ than a cell per call — the tree is a roster, not a transcript.
 
 ## Limitations
 
-- Only the **first** call of a batch streams live output. The app still models
-  one `Running` cell (the queue front); giving every concurrent call its own
-  live channel needs a call id on the tool events and a queue keyed by it — the
-  next iteration (`docs/tools/tools.md`).
 - The permission prompt's context assumes the asked-about call is the queue
   front. A parallel batch asks every call's permission **before** the first
   `ToolStart`, so a prompt for call 5 of 6 shows call 1's context and can
   collapse call 5 into `+N more waiting`. Batches that prompt therefore gain no
   overlap (the waits are serialized in the pre-pass) and can show the wrong
-  context; a serial batch never does.
-- Ctrl+B is one latch shared by every foreground `bash` in flight, and only the
-  queue front offers it. In a multi-`bash` batch the first runner to poll it
-  backgrounds itself, which may not be the visible one.
+  context; a serial batch never does. The prompt still names the request's own
+  tool/args, so the command being asked about is never ambiguous.
+- Ctrl+B is one latch shared by every foreground `bash` in flight. In a
+  multi-`bash` batch the first runner to poll it backgrounds itself, which may
+  not be the cell the hint was drawn under; keying the latch by call id is the
+  next step (`docs/tools/background.md`).
 - A batch's cells resolve only after the **whole** batch finishes, so an Esc
   that lands while a slow sibling still runs records a sibling that already
-  succeeded as `Interrupted by user`; its side effect is on disk. Serial
-  execution resolves each call before the next starts.
+  succeeded as `Interrupted by user`; its side effect is on disk. The resolution
+  order is the model's, deliberately — the next iteration can resolve each
+  worker's call as it finishes without reordering the records, since records
+  already carry `position` (`docs/providers/prompt-caching.md`).
 - `write`/`edit` on two distinct paths may still race through an **aliased**
   path the canonicalizer cannot see (a symlink created during the batch), and a
   `bash` batch can of course make its own calls depend on each other. The gate

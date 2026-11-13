@@ -95,8 +95,8 @@ fn dummy_ai_emits_all_chunks_and_tool_calls_then_done() {
             }
             StreamEvent::ToolStart { .. } => tool_starts += 1,
             StreamEvent::ToolEnd { .. } => tool_ends += 1,
-            StreamEvent::ToolOutput(_) => tool_output_chunks += 1,
-            StreamEvent::ToolScreen { .. } | StreamEvent::ToolTitle(_) => {
+            StreamEvent::ToolOutput { chunk: _, .. } => tool_output_chunks += 1,
+            StreamEvent::ToolScreen { .. } | StreamEvent::ToolTitle { title: _, .. } => {
                 panic!("the default demo runs no terminal session")
             }
             StreamEvent::AgentBatch { .. } | StreamEvent::AgentGroupDone { .. } => {}
@@ -138,7 +138,7 @@ fn dummy_ai_emits_all_chunks_and_tool_calls_then_done() {
                 assert!(!result.is_empty(), "the model reads the ack");
                 tool_ends += 1;
             }
-            StreamEvent::ToolNote(_) => {
+            StreamEvent::ToolNote { note: _, .. } => {
                 panic!("no gate attached — the classifier never speaks")
             }
             StreamEvent::Steered { .. } => panic!("nothing was queued into this turn"),

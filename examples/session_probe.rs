@@ -147,8 +147,8 @@ fn main() {
             }
             // The header the executor refined, and each update the running
             // cell took — settled lines appended, the live rows replaced.
-            StreamEvent::ToolTitle(title) => println!("\x1b[36m  ↳ {title}\x1b[0m"),
-            StreamEvent::ToolScreen { settled, live } => {
+            StreamEvent::ToolTitle { title, .. } => println!("\x1b[36m  ↳ {title}\x1b[0m"),
+            StreamEvent::ToolScreen { settled, live, .. } => {
                 let live = live.lines().last().unwrap_or_default();
                 println!(
                     "\x1b[2m  ~ +{} settled · live: {live}\x1b[0m",

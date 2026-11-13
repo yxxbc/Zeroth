@@ -32,7 +32,7 @@
 
 use ratatui::text::Line;
 
-use zeroth::app::{CONNECTION_LOST_NOTICE, Role, ToastKind, View, group_kind};
+use zeroth::app::{CONNECTION_LOST_NOTICE, Role, ToastKind, ToolStatus, View, group_kind};
 use zeroth::session::RequestUsage;
 use zeroth::stream::StreamEvent;
 use zeroth::ui;
@@ -40,6 +40,20 @@ use zeroth::ui;
 use super::Session;
 
 impl Session<'_> {
+    /// Stop the per-command clock once no call is still `Running`: a batch's
+    /// other cells keep it counting after one resolves, and the delayed
+    /// Ctrl+B hint keeps waiting on the batch's own elapsed.
+    fn stop_command_clock_if_idle(&mut self) {
+        if !self
+            .app
+            .tool_queue()
+            .iter()
+            .any(|tool| tool.status == ToolStatus::Running)
+        {
+            self.clocks.command_start = None;
+        }
+    }
+
     /// Apply one streamed reply event, committing finished lines to scrollback in
     /// the conversation view. Returns whether the stream just **ended**
     /// (`StreamDone`/`Error`), so the caller can run the turn-end dispatch. The
@@ -134,6 +148,7 @@ impl Session<'_> {
                 false
             }
             StreamEvent::ToolStart {
+                call_id,
                 name,
                 args,
                 arguments,
@@ -149,7 +164,8 @@ impl Session<'_> {
                 // call (dummy/shell, no batch) pushes a fresh running call.
                 self.flush_segment(committing, width);
                 self.render.reset();
-                self.app.start_tool(&name, &args, arguments.as_deref());
+                self.app
+                    .start_tool_for(call_id.as_deref(), &name, &args, arguments.as_deref());
                 // A call that is no read closes the open read/search group
                 // before it runs, so the group's line sits above its cell
                 // (docs/ui/tool-groups.md).
@@ -157,10 +173,15 @@ impl Session<'_> {
                 // Start this command's own clock — the delayed Ctrl+B hint waits
                 // on it, so a fast command never flashes the hint (a model tool
                 // that starts deep into a turn can't inherit the turn's elapsed).
-                self.clocks.command_start = Some(std::time::Instant::now());
+                // A batch's second worker does not restart it: its calls began
+                // together, and the clock is the batch's own elapsed.
+                self.clocks
+                    .command_start
+                    .get_or_insert_with(std::time::Instant::now);
                 false
             }
             StreamEvent::ToolEnd {
+                call_id,
                 output,
                 ok,
                 truncated,
@@ -170,33 +191,39 @@ impl Session<'_> {
                 // runner; mark the running tool so its expanded cell appends a `…`
                 // marker (before end_tool takes it). `output` is the retained head.
                 if truncated {
-                    self.app.set_tool_truncated();
+                    self.app.set_tool_truncated_for(call_id.as_deref());
                 }
                 // How the call ran rides into its record, and from there the
                 // rollout's `tool` line — on every resolution below too
                 // (docs/state/rollout-records.md).
-                self.app.set_tool_run(run);
+                self.app.set_tool_run_for(call_id.as_deref(), run);
                 // Commit the finished tool *collapsed* (green/red) to scrollback;
                 // its full (retained) output lives in the Ctrl+O view. A
                 // completion that landed while the call ran (often a `kill`
                 // this very command issued) commits right after the round's
                 // results, where the agent reads it (`NoticeDelivered`,
                 // docs/tools/background.md).
-                if self.app.end_tool(&output, ok).is_some() {
+                if self
+                    .app
+                    .end_tool_for(call_id.as_deref(), &output, ok)
+                    .is_some()
+                {
                     self.commit_tool_cell(committing, width);
                 }
-                // The command resolved — stop its Ctrl+B-hint clock (the turn may
-                // continue with more text/tools).
-                self.clocks.command_start = None;
+                // The command resolved — stop its Ctrl+B-hint clock once no
+                // sibling of the batch is still running (the turn may continue
+                // with more text/tools).
+                self.stop_command_clock_if_idle();
                 false
             }
             StreamEvent::ToolRejected {
+                call_id,
                 display,
                 result,
                 truncated,
                 run,
             } => {
-                self.app.set_tool_run(run);
+                self.app.set_tool_run_for(call_id.as_deref(), run);
                 // The user refused the call at the permission prompt: commit the
                 // red cell with the short `display` (Tab's instructions on its
                 // second line) while `result` — the longer text the model read —
@@ -204,46 +231,64 @@ impl Session<'_> {
                 // every later turn (docs/state/permissions.md). Mirrors the ToolEnd
                 // commit dance; nothing ran, so there is no truncation to mark.
                 if truncated {
-                    self.app.set_tool_truncated();
+                    self.app.set_tool_truncated_for(call_id.as_deref());
                 }
-                if self.app.reject_tool(&display, &result).is_some() {
+                if self
+                    .app
+                    .reject_tool_for(call_id.as_deref(), &display, &result)
+                    .is_some()
+                {
                     self.commit_tool_cell(committing, width);
                 }
-                self.clocks.command_start = None;
+                self.stop_command_clock_if_idle();
                 false
             }
             StreamEvent::ToolAnswered {
+                call_id,
                 display,
                 result,
                 truncated,
                 run,
             } => {
-                self.app.set_tool_run(run);
+                self.app.set_tool_run_for(call_id.as_deref(), run);
                 // The user answered the `AskUserQuestion` call: commit the green
                 // cell with the `· Q → A` display while `result` — the answers
                 // JSON the model read — rides the recorded call, the
                 // ToolRejected dance in green (docs/tools/ask.md).
                 if truncated {
-                    self.app.set_tool_truncated();
+                    self.app.set_tool_truncated_for(call_id.as_deref());
                 }
-                if self.app.answer_tool(&display, &result).is_some() {
+                if self
+                    .app
+                    .answer_tool_for(call_id.as_deref(), &display, &result)
+                    .is_some()
+                {
                     self.commit_tool_cell(committing, width);
                 }
-                self.clocks.command_start = None;
+                self.stop_command_clock_if_idle();
                 false
             }
-            StreamEvent::ToolBackgrounded { id: _, output, run } => {
-                self.app.set_tool_run(run);
+            StreamEvent::ToolBackgrounded {
+                id: _,
+                call_id,
+                output,
+                run,
+            } => {
+                self.app.set_tool_run_for(call_id.as_deref(), run);
                 // The call resolved by moving to the background: commit its cell
                 // with the fixed `⎿ Running in the background (↓ to manage)` row
                 // (the stored output is the model-facing launch text). The process
                 // itself now reports through the background channel. Mirrors the
                 // ToolEnd commit dance (docs/tools/background.md).
-                if self.app.background_tool(&output).is_some() {
+                if self
+                    .app
+                    .background_tool_for(call_id.as_deref(), &output)
+                    .is_some()
+                {
                     self.commit_tool_cell(committing, width);
                 }
                 // The command moved to the background — stop its hint clock.
-                self.clocks.command_start = None;
+                self.stop_command_clock_if_idle();
                 false
             }
             StreamEvent::TaskCall {
@@ -267,26 +312,31 @@ impl Session<'_> {
                     .record_task_call(&name, &args, &arguments, &output, ok, tasks);
                 false
             }
-            StreamEvent::ToolOutput(chunk) => {
+            StreamEvent::ToolOutput { call_id, chunk } => {
                 // Live tool output: append it to the running call so the live cell
                 // tails it (docs/ui/tool-streaming.md). No scrollback commit — the
                 // tail is live-only until the ToolEnd commits the finished cell;
                 // the next draw tick repaints the preview with the grown output.
-                self.app.push_tool_output(&chunk);
+                self.app.push_tool_output_for(call_id.as_deref(), &chunk);
                 false
             }
-            StreamEvent::ToolScreen { settled, live } => {
+            StreamEvent::ToolScreen {
+                call_id,
+                settled,
+                live,
+            } => {
                 // A command's output as it builds up: settled text appends,
                 // the live rows replace the last ones — a progress bar
                 // redraws in place (docs/tools/interactive-shell.md). Live-only,
                 // like ToolOutput.
-                self.app.push_tool_screen(&settled, &live);
+                self.app
+                    .push_tool_screen_for(call_id.as_deref(), &settled, &live);
                 false
             }
-            StreamEvent::ToolTitle(title) => {
+            StreamEvent::ToolTitle { call_id, title } => {
                 // The executor's refined header — a `bash_session` call's
                 // session command beside its keys.
-                self.app.set_tool_title(&title);
+                self.app.set_tool_title_for(call_id.as_deref(), &title);
                 false
             }
             StreamEvent::HookNote {
@@ -375,12 +425,12 @@ impl Session<'_> {
                 self.prompt_blocked(&reason);
                 true
             }
-            StreamEvent::ToolNote(note) => {
+            StreamEvent::ToolNote { call_id, note } => {
                 // The auto mode classifier allowed the running call: keep the
                 // provenance note on it so the resolved cell appends the dim
                 // `⎿ Allowed by auto mode classifier` row (docs/state/permissions.md).
                 // No commit — the note rides the call into its ToolEnd.
-                self.app.set_tool_note(&note);
+                self.app.set_tool_note_for(call_id.as_deref(), &note);
                 false
             }
             StreamEvent::Permission(request) => {

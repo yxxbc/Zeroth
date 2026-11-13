@@ -956,7 +956,7 @@ fn live_scratchpad_write_runs_without_a_permission_prompt() {
                 asked = true;
                 println!("PROMPTED for {:?} {}", request.kind, request.target);
             }
-            StreamEvent::ToolNote(note) => notes.push(note),
+            StreamEvent::ToolNote { note, .. } => notes.push(note),
             StreamEvent::Chunk(c) => reply.push_str(&c),
             StreamEvent::Retrying { attempt, max } => println!("retrying {attempt}/{max}…"),
             StreamEvent::Error(e) => panic!("backend error: {e}"),
@@ -1639,7 +1639,7 @@ fn live_ctrl_b_handoff_tells_the_model_the_user_moved_it() {
             // pre-start press belongs to nothing and is deliberately
             // dropped), which on an idle many-core host loses often enough
             // to fail the test with no real bug behind it.
-            StreamEvent::ToolOutput(_) if !pressed => {
+            StreamEvent::ToolOutput { chunk: _, .. } if !pressed => {
                 pressed = true;
                 registry.request_background();
             }
@@ -2588,7 +2588,7 @@ fn live_auto_mode_turn_runs_a_safe_command_with_the_note() {
     while let Some(event) = rx.blocking_recv() {
         match event {
             StreamEvent::Chunk(c) => reply.push_str(&c),
-            StreamEvent::ToolNote(note) => notes.push(note),
+            StreamEvent::ToolNote { note, .. } => notes.push(note),
             StreamEvent::ToolEnd { output, ok, .. } => tool_ends.push((output, ok)),
             StreamEvent::Permission(req) => panic!("auto mode must not prompt: {req:?}"),
             StreamEvent::Retrying { attempt, max } => println!("retrying {attempt}/{max}…"),

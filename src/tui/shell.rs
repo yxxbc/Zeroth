@@ -71,6 +71,7 @@ pub(crate) fn spawn_shell_command(
         {
             Some(Err(refusal)) => {
                 let _ = tx.send(StreamEvent::ToolEnd {
+                    call_id: None,
                     output: refusal,
                     ok: false,
                     truncated: false,
@@ -91,6 +92,7 @@ pub(crate) fn spawn_shell_command(
             Ok(child) => child,
             Err(err) => {
                 let _ = tx.send(StreamEvent::ToolEnd {
+                    call_id: None,
                     output: format!("failed to run command: {err}"),
                     ok: false,
                     truncated: false,
@@ -146,6 +148,7 @@ pub(crate) fn spawn_shell_command(
             if registry.take_background_request() {
                 let task = registry.adopt(&command, None, false, child, chunk_rx, combined);
                 let _ = tx.send(StreamEvent::ToolBackgrounded {
+                    call_id: None,
                     id: task.id.clone(),
                     output: "[moved to background; the final output will follow when it completes]"
                         .to_string(),
@@ -169,6 +172,7 @@ pub(crate) fn spawn_shell_command(
                 Err(err) => {
                     kill_shell_group(&mut child);
                     let _ = tx.send(StreamEvent::ToolEnd {
+                        call_id: None,
                         output: format!("error waiting on command: {err}"),
                         ok: false,
                         truncated: false,
@@ -223,6 +227,7 @@ pub(crate) fn spawn_shell_command(
             output.push_str(&format!("[exit status: {code}]"));
         }
         let _ = tx.send(StreamEvent::ToolEnd {
+            call_id: None,
             output,
             ok,
             truncated,

@@ -820,12 +820,14 @@ fn the_agent_view_overlays_show_the_agents_transcript_and_context() {
     app.start_agent_group(false, &[spec("a1", "Fetch Warsaw", false)]);
     for event in [
         crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in".into(),
             detail: None,
             arguments: None,
         },
         crate::stream::StreamEvent::ToolEnd {
+            call_id: None,
             output: "+19°C".into(),
             ok: true,
             truncated: false,
@@ -1136,6 +1138,7 @@ fn ctrl_o_shows_a_queued_writes_whole_file() {
         arguments,
     });
     app.start_tool_batch(&[crate::stream::ToolCallSummary {
+        call_id: None,
         name: "Write".to_string(),
         args: "a.py".to_string(),
     }]);

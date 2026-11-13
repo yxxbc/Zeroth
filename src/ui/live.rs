@@ -348,7 +348,7 @@ pub(super) fn preview_tool_lines(app: &App, width: u16) -> Vec<Line<'static>> {
         lines.extend(live_call_lines(
             tool,
             draft,
-            app.live_tail(),
+            app.live_tail_for(tool),
             elapsed,
             pulse,
             width,

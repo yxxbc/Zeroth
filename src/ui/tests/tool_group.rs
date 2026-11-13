@@ -256,6 +256,7 @@ fn a_parallel_batch_shows_its_first_calls_value_first_then_the_next() {
     let batch: Vec<crate::stream::ToolCallSummary> = [("Read", "README.md"), ("Bash", "ls -la")]
         .iter()
         .map(|(name, args)| crate::stream::ToolCallSummary {
+            call_id: None,
             name: (*name).to_string(),
             args: (*args).to_string(),
         })
@@ -402,6 +403,7 @@ fn the_strip_shows_the_group_over_the_rest_of_its_batch() {
     let batch: Vec<crate::stream::ToolCallSummary> = [("Bash", "ls -la"), ("Write", "b.py")]
         .iter()
         .map(|(name, args)| crate::stream::ToolCallSummary {
+            call_id: None,
             name: (*name).to_string(),
             args: (*args).to_string(),
         })
@@ -462,6 +464,7 @@ fn a_thought_with_no_group_open_keeps_its_own_block() {
 fn the_permission_prompt_keeps_the_open_group_above_the_call_it_asks_about() {
     let mut app = holding_a_read("a.py");
     app.start_tool_batch(&[crate::stream::ToolCallSummary {
+        call_id: None,
         name: "Bash".to_string(),
         args: "ls -la".to_string(),
     }]);
@@ -675,6 +678,7 @@ fn a_queued_scratchpad_write_stays_the_group_with_the_lines_it_streamed() {
         &format!(r#"{{"path":"{}","content":"a\nb\n"}}"#, pad("g.py")),
     ));
     app.start_tool_batch(&[crate::stream::ToolCallSummary {
+        call_id: None,
         name: "Write".to_string(),
         args: pad("g.py"),
     }]);

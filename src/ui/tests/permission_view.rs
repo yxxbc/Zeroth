@@ -591,6 +591,7 @@ fn pending_write() -> App {
     let mut app = App::new();
     app.begin_stream();
     app.start_tool_batch(&[ToolCallSummary {
+        call_id: None,
         name: "Write".to_string(),
         args: "tt.py".to_string(),
     }]);
@@ -630,10 +631,12 @@ fn a_batch_sibling_shows_its_waiting_row_too() {
     app.begin_stream();
     app.start_tool_batch(&[
         ToolCallSummary {
+            call_id: None,
             name: "Write".to_string(),
             args: "tt.py".to_string(),
         },
         ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ls".to_string(),
         },
@@ -657,11 +660,13 @@ fn pending_batch_with(n: usize, body: &str) -> App {
     let mut app = App::new();
     app.begin_stream();
     let mut calls = vec![ToolCallSummary {
+        call_id: None,
         name: "Write".to_string(),
         args: "nexgrad/viz.py".to_string(),
     }];
     for i in 1..n {
         calls.push(ToolCallSummary {
+            call_id: None,
             name: "Edit".to_string(),
             args: format!("nexgrad/file{i}.py"),
         });
@@ -743,6 +748,7 @@ fn a_running_call_keeps_its_running_row_under_a_subagents_prompt() {
     let mut app = App::new();
     app.begin_stream();
     app.start_tool_batch(&[ToolCallSummary {
+        call_id: None,
         name: "Bash".to_string(),
         args: "sleep 5".to_string(),
     }]);
@@ -872,6 +878,7 @@ fn pending_mcp() -> App {
     let mut app = App::new();
     app.set_session_info("dummy_model_name", "~/Codes/tests");
     app.start_tool_batch(&[ToolCallSummary {
+        call_id: None,
         name: "deepwiki - read_wiki_structure (MCP)".to_string(),
         args: r#"{"repoName":"linuztx/flaredantic"}"#.to_string(),
     }]);
@@ -949,10 +956,12 @@ fn a_parallel_mcp_batch_shows_one_context_cell_above_the_prompt() {
     let mut app = pending_mcp();
     app.start_tool_batch(&[
         ToolCallSummary {
+            call_id: None,
             name: "deepwiki - read_wiki_structure (MCP)".to_string(),
             args: "{}".to_string(),
         },
         ToolCallSummary {
+            call_id: None,
             name: "deepwiki - read_wiki_contents (MCP)".to_string(),
             args: "{}".to_string(),
         },
@@ -1101,6 +1110,7 @@ fn agent_view_pending(calls: &[(&str, &str)], request: PermissionRequest) -> App
             calls
                 .iter()
                 .map(|(name, args)| ToolCallSummary {
+                    call_id: None,
                     name: (*name).to_string(),
                     args: (*args).to_string(),
                 })
@@ -1225,6 +1235,7 @@ fn an_agent_views_overflowing_prompt_drops_a_running_cell() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "make test".into(),
             detail: None,
@@ -1261,6 +1272,7 @@ fn an_agent_views_prompt_keeps_no_context_for_another_conversations_request() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ls -la".to_string(),
         }]),
@@ -1366,6 +1378,7 @@ fn the_pending_cell_above_the_prompt_shortens_with_its_header() {
     ));
     app.begin_stream();
     app.start_tool_batch(&[ToolCallSummary {
+        call_id: None,
         name: "Write".to_string(),
         args: "/home/linuztx/Codes/tests/tt.py".to_string(),
     }]);

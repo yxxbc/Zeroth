@@ -475,6 +475,7 @@ fn gated_agent_round(
         }
         let resolution = match refusal {
             Some((display, result)) => StreamEvent::ToolRejected {
+                call_id: None,
                 display,
                 result,
                 truncated: false,
@@ -686,9 +687,11 @@ fn lead_call(stage: &AgentStage<'_>, name: &str, arguments: &str) -> bool {
         crate::stream::ToolCallSummary {
             name: display.clone(),
             args: args.clone(),
+            call_id: None,
         },
     ]));
     let started = stage.tx.send(StreamEvent::ToolStart {
+        call_id: None,
         name: display,
         args,
         detail: None,
@@ -720,6 +723,7 @@ fn lead_call(stage: &AgentStage<'_>, name: &str, arguments: &str) -> bool {
     let outcome = crate::llm::agent_tools::run_agent_tool(&ctx, &call, &mut |progress| {
         if let crate::llm::exec::ToolProgress::Screen { settled, live } = progress {
             let _ = stage.tx.send(StreamEvent::ToolScreen {
+                call_id: None,
                 settled: settled.to_string(),
                 live: live.to_string(),
             });
@@ -729,6 +733,7 @@ fn lead_call(stage: &AgentStage<'_>, name: &str, arguments: &str) -> bool {
         return false;
     }
     let ended = stage.tx.send(StreamEvent::ToolEnd {
+        call_id: None,
         output: outcome.output,
         ok: outcome.ok,
         truncated: false,

@@ -99,6 +99,7 @@ pub(super) fn ping_batch() -> Vec<ToolCallSummary> {
     ["ping google.com", "ping facebook.com", "ping x.com"]
         .iter()
         .map(|cmd| ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: (*cmd).to_string(),
         })

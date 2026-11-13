@@ -719,6 +719,7 @@ fn batch(calls: &[(&str, &str)]) -> Vec<crate::stream::ToolCallSummary> {
     calls
         .iter()
         .map(|(name, args)| crate::stream::ToolCallSummary {
+            call_id: None,
             name: (*name).to_string(),
             args: (*args).to_string(),
         })

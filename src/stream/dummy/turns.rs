@@ -250,6 +250,7 @@ impl ScriptedCall {
         ToolCallSummary {
             name: self.name.to_string(),
             args: self.args.clone(),
+            call_id: None,
         }
     }
 
@@ -258,6 +259,7 @@ impl ScriptedCall {
     /// shape the real one does (`docs/architecture/context.md`).
     pub(super) fn start(&self) -> StreamEvent {
         StreamEvent::ToolStart {
+            call_id: None,
             name: self.name.to_string(),
             args: self.args.clone(),
             detail: None,
@@ -272,12 +274,14 @@ impl ScriptedCall {
     pub(super) fn end(&self) -> StreamEvent {
         match &self.ack {
             Some(ack) => StreamEvent::ToolAnswered {
+                call_id: None,
                 display: self.result(),
                 result: ack.clone(),
                 truncated: false,
                 run: crate::stream::ToolRun::default(),
             },
             None => StreamEvent::ToolEnd {
+                call_id: None,
                 output: self.result(),
                 ok: self.ok(),
                 truncated: false,
@@ -529,6 +533,7 @@ pub(in crate::stream) fn hooks_turn(cue: &Cue) -> Vec<StreamEvent> {
         ToolCallSummary {
             name: "Bash".to_string(),
             args: BLOCKED.to_string(),
+            call_id: None,
         },
         ran.summary(),
     ];
@@ -539,6 +544,7 @@ pub(in crate::stream) fn hooks_turn(cue: &Cue) -> Vec<StreamEvent> {
 
     // The blocked call: a Start/Rejected pair and no ToolEnd — nothing ran.
     events.push(StreamEvent::ToolStart {
+        call_id: None,
         name: "Bash".to_string(),
         args: BLOCKED.to_string(),
         detail: None,
@@ -560,6 +566,7 @@ pub(in crate::stream) fn hooks_turn(cue: &Cue) -> Vec<StreamEvent> {
         None,
     );
     events.push(StreamEvent::ToolRejected {
+        call_id: None,
         display,
         result,
         // The hook refused it, so nothing ran and nothing was capped.
@@ -569,10 +576,12 @@ pub(in crate::stream) fn hooks_turn(cue: &Cue) -> Vec<StreamEvent> {
 
     // The allowed call, with the hook's provenance row on its resolved cell.
     events.push(ran.start());
-    events.push(StreamEvent::ToolNote(
-        crate::llm::hooks::context_added_note(crate::hooks::HookEvent::PostToolUse.name()),
-    ));
+    events.push(StreamEvent::ToolNote {
+        call_id: None,
+        note: crate::llm::hooks::context_added_note(crate::hooks::HookEvent::PostToolUse.name()),
+    });
     events.push(StreamEvent::ToolEnd {
+        call_id: None,
         output: ran.result(),
         ok: true,
         truncated: false,
@@ -1057,11 +1066,10 @@ pub(in crate::stream) fn interactive_turn(cue: &Cue) -> Vec<StreamEvent> {
         events.push(StreamEvent::ToolBatch(vec![step.summary()]));
         events.push(step.start());
         if let Some(input) = typed[index] {
-            events.push(StreamEvent::ToolTitle(crate::llm::tools::session_title(
-                DUMMY_SESSION_COMMAND,
-                Some(input),
-                false,
-            )));
+            events.push(StreamEvent::ToolTitle {
+                call_id: None,
+                title: crate::llm::tools::session_title(DUMMY_SESSION_COMMAND, Some(input), false),
+            });
         }
         if index == steps.len() - 1 {
             // The answer starts the install: its bar redraws in place in the
@@ -1069,6 +1077,7 @@ pub(in crate::stream) fn interactive_turn(cue: &Cue) -> Vec<StreamEvent> {
             // session's wait streams them (docs/tools/interactive-shell.md).
             for pct in [10, 40, 70, 100] {
                 events.push(StreamEvent::ToolScreen {
+                    call_id: None,
                     settled: String::new(),
                     live: format!("Install into ./demo? [Y/n] y\n{}", install_bar(pct)),
                 });
@@ -1188,6 +1197,7 @@ pub(in crate::stream) fn download_turn(cue: &Cue) -> Vec<StreamEvent> {
     events.push(step.start());
     for frame in 1..=DOWNLOAD_FRAMES {
         events.push(StreamEvent::ToolScreen {
+            call_id: None,
             settled: String::new(),
             live: download_screen(frame),
         });
@@ -1238,6 +1248,7 @@ pub(in crate::stream) fn skills_turn(cue: &Cue) -> Vec<StreamEvent> {
     let mut events = opening(cue);
     events.extend(say(&first));
     events.push(StreamEvent::ToolStart {
+        call_id: None,
         name: crate::skills::SKILL_TOOL_DISPLAY.to_string(),
         args: SKILL_NAME.to_string(),
         detail: None,
@@ -1247,6 +1258,7 @@ pub(in crate::stream) fn skills_turn(cue: &Cue) -> Vec<StreamEvent> {
     // gets the body. `ToolAnswered` is what the live loop sends for it, so the
     // recorded call keeps both and Ctrl+D shows what was really sent.
     events.push(StreamEvent::ToolAnswered {
+        call_id: None,
         display: crate::skills::SKILL_LOADED_DISPLAY.to_string(),
         result: crate::skills::render_skill_body(std::path::Path::new(SKILL_DIR), SKILL_BODY),
         truncated: false,

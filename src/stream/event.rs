@@ -61,10 +61,18 @@ impl ToolCallFragment {
 /// call's own [`StreamEvent::ToolStart`] carries, so a `⎿ Waiting…` cell's header
 /// matches the header it shows once it starts running. Carries no output/status —
 /// those arrive later via `ToolStart`/`ToolEnd`. See `docs/tools/parallel-tools.md`.
+///
+/// `call_id` is the wire identity the call's own events carry in their
+/// `call_id` ([`StreamEvent::ToolStart`]'s): the app queues one cell per
+/// summary and routes each later event to its cell by that id, so a batch
+/// whose calls overlap — several `Running` cells at once — still lands every
+/// chunk on the call that produced it. `None` for a scripted/dummy batch,
+/// whose calls are serial and keep the queue-front routing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolCallSummary {
     pub name: String,
     pub args: String,
+    pub call_id: Option<String>,
 }
 
 /// One subagent announced by a [`StreamEvent::AgentBatch`]: the identity the
@@ -283,6 +291,11 @@ pub enum StreamEvent {
     /// for their sticky `{Name}: {detail}` activity line
     /// (`docs/agents/agent-tool.md`).
     ToolStart {
+        /// The call's wire identity, when the backend has one — the same id
+        /// its [`ToolBatch`](Self::ToolBatch) summary carried. The app marks
+        /// *that* queued cell `Running`; without it the call is the queue's
+        /// front (the `!` shell, a scripted test).
+        call_id: Option<String>,
         name: String,
         args: String,
         detail: Option<String>,
@@ -303,6 +316,9 @@ pub enum StreamEvent {
     /// `…` marker (see `docs/input/shell-command.md`). The `!` shell runner sets it; a
     /// normal backend tool always sends `false`.
     ToolEnd {
+        /// The call resolving, when the backend has its wire id; `None`
+        /// falls back to the queue front (`docs/tools/parallel-tools.md`).
+        call_id: Option<String>,
         output: String,
         ok: bool,
         truncated: bool,
@@ -328,6 +344,7 @@ pub enum StreamEvent {
     /// so the expanded cell still needs its `…` marker. It is `false` for the
     /// ask tool, which never truncates.
     ToolAnswered {
+        call_id: Option<String>,
         display: String,
         result: String,
         truncated: bool,
@@ -356,6 +373,7 @@ pub enum StreamEvent {
     /// amended resolves through here (`docs/tools/hooks.md`), and its output can
     /// have hit the byte cap. `false` for every refusal, where nothing ran.
     ToolRejected {
+        call_id: Option<String>,
         display: String,
         result: String,
         truncated: bool,
@@ -372,7 +390,12 @@ pub enum StreamEvent {
     /// as a dim `⎿` row — the transcript's record that no human approved
     /// the call. A backend that never allows a call on the user's behalf
     /// never sends it.
-    ToolNote(String),
+    ToolNote {
+        /// The call the note belongs to (`ToolStart`'s `call_id`), or `None`
+        /// for the queue's running front.
+        call_id: Option<String>,
+        note: String,
+    },
     /// The in-flight tool call resolved by **moving to the background**
     /// (a `run_in_background` bash call, or Ctrl+B on a running command) —
     /// sent **in place of** [`StreamEvent::ToolEnd`]. `id` is the registry
@@ -383,7 +406,10 @@ pub enum StreamEvent {
     /// ([`crate::app::ToolStatus::Backgrounded`]). The process itself reports
     /// through the separate background channel. See `docs/tools/background.md`.
     ToolBackgrounded {
+        /// The registry task id the process reports under — internal only.
         id: String,
+        /// The call resolving, matching its `ToolStart`'s `call_id`.
+        call_id: Option<String>,
         output: String,
         /// How the call ran until it was handed to the background
         /// ([`StreamEvent::ToolEnd`]'s `run`).
@@ -400,7 +426,12 @@ pub enum StreamEvent {
     /// The append-only form — the offline dummy's scripted commands stream
     /// with it, the real executor with [`ToolScreen`](Self::ToolScreen); a
     /// backend that never streams simply omits both.
-    ToolOutput(String),
+    ToolOutput {
+        /// The call the chunk belongs to (`ToolStart`'s `call_id`); `None`
+        /// targets the running front.
+        call_id: Option<String>,
+        chunk: String,
+    },
     /// A running command's live output as it builds up — a plain `bash`
     /// call's folded lines, a terminal session's rows
     /// (`docs/tools/interactive-shell.md`): `settled` is text that just became
@@ -410,12 +441,19 @@ pub enum StreamEvent {
     /// in place, never a hundred rows; the authoritative output still
     /// arrives in the resolving event. Live-only, like
     /// [`ToolOutput`](Self::ToolOutput).
-    ToolScreen { settled: String, live: String },
+    ToolScreen {
+        call_id: Option<String>,
+        settled: String,
+        live: String,
+    },
     /// The running call's header, refined by the executor once it knows more
     /// than the arguments say — a `bash_session` call's session command
     /// beside its typed keys (`docs/tools/interactive-shell.md`). Replaces the
     /// call's `args` summary.
-    ToolTitle(String),
+    ToolTitle {
+        call_id: Option<String>,
+        title: String,
+    },
     /// One **task tool** call resolved (`taskcreate`/`taskget`/`tasklist`/
     /// `taskupdate` — `docs/tools/task-tools.md`), carried whole in a single event
     /// **instead of** the `ToolBatch`/`ToolStart`/`ToolEnd` trio: a task call
@@ -629,11 +667,11 @@ impl StreamEvent {
             | Self::ToolEnd { .. }
             | Self::ToolAnswered { .. }
             | Self::ToolRejected { .. }
-            | Self::ToolNote(_)
+            | Self::ToolNote { .. }
             | Self::ToolBackgrounded { .. }
-            | Self::ToolOutput(_)
+            | Self::ToolOutput { .. }
             | Self::ToolScreen { .. }
-            | Self::ToolTitle(_)
+            | Self::ToolTitle { .. }
             | Self::TaskCall { .. }
             | Self::HookNote { .. }
             | Self::Steered { .. }

@@ -302,17 +302,16 @@ struct TranscriptSig {
     /// streaming tool's output, and Ctrl+O mid-think follows it rather than
     /// showing a frozen snapshot (`docs/ui/thinking-stream.md`).
     reasoning_len: Option<usize>,
-    /// The live tool queue's shape: `(number of live calls, front call status,
-    /// front output length)`, `None` when none run. A **parallel batch** shrinks
-    /// as each call commits (also bumping `history_len`) and the front flips
-    /// `Waiting`→`Running` when it starts. The **front output length** changes as
-    /// a running `bash` call **streams** its output
+    /// The live tool queue's shape: `(number of live calls, each call's
+    /// status + output length)`. A **parallel batch** shrinks as each call
+    /// commits (also bumping `history_len`), flips `Waiting`→`Running` per
+    /// cell as its worker starts, and — with several calls running at once —
+    /// any cell's **output length** changes as it streams
     /// ([`crate::stream::StreamEvent::ToolOutput`]) — so the Ctrl+O overlay
-    /// rebuilds and tails the live output rather than showing a frozen snapshot
-    /// (`docs/ui/tool-streaming.md`); without it a single streaming call leaves the
-    /// queue length and status unchanged and the overlay would go static. See
+    /// rebuilds and tails the live output rather than showing a frozen
+    /// snapshot (`docs/ui/tool-streaming.md`). See
     /// `docs/tools/parallel-tools.md`.
-    pub(super) tool_queue: Option<(usize, ToolStatus, usize)>,
+    pub(super) tool_queue: (usize, Vec<(ToolStatus, usize)>),
     /// The running call's revision ([`App::tool_revision`]): a terminal
     /// session's same-length redraw (`45%` → `46%`) or a refined header
     /// changes no length above (`docs/tools/interactive-shell.md`).
@@ -345,9 +344,13 @@ impl TranscriptSig {
             cwd_len: app.session.as_ref().map(|s| s.cwd.len()),
             streaming_len: app.streaming_text().map(str::len),
             reasoning_len: app.reasoning().map(str::len),
-            tool_queue: queue
-                .front()
-                .map(|t| (queue.len(), t.status, t.output.len())),
+            tool_queue: (
+                queue.len(),
+                queue
+                    .iter()
+                    .map(|tool| (tool.status, tool.output.len()))
+                    .collect(),
+            ),
             tool_revision: app.tool_revision(),
             drafts_revision: app.tool_drafts().revision(),
             queued_len: app.queued.len() + app.steered.len(),

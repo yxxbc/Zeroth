@@ -1685,6 +1685,7 @@ fn the_request_getting_through_ends_the_wait() {
         }),
         ("a batch announcement", |app| {
             app.start_tool_batch(&[ToolCallSummary {
+                call_id: None,
                 name: "Bash".into(),
                 args: "ls".into(),
             }]);
@@ -1891,6 +1892,7 @@ fn a_retry_never_reaches_back_into_an_earlier_round() {
     stream_event(
         &mut app,
         StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Bash".into(),
             args: "ls".into(),
         }]),
@@ -1898,6 +1900,7 @@ fn a_retry_never_reaches_back_into_an_earlier_round() {
     stream_event(
         &mut app,
         StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "ls".into(),
             detail: None,
@@ -1907,6 +1910,7 @@ fn a_retry_never_reaches_back_into_an_earlier_round() {
     stream_event(
         &mut app,
         StreamEvent::ToolEnd {
+            call_id: None,
             output: "src\n".into(),
             ok: true,
             truncated: false,

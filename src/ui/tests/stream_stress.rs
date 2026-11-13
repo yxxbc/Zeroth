@@ -963,6 +963,7 @@ fn an_agent_views_live_tool_cell_outranks_its_streaming_frontier() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolBatch(vec![crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ls".to_string(),
         }]),

@@ -794,8 +794,9 @@ peek), so old sessions and edge cases keep rendering sensibly.
 - `edit` requires a unique `old_string` (or `replace_all`); it does not do fuzzy
   context matching like codex's `apply_patch`.
 - Parallel tool calls in one assistant turn are announced up front (a
-  `StreamEvent::ToolBatch`), so the running call shows live while the not-yet-run
-  ones show `⎿ Waiting…`, each committing as it finishes
+  `StreamEvent::ToolBatch`), so each running call shows live — several may run at
+  once, each tailing its own output — while the not-yet-run ones show
+  `⎿ Waiting…`, each committing as it resolves
   (`docs/tools/parallel-tools.md`; invariant 4 in `CLAUDE.md`). A batch that is
   provably independent — all `bash`, or file calls naming distinct paths, never a
   mix of shell and file tools — executes concurrently on a bounded worker pool;

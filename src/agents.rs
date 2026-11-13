@@ -676,6 +676,8 @@ impl AgentRun {
                     .adopt(items.iter().map(|item| item.name.as_str()));
             }
             StreamEvent::ToolStart {
+                // A subagent's calls are serial; the queue front is its call.
+                call_id: _,
                 name,
                 args,
                 detail,
@@ -738,14 +740,14 @@ impl AgentRun {
             // rides the running call so its resolved cell appends the
             // provenance row, exactly like the main turn's
             // (docs/state/permissions.md).
-            StreamEvent::ToolNote(note) => {
+            StreamEvent::ToolNote { note, .. } => {
                 if let Some(front) = self.tool_queue.front_mut()
                     && front.status == ToolStatus::Running
                 {
                     front.add_note(note);
                 }
             }
-            StreamEvent::ToolOutput(chunk) => {
+            StreamEvent::ToolOutput { chunk, .. } => {
                 if let Some(front) = self.tool_queue.front_mut()
                     && front.status == ToolStatus::Running
                 {
@@ -756,7 +758,11 @@ impl AgentRun {
             // A terminal session's live output and a refined header, folded
             // exactly as the main session folds them
             // (docs/tools/interactive-shell.md).
-            StreamEvent::ToolScreen { settled, live } => {
+            StreamEvent::ToolScreen {
+                call_id: _,
+                settled,
+                live,
+            } => {
                 if let Some(front) = self.tool_queue.front_mut()
                     && front.status == ToolStatus::Running
                 {
@@ -764,7 +770,7 @@ impl AgentRun {
                     self.tool_live.apply(&mut front.output, settled, live, now);
                 }
             }
-            StreamEvent::ToolTitle(title) => {
+            StreamEvent::ToolTitle { title, .. } => {
                 if let Some(front) = self.tool_queue.front_mut()
                     && front.status == ToolStatus::Running
                 {
@@ -772,6 +778,7 @@ impl AgentRun {
                 }
             }
             StreamEvent::ToolEnd {
+                call_id: _,
                 output,
                 ok,
                 truncated,
@@ -798,6 +805,7 @@ impl AgentRun {
             // (its Ctrl+D view, and a continuation run over its stored
             // messages) replays what it actually read (docs/state/permissions.md).
             StreamEvent::ToolRejected {
+                call_id: _,
                 display,
                 result,
                 truncated,
@@ -917,6 +925,7 @@ impl AgentRun {
             // never offered that one.) Keeping both texts is what lets the
             // agent's own Ctrl+D and a continuation run replay what it read.
             StreamEvent::ToolAnswered {
+                call_id: _,
                 display,
                 result,
                 truncated,
@@ -3348,18 +3357,21 @@ mod tests {
         };
         let resolutions = [
             StreamEvent::ToolEnd {
+                call_id: None,
                 output: "Exit code: 2".into(),
                 ok: false,
                 truncated: false,
                 run: ran,
             },
             StreamEvent::ToolRejected {
+                call_id: None,
                 display: "User rejected write to a.py".into(),
                 result: "denied".into(),
                 truncated: false,
                 run: ToolRun::refused(ToolErrorKind::Rejected),
             },
             StreamEvent::ToolAnswered {
+                call_id: None,
                 display: "Wrote 1 line to a.py".into(),
                 result: "File created".into(),
                 truncated: false,
@@ -3369,6 +3381,7 @@ mod tests {
                 },
             },
             StreamEvent::ToolBackgrounded {
+                call_id: None,
                 id: "bash_1".into(),
                 output: "started".into(),
                 run: ToolRun {
@@ -3380,6 +3393,7 @@ mod tests {
         for resolution in resolutions {
             let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
             run.apply(&StreamEvent::ToolStart {
+                call_id: None,
                 name: "Bash".to_string(),
                 args: "ls".to_string(),
                 detail: None,
@@ -3408,15 +3422,18 @@ mod tests {
         // provenance row as the main turn's.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ls -la".to_string(),
             detail: None,
             arguments: None,
         });
-        run.apply(&StreamEvent::ToolNote(
-            "Allowed by auto mode classifier".to_string(),
-        ));
+        run.apply(&StreamEvent::ToolNote {
+            call_id: None,
+            note: "Allowed by auto mode classifier".to_string(),
+        });
         run.apply(&StreamEvent::ToolEnd {
+            call_id: None,
             output: "Exit code: 0\ntotal 40".to_string(),
             ok: true,
             truncated: false,
@@ -3437,16 +3454,22 @@ mod tests {
         // note and a hook's note share the row instead of the last winning.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ls -la".to_string(),
             detail: None,
             arguments: None,
         });
-        run.apply(&StreamEvent::ToolNote(
-            "Allowed by auto mode classifier".to_string(),
-        ));
-        run.apply(&StreamEvent::ToolNote("Context added by hook".to_string()));
+        run.apply(&StreamEvent::ToolNote {
+            call_id: None,
+            note: "Allowed by auto mode classifier".to_string(),
+        });
+        run.apply(&StreamEvent::ToolNote {
+            call_id: None,
+            note: "Context added by hook".to_string(),
+        });
         run.apply(&StreamEvent::ToolEnd {
+            call_id: None,
             output: "Exit code: 0\ntotal 40".to_string(),
             ok: true,
             truncated: false,
@@ -3504,10 +3527,12 @@ mod tests {
         assert!(run.tokens > 0, "chunks tick the tally");
         // A tool round: batch announced, runs, resolves.
         assert!(!run.apply(&StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in".into(),
         }])));
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in".into(),
             detail: Some("Fetching Warsaw weather".into()),
@@ -3519,8 +3544,12 @@ mod tests {
             "Bash: Fetching Warsaw weather",
             "the model's own description leads the activity line"
         );
-        assert!(!run.apply(&StreamEvent::ToolOutput("+19°C\n".into())));
+        assert!(!run.apply(&StreamEvent::ToolOutput {
+            call_id: None,
+            chunk: "+19°C\n".into(),
+        }));
         assert!(!run.apply(&StreamEvent::ToolEnd {
+            call_id: None,
             output: "+19°C".into(),
             ok: true,
             truncated: false,
@@ -3558,6 +3587,7 @@ mod tests {
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         assert_eq!(run.activity_shown(shorten), "Initializing…");
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".into(),
             args: "/home/u/x.py".into(),
             detail: None,
@@ -3566,6 +3596,7 @@ mod tests {
         assert_eq!(run.activity(), "Write: /home/u/x.py");
         assert_eq!(run.activity_shown(shorten), "Write: ~/x.py");
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "cat /home/u/x.py".into(),
             detail: Some("Reading /home/u/x.py".into()),
@@ -3580,6 +3611,7 @@ mod tests {
         // (`docs/tools/tools.md`); the roster's one dim clipped row flattens them.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "cd foo\n  ls   -la".into(),
             detail: None,
@@ -3597,6 +3629,7 @@ mod tests {
         // `docs/agents/agent-tool.md`).
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".into(),
             args: "game.py".into(),
             detail: None,
@@ -3604,6 +3637,7 @@ mod tests {
         }));
         assert_eq!(run.activity(), "Write: game.py");
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in".into(),
             detail: Some("Fetching Warsaw weather".into()),
@@ -3612,6 +3646,7 @@ mod tests {
         assert_eq!(run.activity(), "Bash: Fetching Warsaw weather");
         // Nothing to say after the colon → the bare name, not `Name: `.
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "TaskList".into(),
             args: String::new(),
             detail: None,
@@ -3628,6 +3663,7 @@ mod tests {
         // (`docs/agents/agent-tool.md`).
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         assert!(!run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "deepwiki - ask_question (MCP)".into(),
             args: "{\"repoName\":\"facebook/react\"}".into(),
             detail: None,
@@ -3652,6 +3688,7 @@ mod tests {
         // The batch finalises the text: the row holds it — through a
         // permission prompt, say — until the call starts.
         run.apply(&StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Bash".into(),
             args: "curl -s https://api.github.com/users/linuztx/repos".into(),
         }]));
@@ -3660,6 +3697,7 @@ mod tests {
             "Agent: Let me fetch the public repositories next."
         );
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl -s https://api.github.com/users/linuztx/repos".into(),
             detail: Some("Fetch the repositories".into()),
@@ -3667,6 +3705,7 @@ mod tests {
         });
         assert_eq!(run.activity(), "Bash: Fetch the repositories");
         run.apply(&StreamEvent::ToolEnd {
+            call_id: None,
             output: "[…]".into(),
             ok: true,
             truncated: false,
@@ -3848,6 +3887,7 @@ mod tests {
         // showed — the call, or the last thing the agent did say.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "ls".into(),
             detail: None,
@@ -3856,6 +3896,7 @@ mod tests {
         run.apply(&chunk("\n \n"));
         assert_eq!(run.activity(), "Bash: ls");
         run.apply(&StreamEvent::ToolEnd {
+            call_id: None,
             output: "a.rs".into(),
             ok: true,
             truncated: false,
@@ -3872,6 +3913,7 @@ mod tests {
         );
         run.apply(&chunk("\n\n"));
         run.apply(&StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Read".into(),
             args: "b.rs".into(),
         }]));
@@ -3897,12 +3939,14 @@ mod tests {
         // from this history (docs/state/permissions.md).
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".into(),
             args: "hello.py".into(),
             detail: None,
             arguments: None,
         });
         assert!(!run.apply(&StreamEvent::ToolRejected {
+            call_id: None,
             display: "User rejected write to hello.py\nInstructions: use pathlib".into(),
             result: "The user doesn't want to proceed… instructions instead: use pathlib".into(),
             truncated: false,
@@ -4108,6 +4152,7 @@ mod tests {
     fn error_settles_the_agent_failed_and_resolves_its_tool() {
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "sleep 99".into(),
             detail: None,
@@ -4162,18 +4207,21 @@ mod tests {
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&piece(0, "write", r#"{"path":"a.py","content":"A\n"}"#));
         run.apply(&StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Write".to_string(),
             args: "a.py".to_string(),
         }]));
         assert_eq!(run.drafts().previews().count(), 0);
         assert_eq!(run.drafts().queued().count(), 1, "the queued write owns it");
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".to_string(),
             args: "a.py".to_string(),
             detail: None,
             arguments: None,
         });
         run.apply(&StreamEvent::ToolAnswered {
+            call_id: None,
             display: "Wrote 1 line to a.py\n1 A".to_string(),
             result: "File created successfully at: a.py".to_string(),
             truncated: false,
@@ -4188,6 +4236,7 @@ mod tests {
         // by order would hand the earlier write's file to the newcomer.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         let start = |path: &str| StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".to_string(),
             args: path.to_string(),
             detail: None,
@@ -4634,6 +4683,7 @@ mod tests {
         // reported bug: `write`/`edit` moved onto `ToolAnswered` and the old
         // event-keyed arm never listed it.
         let start = StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".to_string(),
             args: "f.py".to_string(),
             detail: None,
@@ -4643,6 +4693,7 @@ mod tests {
             (
                 "ToolEnd",
                 StreamEvent::ToolEnd {
+                    call_id: None,
                     output: "out".to_string(),
                     ok: true,
                     truncated: false,
@@ -4652,6 +4703,7 @@ mod tests {
             (
                 "ToolAnswered",
                 StreamEvent::ToolAnswered {
+                    call_id: None,
                     display: "Wrote 1 lines to f.py".to_string(),
                     result: "File created successfully at: f.py".to_string(),
                     truncated: false,
@@ -4661,6 +4713,7 @@ mod tests {
             (
                 "ToolRejected",
                 StreamEvent::ToolRejected {
+                    call_id: None,
                     display: "User rejected write to f.py".to_string(),
                     result: "the user refused".to_string(),
                     truncated: false,
@@ -4670,6 +4723,7 @@ mod tests {
             (
                 "ToolBackgrounded",
                 StreamEvent::ToolBackgrounded {
+                    call_id: None,
                     id: "b1".to_string(),
                     output: "Running in the background".to_string(),
                     run: crate::stream::ToolRun::default(),
@@ -4741,6 +4795,7 @@ mod tests {
             (
                 "ToolBatch",
                 StreamEvent::ToolBatch(vec![ToolCallSummary {
+                    call_id: None,
                     name: "Bash".to_string(),
                     args: "ls".to_string(),
                 }]),
@@ -4748,25 +4803,46 @@ mod tests {
             (
                 "ToolStart",
                 StreamEvent::ToolStart {
+                    call_id: None,
                     name: "Bash".to_string(),
                     args: "ls".to_string(),
                     detail: None,
                     arguments: None,
                 },
             ),
-            ("ToolNote", StreamEvent::ToolNote("noted".to_string())),
-            ("ToolOutput", StreamEvent::ToolOutput("out".to_string())),
+            (
+                "ToolNote",
+                StreamEvent::ToolNote {
+                    call_id: None,
+                    note: "noted".to_string(),
+                },
+            ),
+            (
+                "ToolOutput",
+                StreamEvent::ToolOutput {
+                    call_id: None,
+                    chunk: "out".to_string(),
+                },
+            ),
             (
                 "ToolScreen",
                 StreamEvent::ToolScreen {
+                    call_id: None,
                     settled: "done\n".to_string(),
                     live: "45%".to_string(),
                 },
             ),
-            ("ToolTitle", StreamEvent::ToolTitle("sudo x".to_string())),
+            (
+                "ToolTitle",
+                StreamEvent::ToolTitle {
+                    call_id: None,
+                    title: "sudo x".to_string(),
+                },
+            ),
             (
                 "ToolEnd",
                 StreamEvent::ToolEnd {
+                    call_id: None,
                     output: "out".to_string(),
                     ok: true,
                     truncated: false,
@@ -4776,6 +4852,7 @@ mod tests {
             (
                 "ToolRejected",
                 StreamEvent::ToolRejected {
+                    call_id: None,
                     display: "no".to_string(),
                     result: "refused".to_string(),
                     truncated: false,
@@ -4785,6 +4862,7 @@ mod tests {
             (
                 "ToolAnswered",
                 StreamEvent::ToolAnswered {
+                    call_id: None,
                     display: "done".to_string(),
                     result: "ack".to_string(),
                     truncated: false,
@@ -4794,6 +4872,7 @@ mod tests {
             (
                 "ToolBackgrounded",
                 StreamEvent::ToolBackgrounded {
+                    call_id: None,
                     id: "b1".to_string(),
                     output: "backgrounded".to_string(),
                     run: crate::stream::ToolRun::default(),
@@ -4811,16 +4890,19 @@ mod tests {
         // appends, live rows replace the last ones, a refined header lands.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "sudo pacman -Syy".into(),
             detail: None,
             arguments: None,
         });
         run.apply(&StreamEvent::ToolScreen {
+            call_id: None,
             settled: String::new(),
             live: " extra  10%".into(),
         });
         run.apply(&StreamEvent::ToolScreen {
+            call_id: None,
             settled: ":: Synchronizing\n".into(),
             live: " extra  50%".into(),
         });
@@ -4828,25 +4910,31 @@ mod tests {
             run.tool_queue.front().expect("running").output,
             ":: Synchronizing\n extra  50%"
         );
-        run.apply(&StreamEvent::ToolTitle("sudo pacman -Syy ← y⏎".into()));
+        run.apply(&StreamEvent::ToolTitle {
+            call_id: None,
+            title: "sudo pacman -Syy ← y⏎".into(),
+        });
         assert_eq!(
             run.tool_queue.front().expect("running").args,
             "sudo pacman -Syy ← y⏎"
         );
         // The next call starts with no live tail of its own.
         run.apply(&StreamEvent::ToolEnd {
+            call_id: None,
             output: "Exit code: 0".into(),
             ok: true,
             truncated: false,
             run: crate::stream::ToolRun::default(),
         });
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "ls".into(),
             detail: None,
             arguments: None,
         });
         run.apply(&StreamEvent::ToolScreen {
+            call_id: None,
             settled: String::new(),
             live: "x".into(),
         });
@@ -4861,6 +4949,7 @@ mod tests {
         // starts from scratch, clock included.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "sudo pacman -Syy".into(),
             detail: None,
@@ -4868,11 +4957,13 @@ mod tests {
         });
         run.set_command_elapsed(Some(std::time::Duration::from_secs(1)));
         run.apply(&StreamEvent::ToolScreen {
+            call_id: None,
             settled: String::new(),
             live: " core 10%\n extra 100%".into(),
         });
         run.set_command_elapsed(Some(std::time::Duration::from_secs(4)));
         run.apply(&StreamEvent::ToolScreen {
+            call_id: None,
             settled: String::new(),
             live: " core 20%\n extra 100%".into(),
         });
@@ -4882,12 +4973,14 @@ mod tests {
             "the window follows the row still moving"
         );
         run.apply(&StreamEvent::ToolEnd {
+            call_id: None,
             output: "Exit code: 0".into(),
             ok: true,
             truncated: false,
             run: crate::stream::ToolRun::default(),
         });
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "ls".into(),
             detail: None,
@@ -4936,15 +5029,18 @@ mod tests {
         // new round would land on the wrong cell.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "stale".to_string(),
         }]));
         run.apply(&StreamEvent::ToolBatch(vec![
             ToolCallSummary {
+                call_id: None,
                 name: "Read".to_string(),
                 args: "a.md".to_string(),
             },
             ToolCallSummary {
+                call_id: None,
                 name: "Read".to_string(),
                 args: "b.md".to_string(),
             },
@@ -4960,6 +5056,7 @@ mod tests {
         run.apply(&StreamEvent::ToolBatch(
             args.iter()
                 .map(|args| ToolCallSummary {
+                    call_id: None,
                     name: "Bash".to_string(),
                     args: (*args).to_string(),
                 })
@@ -4967,6 +5064,7 @@ mod tests {
         ));
         if started {
             run.apply(&StreamEvent::ToolStart {
+                call_id: None,
                 name: "Bash".to_string(),
                 args: args[0].to_string(),
                 detail: None,
@@ -5039,6 +5137,7 @@ mod tests {
         // it on `ToolEnd` alone, so a subagent's capped `write`/`skill`
         // result silently claimed to be whole.
         let start = StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".to_string(),
             args: "f.py".to_string(),
             detail: None,
@@ -5048,6 +5147,7 @@ mod tests {
             (
                 "ToolEnd",
                 StreamEvent::ToolEnd {
+                    call_id: None,
                     output: "out".to_string(),
                     ok: true,
                     truncated: true,
@@ -5057,6 +5157,7 @@ mod tests {
             (
                 "ToolRejected",
                 StreamEvent::ToolRejected {
+                    call_id: None,
                     display: "no".to_string(),
                     result: "refused".to_string(),
                     truncated: true,
@@ -5066,6 +5167,7 @@ mod tests {
             (
                 "ToolAnswered",
                 StreamEvent::ToolAnswered {
+                    call_id: None,
                     display: "done".to_string(),
                     result: "ack".to_string(),
                     truncated: true,
@@ -5092,6 +5194,7 @@ mod tests {
         // charged nothing for it.
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".to_string(),
             args: "sleep 30".to_string(),
             detail: None,
@@ -5099,6 +5202,7 @@ mod tests {
         });
         let before = run.tokens;
         run.apply(&StreamEvent::ToolBackgrounded {
+            call_id: None,
             id: "b1".to_string(),
             output: "Command running in the background with id b1".to_string(),
             run: crate::stream::ToolRun::default(),
@@ -5117,6 +5221,7 @@ mod tests {
         // failure does *not* record (`docs/agents/agent-view-streaming.md`).
         let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
         run.apply(&StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".to_string(),
             args: "sleep 30".to_string(),
             detail: None,
@@ -6557,12 +6662,14 @@ mod tests {
         let registry = test_registry();
         let (id, _cancel) = registry.register_agent(GENERAL_PURPOSE, "d", "p");
         let start = |args: &str| StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: args.into(),
             detail: None,
             arguments: None,
         };
         let end = StreamEvent::ToolEnd {
+            call_id: None,
             output: "{}".into(),
             ok: true,
             truncated: false,
@@ -6573,6 +6680,7 @@ mod tests {
             chunk("I'll start "),
             chunk("with the profile."),
             StreamEvent::ToolBatch(vec![ToolCallSummary {
+                call_id: None,
                 name: "Bash".into(),
                 args: "curl one".into(),
             }]),
@@ -6638,6 +6746,7 @@ mod tests {
     /// A call's start, as the forwarder relays it.
     fn bash_start(args: &str) -> StreamEvent {
         StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: args.into(),
             detail: None,

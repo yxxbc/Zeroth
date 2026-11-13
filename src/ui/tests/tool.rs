@@ -2215,6 +2215,7 @@ fn app_calling(names: &[&str]) -> App {
     let items: Vec<crate::stream::ToolCallSummary> = names
         .iter()
         .map(|name| crate::stream::ToolCallSummary {
+            call_id: None,
             name: (*name).to_string(),
             args: r#"{"repoName":"linuztx/flaredantic"}"#.to_string(),
         })
@@ -2484,10 +2485,12 @@ fn an_interrupted_batch_commits_a_cell_for_every_call_it_resolved() {
     app.begin_stream();
     app.start_tool_batch(&[
         crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ping google.com -c 10".to_string(),
         },
         crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ls -la".to_string(),
         },

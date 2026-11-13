@@ -105,6 +105,7 @@ impl Stage<'_> {
                 .map(|args| ToolCallSummary {
                     name: kind.to_string(),
                     args,
+                    call_id: None,
                 })
                 .collect(),
         ));
@@ -170,13 +171,17 @@ impl Stage<'_> {
     /// `ToolRejected`.
     fn resolve(&self, call: &ScriptedTool, note: Option<String>, resolved: Resolution, ok: bool) {
         let _ = self.tx.send(StreamEvent::ToolStart {
+            call_id: None,
             name: call.kind.to_string(),
             args: call.args.clone(),
             detail: None,
             arguments: Some(call.arguments.clone()),
         });
         if let Some(note) = note {
-            let _ = self.tx.send(StreamEvent::ToolNote(note));
+            let _ = self.tx.send(StreamEvent::ToolNote {
+                call_id: None,
+                note,
+            });
         }
         match resolved {
             // `ack` is the file tools' short model-facing result: the cell
@@ -185,12 +190,14 @@ impl Stage<'_> {
             Ok(output) => {
                 let _ = match &call.ack {
                     Some(result) if ok => self.tx.send(StreamEvent::ToolAnswered {
+                        call_id: None,
                         display: output,
                         result: result.clone(),
                         truncated: false,
                         run: crate::stream::ToolRun::default(),
                     }),
                     _ => self.tx.send(StreamEvent::ToolEnd {
+                        call_id: None,
                         output,
                         ok,
                         truncated: false,
@@ -200,6 +207,7 @@ impl Stage<'_> {
             }
             Err((display, result)) => {
                 let _ = self.tx.send(StreamEvent::ToolRejected {
+                    call_id: None,
                     display,
                     result,
                     truncated: false,
@@ -313,6 +321,7 @@ pub(in crate::stream) fn ask_questions_turn(stage: &AskStage<'_>) {
     let _ = stage.tx.send(StreamEvent::ToolBatch(vec![ToolCallSummary {
         name: name.clone(),
         args: args.clone(),
+        call_id: Some(call.id.clone()),
     }]));
     // The real executor path: parse, raise `AskUser`, block on the gate, map
     // the decision onto the split outcome (docs/tools/ask.md).
@@ -321,6 +330,7 @@ pub(in crate::stream) fn ask_questions_turn(stage: &AskStage<'_>) {
         return;
     }
     let _ = stage.tx.send(StreamEvent::ToolStart {
+        call_id: Some(call.id.clone()),
         name,
         args,
         detail: None,
@@ -335,6 +345,7 @@ pub(in crate::stream) fn ask_questions_turn(stage: &AskStage<'_>) {
     match outcome.context {
         Some(result) if answered => {
             let _ = stage.tx.send(StreamEvent::ToolAnswered {
+                call_id: Some(call.id.clone()),
                 truncated: false,
                 display: outcome.output,
                 result,
@@ -343,6 +354,7 @@ pub(in crate::stream) fn ask_questions_turn(stage: &AskStage<'_>) {
         }
         Some(result) => {
             let _ = stage.tx.send(StreamEvent::ToolRejected {
+                call_id: Some(call.id.clone()),
                 truncated: false,
                 display: outcome.output,
                 result,
@@ -353,6 +365,7 @@ pub(in crate::stream) fn ask_questions_turn(stage: &AskStage<'_>) {
         // plainly so the mapping stays total.
         None => {
             let _ = stage.tx.send(StreamEvent::ToolEnd {
+                call_id: Some(call.id.clone()),
                 output: outcome.output,
                 ok: outcome.ok,
                 truncated: false,

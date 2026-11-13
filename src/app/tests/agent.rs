@@ -108,12 +108,14 @@ fn finish_agent_group_snapshots_the_roster_around_the_outputs() {
     // a1 streams a tool round + a final reply on the agent channel.
     for event in [
         StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in".into(),
             detail: None,
             arguments: None,
         },
         StreamEvent::ToolEnd {
+            call_id: None,
             output: "+19°C".into(),
             ok: true,
             truncated: false,
@@ -928,15 +930,18 @@ fn a_foreground_groups_resolution_settles_its_members_live_calls() {
     for event in [
         StreamEvent::ToolBatch(vec![
             ToolCallSummary {
+                call_id: None,
                 name: "Bash".into(),
                 args: "sleep 30".into(),
             },
             ToolCallSummary {
+                call_id: None,
                 name: "Read".into(),
                 args: "main.rs".into(),
             },
         ]),
         StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "sleep 30".into(),
             detail: None,

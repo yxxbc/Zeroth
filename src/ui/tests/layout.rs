@@ -1290,6 +1290,7 @@ fn a_tall_tool_queue_yields_to_the_composer_too() {
     app.begin_stream();
     let batch: Vec<crate::stream::ToolCallSummary> = (1..=9)
         .map(|i| crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: format!("sleep {i}"),
         })

@@ -376,6 +376,7 @@ fn preview_shows_the_whole_parallel_batch_running_plus_waiting() {
         ["ping google.com", "ping facebook.com", "ping x.com"]
             .iter()
             .map(|cmd| crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Bash".to_string(),
                 args: (*cmd).to_string(),
             })
@@ -907,10 +908,12 @@ fn a_waiting_batch_sibling_gets_no_ctrl_b_hint() {
     app.begin_stream();
     app.start_tool_batch(&[
         crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "a".to_string(),
         },
         crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "b".to_string(),
         },
@@ -1127,6 +1130,7 @@ fn every_band_and_terminal_size_keeps_the_composer() {
                     _ => {
                         let batch: Vec<crate::stream::ToolCallSummary> = (1..=9)
                             .map(|i| crate::stream::ToolCallSummary {
+                                call_id: None,
                                 name: "Bash".to_string(),
                                 args: format!("sleep {i}"),
                             })
@@ -1285,10 +1289,12 @@ fn a_queued_write_previews_its_head_under_waiting() {
     });
     app.start_tool_batch(&[
         crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Bash".to_string(),
             args: "ls".to_string(),
         },
         crate::stream::ToolCallSummary {
+            call_id: None,
             name: "Write".to_string(),
             args: "a.py".to_string(),
         },

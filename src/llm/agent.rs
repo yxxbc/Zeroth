@@ -803,6 +803,7 @@ fn run_agent_inner(
                                     &call.arguments,
                                     session_command,
                                 ),
+                                call_id: Some(call.id.clone()),
                             })
                             .collect(),
                     ));
@@ -935,6 +936,7 @@ fn run_agent_inner(
                             // beside the short cell line and later turns replay
                             // what this round actually sent (docs/state/permissions.md).
                             let _ = tx.send(StreamEvent::ToolRejected {
+                                call_id: Some(call.id.clone()),
                                 display,
                                 result: result.clone(),
                                 // A refusal: nothing ran, so no capped output.
@@ -951,7 +953,10 @@ fn run_agent_inner(
                         // rides its own event so the resolved cell can append the
                         // provenance row (docs/state/permissions.md).
                         if let Approval::AllowNoted { note } = approval {
-                            let _ = tx.send(StreamEvent::ToolNote(note));
+                            let _ = tx.send(StreamEvent::ToolNote {
+                                call_id: Some(call.id.clone()),
+                                note,
+                            });
                             // A pre-approving hook folded its own note into the
                             // AllowNoted text above; any *other* noted approval
                             // (the classifier, a PermissionRequest hook) must not
@@ -959,14 +964,20 @@ fn run_agent_inner(
                             if !hook.pre_approved
                                 && let Some(note) = &hook.note
                             {
-                                let _ = tx.send(StreamEvent::ToolNote(note.clone()));
+                                let _ = tx.send(StreamEvent::ToolNote {
+                                    call_id: Some(call.id.clone()),
+                                    note: note.clone(),
+                                });
                             }
                         } else if let Some(note) = &hook.note {
                             // A hook that added context, warned, or spoke to the
                             // user without deciding the call still leaves its dim
                             // `⎿` row — the same provenance channel, so the
                             // record and the `/resume` come for free.
-                            let _ = tx.send(StreamEvent::ToolNote(note.clone()));
+                            let _ = tx.send(StreamEvent::ToolNote {
+                                call_id: Some(call.id.clone()),
+                                note: note.clone(),
+                            });
                         }
                         // Forward the tool's live output to the UI as it is produced,
                         // so the running cell tails it (docs/ui/tool-streaming.md). The
@@ -977,12 +988,14 @@ fn run_agent_inner(
                                 // Settled text appends, live rows replace the
                                 // last ones (docs/tools/interactive-shell.md).
                                 ToolProgress::Screen { settled, live } => StreamEvent::ToolScreen {
+                                    call_id: Some(call.id.clone()),
                                     settled: settled.to_string(),
                                     live: live.to_string(),
                                 },
-                                ToolProgress::Title(title) => {
-                                    StreamEvent::ToolTitle(title.to_string())
-                                }
+                                ToolProgress::Title(title) => StreamEvent::ToolTitle {
+                                    call_id: Some(call.id.clone()),
+                                    title: title.to_string(),
+                                },
                             };
                             let _ = tx.send(event);
                         };
@@ -1013,7 +1026,10 @@ fn run_agent_inner(
                             (None, false) => hooks.post_tool_use_failure(call, &outcome, cancel),
                         };
                         if let Some(note) = post.note {
-                            let _ = tx.send(StreamEvent::ToolNote(note));
+                            let _ = tx.send(StreamEvent::ToolNote {
+                                call_id: Some(call.id.clone()),
+                                note,
+                            });
                         }
                         // The PreToolUse hook's context was promised before the
                         // call ran, so it folds whatever happened — a failure and
@@ -1039,6 +1055,7 @@ fn run_agent_inner(
                             (Some(id), _) => {
                                 let _ = tx.send(StreamEvent::ToolBackgrounded {
                                     id: id.clone(),
+                                    call_id: Some(call.id.clone()),
                                     // What the model read — a hook's context
                                     // included — since the record keeps this and
                                     // the cell shows its fixed row either way.
@@ -1048,6 +1065,7 @@ fn run_agent_inner(
                             }
                             (None, Some(context)) if outcome.ok => {
                                 let _ = tx.send(StreamEvent::ToolAnswered {
+                                    call_id: Some(call.id.clone()),
                                     display: outcome.output.clone(),
                                     result: context.clone(),
                                     // The call ran: a hook-amended `bash` whose
@@ -1059,6 +1077,7 @@ fn run_agent_inner(
                             }
                             (None, Some(context)) => {
                                 let _ = tx.send(StreamEvent::ToolRejected {
+                                    call_id: Some(call.id.clone()),
                                     display: outcome.output.clone(),
                                     result: context.clone(),
                                     truncated: outcome.truncated,
@@ -1067,6 +1086,7 @@ fn run_agent_inner(
                             }
                             (None, None) => {
                                 let _ = tx.send(StreamEvent::ToolEnd {
+                                    call_id: Some(call.id.clone()),
                                     output: outcome.output.clone(),
                                     ok: outcome.ok,
                                     truncated: outcome.truncated,
@@ -1099,6 +1119,7 @@ fn run_agent_inner(
                     // the same one line, so there is no second text for
                     // `ToolRejected` to carry (docs/state/settings.md).
                     let _ = tx.send(StreamEvent::ToolEnd {
+                        call_id: Some(call.id.clone()),
                         output: TOOL_LIMIT_OUTPUT.to_string(),
                         ok: false,
                         truncated: false,
@@ -1178,18 +1199,21 @@ impl ParallelStep {
     }
 }
 
-fn send_tool_start(
-    tx: &UnboundedSender<StreamEvent>,
-    call: &ToolCallRequest,
+/// A step's announcement: its `ToolStart` and the notes the gate/hooks left,
+/// built here — on the caller's thread, where `session_command` lives — so a
+/// worker only has to send ready events. `session_command` is not `Sync`, so
+/// it cannot ride into the worker threads.
+fn step_announcement(
+    step: &ParallelStep,
     session_command: &dyn Fn(&str) -> Option<String>,
-) {
-    let _ = tx.send(tool_start_event(call, session_command));
-}
-
-fn send_tool_notes(tx: &UnboundedSender<StreamEvent>, notes: &[String]) {
-    for note in notes {
-        let _ = tx.send(StreamEvent::ToolNote(note.clone()));
-    }
+) -> Vec<StreamEvent> {
+    let call = step.call();
+    let mut events = vec![tool_start_event(call, session_command)];
+    events.extend(step.notes().iter().map(|note| StreamEvent::ToolNote {
+        call_id: Some(call.id.clone()),
+        note: note.clone(),
+    }));
+    events
 }
 
 /// Run an independent batch of parallel-safe calls: hooks and approvals
@@ -1290,12 +1314,6 @@ fn run_parallel_batch(
             context: hook.context,
         });
     }
-    // The first step is the queue's front: announce it and its notes now, and
-    // let its worker stream live output. Every later step waits for its turn.
-    if let Some(first) = steps.first() {
-        send_tool_start(tx, first.call(), session_command);
-        send_tool_notes(tx, first.notes());
-    }
     let jobs: Vec<(usize, ToolCallRequest)> = steps
         .iter()
         .enumerate()
@@ -1307,6 +1325,17 @@ fn run_parallel_batch(
     let outcomes: Vec<std::sync::Mutex<Option<(ToolOutcome, std::time::Duration)>>> = (0..steps
         .len())
         .map(|_| std::sync::Mutex::new(None))
+        .collect();
+    // Which calls have announced their `ToolStart` (and notes) from the worker
+    // that picked them up. The resolution pass below announces only the ones
+    // no worker reached — a refused call, or a job an Esc cancelled before it
+    // started — so a note is never sent twice.
+    let started: Vec<std::sync::atomic::AtomicBool> = (0..steps.len())
+        .map(|_| std::sync::atomic::AtomicBool::new(false))
+        .collect();
+    let announce: Vec<Vec<StreamEvent>> = steps
+        .iter()
+        .map(|step| step_announcement(step, session_command))
         .collect();
     let next = std::sync::atomic::AtomicUsize::new(0);
     if !jobs.is_empty() {
@@ -1327,26 +1356,34 @@ fn run_parallel_batch(
                         if cancel.is_cancelled() {
                             break;
                         }
-                        let live = *index == 0;
-                        let started = std::time::Instant::now();
-                        let mut sink = |progress: ToolProgress<'_>| {
-                            if live {
-                                let event = match progress {
-                                    ToolProgress::Screen { settled, live } => {
-                                        StreamEvent::ToolScreen {
-                                            settled: settled.to_string(),
-                                            live: live.to_string(),
-                                        }
-                                    }
-                                    ToolProgress::Title(title) => {
-                                        StreamEvent::ToolTitle(title.to_string())
-                                    }
-                                };
-                                let _ = tx.send(event);
+                        // Each worker announces its own call when it actually
+                        // starts it, so every executing call shows `Running`
+                        // (and tails its own output) even while its siblings
+                        // run — the batch overlaps on the wire and on screen,
+                        // and only the records wait for the model's order.
+                        if let Some(events) = announce.get(*index) {
+                            started[*index].store(true, std::sync::atomic::Ordering::SeqCst);
+                            for event in events {
+                                let _ = tx.send(event.clone());
                             }
+                        }
+                        let started_at = std::time::Instant::now();
+                        let mut sink = |progress: ToolProgress<'_>| {
+                            let event = match progress {
+                                ToolProgress::Screen { settled, live } => StreamEvent::ToolScreen {
+                                    call_id: Some(call.id.clone()),
+                                    settled: settled.to_string(),
+                                    live: live.to_string(),
+                                },
+                                ToolProgress::Title(title) => StreamEvent::ToolTitle {
+                                    call_id: Some(call.id.clone()),
+                                    title: title.to_string(),
+                                },
+                            };
+                            let _ = tx.send(event);
                         };
                         let outcome = (tools.execute)(call, &mut sink);
-                        let elapsed = started.elapsed();
+                        let elapsed = started_at.elapsed();
                         if let Ok(mut slot) = outcomes[*index].lock() {
                             *slot = Some((outcome, elapsed));
                         }
@@ -1356,9 +1393,14 @@ fn run_parallel_batch(
         });
     }
     for (index, step) in steps.into_iter().enumerate() {
-        if index > 0 {
-            send_tool_start(tx, step.call(), session_command);
-            send_tool_notes(tx, step.notes());
+        // A step no worker reached — a refusal (no worker runs it), or a job
+        // Esc cancelled before dispatch — announces itself here, in the
+        // model's order. Every step a worker did reach already announced
+        // itself when it started, so its notes are not sent twice.
+        if !started[index].load(std::sync::atomic::Ordering::SeqCst) {
+            for event in &announce[index] {
+                let _ = tx.send(event.clone());
+            }
         }
         match step {
             ParallelStep::Refused {
@@ -1369,6 +1411,7 @@ fn run_parallel_batch(
                 ..
             } => {
                 let _ = tx.send(StreamEvent::ToolRejected {
+                    call_id: Some(call.id.clone()),
                     display,
                     result: result.clone(),
                     truncated: false,
@@ -1398,7 +1441,10 @@ fn run_parallel_batch(
                     (None, false) => hooks.post_tool_use_failure(&call, &outcome, cancel),
                 };
                 if let Some(note) = post.note {
-                    let _ = tx.send(StreamEvent::ToolNote(note));
+                    let _ = tx.send(StreamEvent::ToolNote {
+                        call_id: Some(call.id.clone()),
+                        note,
+                    });
                 }
                 let added: Vec<String> = context.into_iter().chain(post.context).collect();
                 if !added.is_empty() {
@@ -1412,12 +1458,14 @@ fn run_parallel_batch(
                     (Some(id), _) => {
                         let _ = tx.send(StreamEvent::ToolBackgrounded {
                             id: id.clone(),
+                            call_id: Some(call.id.clone()),
                             output: outcome.context_text().to_string(),
                             run: ran,
                         });
                     }
                     (None, Some(context)) if outcome.ok => {
                         let _ = tx.send(StreamEvent::ToolAnswered {
+                            call_id: Some(call.id.clone()),
                             display: outcome.output.clone(),
                             result: context.clone(),
                             truncated: outcome.truncated,
@@ -1426,6 +1474,7 @@ fn run_parallel_batch(
                     }
                     (None, Some(context)) => {
                         let _ = tx.send(StreamEvent::ToolRejected {
+                            call_id: Some(call.id.clone()),
                             display: outcome.output.clone(),
                             result: context.clone(),
                             truncated: outcome.truncated,
@@ -1434,6 +1483,7 @@ fn run_parallel_batch(
                     }
                     (None, None) => {
                         let _ = tx.send(StreamEvent::ToolEnd {
+                            call_id: Some(call.id.clone()),
                             output: outcome.output.clone(),
                             ok: outcome.ok,
                             truncated: outcome.truncated,
@@ -1481,9 +1531,13 @@ fn refuse_by_hook(
     }
     let _ = tx.send(tool_start_event(call, session_command));
     if let Some(note) = &hook.note {
-        let _ = tx.send(StreamEvent::ToolNote(note.clone()));
+        let _ = tx.send(StreamEvent::ToolNote {
+            call_id: Some(call.id.clone()),
+            note: note.clone(),
+        });
     }
     let _ = tx.send(StreamEvent::ToolRejected {
+        call_id: Some(call.id.clone()),
         display,
         result: result.clone(),
         // A refusal: nothing ran, so no capped output.
@@ -1503,6 +1557,7 @@ fn tool_start_event(
     session_command: &dyn Fn(&str) -> Option<String>,
 ) -> StreamEvent {
     StreamEvent::ToolStart {
+        call_id: Some(call.id.clone()),
         name: display_name(&call.name),
         args: summarize_call_naming(&call.name, &call.arguments, session_command),
         detail: super::tools::call_description(&call.name, &call.arguments),
@@ -2625,7 +2680,7 @@ mod tests {
         assert!(
             events
                 .iter()
-                .any(|e| matches!(e, StreamEvent::ToolNote(n) if n == "Context added by hook")),
+                .any(|e| matches!(e, StreamEvent::ToolNote { note: n, .. } if n == "Context added by hook")),
             "and its note: {events:?}"
         );
     }
@@ -2812,7 +2867,7 @@ mod tests {
         assert!(
             events
                 .iter()
-                .any(|e| matches!(e, StreamEvent::ToolNote(n) if n == "Context added by hook")),
+                .any(|e| matches!(e, StreamEvent::ToolNote { note: n, .. } if n == "Context added by hook")),
             "{events:?}"
         );
     }
@@ -3187,7 +3242,7 @@ mod tests {
         let notes: Vec<&str> = events
             .iter()
             .filter_map(|e| match e {
-                StreamEvent::ToolNote(n) => Some(n.as_str()),
+                StreamEvent::ToolNote { note: n, .. } => Some(n.as_str()),
                 _ => None,
             })
             .collect();
@@ -3332,7 +3387,7 @@ mod tests {
         let notes: Vec<&str> = events
             .iter()
             .filter_map(|e| match e {
-                StreamEvent::ToolNote(note) => Some(note.as_str()),
+                StreamEvent::ToolNote { note, .. } => Some(note.as_str()),
                 _ => None,
             })
             .collect();
@@ -3348,7 +3403,9 @@ mod tests {
         };
         let (events, _) = round_with_hooks(&spoke);
         assert!(
-            events.iter().any(|e| matches!(e, StreamEvent::ToolNote(n)
+            events
+                .iter()
+                .any(|e| matches!(e, StreamEvent::ToolNote { note: n, .. }
                 if n == "Allowed by PreToolUse hook · Context added by PreToolUse hook")),
             "{events:?}"
         );
@@ -3385,7 +3442,7 @@ mod tests {
             .iter()
             .filter_map(|e| match e {
                 StreamEvent::ToolStart { .. } => Some("start"),
-                StreamEvent::ToolNote(n) if n.contains("./lint.sh") => Some("note"),
+                StreamEvent::ToolNote { note: n, .. } if n.contains("./lint.sh") => Some("note"),
                 StreamEvent::ToolRejected { .. } => Some("rejected"),
                 _ => None,
             })
@@ -3442,7 +3499,7 @@ mod tests {
         assert!(
             events
                 .iter()
-                .any(|e| matches!(e, StreamEvent::ToolNote(n) if n.contains("hook"))),
+                .any(|e| matches!(e, StreamEvent::ToolNote { note: n, .. } if n.contains("hook"))),
             "the user sees a provenance row: {events:?}"
         );
     }
@@ -3606,16 +3663,19 @@ mod tests {
                 // `⎿ Waiting…`, before they execute in order. See
                 // `docs/tools/parallel-tools.md`.
                 StreamEvent::ToolBatch(vec![ToolCallSummary {
+                    call_id: Some("c1".to_string()),
                     name: "Bash".to_string(),
                     args: "ls".to_string(),
                 }]),
                 StreamEvent::ToolStart {
+                    call_id: Some("c1".to_string()),
                     name: "Bash".to_string(),
                     args: "ls".to_string(),
                     detail: None,
                     arguments: Some(r#"{"command":"ls"}"#.to_string()),
                 },
                 StreamEvent::ToolEnd {
+                    call_id: Some("c1".to_string()),
                     output: "ran bash".to_string(),
                     ok: true,
                     truncated: false,
@@ -3641,6 +3701,7 @@ mod tests {
             (
                 true,
                 StreamEvent::ToolAnswered {
+                    call_id: Some("c1".to_string()),
                     display: "User answered Zeroth's questions:\n· Q → A".to_string(),
                     result: r#"{"answers":{"Q":"A"}}"#.to_string(),
                     truncated: false,
@@ -3650,6 +3711,7 @@ mod tests {
             (
                 false,
                 StreamEvent::ToolRejected {
+                    call_id: Some("c1".to_string()),
                     display: "User answered Zeroth's questions:\n· Q → A".to_string(),
                     result: r#"{"answers":{"Q":"A"}}"#.to_string(),
                     truncated: false,
@@ -3783,7 +3845,7 @@ mod tests {
         let screens: Vec<(&str, &str)> = events
             .iter()
             .filter_map(|e| match e {
-                StreamEvent::ToolScreen { settled, live } => {
+                StreamEvent::ToolScreen { settled, live, .. } => {
                     Some((settled.as_str(), live.as_str()))
                 }
                 _ => None,
@@ -3853,12 +3915,14 @@ mod tests {
             .expect("the tool ended");
         let title = events
             .iter()
-            .position(|e| matches!(e, StreamEvent::ToolTitle(t) if t == "sudo pacman -Syy"))
+            .position(
+                |e| matches!(e, StreamEvent::ToolTitle { title: t, .. } if t == "sudo pacman -Syy"),
+            )
             .expect("the refined header streamed");
         let screen = events
             .iter()
             .position(|e| {
-                matches!(e, StreamEvent::ToolScreen { settled, live }
+                matches!(e, StreamEvent::ToolScreen { settled, live, .. }
                     if settled == ":: Synchronizing\n" && live == " extra  45%")
             })
             .expect("the screen streamed");
@@ -3911,7 +3975,8 @@ mod tests {
         // Right after the round's identity (its own test), the batch is
         // announced, carrying all three calls in request order as their
         // header `(name, args)`.
-        let summary = |cmd: &str| ToolCallSummary {
+        let summary = |id: &str, cmd: &str| ToolCallSummary {
+            call_id: Some(id.to_string()),
             name: "Bash".to_string(),
             args: cmd.to_string(),
         };
@@ -3922,9 +3987,9 @@ mod tests {
         assert_eq!(
             events.get(1),
             Some(&StreamEvent::ToolBatch(vec![
-                summary("ping google.com"),
-                summary("ping facebook.com"),
-                summary("ping x.com"),
+                summary("c1", "ping google.com"),
+                summary("c2", "ping facebook.com"),
+                summary("c3", "ping x.com"),
             ])),
             "the batch is announced next, with every call: {events:?}"
         );
@@ -5087,7 +5152,7 @@ mod tests {
         let note = events
             .iter()
             .position(
-                |e| matches!(e, StreamEvent::ToolNote(n) if n == "Allowed by auto mode classifier"),
+                |e| matches!(e, StreamEvent::ToolNote { note: n, .. } if n == "Allowed by auto mode classifier"),
             )
             .expect("the note is emitted");
         let end = events
@@ -5568,22 +5633,50 @@ mod tests {
         while let Ok(event) = rx.try_recv() {
             events.push(event);
         }
-        let starts: Vec<&str> = events
+        // Each worker announces the call it actually starts, so both cells
+        // are `Running` while the batch overlaps — and each start names its
+        // own call, so the UI routes every later chunk to the right cell.
+        let mut starts: Vec<(&str, Option<&str>)> = events
             .iter()
             .filter_map(|event| match event {
-                StreamEvent::ToolStart { args, .. } => Some(args.as_str()),
+                StreamEvent::ToolStart { call_id, args, .. } => {
+                    Some((args.as_str(), call_id.as_deref()))
+                }
                 _ => None,
             })
             .collect();
-        assert_eq!(starts, ["a", "b"], "the cells start in the model's order");
-        let ends: Vec<&str> = events
+        starts.sort();
+        assert_eq!(
+            starts,
+            [("a", Some("a")), ("b", Some("b"))],
+            "one start per call, each carrying its wire id"
+        );
+        let first_end = events
+            .iter()
+            .position(|event| matches!(event, StreamEvent::ToolEnd { .. }))
+            .expect("the batch resolved");
+        let last_start = events
+            .iter()
+            .rposition(|event| matches!(event, StreamEvent::ToolStart { .. }))
+            .expect("the batch started");
+        assert!(
+            last_start < first_end,
+            "every call shows Running before the model-order resolutions: {events:?}"
+        );
+        let ends: Vec<(&str, Option<&str>)> = events
             .iter()
             .filter_map(|event| match event {
-                StreamEvent::ToolEnd { output, .. } => Some(output.as_str()),
+                StreamEvent::ToolEnd {
+                    call_id, output, ..
+                } => Some((output.as_str(), call_id.as_deref())),
                 _ => None,
             })
             .collect();
-        assert_eq!(ends, ["out a", "out b"], "and resolve in that order");
+        assert_eq!(
+            ends,
+            [("out a", Some("a")), ("out b", Some("b"))],
+            "and resolve in the model's order, each with its id"
+        );
         assert_eq!(
             *recorded.lock().unwrap(),
             ["a", "b"],

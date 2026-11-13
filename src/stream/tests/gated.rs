@@ -89,7 +89,7 @@ fn the_auto_demo_classifies_instead_of_asking_in_auto_mode() {
         match event {
             StreamEvent::ToolBatch(items) => order.push(format!("batch:{}", items.len())),
             StreamEvent::ToolStart { args, .. } => order.push(format!("start:{args}")),
-            StreamEvent::ToolNote(note) => order.push(format!("note:{note}")),
+            StreamEvent::ToolNote { note, .. } => order.push(format!("note:{note}")),
             StreamEvent::ToolEnd { ok, .. } => order.push(format!("end:{ok}")),
             StreamEvent::ToolRejected {
                 display, result, ..
@@ -156,7 +156,7 @@ fn the_auto_demo_still_asks_outside_auto_mode() {
                 asked += 1;
                 gate.resolve(&req.id, crate::permission::PermissionDecision::Approve);
             }
-            StreamEvent::ToolNote(_) => notes += 1,
+            StreamEvent::ToolNote { note: _, .. } => notes += 1,
             StreamEvent::StreamDone => break,
             _ => {}
         }
@@ -189,7 +189,7 @@ fn the_auto_demo_runs_everything_silently_in_master_mode() {
             StreamEvent::ToolRejected { display, .. } => {
                 panic!("master mode never rejects: {display}")
             }
-            StreamEvent::ToolNote(note) => panic!("…and never notes: {note}"),
+            StreamEvent::ToolNote { note, .. } => panic!("…and never notes: {note}"),
             StreamEvent::ToolEnd { .. } => ends += 1,
             StreamEvent::StreamDone => break,
             _ => {}

@@ -161,10 +161,13 @@ assumptions, not thread cost:
 
 - `llm/exec.rs`'s timeout, `kill_process_group` and cancel path assume **one**
   child; a batch needs N process groups and a joint reap.
-- `ToolOutput` is one untagged stream appended to the front call; concurrent
-  calls need per-call ids, and every consumer changes.
-- Progressive commit assumes the front call commits first; the permission
-  gate is one modal at a time.
+- `ToolOutput`/`ToolScreen` used to be one untagged stream appended to the front
+  call; they now carry a `call_id` and the app routes each chunk to its cell
+  (`docs/tools/parallel-tools.md`), so concurrent calls on one executor are
+  representable — the executor itself still assumes one child per call, and the
+  permission gate is one modal at a time.
+- Progressive commit assumes the front call commits first; with per-call ids the
+  remaining piece is letting a finished worker resolve while its siblings run.
 
 **If the target is the tool executor**, the measured winner for ceiling is
 thread-per-call; for predictable memory and UI ordering, a bounded pool of

@@ -463,7 +463,7 @@ fn pace(event: &StreamEvent, chunk_delay: Duration) -> Option<Duration> {
         StreamEvent::AgentBatch { background, .. } if !background => Some(AGENT_DELAY),
         // Each streamed output line pauses like a word so the live
         // cell visibly tails (docs/ui/tool-streaming.md).
-        StreamEvent::ToolOutput(_) => Some(chunk_delay),
+        StreamEvent::ToolOutput { .. } => Some(chunk_delay),
         // A terminal session's frame holds long enough to be seen before
         // the next replaces it (docs/tools/interactive-shell.md).
         StreamEvent::ToolScreen { .. } => Some(SCREEN_FRAME_DELAY),

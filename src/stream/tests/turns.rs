@@ -116,6 +116,7 @@ fn turn_events_announces_a_parallel_batch_before_its_tools() {
         .iter()
         .filter_map(|e| match e {
             StreamEvent::ToolStart { name, args, .. } => Some(ToolCallSummary {
+                call_id: None,
                 name: name.clone(),
                 args: args.clone(),
             }),
@@ -342,7 +343,9 @@ fn the_hooks_demo_s_refusal_names_the_event_the_hook_and_its_file() {
     // The call that ran carries the PostToolUse hook's row, naming its event
     // the way the live runner's does.
     assert!(
-        events.iter().any(|e| matches!(e, StreamEvent::ToolNote(n)
+        events
+            .iter()
+            .any(|e| matches!(e, StreamEvent::ToolNote { note: n, .. }
             if *n == crate::llm::hooks::context_added_note("PostToolUse"))),
         "{events:?}"
     );
@@ -721,7 +724,7 @@ fn turn_events_resolve_each_tool_before_the_next_starts() {
                 assert!(running, "a resolution closes a running tool");
                 running = false;
             }
-            StreamEvent::ToolOutput(_) => {
+            StreamEvent::ToolOutput { chunk: _, .. } => {
                 assert!(running, "live output only streams while a tool runs");
             }
             _ => {}
@@ -743,7 +746,7 @@ fn turn_events_streams_each_bash_output_before_its_end() {
     let mut resolved = 0;
     for event in &events {
         match event {
-            StreamEvent::ToolOutput(chunk) => streamed.push_str(chunk),
+            StreamEvent::ToolOutput { chunk, .. } => streamed.push_str(chunk),
             StreamEvent::ToolEnd { output, .. } => {
                 let (frame, body) = output
                     .split_once('\n')

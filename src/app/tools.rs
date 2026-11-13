@@ -139,19 +139,36 @@ impl App {
                         })
                         .collect()
                 } else {
-                    vec![Identity::default(); items.len()]
+                    // The announcement still names its calls: route each cell
+                    // by the id its summary carries even when no round lined
+                    // the ids up (a scripted batch).
+                    items
+                        .iter()
+                        .map(|item| Identity {
+                            call_id: item.call_id.clone(),
+                            ..Identity::default()
+                        })
+                        .collect()
                 };
                 (round.batch, ids)
             }
             _ => {
                 self.next_batch += 1;
-                (self.next_batch, vec![Identity::default(); items.len()])
+                let ids = items
+                    .iter()
+                    .map(|item| Identity {
+                        call_id: item.call_id.clone(),
+                        ..Identity::default()
+                    })
+                    .collect();
+                (self.next_batch, ids)
             }
         };
         // The round's previews are queued cells now: each `Write` cell takes
         // its own (docs/ui/write-streaming.md).
         self.tool_drafts
             .adopt(items.iter().map(|item| item.name.as_str()));
+        self.tool_revision += 1;
         self.tool_queue = items
             .iter()
             .zip(ids)
@@ -180,18 +197,29 @@ impl App {
             .collect();
     }
 
-    /// Begin a tool call: mark it the running (blue) call at the front of the
-    /// live queue so the bottom region shows it before any output arrives.
+    /// Begin a tool call that named no id — see
+    /// [`start_tool_for`](App::start_tool_for): the `!` shell, a lone scripted
+    /// call.
+    pub fn start_tool(&mut self, name: &str, args: &str, arguments: Option<&str>) {
+        self.start_tool_for(None, name, args, arguments);
+    }
+
+    /// Begin the tool call `id` names: mark *that* cell `Running` so the
+    /// bottom region shows it before any output arrives.
     ///
-    /// If the front call is a `Waiting` batch sibling (`start_tool_batch`
-    /// announced it), it is flipped to `Running` — the batch's `(name, args)` are
-    /// authoritative and equal the ones passed here (both come from the same
-    /// backend summary), so only the status changes, plus the `arguments`: the
-    /// ones this call actually runs with, replacing whatever its round
-    /// announced (a `PreToolUse` hook may have rewritten them,
-    /// `docs/tools/hooks.md`). Otherwise (an empty queue —
-    /// the `!` shell, the dummy's lone calls) a fresh `Running` call is pushed, so
-    /// the single-tool path is unchanged.
+    /// A call the batch announced (`start_tool_batch`) is found by its
+    /// `call_id` and flipped from `Waiting` to `Running` — the batch's
+    /// `(name, args)` are authoritative and equal the ones passed here (both
+    /// come from the same backend summary), so primarily the status changes,
+    /// plus the `arguments`: the ones this call actually runs with, replacing
+    /// whatever its round announced (a `PreToolUse` hook may have rewritten
+    /// them, `docs/tools/hooks.md`). `id` is also what lets **several cells
+    /// run at once**: each start flips its own call, and every later event
+    /// carrying the same id lands on it (`docs/tools/parallel-tools.md`).
+    ///
+    /// `None` keeps the serial path's rule: flip the front if it is waiting,
+    /// else push a fresh `Running` call (an empty queue — the `!` shell, the
+    /// dummy's lone calls).
     ///
     /// `arguments` is the model's verbatim JSON, `None` when the caller has
     /// none ([`ToolCall::arguments`]). It is a **parameter, not a follow-up
@@ -200,12 +228,19 @@ impl App {
     /// a second call that a future path could forget would drop them
     /// silently — the derived context would quietly fall back to the lossy
     /// summary with nothing to notice.
-    pub fn start_tool(&mut self, name: &str, args: &str, arguments: Option<&str>) {
+    pub fn start_tool_for(
+        &mut self,
+        id: Option<&str>,
+        name: &str,
+        args: &str,
+        arguments: Option<&str>,
+    ) {
         // A lone call (no batch announced it) is the round coming back too.
         if let Some(status) = self.status.as_mut() {
             status.recovered();
         }
-        self.tool_live.reset();
+        // This call's live rows are over; its siblings' are not.
+        self.tool_live.remove(Self::live_key(id));
         // A new command has run no time yet: the boundary injects its clock
         // before the next draw, and until then the previous command's last
         // reading must not stamp this call's first live rows
@@ -213,11 +248,24 @@ impl App {
         self.command_elapsed = None;
         self.tool_revision += 1;
         let arguments = arguments.map(str::to_string);
-        if let Some(front) = self.tool_queue.front_mut()
+        if let Some(index) = id.and_then(|id| self.tool_index_of(id)) {
+            let tool = &mut self.tool_queue[index];
+            tool.status = ToolStatus::Running;
+            // A start with no verbatim arguments (a hand-scripted event) leaves
+            // the round's pre-stamped ones in place rather than dropping them.
+            if arguments.is_some() {
+                tool.arguments = arguments;
+            }
+            return;
+        }
+        if id.is_none()
+            && let Some(front) = self.tool_queue.front_mut()
             && front.status == ToolStatus::Waiting
         {
             front.status = ToolStatus::Running;
-            front.arguments = arguments;
+            if arguments.is_some() {
+                front.arguments = arguments;
+            }
             return;
         }
         // A call no batch announced is its round's whole announcement — when
@@ -242,10 +290,36 @@ impl App {
             approval_note: None,
             // A lone call is nobody's batch sibling.
             batch: None,
-            call_id: None,
+            call_id: id.map(str::to_string),
             position: None,
             run: crate::stream::ToolRun::default(),
         });
+    }
+
+    /// The live queue position of the call the wire id `id` names.
+    fn tool_index_of(&self, id: &str) -> Option<usize> {
+        self.tool_queue
+            .iter()
+            .position(|tool| tool.call_id.as_deref() == Some(id))
+    }
+
+    /// The key a call's live bookkeeping is stored under: its routing id, or
+    /// the empty key for the queue-front call no id announced.
+    fn live_key(id: Option<&str>) -> &str {
+        id.unwrap_or("")
+    }
+
+    /// The running call `id` names, when it is in the live queue — what every
+    /// live-output and provenance event targets, so chunks from two calls
+    /// running at once never land on each other's cell.
+    fn running_tool_mut(&mut self, id: Option<&str>) -> Option<&mut ToolCall> {
+        let index = match id {
+            Some(id) => self.tool_index_of(id)?,
+            None => (!self.tool_queue.is_empty()).then_some(0)?,
+        };
+        self.tool_queue
+            .get_mut(index)
+            .filter(|tool| tool.status == ToolStatus::Running)
     }
 
     /// Mark the running tool's output as **truncated** (set by the boundary just
@@ -255,7 +329,13 @@ impl App {
     ///
     /// [`end_tool`]: App::end_tool
     pub fn set_tool_truncated(&mut self) {
-        if let Some(tool) = self.tool_queue.front_mut() {
+        self.set_tool_truncated_for(None);
+    }
+
+    /// [`set_tool_truncated`](App::set_tool_truncated) for the call `id`
+    /// names.
+    pub fn set_tool_truncated_for(&mut self, id: Option<&str>) {
+        if let Some(tool) = self.running_tool_mut(id) {
             tool.truncated = true;
         }
     }
@@ -268,9 +348,13 @@ impl App {
     /// unless the front call is [`ToolStatus::Running`]: a batch sibling
     /// still waiting has not run.
     pub fn set_tool_run(&mut self, run: crate::stream::ToolRun) {
-        if let Some(tool) = self.tool_queue.front_mut()
-            && tool.status == ToolStatus::Running
-        {
+        self.set_tool_run_for(None, run);
+    }
+
+    /// [`set_tool_run`](App::set_tool_run) for the call `id` names — the
+    /// batch's other running cells keep their own.
+    pub fn set_tool_run_for(&mut self, id: Option<&str>, run: crate::stream::ToolRun) {
+        if let Some(tool) = self.running_tool_mut(id) {
             tool.run = run;
         }
     }
@@ -280,20 +364,23 @@ impl App {
     /// resolved cell appends it as a dim `⎿` row (the boundary's handler for
     /// [`crate::stream::StreamEvent::ToolNote`]; see `docs/state/permissions.md`),
     /// after any note the call already carries ([`ToolCall::add_note`]). A
-    /// no-op unless the front call is [`ToolStatus::Running`] — the note
-    /// always follows its call's `ToolStart`.
+    /// no-op unless the call is [`ToolStatus::Running`] — the note always
+    /// follows its call's `ToolStart`.
     pub fn set_tool_note(&mut self, note: &str) {
-        if let Some(tool) = self.tool_queue.front_mut()
-            && tool.status == ToolStatus::Running
-        {
+        self.set_tool_note_for(None, note);
+    }
+
+    /// [`set_tool_note`](App::set_tool_note) for the call `id` names.
+    pub fn set_tool_note_for(&mut self, id: Option<&str>, note: &str) {
+        if let Some(tool) = self.running_tool_mut(id) {
             tool.add_note(note);
         }
     }
 
-    /// Append a chunk of live output to the **running** tool at the front of the
-    /// queue so its cell tails the output as it streams (the boundary's handler
-    /// for [`crate::stream::StreamEvent::ToolOutput`]; see
-    /// `docs/ui/tool-streaming.md`). A no-op unless the front call is
+    /// Append a chunk of live output to the **running** call at the front of
+    /// the queue so its cell tails the output as it streams (the boundary's
+    /// handler for [`crate::stream::StreamEvent::ToolOutput`]; see
+    /// `docs/ui/tool-streaming.md`). A no-op unless the call is
     /// [`ToolStatus::Running`] — a `Waiting` batch sibling has not started and an
     /// empty queue has nothing to tail. Does **not** count tokens: the tally is
     /// charged once from the authoritative `ToolEnd` output in
@@ -302,13 +389,19 @@ impl App {
     /// [`push_tool_screen`](App::push_tool_screen)'s live rows makes them
     /// final: the next screen update replaces nothing of them.
     pub fn push_tool_output(&mut self, chunk: &str) {
-        if let Some(tool) = self.tool_queue.front_mut()
-            && tool.status == ToolStatus::Running
-        {
-            tool.output.push_str(chunk);
-            self.tool_live.reset();
-            self.tool_revision += 1;
-        }
+        self.push_tool_output_for(None, chunk);
+    }
+
+    /// [`push_tool_output`](App::push_tool_output) for the call `id` names —
+    /// the chunk lands on that cell even while its siblings stream too.
+    pub fn push_tool_output_for(&mut self, id: Option<&str>, chunk: &str) {
+        let key = Self::live_key(id).to_string();
+        let Some(tool) = self.running_tool_mut(id) else {
+            return;
+        };
+        tool.output.push_str(chunk);
+        self.tool_live.remove(&key);
+        self.tool_revision += 1;
     }
 
     /// Apply a running command's live update to the call
@@ -317,28 +410,40 @@ impl App {
     /// good, `live` the rows that replace the `live` appended last time — so
     /// a redrawn progress bar is one row changing in place. Like
     /// [`push_tool_output`](App::push_tool_output) it counts no tokens and is
-    /// a no-op unless the front call is running. Each live row that changed
+    /// a no-op unless the call is running. Each live row that changed
     /// is stamped with the command's own clock as last injected
     /// ([`set_command_elapsed`](App::set_command_elapsed) — at most a frame
     /// stale), which is what lets the running cell's window follow the rows
     /// still moving ([`LiveTail::anchor`], `docs/ui/tool-streaming.md`).
     pub fn push_tool_screen(&mut self, settled: &str, live: &str) {
-        if let Some(tool) = self.tool_queue.front_mut()
-            && tool.status == ToolStatus::Running
-        {
-            let now = self.command_elapsed.unwrap_or_default();
-            self.tool_live.apply(&mut tool.output, settled, live, now);
-            self.tool_revision += 1;
-        }
+        self.push_tool_screen_for(None, settled, live);
+    }
+
+    /// [`push_tool_screen`](App::push_tool_screen) for the call `id` names.
+    pub fn push_tool_screen_for(&mut self, id: Option<&str>, settled: &str, live: &str) {
+        let key = Self::live_key(id).to_string();
+        let now = self.command_elapsed.unwrap_or_default();
+        let mut tail = self.tool_live.remove(&key).unwrap_or_default();
+        let Some(tool) = self.running_tool_mut(id) else {
+            // The call is gone (or never started): its rows have nowhere to
+            // land, and the id will not come back.
+            return;
+        };
+        tail.apply(&mut tool.output, settled, live, now);
+        self.tool_live.insert(key, tail);
+        self.tool_revision += 1;
     }
 
     /// Replace the running call's header summary with the executor's refined
     /// one ([`crate::stream::StreamEvent::ToolTitle`]) — a `bash_session`
     /// call's session command beside its typed keys.
     pub fn set_tool_title(&mut self, title: &str) {
-        if let Some(tool) = self.tool_queue.front_mut()
-            && tool.status == ToolStatus::Running
-        {
+        self.set_tool_title_for(None, title);
+    }
+
+    /// [`set_tool_title`](App::set_tool_title) for the call `id` names.
+    pub fn set_tool_title_for(&mut self, id: Option<&str>, title: &str) {
+        if let Some(tool) = self.running_tool_mut(id) {
             title.clone_into(&mut tool.args);
             self.tool_revision += 1;
         }
@@ -350,12 +455,26 @@ impl App {
         self.tool_revision
     }
 
-    /// The running call's live rows and when each last changed — what the
+    /// The front call's live rows and when each last changed — what the
     /// running cell's window follows ([`LiveTail`]). Empty when no call is
-    /// running, and for a call that has streamed no screen update.
+    /// running, and for a call that has streamed no screen update; a call
+    /// with an id reads its own through
+    /// [`live_tail_for`](App::live_tail_for).
     #[must_use]
     pub fn live_tail(&self) -> &LiveTail {
-        &self.tool_live
+        self.tool_live
+            .get(Self::live_key(None))
+            .unwrap_or(&EMPTY_LIVE_TAIL)
+    }
+
+    /// The **live rows** of `tool`'s call, keyed by its routing id: the tail
+    /// its running cell follows while a sibling call streams its own. An
+    /// empty tail for a call that has not streamed a screen update.
+    #[must_use]
+    pub fn live_tail_for(&self, tool: &ToolCall) -> &LiveTail {
+        self.tool_live
+            .get(Self::live_key(tool.call_id.as_deref()))
+            .unwrap_or(&EMPTY_LIVE_TAIL)
     }
 
     /// The tool currently at the front of the live queue — the running (or, in
@@ -380,12 +499,20 @@ impl App {
     /// sibling (if any) becomes the front. Returns the finished call (for the
     /// event loop to commit to scrollback), or `None` if no tool was running.
     pub fn end_tool(&mut self, output: &str, ok: bool) -> Option<ToolCall> {
+        self.end_tool_for(None, output, ok)
+    }
+
+    /// [`end_tool`](App::end_tool) for the call `id` names — the batch's
+    /// cells resolve independently, in whatever order their events land
+    /// (the agent loop still records them in the model's order,
+    /// `docs/tools/parallel-tools.md`).
+    pub fn end_tool_for(&mut self, id: Option<&str>, output: &str, ok: bool) -> Option<ToolCall> {
         let status = if ok {
             ToolStatus::Ok
         } else {
             ToolStatus::Failed
         };
-        self.resolve_front_tool(output, None, status)
+        self.resolve_tool(id, output, None, status)
     }
 
     /// Resolve **every** call still in the live queue as
@@ -420,6 +547,7 @@ impl App {
             };
             resolved.push(tool);
         }
+        self.tool_live.clear();
         resolved
     }
 
@@ -430,7 +558,17 @@ impl App {
     /// context replays what was really sent. The boundary's handler for
     /// [`crate::stream::StreamEvent::ToolRejected`]. See `docs/state/permissions.md`.
     pub fn reject_tool(&mut self, display: &str, result: &str) -> Option<ToolCall> {
-        self.resolve_front_tool(display, Some(result.to_string()), ToolStatus::Failed)
+        self.reject_tool_for(None, display, result)
+    }
+
+    /// [`reject_tool`](App::reject_tool) for the call `id` names.
+    pub fn reject_tool_for(
+        &mut self,
+        id: Option<&str>,
+        display: &str,
+        result: &str,
+    ) -> Option<ToolCall> {
+        self.resolve_tool(id, display, Some(result.to_string()), ToolStatus::Failed)
     }
 
     /// Resolve the in-flight call as **answered by the user** — the
@@ -441,7 +579,17 @@ impl App {
     /// green twin. The boundary's handler for
     /// [`crate::stream::StreamEvent::ToolAnswered`].
     pub fn answer_tool(&mut self, display: &str, result: &str) -> Option<ToolCall> {
-        self.resolve_front_tool(display, Some(result.to_string()), ToolStatus::Ok)
+        self.answer_tool_for(None, display, result)
+    }
+
+    /// [`answer_tool`](App::answer_tool) for the call `id` names.
+    pub fn answer_tool_for(
+        &mut self,
+        id: Option<&str>,
+        display: &str,
+        result: &str,
+    ) -> Option<ToolCall> {
+        self.resolve_tool(id, display, Some(result.to_string()), ToolStatus::Ok)
     }
 
     /// Resolve the in-flight tool call as **moved to the background** (a
@@ -452,30 +600,41 @@ impl App {
     /// The boundary's handler for `StreamEvent::ToolBackgrounded`. See
     /// `docs/tools/background.md`.
     pub fn background_tool(&mut self, output: &str) -> Option<ToolCall> {
-        self.resolve_front_tool(output, None, ToolStatus::Backgrounded)
+        self.background_tool_for(None, output)
     }
 
-    /// The shared tail of [`end_tool`]/[`reject_tool`]/[`background_tool`]: pop
-    /// the front call, stamp + record it with `status`, and fold its output into
-    /// the token tally (arrow up — uploaded back; the count is *added to*, never
-    /// reset — see `docs/ui/status-indicator.md`). The tally charges the
-    /// **model-facing** text ([`ToolCall::context_text`]), which is what the
-    /// next request actually uploads — for a rejection that is the longer
-    /// `context_output`, not the short cell line.
+    /// [`background_tool`](App::background_tool) for the call `id` names.
+    pub fn background_tool_for(&mut self, id: Option<&str>, output: &str) -> Option<ToolCall> {
+        self.resolve_tool(id, output, None, ToolStatus::Backgrounded)
+    }
+
+    /// The shared tail of [`end_tool`]/[`reject_tool`]/[`background_tool`]:
+    /// remove the call `id` names (the queue front for `None`), stamp + record
+    /// it with `status`, and fold its output into the token tally (arrow up —
+    /// uploaded back; the count is *added to*, never reset — see
+    /// `docs/ui/status-indicator.md`). The tally charges the **model-facing**
+    /// text ([`ToolCall::context_text`]), which is what the next request
+    /// actually uploads — for a rejection that is the longer `context_output`,
+    /// not the short cell line.
     ///
     /// [`end_tool`]: App::end_tool
     /// [`reject_tool`]: App::reject_tool
     /// [`background_tool`]: App::background_tool
-    fn resolve_front_tool(
+    fn resolve_tool(
         &mut self,
+        id: Option<&str>,
         output: &str,
         context_output: Option<String>,
         status: ToolStatus,
     ) -> Option<ToolCall> {
-        let mut tool = self.tool_queue.pop_front()?;
+        let index = match id {
+            Some(id) => self.tool_index_of(id)?,
+            None => (!self.tool_queue.is_empty()).then_some(0)?,
+        };
+        let mut tool = self.tool_queue.remove(index)?;
         // A resolved `Write` gives its draft up (docs/ui/write-streaming.md).
         self.tool_drafts.resolve(&tool.name);
-        self.tool_live.reset();
+        self.tool_live.remove(Self::live_key(id));
         self.tool_revision += 1;
         tool.output = output.to_string();
         tool.context_output = context_output;
@@ -537,6 +696,14 @@ pub struct LiveTail {
     /// One stamp per live row, in order: when its text last changed.
     changed: Vec<Duration>,
 }
+
+/// The empty tail a call that has streamed no screen update reads — a shared
+/// reference, so [`App::live_tail`] and [`App::live_tail_for`] can answer
+/// without materializing one per call per frame.
+static EMPTY_LIVE_TAIL: LiveTail = LiveTail {
+    len: 0,
+    changed: Vec::new(),
+};
 
 impl LiveTail {
     /// Fold one screen update into `output` ([`apply_tool_screen`]) and

@@ -469,7 +469,7 @@ fn live_auto_mode_classifies_an_mcp_call_instead_of_prompting() {
     for event in &events {
         match event {
             StreamEvent::Permission(request) => panic!("auto mode must not prompt: {request:?}"),
-            StreamEvent::ToolNote(note) => notes.push(note.clone()),
+            StreamEvent::ToolNote { note, .. } => notes.push(note.clone()),
             StreamEvent::ToolEnd { ok, .. } => ends.push(*ok),
             StreamEvent::Error(message) => panic!("the turn failed: {message}"),
             _ => {}

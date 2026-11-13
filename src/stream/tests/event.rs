@@ -32,16 +32,19 @@ fn only_what_a_streaming_request_emits_is_attempt_output() {
         StreamEvent::Usage(TokenUsage::default()),
         StreamEvent::RoundCalls(Vec::new()),
         StreamEvent::ToolBatch(vec![ToolCallSummary {
+            call_id: None,
             name: "Bash".into(),
             args: "ls".into(),
         }]),
         StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "ls".into(),
             detail: None,
             arguments: None,
         },
         StreamEvent::ToolEnd {
+            call_id: None,
             output: "src".into(),
             ok: true,
             truncated: false,

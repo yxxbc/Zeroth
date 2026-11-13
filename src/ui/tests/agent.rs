@@ -76,6 +76,7 @@ fn a_lone_live_agent_renders_the_tool_cell_shape() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "sleep 10 && curl -s https://api.open-meteo.com/v1/forecast".into(),
             detail: Some("Fetching Warsaw weather".into()),
@@ -100,6 +101,7 @@ fn a_lone_live_agent_renders_the_tool_cell_shape() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolEnd {
+            call_id: None,
             output: "+19°C".into(),
             ok: true,
             truncated: false,
@@ -125,6 +127,7 @@ fn a_lone_live_agents_tool_row_clips_instead_of_wrapping() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "sleep 10 && curl -s https://api.open-meteo.com/v1/forecast?latitude=52".into(),
             detail: None,
@@ -211,6 +214,7 @@ fn a_tree_row_shows_what_its_agent_is_saying_beside_a_siblings_call() {
     app.apply_agent_event(
         "a2",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in/Manila".into(),
             detail: Some("Fetching Manila weather".into()),
@@ -343,6 +347,7 @@ fn a_multi_agent_tree_keeps_the_sticky_tool_activity() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in/Warsaw".into(),
             detail: Some("Fetching Warsaw weather".into()),
@@ -351,6 +356,7 @@ fn a_multi_agent_tree_keeps_the_sticky_tool_activity() {
     );
     for event in [
         crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".into(),
             args: "game.py".into(),
             detail: None,
@@ -359,6 +365,7 @@ fn a_multi_agent_tree_keeps_the_sticky_tool_activity() {
         // The call resolves — the activity line stays (sticky, no
         // `Working…` between calls).
         crate::stream::StreamEvent::ToolEnd {
+            call_id: None,
             output: "Created game.py (10 lines)".into(),
             ok: true,
             truncated: false,
@@ -533,6 +540,7 @@ fn the_agent_view_swaps_the_strip_to_the_agents_stream() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "curl wttr.in".into(),
             detail: None,
@@ -767,6 +775,7 @@ fn an_agent_views_running_command_tails_its_streamed_output() {
     app.apply_agent_event(
         "a1",
         &StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "ping -c 10 x".into(),
             detail: None,
@@ -774,7 +783,13 @@ fn an_agent_views_running_command_tails_its_streamed_output() {
         },
     );
     for i in 1..=9 {
-        app.apply_agent_event("a1", &StreamEvent::ToolOutput(format!("line {i}\n")));
+        app.apply_agent_event(
+            "a1",
+            &StreamEvent::ToolOutput {
+                call_id: None,
+                chunk: format!("line {i}\n"),
+            },
+        );
     }
     // The footer's `(Ns)` is the **command's** own clock — injected per
     // agent like the thinking phase's (`set_agent_command_elapsed`) — never
@@ -957,14 +972,17 @@ fn an_agent_views_strip_shows_every_waiting_sibling_of_a_parallel_batch() {
         "a1",
         &crate::stream::StreamEvent::ToolBatch(vec![
             crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Bash".into(),
                 args: "echo AAA".into(),
             },
             crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Bash".into(),
                 args: "echo BBB".into(),
             },
             crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Bash".into(),
                 args: "echo CCC".into(),
             },
@@ -1010,10 +1028,12 @@ fn an_agent_views_running_call_leads_its_waiting_siblings() {
         "a1",
         &crate::stream::StreamEvent::ToolBatch(vec![
             crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Bash".into(),
                 args: "echo AAA".into(),
             },
             crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Read".into(),
                 args: "notes.md".into(),
             },
@@ -1022,6 +1042,7 @@ fn an_agent_views_running_call_leads_its_waiting_siblings() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "echo AAA".into(),
             detail: None,
@@ -1056,10 +1077,12 @@ fn an_agents_ctrl_o_cell_lists_only_the_calls_it_ran() {
         "a1",
         &crate::stream::StreamEvent::ToolBatch(vec![
             crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Bash".to_string(),
                 args: "echo running".to_string(),
             },
             crate::stream::ToolCallSummary {
+                call_id: None,
                 name: "Bash".to_string(),
                 args: "echo waiting".to_string(),
             },
@@ -1068,6 +1091,7 @@ fn an_agents_ctrl_o_cell_lists_only_the_calls_it_ran() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".to_string(),
             args: "echo running".to_string(),
             detail: None,
@@ -1267,6 +1291,7 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".into(),
             args: "/home/linuztx/hello.py".into(),
             detail: None,
@@ -1294,6 +1319,7 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Read".into(),
             args: "/home/linuztx/Codes/tests/src/app.rs".into(),
             detail: None,
@@ -1305,6 +1331,7 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
     app.apply_agent_event(
         "a2",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Bash".into(),
             args: "cat /home/linuztx/Codes/tests/x".into(),
             detail: Some("Reading /home/linuztx/Codes/tests/x".into()),
@@ -1403,6 +1430,7 @@ fn a_live_agent_cells_nested_headers_shorten_from_the_record() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Write".into(),
             args: "/home/linuztx/notes.md".into(),
             detail: None,
@@ -1412,6 +1440,7 @@ fn a_live_agent_cells_nested_headers_shorten_from_the_record() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolEnd {
+            call_id: None,
             output: "Wrote 1 line to ../../notes.md\n1 x".into(),
             ok: true,
             truncated: false,
@@ -1421,6 +1450,7 @@ fn a_live_agent_cells_nested_headers_shorten_from_the_record() {
     app.apply_agent_event(
         "a1",
         &crate::stream::StreamEvent::ToolStart {
+            call_id: None,
             name: "Read".into(),
             args: "/home/linuztx/Codes/tests/a.rs".into(),
             detail: None,

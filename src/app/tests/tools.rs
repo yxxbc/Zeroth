@@ -702,6 +702,7 @@ fn round_call_with(id: &str, name: &str, arguments: &str) -> crate::stream::Roun
 
 fn summary(name: &str, args: &str) -> ToolCallSummary {
     ToolCallSummary {
+        call_id: None,
         name: name.to_string(),
         args: args.to_string(),
     }
@@ -1090,4 +1091,112 @@ fn appended_output_settles_the_live_rows() {
     app.push_tool_output("\ndone\n");
     app.push_tool_screen("", "next");
     assert_eq!(app.current_tool().unwrap().output, "45%\ndone\nnext");
+}
+
+// --- concurrent calls, routed by id (docs/tools/parallel-tools.md) ---
+
+fn id_batch() -> Vec<ToolCallSummary> {
+    ["c1", "c2", "c3"]
+        .iter()
+        .map(|id| ToolCallSummary {
+            call_id: Some((*id).to_string()),
+            name: "Bash".to_string(),
+            args: format!("run {id}"),
+        })
+        .collect()
+}
+
+#[test]
+fn a_batch_of_ids_runs_several_cells_at_once() {
+    // Every worker announces its own call when it starts: several cells are
+    // `Running` at once, each the one its id names.
+    let mut app = App::new();
+    app.start_tool_batch(&id_batch());
+    app.start_tool_for(Some("c2"), "Bash", "run c2", None);
+    app.start_tool_for(Some("c1"), "Bash", "run c1", None);
+    assert_eq!(app.tool_queue().len(), 3, "no extra cells were pushed");
+    assert_eq!(app.tool_queue()[0].status, ToolStatus::Running);
+    assert_eq!(app.tool_queue()[1].status, ToolStatus::Running);
+    assert_eq!(app.tool_queue()[2].status, ToolStatus::Waiting);
+}
+
+#[test]
+fn live_output_lands_on_the_cell_its_id_names() {
+    let mut app = App::new();
+    app.start_tool_batch(&id_batch());
+    app.start_tool_for(Some("c1"), "Bash", "run c1", None);
+    app.start_tool_for(Some("c2"), "Bash", "run c2", None);
+    app.push_tool_output_for(Some("c1"), "one\n");
+    app.push_tool_output_for(Some("c2"), "two\n");
+    app.push_tool_output_for(Some("c1"), "more\n");
+    assert_eq!(app.tool_queue()[0].output, "one\nmore\n");
+    assert_eq!(app.tool_queue()[1].output, "two\n");
+    // Screen rows are per call too: a redraw of c1's live block never
+    // replaces c2's.
+    app.push_tool_screen_for(Some("c1"), "", "10%");
+    app.push_tool_screen_for(Some("c2"), "", "20%");
+    app.push_tool_screen_for(Some("c1"), "", "30%");
+    assert_eq!(app.tool_queue()[0].output, "one\nmore\n30%");
+    assert_eq!(app.tool_queue()[1].output, "two\n20%");
+}
+
+#[test]
+fn a_start_with_an_id_pushes_a_lone_cell_it_can_route_to() {
+    // No batch announced it: the id still stamps the fresh call, so its
+    // later chunks land on it.
+    let mut app = App::new();
+    app.start_tool_for(Some("solo"), "Bash", "ls", None);
+    assert_eq!(app.tool_queue().len(), 1);
+    assert_eq!(app.current_tool().unwrap().call_id.as_deref(), Some("solo"));
+    app.push_tool_output_for(Some("solo"), "ok\n");
+    assert_eq!(app.current_tool().unwrap().output, "ok\n");
+}
+
+#[test]
+fn a_second_start_for_the_same_id_does_not_add_a_cell() {
+    let mut app = App::new();
+    app.start_tool_batch(&id_batch());
+    app.start_tool_for(Some("c1"), "Bash", "run c1", None);
+    app.start_tool_for(Some("c1"), "Bash", "run c1", None);
+    assert_eq!(app.tool_queue().len(), 3);
+}
+
+#[test]
+fn a_call_resolves_by_id_while_its_siblings_keep_running() {
+    let mut app = App::new();
+    app.start_tool_batch(&id_batch());
+    app.start_tool_for(Some("c1"), "Bash", "run c1", None);
+    app.start_tool_for(Some("c2"), "Bash", "run c2", None);
+    app.set_tool_run_for(Some("c2"), failed_run());
+    let resolved = app
+        .end_tool_for(Some("c2"), "Exit code: 1", false)
+        .expect("c2 was live");
+    assert_eq!(resolved.run, failed_run());
+    assert_eq!(resolved.call_id.as_deref(), Some("c2"));
+    // The record landed and c2's cell is gone; c1 is still running and c3
+    // still waits its turn.
+    assert!(
+        matches!(app.history.last(), Some(HistoryItem::Tool(t)) if t.call_id.as_deref() == Some("c2"))
+    );
+    assert_eq!(app.tool_queue().len(), 2);
+    assert_eq!(app.tool_queue()[0].status, ToolStatus::Running);
+    assert_eq!(app.tool_queue()[0].call_id.as_deref(), Some("c1"));
+    assert_eq!(app.tool_queue()[1].status, ToolStatus::Waiting);
+}
+
+#[test]
+fn a_resolution_for_an_id_no_longer_live_is_a_noop() {
+    // An Esc resolved the queue first; the late event must not make a
+    // phantom cell or a duplicate record.
+    let mut app = App::new();
+    app.start_tool_batch(&id_batch());
+    app.fail_live_queue(
+        INTERRUPT_TOOL_OUTPUT,
+        crate::stream::ToolErrorKind::Interrupted,
+    );
+    let history = app.history.len();
+    assert!(app.end_tool_for(Some("c1"), "late", true).is_none());
+    assert!(app.reject_tool_for(Some("c2"), "late", "late").is_none());
+    assert_eq!(app.history.len(), history);
+    assert!(app.tool_queue().is_empty());
 }
