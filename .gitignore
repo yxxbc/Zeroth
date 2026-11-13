@@ -1,9 +1,19 @@
 /target
 .claude/
 # The /login flow writes API keys to ~/.zeroth/.env by default (outside the
-# repo); this guards a local ./.env (ALTER_ZERO_ENV_FILE / no-HOME fallback) too —
-# never commit secrets (docs/providers/llm.md).
+# repo); these guard a copy inside the tree (ZEROTH_ENV_FILE / no-HOME
+# fallback) — never commit secrets (docs/providers/llm.md).
+#
+# The plain `.env` is not enough: the store's path is overridable
+# (`ZEROTH_ENV_FILE`, src/tui/config.rs), so a user who points it at
+# `keys.env` or `.env.local` would otherwise be one `git add .` from
+# publishing every key they have. `.envrc` is direnv's, which is somebody
+# else's store with the same contents.
 .env
+.env.*
+.envrc
+*.env
+!.env.example
 
 # scripts/release.sh build packages the release assets here (docs/ops/release.md).
 /dist
