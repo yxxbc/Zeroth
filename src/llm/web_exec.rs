@@ -408,10 +408,20 @@ pub fn fetch_document(
                 (text, shown)
             }
         }
-        Err(reason) => match rescue(url, search) {
-            Some((rescued, source)) => (rescued, Some(source)),
-            None => return Err(reason),
-        },
+        Err(reason) => {
+            // **A target the gate refused is never rescued.** The gate exists
+            // to keep this machine off a private address; handing the same URL
+            // to a third party is not a rescue, it is the same request moved
+            // somewhere the gate cannot see it.
+            let reason = fetch_error(reason);
+            if reason.refused {
+                return Err(reason.text);
+            }
+            match rescue(url, search) {
+                Some((rescued, source)) => (rescued, Some(source)),
+                None => return Err(reason.text),
+            }
+        }
     };
 
     let document = crate::web::fetch::pages(&text, page_chars);
@@ -432,29 +442,71 @@ pub fn fetch_document(
     Ok(out)
 }
 
+/// A fetch failure: what the model reads, and whether the **gate** is what
+/// refused it — a refusal that must not be handed to a rescue source.
+struct FetchError {
+    text: String,
+    refused: bool,
+}
+
+impl FetchError {
+    /// A refusal by the address gate.
+    fn refused(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            refused: true,
+        }
+    }
+
+    /// Anything else: a transport failure, a status, a body this crate cannot
+    /// read. These are worth trying a source for.
+    fn failed(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            refused: false,
+        }
+    }
+}
+
+impl From<String> for FetchError {
+    fn from(text: String) -> Self {
+        FetchError::failed(text)
+    }
+}
+
+/// [`FetchError`] from anything the fetch path can produce.
+fn fetch_error(error: impl Into<FetchError>) -> FetchError {
+    error.into()
+}
+
 /// One fetch: gate the URL, resolve it, pin the address the gate approved, and
 /// return the body as text plus what the user's cell should say about where it
 /// went.
-fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), String> {
+fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), FetchError> {
     use crate::web::fetch::{Media, charset_of, decode, looks_like_html, media_from_content_type};
     use crate::web::guard::{AddressClass, GuardError, classify, parse_target};
 
-    let target = parse_target(url).map_err(|error| describe_guard(&error))?;
+    let target = parse_target(url).map_err(|error| FetchError::refused(describe_guard(&error)))?;
     // The gate resolves, and every address must be routable before anything is
     // sent. The connection is pinned to the address that passed, so a second
     // DNS answer cannot swap it (`docs/tools/web-search.md`).
     let addresses = resolve(&target.host, target.port).map_err(|error| error.to_string())?;
     if addresses.is_empty() {
-        return Err(format!("{} did not resolve", target.host));
+        return Err(FetchError::refused(format!(
+            "{} did not resolve",
+            target.host
+        )));
     }
     for address in &addresses {
         let class = classify(*address);
         if class != AddressClass::Global {
-            return Err(describe_guard(&GuardError::NotGlobal {
-                host: target.host.clone(),
-                address: *address,
-                class,
-            }));
+            return Err(FetchError::refused(describe_guard(
+                &GuardError::NotGlobal {
+                    host: target.host.clone(),
+                    address: *address,
+                    class,
+                },
+            )));
         }
     }
     let pinned = std::net::SocketAddr::new(addresses[0], target.port);
@@ -464,7 +516,7 @@ fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), 
         .connect_timeout(Duration::from_secs(10))
         .resolve(&host_for_pin, pinned)
         .build()
-        .map_err(|error| format!("could not build the request: {error}"))?;
+        .map_err(|error| FetchError::failed(format!("could not build the request: {error}")))?;
 
     let response = client
         .get(url)
@@ -474,10 +526,12 @@ fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), 
             "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
         )
         .send()
-        .map_err(|error| format!("could not fetch: {}", transport_reason(error)))?;
+        .map_err(|error| {
+            FetchError::failed(format!("could not fetch: {}", transport_reason(error)))
+        })?;
     let status = response.status().as_u16();
     if !(200..300).contains(&status) {
-        return Err(format!("HTTP {status}"));
+        return Err(FetchError::failed(format!("HTTP {status}")));
     }
     let content_type = response
         .headers()
@@ -497,10 +551,12 @@ fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), 
     match media {
         Media::Html => Ok((html_to_text(&text), None)),
         Media::Text => Ok((text, None)),
-        Media::Binary(what) => Err(format!("{url} is {what}, which this tool does not read")),
-        Media::Unknown => Err(format!(
+        Media::Binary(what) => Err(FetchError::failed(format!(
+            "{url} is {what}, which this tool does not read"
+        ))),
+        Media::Unknown => Err(FetchError::failed(format!(
             "{url} did not say what it is, and it does not look like text"
-        )),
+        ))),
     }
 }
 
