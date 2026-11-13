@@ -102,7 +102,13 @@ serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 # keeps the build pure-Rust (no system OpenSSL, matching arboard's stance); the
 # agent proxy's custom CA is loaded at runtime from `SSL_CERT_FILE`. `json`
 # serializes request bodies; default features off to stay lean.
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+# `gzip` because a page fetched without it costs nine times the bytes: measured
+# on doc.rust-lang.org, 948,428 B on the wire against 100,912 B compressed, and
+# 1.21 s against 0.49 s for sixteen concurrent fetches
+# (docs/tools/web-search.md, Measured section 2). `charset` stays off on
+# purpose — src/web/fetch.rs decodes, so one page's encoding decision is
+# testable and cannot depend on a feature flag.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls", "gzip"] }
 # Parse `providers.toml` (docs/providers/llm.md) into the `llm::config` provider table.
 # `parse` only: the file is read, never written, so the default `display`
 # half — a TOML serializer in `toml` and `toml_edit` — stayed out of the
