@@ -556,31 +556,34 @@ impl Drop for SlotGuard {
 /// went.
 fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), FetchError> {
     use crate::web::fetch::{Media, charset_of, decode, looks_like_html, media_from_content_type};
-    use crate::web::guard::{AddressClass, GuardError, classify, parse_target};
+    use crate::web::guard::parse_target;
 
     let target = parse_target(url).map_err(|error| FetchError::refused(describe_guard(&error)))?;
-    // The gate resolves, and every address must be routable before anything is
-    // sent. The connection is pinned to the address that passed, so a second
-    // DNS answer cannot swap it (`docs/tools/web-search.md`).
-    let addresses = resolve(&target.host, target.port).map_err(|error| error.to_string())?;
-    if addresses.is_empty() {
-        return Err(FetchError::refused(format!(
-            "{} did not resolve",
-            target.host
-        )));
+
+    // **With a proxy configured, the proxy is the exit and the gate stands
+    // down.** Its address is the constant env var, not something the model
+    // chose, and the target it reaches is the proxy's business. This matters
+    // on a workstation running a transparent proxy: every name resolves to a
+    // reserved range (RFC 2544's `198.18/15` is the usual fake-IP block), so
+    // resolving here and checking the answer would refuse the whole internet
+    // while the very same URL works through curl.
+    // **A literal address is always gated, proxy or not.** The model wrote
+    // `http://127.0.0.1/…` itself; a proxy cannot make that a legitimate
+    // request, and a proxy in front of a workstation is exactly where an
+    // SSRF is worth attempting. Only a *name* defers to the proxy, because
+    // its resolution is the proxy's own (a fake-IP block is not an address the
+    // model chose).
+    if target.host.parse::<std::net::IpAddr>().is_ok() {
+        gate_addresses(&target)?;
     }
-    for address in &addresses {
-        let class = classify(*address);
-        if class != AddressClass::Global {
-            return Err(FetchError::refused(describe_guard(
-                &GuardError::NotGlobal {
-                    host: target.host.clone(),
-                    address: *address,
-                    class,
-                },
-            )));
-        }
-    }
+    let via_proxy = proxy_for(&target.scheme);
+    let gate = match &via_proxy {
+        // Through a proxy: the target is the proxy's to resolve. Pinning
+        // would fight it — `resolve` applies to the name, and the connection
+        // goes to the proxy instead.
+        Some(_) => None,
+        None => Some(gate_addresses(&target)?),
+    };
     // The budget is politeness, and it is process-wide
     // (`docs/tools/web-search.md` *Concurrency*, decision 2).
     let limiter = LIMITER.get();
@@ -598,12 +601,28 @@ fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), 
         limiter,
         host: target.host.clone(),
     };
-    let pinned = std::net::SocketAddr::new(addresses[0], target.port);
-    let host_for_pin = target.host.clone();
-    let client = reqwest::blocking::Client::builder()
+    let mut builder = reqwest::blocking::Client::builder()
         .timeout(timeout)
-        .connect_timeout(Duration::from_secs(10))
-        .resolve(&host_for_pin, pinned)
+        .connect_timeout(Duration::from_secs(10));
+    match (&via_proxy, gate) {
+        // Through a proxy: ask it, and let it resolve. The pin would fight the
+        // proxy (it applies to the name, and the connection goes elsewhere).
+        (Some(proxy), _) => {
+            let proxy = reqwest::Proxy::all(proxy).map_err(|error| {
+                FetchError::failed(format!("the proxy {proxy} is not usable: {error}"))
+            })?;
+            builder = builder.proxy(proxy);
+        }
+        // Direct: the connection is pinned to the address the gate approved,
+        // so a second DNS answer cannot swap it (`docs/tools/web-search.md`).
+        (None, Some(address)) => {
+            builder = builder.resolve(&target.host, address);
+        }
+        (None, None) => {
+            return Err(FetchError::failed("no route to the target".to_string()));
+        }
+    }
+    let client = builder
         .build()
         .map_err(|error| FetchError::failed(format!("could not build the request: {error}")))?;
 
@@ -679,6 +698,73 @@ fn rescue(url: &str, search: Option<&crate::web::walk::Search>) -> Option<(Strin
 /// A guard refusal as the model reads it.
 fn describe_guard(error: &crate::web::guard::GuardError) -> String {
     format!("{error}")
+}
+
+/// The proxy a `scheme` goes through, if the environment names one.
+///
+/// The same variables curl and every other tool read, in the same precedence:
+/// the scheme's own first, then `ALL_PROXY`, each in both cases because the
+/// lowercase form is the convention and the uppercase one the fallback.
+/// `NO_PROXY` is **not** consulted here: it exists to bypass a proxy for a
+/// host, and a bypass would put the request back on the forbidden path — the
+/// gate below then refuses it, which is the honest answer.
+#[must_use]
+pub fn proxy_for(scheme: &str) -> Option<String> {
+    proxy_name_for(scheme, &|name| {
+        std::env::var_os(name).map(|value| value.to_string_lossy().into_owned())
+    })
+}
+
+/// [`proxy_for`] over an injected reader, so the precedence is testable
+/// without touching the process environment (this crate forbids `set_var`).
+///
+/// The scheme's own variable wins over `ALL_PROXY`, and each is tried in the
+/// uppercase spelling then the lowercase — the convention curl follows.
+#[must_use]
+pub fn proxy_name_for(scheme: &str, read: &dyn Fn(&str) -> Option<String>) -> Option<String> {
+    let names: [&str; 4] = match scheme {
+        "https" => ["HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"],
+        _ => ["HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"],
+    };
+    names
+        .iter()
+        .filter_map(|name| read(name))
+        .map(|value| value.trim().to_string())
+        .find(|value| !value.is_empty())
+}
+
+/// Resolve the target and require every answer to be globally routable.
+///
+/// Returns the address the connection must be pinned to.
+///
+/// # Errors
+///
+/// A name that does not resolve, or an answer outside the global ranges
+/// ([`FetchError::refused`], so it is never handed to a rescue source).
+fn gate_addresses(target: &crate::web::guard::Target) -> Result<std::net::SocketAddr, FetchError> {
+    use crate::web::guard::{AddressClass, GuardError, classify};
+
+    let addresses = resolve(&target.host, target.port)
+        .map_err(|error| FetchError::refused(error.to_string()))?;
+    if addresses.is_empty() {
+        return Err(FetchError::refused(format!(
+            "{} did not resolve",
+            target.host
+        )));
+    }
+    for address in &addresses {
+        let class = classify(*address);
+        if class != AddressClass::Global {
+            return Err(FetchError::refused(describe_guard(
+                &GuardError::NotGlobal {
+                    host: target.host.clone(),
+                    address: *address,
+                    class,
+                },
+            )));
+        }
+    }
+    Ok(std::net::SocketAddr::new(addresses[0], target.port))
 }
 
 /// Resolve `host:port` to its addresses.

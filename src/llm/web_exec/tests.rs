@@ -220,3 +220,57 @@ fn a_bing_page_is_parsed_rather_than_read_as_json() {
     let hits = read_reply(crate::web::rules::Kind::Bing, html).expect("parses");
     assert_eq!(hits[0].url, "https://a.test/1");
 }
+
+// ===== the proxy decides where the request goes =====
+
+#[test]
+fn a_configured_proxy_is_read_from_the_same_variables_curl_reads() {
+    // Not a test that mutates the environment — this crate forbids `set_var`
+    // (`docs/architecture/environment.md`), so the precedence rule is
+    // asserted on a helper instead.
+    assert_eq!(
+        super::proxy_name_for("https", &|name: &str| match name {
+            "HTTPS_PROXY" => Some("http://127.0.0.1:7890".to_string()),
+            _ => None,
+        }),
+        Some("http://127.0.0.1:7890".to_string())
+    );
+    assert_eq!(
+        super::proxy_name_for("http", &|name: &str| match name {
+            "http_proxy" => Some("http://127.0.0.1:7890".to_string()),
+            _ => None,
+        }),
+        Some("http://127.0.0.1:7890".to_string())
+    );
+    assert_eq!(
+        super::proxy_name_for("https", &|name: &str| match name {
+            "ALL_PROXY" => Some("socks5://127.0.0.1:1080".to_string()),
+            _ => None,
+        }),
+        Some("socks5://127.0.0.1:1080".to_string())
+    );
+}
+
+#[test]
+fn a_scheme_s_own_variable_beats_all_proxy() {
+    let read = |name: &str| match name {
+        "HTTPS_PROXY" => Some("http://specific:1".to_string()),
+        "ALL_PROXY" => Some("http://fallback:2".to_string()),
+        _ => None,
+    };
+    assert_eq!(
+        super::proxy_name_for("https", &read),
+        Some("http://specific:1".to_string())
+    );
+}
+
+#[test]
+fn no_proxy_variable_means_a_direct_connection() {
+    assert_eq!(super::proxy_name_for("https", &|_: &str| None), None);
+    // An empty or whitespace value is not a proxy.
+    assert_eq!(
+        super::proxy_name_for("https", &|name: &str| (name == "HTTPS_PROXY")
+            .then(|| "   ".to_string())),
+        None
+    );
+}

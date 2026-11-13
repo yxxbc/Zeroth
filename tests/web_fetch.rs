@@ -333,3 +333,21 @@ fn the_default_timeout_bounds_a_slow_host() {
     assert_eq!(rules.timeout, Duration::from_secs(5));
     assert_eq!(rules.fetch.timeout, Duration::from_secs(5));
 }
+
+#[test]
+fn a_literal_private_address_is_gated_even_when_a_proxy_is_configured() {
+    // The hole this test exists for: the first version of the proxy change
+    // let a proxy stand the gate down for *everything*, so `http://127.0.0.1/`
+    // and the metadata endpoint went through whenever the machine had
+    // HTTP_PROXY set — which is every developer workstation. A literal
+    // address is the model's own choice; a proxy cannot legitimise it.
+    let search = search("http://127.0.0.1:1");
+    for (url, expected) in [
+        ("http://127.0.0.1:9/admin", "loopback"),
+        ("http://169.254.169.254/latest/meta-data/", "link-local"),
+        ("http://10.0.0.1/", "private"),
+    ] {
+        let refused = web_exec::fetch_document(url, 1, Some(&search)).expect_err("refused");
+        assert!(refused.contains(expected), "{url}: {refused}");
+    }
+}
