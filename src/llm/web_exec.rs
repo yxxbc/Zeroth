@@ -372,6 +372,27 @@ fn transport_reason(error: reqwest::Error) -> String {
     }
 }
 
+/// The process-wide budget and page cache (`docs/tools/web-search.md`
+/// *Concurrency*). One for the process, for the same reason the HTTP client
+/// cache is: four sessions each fetching eight pages at one host is a load
+/// test, and per-session limiting would not see it.
+static LIMITER: std::sync::OnceLock<crate::web::limiter::Limiter> = std::sync::OnceLock::new();
+
+/// The process's limiter, built from `budget` on first use.
+fn limiter(budget: crate::web::limiter::Budget) -> &'static crate::web::limiter::Limiter {
+    LIMITER.get_or_init(|| crate::web::limiter::Limiter::new(budget))
+}
+
+/// The budget the shipped file configures.
+fn budget_of(rules: &crate::web::rules::Rules) -> crate::web::limiter::Budget {
+    crate::web::limiter::Budget {
+        max_in_flight: rules.limits.max_in_flight,
+        max_per_host: rules.limits.max_per_host,
+        requests_per_minute: rules.limits.requests_per_minute,
+        ..crate::web::limiter::Budget::default()
+    }
+}
+
 /// Fetch one URL and render it for the model: the address gate, the request,
 /// the charset, the conversion and the page
 /// (`docs/tools/web-search.md` *`web_fetch`*).
@@ -393,6 +414,15 @@ pub fn fetch_document(
     let rules = search.map(|search| search.rules());
     let page_chars = rules.map_or(16_000, |rules| rules.fetch.page_chars);
     let timeout = rules.map_or(Duration::from_secs(45), |rules| rules.fetch.timeout);
+    let limiter = rules.map(|rules| limiter(budget_of(rules)));
+
+    // A `page: 2` of a document still in the cache costs nothing — no request,
+    // no slot, no hit on the source (`docs/tools/web-search.md` *Concurrency*,
+    // decision 3).
+    let cached = limiter.and_then(|limiter| limiter.cached(url, std::time::Instant::now()));
+    if let Some(text) = cached {
+        return Ok(render_page(&text, page_chars, page_number, None, true));
+    }
     let (text, via) = match fetch_once(url, timeout) {
         Ok((text, shown)) => {
             // A body that came back empty or login-wall short is worth asking
@@ -424,11 +454,38 @@ pub fn fetch_document(
         }
     };
 
-    let document = crate::web::fetch::pages(&text, page_chars);
+    if let Some(limiter) = limiter {
+        limiter.keep(url, text.clone(), std::time::Instant::now());
+    }
+    Ok(render_page(
+        &text,
+        page_chars,
+        page_number,
+        via.as_deref(),
+        false,
+    ))
+}
+
+/// One page of `text`, as the model reads it: the source it came through when
+/// that is not this machine, and how much is left when it is not the last.
+fn render_page(
+    text: &str,
+    page_chars: usize,
+    page_number: usize,
+    via: Option<&str>,
+    cached: bool,
+) -> String {
+    let document = crate::web::fetch::pages(text, page_chars);
     let page = crate::web::fetch::page(&document, page_number);
     let mut out = String::new();
-    if let Some(source) = &via {
-        out.push_str(&format!("via {source}\n\n"));
+    if let Some(source) = via {
+        out.push_str(&format!("via {source}\n"));
+    }
+    if cached {
+        out.push_str("cached\n");
+    }
+    if via.is_some() || cached {
+        out.push('\n');
     }
     out.push_str(page.text.trim_end());
     if page.has_more() {
@@ -439,11 +496,11 @@ pub fn fetch_document(
             page.number + 1
         ));
     }
-    Ok(out)
+    out
 }
 
 /// A fetch failure: what the model reads, and whether the **gate** is what
-/// refused it — a refusal that must not be handed to a rescue source.
+/// refused it — a refusal that must never be handed to a rescue source.
 struct FetchError {
     text: String,
     refused: bool,
@@ -479,6 +536,21 @@ fn fetch_error(error: impl Into<FetchError>) -> FetchError {
     error.into()
 }
 
+/// Releases a fetch's slot however the fetch ends — an error path must not
+/// leak a place in the budget, or the limiter would tighten itself shut.
+struct SlotGuard {
+    limiter: Option<&'static crate::web::limiter::Limiter>,
+    host: String,
+}
+
+impl Drop for SlotGuard {
+    fn drop(&mut self) {
+        if let Some(limiter) = self.limiter {
+            limiter.release(&self.host);
+        }
+    }
+}
+
 /// One fetch: gate the URL, resolve it, pin the address the gate approved, and
 /// return the body as text plus what the user's cell should say about where it
 /// went.
@@ -509,6 +581,23 @@ fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), 
             )));
         }
     }
+    // The budget is politeness, and it is process-wide
+    // (`docs/tools/web-search.md` *Concurrency*, decision 2).
+    let limiter = LIMITER.get();
+    let waiting = matches!(
+        limiter.map(|limiter| limiter.acquire(&target.host, std::time::Instant::now())),
+        Some(crate::web::limiter::Granted::At(_))
+    );
+    if waiting {
+        return Err(FetchError::failed(format!(
+            "too many page requests in flight — try {} again in a moment",
+            target.host
+        )));
+    }
+    let _release = SlotGuard {
+        limiter,
+        host: target.host.clone(),
+    };
     let pinned = std::net::SocketAddr::new(addresses[0], target.port);
     let host_for_pin = target.host.clone();
     let client = reqwest::blocking::Client::builder()

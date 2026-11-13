@@ -1677,6 +1677,11 @@ pub fn parse_args<T: for<'de> Deserialize<'de>>(arguments: &str) -> Result<T, St
 #[must_use]
 pub fn is_parallel_safe(name: &str) -> bool {
     matches!(name, "bash" | "read" | "write" | "edit")
+        // `web_fetch` joins: two fetches of different URLs are independent by
+        // construction, and the executor holds no state per call beyond the
+        // HTTP client and the bounded page cache
+        // (`docs/tools/web-search.md` *Concurrency*, decision 1).
+        || name == WEB_FETCH_TOOL
 }
 
 /// Whether a whole batch may run on the worker pool. Every call must be
@@ -1699,6 +1704,14 @@ pub fn batch_is_parallelizable(calls: &[&ToolCallRequest]) -> bool {
     if calls.iter().any(|call| call.name == "bash") {
         return calls.iter().all(|call| call.name == "bash");
     }
+    // A fetch mixed with a file tool stays serial: the page it reads may be
+    // one the other call is writing, and only the model's order says which
+    // comes first.
+    if calls.iter().any(|call| call.name == WEB_FETCH_TOOL)
+        && calls.iter().any(|call| call.name != WEB_FETCH_TOOL)
+    {
+        return false;
+    }
     let mut paths: Vec<String> = Vec::with_capacity(calls.len());
     for call in calls {
         let Some(path) = call_path(call) else {
@@ -1712,9 +1725,23 @@ pub fn batch_is_parallelizable(calls: &[&ToolCallRequest]) -> bool {
     true
 }
 
+/// The `url` a `web_fetch` call names, for the same collision rule a file
+/// path gets — two fetches of one page (a `page: 2` follow-up) run in the
+/// model's order, never racing.
+fn call_url(call: &ToolCallRequest) -> Option<String> {
+    let arguments: Value = serde_json::from_str(call.arguments.trim()).ok()?;
+    arguments
+        .get("url")?
+        .as_str()
+        .map(|url| url.trim().to_string())
+}
+
 /// The `path` argument of a file tool, canonicalized as far as the filesystem
 /// allows so `/repo/a` and `/repo/./a` (or a symlinked directory) collide.
 fn call_path(call: &ToolCallRequest) -> Option<String> {
+    if call.name == WEB_FETCH_TOOL {
+        return call_url(call);
+    }
     let arguments: Value = serde_json::from_str(call.arguments.trim()).ok()?;
     let path = arguments.get("path")?.as_str()?;
     let path = std::path::Path::new(path);
@@ -5072,5 +5099,55 @@ mod tests {
             "a lone call has no one to overlap"
         );
         assert!(!batch_is_parallelizable(&[&bad, &read_b]));
+    }
+
+    #[test]
+    fn fetches_of_different_pages_run_together_and_one_page_stays_in_order() {
+        // docs/tools/web-search.md *Concurrency*, decision 1.
+        let call = |arguments: &str| ToolCallRequest {
+            id: "c".to_string(),
+            name: WEB_FETCH_TOOL.to_string(),
+            arguments: arguments.to_string(),
+        };
+        let one = call(r#"{"url":"https://a.test/1"}"#);
+        let two = call(r#"{"url":"https://a.test/2"}"#);
+        let same = call(r#"{"url":"https://a.test/1","page":2}"#);
+        let read = ToolCallRequest {
+            id: "r".to_string(),
+            name: "read".to_string(),
+            arguments: r#"{"path":"/tmp/a"}"#.to_string(),
+        };
+        let bash = ToolCallRequest {
+            id: "b".to_string(),
+            name: "bash".to_string(),
+            arguments: r#"{"command":"ls"}"#.to_string(),
+        };
+
+        assert!(is_parallel_safe(WEB_FETCH_TOOL));
+        assert!(batch_is_parallelizable(&[&one, &two]));
+        assert!(
+            !batch_is_parallelizable(&[&one, &same]),
+            "a page: 2 follow-up must not race the first request"
+        );
+        assert!(
+            !batch_is_parallelizable(&[&one, &read]),
+            "a fetch beside a file call keeps the model's order"
+        );
+        assert!(
+            !batch_is_parallelizable(&[&one, &bash]),
+            "and beside a shell, which could be serving the page"
+        );
+        assert!(
+            !batch_is_parallelizable(&[&one]),
+            "a lone fetch has no one to overlap"
+        );
+    }
+
+    #[test]
+    fn a_search_stays_serial_because_its_cooldown_is_shared() {
+        // Two searches racing one `Cooldowns` map would count strikes by
+        // scheduling, and eight at once is a rate limit we inflicted on
+        // ourselves (`docs/tools/web-search.md` *Concurrency*, decision 1).
+        assert!(!is_parallel_safe(WEB_SEARCH_TOOL));
     }
 }

@@ -14,6 +14,7 @@
 pub mod cooldown;
 pub mod fetch;
 pub mod guard;
+pub mod limiter;
 pub mod rules;
 pub mod scrape;
 pub mod sources;
@@ -24,6 +25,7 @@ pub use cooldown::Cooldowns;
 pub use guard::{
     AddressClass, GuardError, classify, is_global, parse_target, unwrap_bing_redirect,
 };
+pub use limiter::{Budget, Granted, Limiter};
 pub use rules::{
     DEFAULT_BROWSER_USER_AGENT, Fetching, Kind, Limits, Needs, RuleError, Rules, RulesIssue,
     Source, load_builtin, load_rules, merge_rules,
