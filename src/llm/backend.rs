@@ -123,7 +123,7 @@ pub struct LlmBackend {
     /// configured, the `with_skills` posture: a tool that can only answer
     /// "no sources" spends the model's attention on a dead end. Subagents
     /// carry it too — research is the case a subagent exists for.
-    web: Option<std::sync::Arc<crate::web::Rules>>,
+    web: Option<std::sync::Arc<crate::web::walk::Search>>,
     /// The session's MCP servers, when the boundary attached the manager —
     /// **adds every connected server's tools** under their
     /// `mcp__server__tool` wire names (`docs/tools/mcp.md`). Attached only when at
@@ -402,9 +402,9 @@ impl LlmBackend {
     /// (`docs/tools/web-search.md`). Attached only when tools are enabled and
     /// the rules name at least one source — with none there is nothing to ask.
     #[must_use]
-    pub fn with_web(mut self, rules: std::sync::Arc<crate::web::Rules>) -> Self {
-        if self.tools_enabled && !rules.order.is_empty() {
-            self.web = Some(rules);
+    pub fn with_web(mut self, search: std::sync::Arc<crate::web::walk::Search>) -> Self {
+        if self.tools_enabled && !search.rules().order.is_empty() {
+            self.web = Some(search);
             self.sync_tool_specs();
         }
         self
@@ -828,6 +828,10 @@ impl ReplySource for LlmBackend {
         // pushes onto it while the turn runs and the agent loop drains it at
         // every round boundary.
         let steer = self.steer.clone();
+        // The web tools' search state, cloned out before the spawn takes
+        // ownership — `self` must not escape into the thread
+        // (`docs/tools/web-search.md`).
+        let web = self.web.clone();
         thread::spawn(move || {
             // Encoding the attachments reads files — done here on the backend
             // thread so a large image never stalls the event loop. A known
@@ -893,6 +897,12 @@ impl ReplySource for LlmBackend {
                 })
                 .unwrap_or_default();
             let mut executor = RealToolExecutor::new().with_vision(vision);
+            // The web tools' executor half (`docs/tools/web-search.md`): the
+            // same `Search` the spec set was built from, so the cooldown a
+            // search records is the one the next search reads.
+            if let Some(search) = web.clone() {
+                executor = executor.with_web(search);
+            }
             let notices = background.clone();
             if let Some(registry) = background.clone() {
                 // The registry carries the terminal-detach helper from
@@ -1342,6 +1352,9 @@ struct SubagentConfig {
     /// The auto mode classifier, so a subagent's `bash` calls are reviewed
     /// in auto mode exactly like the main turn's (`docs/state/permissions.md`).
     classifier: SafetyClassifier,
+    /// The web tools' search state, so a subagent searches with the same
+    /// cooldown table the lead does (`docs/tools/web-search.md` *Subagents*).
+    web: Option<std::sync::Arc<crate::web::walk::Search>>,
     /// The session's skills, so a subagent can load one too (`docs/tools/skills.md`)
     /// — a side agent benefits from an authored `SKILL.md` exactly as the lead
     /// does, and loading one is pure text, so it needs no gate of its own.
@@ -1383,6 +1396,7 @@ impl LlmBackend {
             background: self.background.clone(),
             permissions: self.permissions.clone(),
             classifier: self.classifier.clone(),
+            web: self.web.clone(),
             skills: self.skills.clone(),
             mcp: self.mcp.clone(),
             max_retries: self.max_retries,
@@ -1807,6 +1821,7 @@ fn spawn_subagent_run(
     cancel: CancelToken,
 ) {
     let skills = config.skills.clone();
+    let web = config.web.clone();
     let mcp = config.mcp.clone();
     let secrets = config.secrets.clone();
     // Kept whole for the settle-window continuation at the very bottom.
@@ -1924,6 +1939,11 @@ fn spawn_subagent_run(
         let mut executor = RealToolExecutor::new()
             .with_vision(vision)
             .with_detach_helper(detach);
+        // A subagent gets the web tools too — research is the case a side
+        // agent exists for (`docs/tools/web-search.md` *Subagents*).
+        if let Some(search) = web.clone() {
+            executor = executor.with_web(search);
+        }
         // The shared background registry rides in so the subagent's `bash`
         // can `run_in_background` — every launch attributed to this agent,
         // and the Ctrl+B latch untouched (docs/agents/agent-tool.md).
@@ -2887,6 +2907,40 @@ mod tests {
             LlmBackend::configure(ModelConfig::fallback(), None, false)
                 .with_skills(registry)
                 .skills
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn the_web_tools_are_offered_only_once_the_search_is_attached() {
+        // The defect this test exists for: the tools, the executor and the
+        // spec set were all built and none of them was wired into the session,
+        // so a release binary contained the whole feature and never offered
+        // it. Asserting on the spec set is the only place that shows.
+        let rules = crate::web::load_builtin().expect("the shipped file parses");
+        let search = std::sync::Arc::new(crate::web::walk::Search::new(rules));
+
+        let without = LlmBackend::configure(ModelConfig::fallback(), None, true);
+        let names = |backend: &LlmBackend| -> Vec<String> {
+            backend
+                .tool_definitions
+                .iter()
+                .map(|definition| definition.name.clone())
+                .collect()
+        };
+        assert!(!names(&without).contains(&"web_search".to_string()));
+
+        let with =
+            LlmBackend::configure(ModelConfig::fallback(), None, true).with_web(search.clone());
+        let offered = names(&with);
+        assert!(offered.contains(&"web_search".to_string()), "{offered:?}");
+        assert!(offered.contains(&"web_fetch".to_string()), "{offered:?}");
+
+        // The `with_skills` rule: a tools-off backend offers no tools at all.
+        assert!(
+            LlmBackend::configure(ModelConfig::fallback(), None, false)
+                .with_web(search)
+                .web
                 .is_none()
         );
     }

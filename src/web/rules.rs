@@ -303,6 +303,41 @@ pub fn load_builtin() -> Result<Rules, RuleError> {
     parse_rules(include_str!("../../web.toml"), &PathBuf::from("web.toml"))
 }
 
+/// The rules a session runs on: the embedded defaults, laid over by
+/// `{config_home}/search.toml` when it exists (`docs/tools/web-search.md`
+/// *Configuration*).
+///
+/// A **cross-field** failure refuses the whole set — the shipped file is
+/// broken or the user's is unusable, and the caller reports it rather than
+/// running half a configuration. An unknown key or an unusable block is a
+/// [`RulesIssue`]: reported, and the rest still works, which is the overlay's
+/// promise that a bad block costs only that block.
+///
+/// # Errors
+///
+/// The shipped file no longer parses, or the merged document cannot work
+/// ([`RuleError`]).
+pub fn load_session_rules(
+    config_home: Option<&std::path::Path>,
+) -> Result<(Rules, Vec<RulesIssue>), RuleError> {
+    let builtin = include_str!("../../web.toml");
+    let Some(home) = config_home else {
+        return Ok((load_builtin()?, Vec::new()));
+    };
+    let path = home.join("search.toml");
+    match std::fs::read_to_string(&path) {
+        Ok(text) => merge_rules(builtin, &text, &path),
+        // A file that is simply not there is the common case, not a problem.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok((load_builtin()?, Vec::new()))
+        }
+        // Unreadable — a directory where a file should be, a permission
+        // problem — is reported against the path, never silently ignored: a
+        // search.toml the user wrote and we cannot read must say so.
+        Err(error) => Err(bad(&path, error.to_string())),
+    }
+}
+
 /// Parse and validate one document.
 ///
 /// # Errors

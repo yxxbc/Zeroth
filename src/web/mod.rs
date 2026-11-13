@@ -28,7 +28,7 @@ pub use guard::{
 pub use limiter::{Budget, Granted, Limiter};
 pub use rules::{
     DEFAULT_BROWSER_USER_AGENT, Fetching, Kind, Limits, Needs, RuleError, Rules, RulesIssue,
-    Source, load_builtin, load_rules, merge_rules,
+    Source, load_builtin, load_rules, load_session_rules, merge_rules,
 };
 pub use scrape::bing;
 pub use sources::{Failure, Hit, reply_hits};

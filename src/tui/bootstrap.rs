@@ -275,6 +275,31 @@ impl<'t> Session<'t> {
         // on the tool thread, the loop reads and — on a rewind — replaces it.
         let task_registry = zeroth::tasks::TaskRegistry::new();
 
+        // The web tools' rules and cooldown table (`docs/tools/web-search.md`):
+        // built once per session, so a source that reported a spent quota
+        // stays resting across a `/model` switch. A configuration that cannot
+        // work refuses the whole set and the two tools are offered to nobody —
+        // better than a search that fails every time it is called. A single
+        // bad block is an issue and costs only itself.
+        let (web_search, web_issue) = match zeroth::web::load_session_rules(config_home.as_deref())
+        {
+            Ok((rules, issues)) => {
+                // A single bad block is reported and costs only itself; the
+                // first is enough for the toast, the `report_skill_errors`
+                // rule one feature over.
+                let issue = issues.first().map(ToString::to_string);
+                (
+                    Some(std::sync::Arc::new(zeroth::web::walk::Search::new(rules))),
+                    issue,
+                )
+            }
+            // A configuration that cannot work refuses the whole set: the
+            // two tools are then offered to nobody (the spec is attached
+            // only when this is `Some`), which is better than a search
+            // that fails on every call.
+            Err(error) => (None, Some(error.to_string())),
+        };
+
         // The skills on disk (docs/tools/skills.md): a `<root>/<name>/SKILL.md` walk
         // over the project's and the user's roots, done once here so the
         // listing and the tool set are settled before the backend is built.
@@ -477,6 +502,7 @@ impl<'t> Session<'t> {
             // (docs/cli/headless.md).
             (!headless).then_some(&ask),
             &task_registry,
+            web_search.as_ref(),
             &skill_registry,
             &subagents,
             Some(&mcp_manager),
@@ -673,6 +699,12 @@ impl<'t> Session<'t> {
         // showing the hooks one — the actionable typo beats the size refusal.
         session.report_hooks_error(hooks_error);
         session.report_skill_errors(&skill_errors);
+        // `search.toml` (or the shipped file) could not be used — say which
+        // key or which file, the way the provider file does
+        // (`docs/tools/web-search.md` *Configuration*).
+        if let Some(issue) = web_issue {
+            session.toast(issue, ToastKind::Error);
+        }
         session.report_agent_errors(&agent_errors);
         session.report_mcp_errors();
         session.report_trust_state(trust_error);

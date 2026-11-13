@@ -64,6 +64,9 @@ type Thinking = (ReasoningSupport, ThinkingMode);
 
 /// The reply backend plus the configuration that chose it.
 pub(crate) struct ModelSession {
+    /// The web tools' search state (`docs/tools/web-search.md`) — held so every
+    /// rebuild re-attaches the same cooldown table.
+    pub(crate) web_search: Option<std::sync::Arc<zeroth::web::walk::Search>>,
     /// The provider table: the built-ins with the user's own `providers.toml`
     /// laid over them, or `ALTER_ZERO_PROVIDERS_FILE` alone
     /// (`docs/providers/user-providers.md`). Re-read whenever `/login` or `/model`
@@ -248,6 +251,7 @@ impl ModelSession {
         permissions: Option<&PermissionGate>,
         ask: Option<&zeroth::ask::AskGate>,
         tasks: &zeroth::tasks::TaskRegistry,
+        web_search: Option<&std::sync::Arc<zeroth::web::walk::Search>>,
         skills: &zeroth::skills::SkillRegistry,
         subagents: &zeroth::subagents::SubagentRegistry,
         mcp: Option<&zeroth::llm::mcp::McpManager>,
@@ -473,6 +477,7 @@ impl ModelSession {
                 permissions,
                 ask,
                 tasks,
+                web_search,
                 skills_enabled.then_some(&skills),
                 &subagents,
                 mcp,
@@ -539,6 +544,7 @@ impl ModelSession {
             (p.to_string(), cfg)
         });
         Self {
+            web_search: web_search.cloned(),
             providers,
             provider_issues,
             home: home.map(Path::to_path_buf),
@@ -915,6 +921,7 @@ impl ModelSession {
             self.permissions.as_ref(),
             self.ask.as_ref(),
             &self.tasks,
+            self.web_search.as_ref(),
             self.skills_enabled.then_some(&self.skills),
             &self.subagents,
             self.mcp.as_ref(),
@@ -1782,6 +1789,7 @@ fn session_backend(
     permissions: Option<&PermissionGate>,
     ask: Option<&zeroth::ask::AskGate>,
     tasks: &zeroth::tasks::TaskRegistry,
+    web_search: Option<&std::sync::Arc<zeroth::web::walk::Search>>,
     skills: Option<&zeroth::skills::SkillRegistry>,
     subagents: &zeroth::subagents::SubagentRegistry,
     mcp: Option<&zeroth::llm::mcp::McpManager>,
@@ -1815,6 +1823,13 @@ fn session_backend(
         // tools — always attached; the checklist is the session's, so every
         // rebuild re-binds the same registry.
         .with_tasks(tasks.clone());
+    // The web tools (`docs/tools/web-search.md`): the search rules and their
+    // cooldown table. `None` when the configuration could not be loaded, and
+    // the two tools are then offered to nobody — a spec that can only answer
+    // "not configured" is a dead end the model would walk into.
+    if let Some(search) = web_search {
+        backend = backend.with_web(search.clone());
+    }
     // The ask gate (docs/tools/ask.md): enables the `askuserquestion` tool —
     // attached wherever somebody can answer (asking is not a permission),
     // which is everywhere but a headless run (docs/cli/headless.md).

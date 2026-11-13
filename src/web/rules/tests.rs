@@ -365,3 +365,70 @@ fn every_kind_round_trips_through_its_own_spelling() {
         assert_eq!(back, kind);
     }
 }
+
+// ===== loading a session's rules =====
+
+#[test]
+fn with_no_config_home_the_shipped_file_is_the_answer() {
+    let (rules, issues) = load_session_rules(None).expect("loads");
+    assert!(issues.is_empty());
+    assert_eq!(rules.order, builtin().order);
+}
+
+#[test]
+fn a_missing_user_file_is_not_a_problem() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let (rules, issues) = load_session_rules(Some(tmp.path())).expect("loads");
+    assert!(issues.is_empty());
+    assert_eq!(rules.order, builtin().order);
+}
+
+#[test]
+fn a_user_file_is_laid_over_the_shipped_one() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        tmp.path().join("search.toml"),
+        "results = 3\n\n[sources.parallel]\nname = \"Mine\"\n",
+    )
+    .expect("write");
+    let (rules, issues) = load_session_rules(Some(tmp.path())).expect("loads");
+    assert!(issues.is_empty(), "{issues:?}");
+    assert_eq!(rules.results, 3);
+    assert_eq!(rules.sources["parallel"].name, "Mine");
+    assert_eq!(rules.order, builtin().order, "the order is untouched");
+}
+
+#[test]
+fn an_unknown_key_comes_back_as_an_issue_and_the_rest_still_loads() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        tmp.path().join("search.toml"),
+        "num_results = 3\nresults = 5\n",
+    )
+    .expect("write");
+    let (rules, issues) = load_session_rules(Some(tmp.path())).expect("loads");
+    assert_eq!(issues.len(), 1);
+    assert!(issues[0].0.contains("num_results"), "{issues:?}");
+    assert_eq!(rules.results, 5, "the good key still applied");
+}
+
+#[test]
+fn a_document_that_cannot_work_is_refused_with_the_path() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(tmp.path().join("search.toml"), "results = 0\n").expect("write");
+    let error = load_session_rules(Some(tmp.path())).expect_err("refused");
+    assert!(error.why.contains("must be above 0"), "{error}");
+    assert!(
+        error.file.ends_with("search.toml"),
+        "the refusal names the file: {}",
+        error.file.display()
+    );
+}
+
+#[test]
+fn an_unreadable_file_is_reported_rather_than_ignored() {
+    // A directory where the file should be: not "absent", so it must say so.
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(tmp.path().join("search.toml")).expect("mkdir");
+    assert!(load_session_rules(Some(tmp.path())).is_err());
+}
