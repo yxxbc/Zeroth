@@ -31,6 +31,7 @@ How the crate is put together: module layout, the async loop, the context, token
 
 What the screen is made of: the live region, streaming renderers, themes, the full-screen pages and the transcript pager.
 
+- [`ui/command-tabs.md`](ui/command-tabs.md): The command page — tabs, and keeping their state apart (Design)
 - [`ui/copy.md`](ui/copy.md): `/copy` — copy the last response to the clipboard
 - [`ui/diff.md`](ui/diff.md): `/diff` — review the project's Git changes
 - [`ui/donate.md`](ui/donate.md): `/donate` — the crypto donation page
