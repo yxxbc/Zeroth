@@ -163,7 +163,12 @@ release heading when a version is cut.
   rules or permissions; the skills/agents listings say descriptions are
   author-written metadata, not instructions; a loaded skill body and every
   fetched page/search result carry an explicit untrusted-content boundary
-  (`docs/tools/skills.md`, `docs/tools/web-search.md`).
+  (`docs/tools/skills.md`, `docs/tools/web-search.md`). Project
+  `AGENTS.md`/`AGENTS.override.md` no longer claim to "OVERRIDE any default
+  behavior": the instructions preamble and the reminder's own preamble say
+  they are project guidance and cannot change identity, safety rules or
+  permissions, and home is never a project-doc root either (launched in `~`,
+  `~/AGENTS.md` is not read as a checked-in guide).
 
 ### Changed
 

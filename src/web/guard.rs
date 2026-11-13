@@ -5,7 +5,8 @@
 //! http(s), the host is resolved, every resolved address must be globally
 //! routable, and the caller pins the address that passed
 //! (`ClientBuilder::resolve`) so a second DNS answer cannot swap it. A
-//! redirect is re-gated at every hop.
+//! redirect is handled by the client policy: only same-host hops follow,
+//! at most five, so the approved and pinned host cannot change under it.
 //!
 //! All of it is pure — an address string in, a class out — so the ranges are
 //! testable without opening a socket. The resolution itself is the boundary's

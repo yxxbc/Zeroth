@@ -475,7 +475,10 @@ with an injected clock rather than three fields on the client.
 
 **Decision 3 — a redirect hop spends no budget; `page` never refetches.**
 A hop is not a request the user asked for, so the limiter counts *calls*, and
-the ten-hop ceiling is the separate guard. A `page: 2` is served from the cache
+the hop ceiling is the separate guard. The client follows **same-host**
+redirects only, at most five: `fetch_once` installs a redirect policy that
+stops on a different host (the gate approved and pinned one host; chasing
+another would bypass it) and reports the redirect instead. A `page: 2` is served from the cache
 and never touches the limiter at all — which is exactly why the cache must be
 bounded (below) rather than unbounded: it is the cheap path.
 
@@ -499,7 +502,9 @@ which is the case that actually happens (a model reading twenty short pages).
 | 40 distinct 200 KB pages | cache stays ≤ 32 docs / 2 MB; oldest evicted | memory ceiling, RSS asserted |
 | `page: 2` of a document whose cache aged out | one refetch, not an error | the TTL must degrade politely |
 | one fetch, host resolves to two addresses, second is private | connection refused before any byte sent | the pin, not just a pre-check |
-| redirect chain `public → 127.0.0.1` | refused at hop 2, hop 1's body discarded | the gate is per hop |
+| redirect chain `public → 127.0.0.1` | refused before hop 2; hop 1's body discarded | a redirect must not be a way around the gate |
+| redirect chain `public → other.example` | refused before hop 2 | the gate approved/pinned one host; a cross-host hop is a new, unapproved target |
+| same-host redirect chain, 5 hops | followed; the pin holds | same origin, same pinned address |
 | 4 sessions × 8 fetches, one process | global in-flight never exceeds 6 | the budget is process-wide, not per session |
 | fetch during a `bash` batch's round | serial (the mixed-batch rule), and the cell shows `Waiting…` | we changed the gate; the old ordering must hold where it still applies |
 | 429 from the origin, then a rescue source answers | one result, `via <source>`, no cooldown for the origin | a fetch failure is not a *search* limit and must not spend the ladder |

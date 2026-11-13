@@ -23,6 +23,9 @@ use crate::web::walk::{Asker, Attempt};
 /// kilobytes; a page can be megabytes, and the cap is what keeps a hostile
 /// reply from filling memory before the size check runs.
 const REPLY_MAX_BYTES: usize = 4 * 1024 * 1024;
+/// Same-host redirects a fetch may follow before reporting the chain. A
+/// cross-host redirect is refused outright (`docs/tools/web-search.md`).
+const MAX_REDIRECTS: usize = 5;
 
 /// The client a request goes through — the crate's cached one, so a fetch does
 /// not pay a fresh TLS handshake (`llm::http_client`).
@@ -623,6 +626,23 @@ fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), 
         }
     }
     let client = builder
+        // A redirect is a second request: the gate approved **this** host and
+        // pinned its address, so only a same-host redirect may follow, and
+        // only a few. Crossing hosts would bypass the gate (a page could
+        // redirect to a private address or an unapproved origin): stop and
+        // report the redirect instead of chasing it.
+        .redirect(reqwest::redirect::Policy::custom({
+            let host = target.host.clone();
+            move |attempt| {
+                if attempt.previous().len() >= MAX_REDIRECTS
+                    || attempt.url().host_str() != Some(host.as_str())
+                {
+                    attempt.stop()
+                } else {
+                    attempt.follow()
+                }
+            }
+        }))
         .build()
         .map_err(|error| FetchError::failed(format!("could not build the request: {error}")))?;
 
