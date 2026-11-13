@@ -227,8 +227,8 @@ kitty_png() { # FILE ID COLUMNS
 	encoded_chunks="$tmp/art-chunks"
 	base64 <"$1" | tr -d '\r\n' | fold -w 4096 >"$encoded_chunks"
 	[ -s "$encoded_chunks" ] || return 1
-	awk -v esc="$esc" -v bs='\\' -v id="$2" -v cols="$3" '
-		BEGIN { first = 1 }
+	awk -v esc="$esc" -v id="$2" -v cols="$3" '
+		BEGIN { first = 1; bs = sprintf("%c", 92) }
 		function send(chunk, last, meta) {
 			if (first) {
 				meta = "a=T,f=100,i=" id ",c=" cols ",z=-1,q=2"

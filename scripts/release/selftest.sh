@@ -89,6 +89,8 @@ run_on_tty() {
 # one truncates the PNG at the far end and the terminal answers EBADPNG —
 # a check that only looked for the first chunk would pass on that.
 kitty_image_state() {
+	# The Python code intentionally reads its arguments from sys.argv.
+	# shellcheck disable=SC2016
 	printf '%s' "$1" | python3 -c '
 import base64, sys
 raw = sys.stdin.buffer.read()
