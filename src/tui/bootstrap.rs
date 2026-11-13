@@ -598,6 +598,9 @@ impl<'t> Session<'t> {
         // The turn-end snapshot reports back through this channel; the loop
         // records the commit when it lands (`docs/state/checkpoint.md`).
         let (checkpoint_tx, checkpoint_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (card_tx, card_rx) = tokio::sync::mpsc::unbounded_channel();
+        let cards = super::link_cards::load();
+        let link_cards = super::link_cards::enabled();
 
         let cwd_display = ui::display_cwd(&cwd, home.as_deref());
         // The streamed reply carries path links as it commits: give both
@@ -625,6 +628,11 @@ impl<'t> Session<'t> {
             full_expanded: std::collections::HashSet::new(),
             full_items: Vec::new(),
             full_anchor: None,
+            cards,
+            card_pending: std::collections::HashSet::new(),
+            card_tx,
+            card_rx,
+            link_cards,
             full_user_starts: Vec::new(),
             full_sticky_rows: 0,
             context: ui::ContextCache::new(),

@@ -228,14 +228,17 @@ still applies.
   the caret there (`ui::composer_cursor_at` + `TextArea::set_cursor`).
   Links are the carriers already painted — OSC 8 URLs, file-tool headers and
   the prose/code file paths `links::find_paths` now marks — so a click opens
-  a URL or a file through the same platform opener.
+  a URL or a file through the same platform opener. A URL **alone on a line**
+  in an assistant reply is fetched and replaced by a two-row preview card
+  (site — title, dim description), cached in `~/.zeroth/cache/link-cards.json`
+  (`ALTER_ZERO_LINK_CARDS=0` disables); every card cell carries the link.
 - Ctrl+O, the context view and every full-screen page paint over the frame
   through the existing overlay path; leaving a page repaints the frame. A
   resize re-wraps from history at the new width.
 - **Not yet:** character-precise selection (the highlight is span-level),
   pointer clicks on the live region's options/pickers (the composer's caret is
-  in), link cards, suspend (`Ctrl+Z`) / editor handoff, and agent-view parity
-  beyond the transcript tail. They are the phases below.
+  in), cover images on link cards, suspend (`Ctrl+Z`) / editor handoff, and
+  agent-view parity beyond the transcript tail. They are the phases below.
 
 ## Mode selection and rollout
 
@@ -290,7 +293,9 @@ still applies.
    PageUp/PageDown/Ctrl+Home/End, drag-select/copy, and the composer's
    click-to-place caret all work; still open here: character-precise selection
    and mouse on picker/option rows.
-4. **Rich links.** Preview cards inline; the preview policy.
+4. **Rich links — text cards done.** A lone URL line in an assistant reply
+   becomes a two-row preview card (site — title, dim description) once fetched;
+   covers and the `/links` page remain (`rich-links.md`).
 5. **Default decision.** Flip the default, keep `--inline`, evaluate removal.
 
 ## Open questions

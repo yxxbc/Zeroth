@@ -507,6 +507,19 @@ impl Session<'_> {
         Ok(())
     }
 
+    /// A fetched link card: remember it (and persist the cache), then rebuild
+    /// the tail so the lone URL line becomes the card (`docs/ui/rich-links.md`).
+    /// A failed fetch sends nothing and leaves its URL in `card_pending`, so it
+    /// is not retried in a loop.
+    pub(crate) fn on_card(&mut self, url: String, card: Option<zeroth::link_card::LinkCard>) {
+        if let Some(card) = card {
+            self.cards.insert(url, card);
+            super::link_cards::save(&self.cards);
+            self.full_tail = None;
+            self.frame.schedule_frame();
+        }
+    }
+
     /// Toggle the expandable history item under a conversation row: its cell
     /// switches between the collapsed inline form and the Ctrl+O form, and the
     /// next rebuild pins the item's first line where it was so the click does

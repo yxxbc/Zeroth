@@ -35,9 +35,11 @@ release heading when a version is cut.
   the user message that owns the window's top pinned above its scrolled reply;
   mouse capture adds link hover/click (through the system opener),
   drag-select/copy, **click-to-expand** of a tool call/thought/group (its
-  Ctrl+O form, pinned in place) and **click-to-place the composer's caret**.
-  Link cards and editor handoff are the next phases. The inline viewport
-  remains the default (`docs/ui/full-screen.md`).
+  Ctrl+O form, pinned in place), **click-to-place the composer's caret**, and
+  **text preview cards** for a URL alone on a line (site/title/description,
+  fetched once and cached; `ALTER_ZERO_LINK_CARDS=0` disables). Cover images
+  and editor handoff are the next phases. The inline viewport remains the
+  default (`docs/ui/full-screen.md`).
 
 - **A parallel tool batch now runs — and streams — several calls at once in
   the TUI.** Every call-scoped stream event (`ToolStart`, `ToolEnd`,

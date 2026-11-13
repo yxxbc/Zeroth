@@ -368,6 +368,40 @@ impl Session<'_> {
         {
             return lines.clone();
         }
+        // Lone URL lines in assistant replies become preview cards once
+        // fetched (`docs/ui/rich-links.md`). The closures capture the fields
+        // directly, so the renderer's mutable borrows (`agent_render`) below
+        // stay disjoint; the URLs that still need a fetch are collected and
+        // enqueued after the build.
+        let cards = &self.cards;
+        let link_cards = self.link_cards;
+        let missing_cards = std::cell::RefCell::new(Vec::new());
+        let card_line = |line: &Line<'static>| -> Option<Vec<Line<'static>>> {
+            if !link_cards {
+                return None;
+            }
+            let text: String = line
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect();
+            let trimmed = text.trim();
+            // The assistant bullet prefixes the message's first row; a link on
+            // it is still a lone link.
+            let url = trimmed.strip_prefix("● ").unwrap_or(trimmed).trim();
+            if !zeroth::links::is_whole_url(url) {
+                return None;
+            }
+            if let Some(card) = cards.get(url) {
+                return Some(ui::link_card_lines(card, url, width));
+            }
+            missing_cards.borrow_mut().push(url.to_string());
+            None
+        };
+        let card_for = |item: &HistoryItem, line: &Line<'static>| match item {
+            HistoryItem::Message(message) if message.role == Role::Assistant => card_line(line),
+            _ => None,
+        };
         let (mut lines, mut user_starts, mut items) = match self.app.viewed_agent() {
             Some(run) => {
                 // An agent's session view keeps a cell per call: its cells are
@@ -378,12 +412,13 @@ impl Session<'_> {
                 let mut starts = Vec::new();
                 let mut items = Vec::new();
                 let expanded = &self.full_expanded;
-                let mut lines = ui::conversation_lines_expanded(
+                let mut lines = ui::conversation_lines_carded(
                     &history,
                     width,
                     self.app.path_display(),
                     true,
                     |index| expanded.contains(&index),
+                    card_for,
                     |index, start, count| {
                         if matches!(
                             &history[index],
@@ -397,7 +432,15 @@ impl Session<'_> {
                     },
                 );
                 if let Some(text) = run.streaming.as_deref().filter(|text| !text.is_empty()) {
+                    let start = lines.len();
                     lines.extend(self.agent_render.committed_rows(text, width));
+                    for line in lines.split_off(start) {
+                        if let Some(card) = card_line(&line) {
+                            lines.extend(card);
+                        } else {
+                            lines.push(line);
+                        }
+                    }
                 }
                 (lines, starts, items)
             }
@@ -405,12 +448,13 @@ impl Session<'_> {
                 let mut starts = Vec::new();
                 let mut items = Vec::new();
                 let expanded = &self.full_expanded;
-                let mut lines = ui::conversation_lines_expanded(
+                let mut lines = ui::conversation_lines_carded(
                     &self.app.history,
                     width,
                     self.app.path_display(),
                     self.app.settings().verbose,
                     |index| expanded.contains(&index),
+                    card_for,
                     |index, start, count| {
                         if matches!(
                             &self.app.history[index],
@@ -424,16 +468,36 @@ impl Session<'_> {
                     },
                 );
                 if let Some(text) = self.app.streaming_text().filter(|text| !text.is_empty()) {
+                    let start = lines.len();
                     lines.extend(ui::message_lines_with_paths(
                         Role::Assistant,
                         text,
                         width,
                         Some(self.app.path_display()),
                     ));
+                    for line in lines.split_off(start) {
+                        if let Some(card) = card_line(&line) {
+                            lines.extend(card);
+                        } else {
+                            lines.push(line);
+                        }
+                    }
                 }
                 (lines, starts, items)
             }
         };
+        // Fetch the lone links that have no card yet; a URL is requested once
+        // per session (a failed fetch simply keeps its line).
+        let missing: Vec<String> = missing_cards.borrow_mut().drain(..).collect();
+        for url in missing {
+            // A reply with a wall of links must not spawn a thread per URL.
+            if self.card_pending.len() >= 8 {
+                break;
+            }
+            if self.card_pending.insert(url.clone()) {
+                super::link_cards::spawn(url, self.card_tx.clone());
+            }
+        }
         let banner = ui::header_lines(&self.app, width);
         // `banner_tail` puts the banner and one blank row above the
         // conversation; the user-message and item offsets follow it.

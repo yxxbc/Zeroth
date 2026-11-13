@@ -103,6 +103,10 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
                 session.on_model_fetch(label, result);
             }
 
+            // 6b. A link preview card fetched for a lone URL
+            //     (`docs/ui/rich-links.md`).
+            Some((url, card)) = session.card_rx.recv() => session.on_card(url, card),
+
             // 7. The startup capability probe answered. Guarded so a `/model`
             //    switch that raced it (and already knows its support first-hand)
             //    wins.

@@ -83,6 +83,24 @@ pub fn conversation_lines_expanded(
     paths: &PathDisplay,
     verbose: bool,
     expanded: impl Fn(usize) -> bool,
+    built: impl FnMut(usize, usize, usize),
+) -> Vec<Line<'static>> {
+    conversation_lines_carded(history, width, paths, verbose, expanded, |_, _| None, built)
+}
+
+/// [`conversation_lines_expanded`] with a **card** transform: after an item's
+/// rows are rendered, each line is offered to `card_for`; `Some(rows)` replaces
+/// it (a lone URL line becoming a link preview card, `docs/ui/rich-links.md`).
+/// The transform runs per item, so the item's reported range and every later
+/// offset include the card rows naturally — no post-hoc line arithmetic.
+#[must_use]
+pub fn conversation_lines_carded(
+    history: &[HistoryItem],
+    width: u16,
+    paths: &PathDisplay,
+    verbose: bool,
+    expanded: impl Fn(usize) -> bool,
+    card_for: impl Fn(&HistoryItem, &Line<'static>) -> Option<Vec<Line<'static>>>,
     mut built: impl FnMut(usize, usize, usize),
 ) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
@@ -146,6 +164,18 @@ pub fn conversation_lines_expanded(
             // flush at the left margin (`docs/ui/images.md`). Empty for everything
             // else, and for every session where images are off.
             lines.extend(super::image::image_block_lines(item, width));
+        }
+        // A lone-link line becomes its preview card, still inside this item so
+        // `built` and every later offset count the card's rows.
+        if lines.len() > start {
+            let rendered = lines.split_off(start);
+            for line in rendered {
+                if let Some(card) = card_for(item, &line) {
+                    lines.extend(card);
+                } else {
+                    lines.push(line);
+                }
+            }
         }
         built(item_index, start, lines.len() - start);
         // Blank spacer after every item — except a shell command's header:

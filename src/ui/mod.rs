@@ -58,6 +58,7 @@ mod image;
 mod inline;
 mod inline_diff;
 mod layout;
+mod link_card_view;
 mod live;
 mod login_view;
 mod mascot_view;
@@ -105,8 +106,9 @@ pub use self::context_view::{
     ContextCache, DebugBody, context_body, context_lines, render_context_view,
 };
 pub use self::conversation::{
-    banner_tail, committed_history, conversation_lines, conversation_lines_expanded,
-    conversation_lines_tracked, is_expandable, repaint_lines, repaint_tail,
+    banner_tail, committed_history, conversation_lines, conversation_lines_carded,
+    conversation_lines_expanded, conversation_lines_tracked, is_expandable, repaint_lines,
+    repaint_tail,
 };
 pub use self::diff_view::{diff_body_rows, render_diff_view};
 pub use self::donate_view::{donate_picker_height, donate_view_lines, render_donate_picker};
@@ -130,6 +132,7 @@ pub use self::layout::{
     overlay_cursor_seat, permission_height, preview_budget, preview_rows, region_is_modal, repin,
     restore_cursor_row, stream_preview_max_rows, strip_has_status,
 };
+pub use self::link_card_view::link_card_lines;
 pub use self::live::{composer_cursor_at, render_live, render_live_with_preview};
 pub use self::login_view::render_key_onboarding;
 pub use self::mascot_view::{mascot_picker_height, render_mascot_picker};

@@ -1,10 +1,14 @@
 # Rich links — clickable paths, preview cards, and screen ownership
 
-**Status: A (clickable paths) implemented; B/C are design.** Assistant prose
-and inline code link file-path-like tokens to `file://` URIs in both viewports
-([`links.md`](links.md) *File paths*). Preview cards, hover in the
-conversation and click-to-expand are the later phases; the screen-owning mode
-that makes them possible is designed in [`full-screen.md`](full-screen.md).
+**Status: paths, click-to-expand and text preview cards implemented.** Assistant
+prose and inline code link file-path-like tokens to `file://` URIs in both
+viewports ([`links.md`](links.md) *File paths*); the screen-owning mode adds
+click-to-expand, the composer's click-to-place caret and **text-only preview
+cards** for a URL alone on a line (site, title, description; fetched on demand
+through `zeroth::link_card` and cached under `~/.zeroth/cache/link-cards.json`,
+`ALTER_ZERO_LINK_CARDS=0` disables). Cover images, B's overlay-only fallback
+and the editor handoff remain later phases
+([`full-screen.md`](full-screen.md)).
 
 ## The ask
 
@@ -326,8 +330,12 @@ It lands as an opt-in mode first and becomes the default only on parity.
 2. **C — the screen-owning mode — skeleton, mouse, scrolling and selection
    done.** See [`full-screen.md`](full-screen.md). Still open there for this
    page: click-to-expand and the preview card.
-3. **Rich links in full mode — next.** Preview cards inline (the fetch/cache
-   policy above); hover already works for the carriers A added.
+3. **Rich links in full mode — text cards done.** A lone URL line in an
+   assistant reply becomes `● site — title` plus a dim description once fetched
+   (two rows replacing the link line). The fetch is one worker thread per URL
+   (at most eight in flight), 5 s/512 KiB/`text/html` only, private hosts and
+   redirects to them refused, cached across restarts. Cover images and the
+   `/links` page remain.
 4. **B — only if needed.** Overlay-scoped mouse and a `/links` page remain a
    useful stopgap for inline mode, and their hit map is a subset of C's, but
    they are not the target.

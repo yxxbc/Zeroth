@@ -98,6 +98,7 @@ pub(crate) mod headless;
 pub(crate) mod herdr;
 pub(crate) mod history_store;
 pub(crate) mod host;
+pub(crate) mod link_cards;
 pub(crate) mod login;
 pub(crate) mod mascot;
 pub(crate) mod mcp;
@@ -200,6 +201,16 @@ pub(crate) struct Session<'t> {
     /// should keep)` — the next rebuild pins it there so the cell does not
     /// jump under the pointer.
     full_anchor: Option<(usize, usize)>,
+    /// Link preview cards by URL (`docs/ui/rich-links.md`): a lone URL line in
+    /// an assistant reply is replaced by the card's rows once fetched.
+    cards: std::collections::HashMap<String, zeroth::link_card::LinkCard>,
+    /// URLs already handed to a fetch this session — a failure is not retried
+    /// in a loop, and a card's line does not re-enqueue it every frame.
+    card_pending: std::collections::HashSet<String>,
+    card_tx: tokio::sync::mpsc::UnboundedSender<(String, Option<zeroth::link_card::LinkCard>)>,
+    card_rx: tokio::sync::mpsc::UnboundedReceiver<(String, Option<zeroth::link_card::LinkCard>)>,
+    /// Whether previews are on for this process (`ALTER_ZERO_LINK_CARDS`).
+    link_cards: bool,
     /// Tail indices of each user message's first line, for the pinned prompt
     /// header: the latest one above the top of the window is drawn on a
     /// reserved row so the question stays with its answer while the reply is

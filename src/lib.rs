@@ -172,6 +172,7 @@ pub mod highlight;
 pub mod history;
 pub mod hooks;
 pub mod images;
+pub mod link_card;
 pub mod links;
 pub mod llm;
 pub mod markdown;
