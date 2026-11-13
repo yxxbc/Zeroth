@@ -57,8 +57,8 @@ use ratatui::backend::{Backend, ClearType, CrosstermBackend};
 use ratatui::buffer::{Buffer, Cell, CellDiffOption, CellWidth};
 use ratatui::crossterm::cursor::{Hide, Show};
 use ratatui::crossterm::event::{
-    DisableBracketedPaste, EnableBracketedPaste, Event, KeyboardEnhancementFlags,
-    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event,
+    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use ratatui::crossterm::terminal::{
     BeginSynchronizedUpdate, Clear as CrosstermClear, ClearType as CrosstermClearType,
@@ -384,6 +384,7 @@ impl InlineViewport {
         install_panic_hook(keyboard_enhanced);
         enable_raw_mode()?;
         Self::init_full_in_raw_mode(keyboard_enhanced).inspect_err(|_| {
+            let _ = execute!(io::stdout(), DisableMouseCapture);
             if keyboard_enhanced {
                 let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);
             }
@@ -410,7 +411,8 @@ impl InlineViewport {
             self.backend,
             Hide,
             EnterAlternateScreen,
-            CrosstermClear(CrosstermClearType::All)
+            CrosstermClear(CrosstermClearType::All),
+            EnableMouseCapture
         )?;
         Backend::flush(&mut self.backend)?;
         let size = self.backend.size()?;
@@ -1327,7 +1329,7 @@ impl InlineViewport {
             // the modes, with no inline cursor dance — the shell's own screen
             // (and cursor) returns exactly as it was before startup.
             if OVERLAY_ACTIVE.swap(false, Ordering::SeqCst) {
-                let _ = execute!(self.backend, LeaveAlternateScreen);
+                let _ = execute!(self.backend, DisableMouseCapture, LeaveAlternateScreen);
             }
             if self.keyboard_enhanced {
                 let _ = execute!(self.backend, PopKeyboardEnhancementFlags);
@@ -1727,7 +1729,7 @@ fn install_panic_hook(keyboard_enhanced: bool) {
         // per screen buffer, and `init` pushed onto the primary one), and the
         // panic message itself must land where the user can read it.
         if OVERLAY_ACTIVE.swap(false, Ordering::SeqCst) {
-            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+            let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
         }
         if keyboard_enhanced {
             let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);

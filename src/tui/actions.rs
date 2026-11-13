@@ -18,7 +18,7 @@
 //! Every key press ends with [`Session::after_key`] — schedule the frame, re-derive
 //! the `@` picker's query, delete any temp image the key discarded.
 
-use ratatui::crossterm::event::{Event, KeyEventKind};
+use ratatui::crossterm::event::{Event, KeyEventKind, MouseButton, MouseEvent, MouseEventKind};
 
 use zeroth::app::{Action, CHECKPOINT_REWOUND_NOTICE, COPY_OK_NOTICE, ToastKind, View};
 use zeroth::checkpoint;
@@ -32,6 +32,16 @@ use super::{Session, workers};
 pub(crate) enum Flow {
     Continue,
     Quit,
+}
+
+/// One scroll request for the screen-owning mode's conversation window
+/// (`Session::scroll_full`, `docs/ui/full-screen.md`).
+enum Scroll {
+    PageUp,
+    PageDown,
+    Top,
+    Bottom,
+    Lines(isize),
 }
 
 impl Session<'_> {
@@ -66,6 +76,13 @@ impl Session<'_> {
             Event::Paste(pasted) => {
                 self.note_user_activity();
                 self.on_paste(&pasted);
+                Ok(Flow::Continue)
+            }
+            // Mouse is the screen-owning mode's (`docs/ui/full-screen.md`): the
+            // inline viewport never captures it, so these events only arrive
+            // when a frame owns the screen.
+            Event::Mouse(mouse) => {
+                self.on_mouse(mouse)?;
                 Ok(Flow::Continue)
             }
             _ => Ok(Flow::Continue),
@@ -161,6 +178,10 @@ impl Session<'_> {
             Action::Clear => self.clear_conversation()?,
             Action::KillBackground(id) => self.kill_background(&id),
             Action::MoveToBackground => self.move_to_background(),
+            Action::ScrollPageUp => self.scroll_full(Scroll::PageUp),
+            Action::ScrollPageDown => self.scroll_full(Scroll::PageDown),
+            Action::ScrollTop => self.scroll_full(Scroll::Top),
+            Action::ScrollBottom => self.scroll_full(Scroll::Bottom),
             Action::StopAgent(id) => self.stop_agent(&id)?,
             Action::ViewAgent(_) => self.enter_agent_view()?,
             Action::LeaveAgentView => self.leave_agent_view()?,
@@ -366,6 +387,127 @@ impl Session<'_> {
                 self.toast(COPY_OK_NOTICE, ToastKind::Info);
             }
             Err(reason) => self.toast(format!("Copy failed: {reason}"), ToastKind::Error),
+        }
+    }
+
+    /// Move the screen-owning mode's conversation window. Nothing to do in
+    /// the inline viewport (its history is the terminal's scrollback) or before
+    /// the first frame has measured the painted tail.
+    fn scroll_full(&mut self, scroll: Scroll) {
+        if !self.term.fullscreen() || self.full_len == 0 {
+            return;
+        }
+        let conv = self.full_conv_h;
+        let max_top = self.full_len.saturating_sub(conv);
+        let current = self.full_top.unwrap_or(max_top).min(max_top);
+        let page = conv.saturating_sub(2).max(1) as isize;
+        let target = match scroll {
+            Scroll::PageUp => current as isize - page,
+            Scroll::PageDown => current as isize + page,
+            Scroll::Top => 0,
+            Scroll::Bottom => max_top as isize,
+            Scroll::Lines(lines) => current as isize + lines,
+        };
+        let target = target.clamp(0, max_top as isize) as usize;
+        // Reaching the bottom resumes follow-tail; anywhere above it anchors
+        // the view to that line, so new output does not move it.
+        self.full_top = (target < max_top).then_some(target);
+        self.full_hover = None;
+        self.frame.schedule_frame();
+    }
+
+    /// The screen-owning mode's mouse: wheel scrolls the conversation, move
+    /// hovers a link (the app draws the underline), a left drag selects and
+    /// copies (mouse capture takes the terminal's own selection; Shift+drag is
+    /// the escape hatch on terminals that keep it), and a left click with no
+    /// drag opens the link under the pointer.
+    fn on_mouse(&mut self, mouse: MouseEvent) -> std::io::Result<()> {
+        if !self.term.fullscreen() || self.app.view != View::Conversation || self.app.modal_open() {
+            return Ok(());
+        }
+        match mouse.kind {
+            MouseEventKind::ScrollUp => {
+                self.full_press = None;
+                self.full_select = None;
+                self.scroll_full(Scroll::Lines(-3));
+            }
+            MouseEventKind::ScrollDown => {
+                self.full_press = None;
+                self.full_select = None;
+                self.scroll_full(Scroll::Lines(3));
+            }
+            MouseEventKind::Moved => {
+                let hover = (usize::from(mouse.row) < self.full_conv_h)
+                    .then_some((mouse.column, mouse.row));
+                if self.full_hover != hover {
+                    self.full_hover = hover;
+                    self.frame.schedule_frame();
+                }
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.full_press = self.full_cell(&mouse);
+                self.full_select = None;
+                self.full_hover = None;
+                self.frame.schedule_frame();
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if let (Some(press), Some(current)) = (self.full_press, self.full_cell(&mouse)) {
+                    self.full_select = (press != current).then_some((press, current));
+                    self.full_hover = None;
+                    self.frame.schedule_frame();
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                // A drag copies; a click (no drag) opens the link under it.
+                let text = self.full_selected_text();
+                let clicked = self.full_press.take().is_some();
+                self.full_select = None;
+                if let Some(text) = text {
+                    // A selection is not "/copy": say what was copied.
+                    match clipboard::copy_to_clipboard(&text) {
+                        Ok(lease) => {
+                            self.clipboard_lease = lease;
+                            self.toast("Copied selection to clipboard", ToastKind::Info);
+                        }
+                        Err(reason) => {
+                            self.toast(format!("Copy failed: {reason}"), ToastKind::Error);
+                        }
+                    }
+                } else if clicked && let Some(url) = self.full_link_at(mouse.column, mouse.row) {
+                    self.open_full_link(&url);
+                }
+                self.frame.schedule_frame();
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// A mouse event's cell as a **tail** position, when it lands in the
+    /// painted conversation window.
+    fn full_cell(&self, mouse: &MouseEvent) -> Option<(usize, u16)> {
+        (usize::from(mouse.row) < self.full_conv_h)
+            .then_some((self.full_start + usize::from(mouse.row), mouse.column))
+    }
+
+    /// Open a link the screen-owning mode's mouse found: the same three
+    /// schemes the OSC 8 path trusts, through the platform's opener. The child
+    /// is reaped on its own thread so no zombie is left behind.
+    fn open_full_link(&mut self, url: &str) {
+        let supported = ["http://", "https://", "file://"]
+            .iter()
+            .any(|scheme| url.starts_with(scheme));
+        if !supported {
+            self.toast(format!("Can't open {url}"), ToastKind::Error);
+            return;
+        }
+        match opener(url).spawn() {
+            Ok(mut child) => {
+                std::thread::spawn(move || {
+                    let _ = child.wait();
+                });
+            }
+            Err(error) => self.toast(format!("Couldn't open {url}: {error}"), ToastKind::Error),
         }
     }
 
@@ -683,4 +825,27 @@ impl Session<'_> {
     pub(crate) fn sync_task_registry(&self) {
         self.task_registry.replace(self.app.tasks().clone());
     }
+}
+
+/// The platform's opener for a URL or `file://` target — the reference's trio
+/// (`open`/`xdg-open`/`cmd start`), spawned without waiting (`docs/ui/full-screen.md`).
+#[cfg(target_os = "macos")]
+fn opener(url: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("open");
+    command.arg(url);
+    command
+}
+
+#[cfg(windows)]
+fn opener(url: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("cmd");
+    command.args(["/C", "start", "", url]);
+    command
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn opener(url: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("xdg-open");
+    command.arg(url);
+    command
 }

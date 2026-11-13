@@ -34,9 +34,11 @@ use std::time::Instant;
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::text::Line;
+use unicode_width::UnicodeWidthStr;
 
 use zeroth::app::{App, DebugPage, HistoryItem, View};
 use zeroth::images;
+use zeroth::links;
 use zeroth::paste;
 use zeroth::ui;
 
@@ -258,9 +260,24 @@ impl Session<'_> {
         // bottom-anchored region and scrollback commits.
         if fullscreen {
             let tail = self.full_tail_lines();
+            let screen = self.term.screen();
+            let live_h = usize::from(height.min(screen.height));
+            let conv_h = usize::from(screen.height).saturating_sub(live_h);
+            let max_top = tail.len().saturating_sub(conv_h);
+            let start = self.full_top.map_or(max_top, |top| top.min(max_top));
+            let end = (start + conv_h).min(tail.len());
+            let mut window: Vec<Line<'static>> = tail[start..end].to_vec();
+            self.full_start = start;
+            self.apply_hover(&mut window);
+            self.apply_selection(&mut window);
+            self.full_len = tail.len();
+            self.full_conv_h = conv_h;
+            // The hit map is the window the user can see — the same rows the
+            // viewport paints (`full_window`, `docs/ui/full-screen.md`).
+            self.full_window = window.clone();
             let app = &self.app;
             return self.term.draw_full_with_tail(
-                &tail,
+                &window,
                 height,
                 |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
                 app,
@@ -299,6 +316,17 @@ impl Session<'_> {
         } else {
             self.app.streaming_text().map_or(0, str::len)
         };
+        // A cleared/replaced/rewound history (or a different agent) makes the
+        // stored line index meaningless: jump back to the tail rather than
+        // anchoring the view to a line that no longer exists.
+        if let Some((agent, g, _, _, _, _)) = &self.full_tail
+            && (*agent != viewing_agent || *g != generation)
+        {
+            self.full_top = None;
+            self.full_hover = None;
+            self.full_press = None;
+            self.full_select = None;
+        }
         if let Some((agent, g, w, s, t, lines)) = &self.full_tail
             && *agent == viewing_agent
             && *g == generation
@@ -352,6 +380,97 @@ impl Session<'_> {
             lines.clone(),
         ));
         lines
+    }
+
+    /// Underline the link run under the pointer: the link spans on the hovered
+    /// row that carry the same interned URL id. A terminal that supports OSC 8
+    /// hover-underlines by itself; in the screen-owning mode the app draws the
+    /// hover, because the pointer is ours (`docs/ui/full-screen.md`).
+    fn apply_hover(&self, lines: &mut [Line<'static>]) {
+        let Some((col, row)) = self.full_hover else {
+            return;
+        };
+        let Some(line) = lines.get_mut(usize::from(row)) else {
+            return;
+        };
+        let Some(id) = carrier_at(line, col) else {
+            return;
+        };
+        for span in &mut line.spans {
+            if span.style.underline_color.and_then(links::carrier_id) == Some(id) {
+                span.style = span
+                    .style
+                    .add_modifier(ratatui::style::Modifier::UNDERLINED);
+            }
+        }
+    }
+
+    /// Reverse the cells covered by the drag selection, row by row — the
+    /// screen-owning mode's own selection, because mouse capture takes the
+    /// terminal's (`docs/ui/full-screen.md`).
+    fn apply_selection(&self, lines: &mut [Line<'static>]) {
+        let Some((a, b)) = self.full_select else {
+            return;
+        };
+        let (start, end) = if a <= b { (a, b) } else { (b, a) };
+        for (offset, line) in lines.iter_mut().enumerate() {
+            let row = self.full_start + offset;
+            if row < start.0 || row > end.0 {
+                continue;
+            }
+            let from = if row == start.0 { start.1 } else { 0 };
+            let to = if row == end.0 {
+                end.1.saturating_add(1)
+            } else {
+                u16::MAX
+            };
+            let mut x = 0u16;
+            for span in &mut line.spans {
+                let width = u16::try_from(span.content.width()).unwrap_or(u16::MAX);
+                let span_end = x.saturating_add(width);
+                if from < span_end && to > x {
+                    span.style = span.style.add_modifier(ratatui::style::Modifier::REVERSED);
+                }
+                x = span_end;
+            }
+        }
+    }
+
+    /// The selected text, from the **tail** the selection anchors index —
+    /// joined with newlines, trailing blanks trimmed, gutter and all (the
+    /// inline view's decoration rule comes later). `None` when nothing is
+    /// selected or the selection covers only blanks.
+    pub(crate) fn full_selected_text(&self) -> Option<String> {
+        let ((a_line, a_col), (b_line, b_col)) = self.full_select?;
+        let (start, end) = if (a_line, a_col) <= (b_line, b_col) {
+            ((a_line, a_col), (b_line, b_col))
+        } else {
+            ((b_line, b_col), (a_line, a_col))
+        };
+        let lines = &self.full_tail.as_ref()?.5;
+        let mut out = Vec::new();
+        for (row, line) in lines.iter().enumerate() {
+            if row < start.0 {
+                continue;
+            }
+            if row > end.0 {
+                break;
+            }
+            let from = if row == start.0 { start.1 } else { 0 };
+            let to = if row == end.0 {
+                end.1.saturating_add(1)
+            } else {
+                u16::MAX
+            };
+            out.push(slice_line(line, from, to));
+        }
+        while out.first().is_some_and(String::is_empty) {
+            out.remove(0);
+        }
+        while out.last().is_some_and(String::is_empty) {
+            out.pop();
+        }
+        Some(out.join("\n")).filter(|text| !text.trim().is_empty())
     }
 
     /// Render the full-screen tool-output overlay. Clamps the scroll to the
@@ -697,6 +816,48 @@ impl Session<'_> {
         }
         Ok(())
     }
+
+    /// The link target under a cell of the **last painted** conversation
+    /// window — what a click opens and a hover underlines. `None` on a cell
+    /// with no link or outside the painted rows.
+    pub(crate) fn full_link_at(&self, col: u16, row: u16) -> Option<String> {
+        let line = self.full_window.get(usize::from(row))?;
+        let id = carrier_at(line, col)?;
+        links::link_url(id).map(|url| url.to_string())
+    }
+}
+
+/// The interned link id of the span covering column `col` on `line`, if any.
+fn carrier_at(line: &Line<'static>, col: u16) -> Option<u32> {
+    use unicode_width::UnicodeWidthStr;
+    let mut x = 0u16;
+    for span in &line.spans {
+        let width = u16::try_from(span.content.width()).unwrap_or(u16::MAX);
+        if col < x.saturating_add(width) {
+            return span.style.underline_color.and_then(links::carrier_id);
+        }
+        x = x.saturating_add(width);
+    }
+    None
+}
+
+/// The text of `line` in display columns `[from, to)`, trailing blanks
+/// trimmed. A wide glyph is kept whole when its first column is inside the
+/// range; its shadow cell has no character of its own.
+fn slice_line(line: &Line<'static>, from: u16, to: u16) -> String {
+    use unicode_width::UnicodeWidthChar;
+    let mut out = String::new();
+    let mut x = 0u16;
+    for span in &line.spans {
+        for ch in span.content.chars() {
+            let width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(0);
+            if x >= from && x < to {
+                out.push(ch);
+            }
+            x = x.saturating_add(width);
+        }
+    }
+    out.trim_end().to_string()
 }
 
 /// Look again for the file behind every picture `history` shows, before it is

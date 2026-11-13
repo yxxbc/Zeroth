@@ -1612,3 +1612,33 @@ fn ctrl_n_never_lights_the_background_indicator() {
     assert_eq!(app.on_key(ctrl('n')), Action::None);
     assert!(!app.background_focus, "no indicator walk on ctrl+n");
 }
+
+#[test]
+fn conversation_scroll_keys_belong_to_the_screen_owning_mode() {
+    // docs/ui/full-screen.md: the inline viewport's history is the terminal's
+    // scrollback, so the app must not claim these keys there — Ctrl+Home still
+    // moves the composer's cursor.
+    let mut app = App::new();
+    let page_up = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
+    let ctrl_home = KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL);
+    assert_eq!(
+        app.on_key(page_up),
+        Action::None,
+        "inline leaves PageUp alone"
+    );
+    app.set_fullscreen(true);
+    assert_eq!(
+        app.on_key(page_up),
+        Action::ScrollPageUp,
+        "the screen-owning mode claims PageUp"
+    );
+    assert_eq!(
+        app.on_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
+        Action::ScrollPageDown
+    );
+    assert_eq!(app.on_key(ctrl_home), Action::ScrollTop);
+    assert_eq!(
+        app.on_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL)),
+        Action::ScrollBottom
+    );
+}

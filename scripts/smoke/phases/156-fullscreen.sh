@@ -40,6 +40,20 @@ expect_has "$full_turn" -F "Bash(python3 about.py)" "the full-screen frame did n
 expect_has "$full_turn" -F "dummy_model_name ·" "the full-screen frame did not show the footer"
 expect_has "$full_turn" -F "❯" "the full-screen frame did not show the composer"
 
+# Ctrl+Home scrolls the conversation window to the top (the banner and the
+# user's message are above the tail); Ctrl+End returns to follow-tail.
+tmux send-keys -t "$S_FULL" C-Home
+sleep 0.5
+scrolled="$(tmux capture-pane -p -t "$S_FULL")"
+echo "==== Phase 156: captured pane (Ctrl+Home — the conversation window at its top) ===="
+printf '%s\n' "$scrolled"
+expect_has "$scrolled" -F "Connect a model" "Ctrl+Home did not scroll to the startup banner"
+expect_has "$scrolled" -F "❯ hello" "Ctrl+Home did not scroll to the user's message"
+tmux send-keys -t "$S_FULL" C-End
+sleep 0.5
+back="$(tmux capture-pane -p -t "$S_FULL")"
+expect_has "$back" -F "Two commands away" "Ctrl+End did not return to the conversation's tail"
+
 # Quit, then read the recording: entry and exit must both be real
 # alternate-screen switches, so the shell is never stranded on the alt screen.
 tmux send-keys -t "$S_FULL" C-c
@@ -58,5 +72,8 @@ raw="$(cat "$RAW156" 2>/dev/null)"
 rm -f "$RAW156"
 expect_has "$raw" -F $'\033[?1049h' "the raw stream never entered the alternate screen"
 expect_has "$raw" -F $'\033[?1049l' "the raw stream never left the alternate screen"
+# Mouse capture is the screen-owning mode's: on at entry, off at exit.
+expect_has "$raw" -F $'\033[?1000h' "the raw stream never enabled mouse capture"
+expect_has "$raw" -F $'\033[?1000l' "the raw stream never disabled mouse capture"
 
 smoke_finish

@@ -165,6 +165,31 @@ pub(crate) struct Session<'t> {
         zeroth::app::Theme,
         Vec<ratatui::text::Line<'static>>,
     )>,
+    /// The screen-owning mode's scroll anchor: the tail line shown at the top
+    /// of the conversation, or `None` to follow the tail. Indexes
+    /// `full_tail`'s rows, so it survives new output (the view does not move
+    /// when scrolled up) and is clamped to what the last frame painted
+    /// (`full_len`/`full_conv_h`).
+    full_top: Option<usize>,
+    /// The painted tail's length and conversation-window height — what the
+    /// scroll keys clamp against between frames.
+    full_len: usize,
+    full_conv_h: usize,
+    /// The conversation rows exactly as the last frame painted them (the
+    /// scroll window, hover applied) — the hit map for link clicks and hover.
+    full_window: Vec<ratatui::text::Line<'static>>,
+    /// The cell the pointer is over in the conversation area, if any.
+    full_hover: Option<(u16, u16)>,
+    /// Where a left-button drag began in the **tail** (line, column): the
+    /// selection anchors are absolute, so a scroll or new output moves the
+    /// highlight with the text instead of stranding it
+    /// (`docs/ui/full-screen.md`). `full_press` is the same point, kept until
+    /// release to tell a click (open a link) from a drag (copy).
+    full_press: Option<(usize, u16)>,
+    full_select: Option<((usize, u16), (usize, u16))>,
+    /// The tail index of the first painted conversation row — how screen rows
+    /// map back to `full_select`/`full_tail`.
+    full_start: usize,
     /// The Ctrl+D overlay's built context window, rebuilt only when its
     /// signature changes — per frame the O(conversation) derivation starved
     /// the scroll keys on a big context (`docs/architecture/context.md`).

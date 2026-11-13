@@ -203,15 +203,28 @@ still applies.
   last `screen − live` rows); a short conversation starts at the top.
 - The strip's streaming preview is suppressed in this mode (the reply is
   already in the conversation), and the tail is cached by
-  `(agent view, history generation, width, streaming length)` so a 120-fps
+  `(agent view, history generation, width, streaming length, theme)` so a 120-fps
   animation frame does not re-render the whole conversation.
+- **Scrolling.** PageUp/PageDown move a viewport-sized page, Ctrl+Home/Ctrl+End
+  go to the top/tail, and the wheel moves three lines. Scrolling up anchors the
+  window to that tail line (`full_top`), so new output does not move it;
+  reaching the bottom resumes follow-tail. The keys are claimed only when the
+  boundary marked the app full-screen, so the inline composer keeps them.
+- **Mouse.** Capture is on for the session (and disabled on exit). The last
+  painted conversation rows are the hit map (`full_window`): moving over a link
+  underlines its run, a left click with no drag opens it through the platform
+  opener (`open`/`xdg-open`/`cmd start`), a left drag selects and copies (the
+  app's own selection, since capture takes the terminal's; Shift+drag remains
+  the terminal's escape hatch), and Shift is not required. Wheel scrolls.
+  Links are the carriers already painted (OSC 8 URLs and linked file-tool
+  headers); bare paths in prose are the rich-links phase.
 - Ctrl+O, the context view and every full-screen page paint over the frame
   through the existing overlay path; leaving a page repaints the frame. A
   resize re-wraps from history at the new width.
-- **Not yet:** scrolling back through the conversation (PageUp/Home/wheel),
-  own selection/copy, mouse capture and hit-testing, click-to-expand, link
-  cards, suspend (`Ctrl+Z`) / editor handoff, and agent-view parity beyond the
-  transcript tail. They are the phases below.
+- **Not yet:** click-to-expand a single cell/group, character-precise selection
+  (the highlight is span-level), pointer interactions on the live region
+  (composer/options), link cards, suspend (`Ctrl+Z`) / editor handoff, and
+  agent-view parity beyond the transcript tail. They are the phases below.
 
 ## Mode selection and rollout
 
@@ -261,9 +274,10 @@ still applies.
 2. **Parity — next.** Agents/agent view, prompts, pickers, images, toasts,
    queue, backtrack, resume/clear, Ctrl+O, resize anchors; the parity checklist
    green.
-3. **Mouse and scrolling.** Capture, hit map, hover, click links,
-   click-to-expand, wheel, drag-select/copy, and the conversation scroll model
-   (PageUp/Home/End) the skeleton does not have yet.
+3. **Mouse and scrolling — skeleton done.** Capture, hit map, hover, click
+   links, wheel, PageUp/PageDown/Ctrl+Home/End and drag-select/copy all work;
+   still open here: click-to-expand a single event, character-precise selection
+   and mouse on the live region (composer/options).
 4. **Rich links.** Bare paths everywhere; cards inline; the preview policy.
 5. **Default decision.** Flip the default, keep `--inline`, evaluate removal.
 

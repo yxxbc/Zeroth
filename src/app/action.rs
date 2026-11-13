@@ -19,6 +19,15 @@ pub enum Action {
     CloseDiffReview,
     /// Nothing to do.
     None,
+    /// The **screen-owning** mode's conversation scroll: PageUp/PageDown by a
+    /// viewport-sized page, Ctrl+Home/Ctrl+End to the top/tail. The loop owns
+    /// the scroll offset and clamps it to what it painted; the inline viewport
+    /// ignores all four (its history is the terminal's scrollback).
+    /// `docs/ui/full-screen.md`.
+    ScrollPageUp,
+    ScrollPageDown,
+    ScrollTop,
+    ScrollBottom,
     /// The user submitted a (non-empty) message; start a reply for it. Any
     /// Ctrl+V-attached images travel separately — the loop drains
     /// [`App::take_submission_images`] for their paths. See `docs/input/image-paste.md`.
@@ -225,7 +234,10 @@ pub enum Action {
     /// makes it true of the session — the shared registry, the re-rendered
     /// listing, the backend rebuild, this project's `skills.json` entry — and
     /// confirms with a toast. See `docs/tools/skills.md`.
-    SkillToggled { name: String, enabled: bool },
+    SkillToggled {
+        name: String,
+        enabled: bool,
+    },
     /// `/mascot`: open the inline mascot picker. Like `/settings` it works
     /// mid-turn — it only replaces the composer; a switch repaints the banner
     /// at the next purge rebuild. The loop has nothing to fetch (the catalog
@@ -437,7 +449,10 @@ pub enum Action {
     /// a chat continuation over its stored conversation when idle (the
     /// registry decides). The transcript already shows the message
     /// ([`App::agent_chat`] recorded it). See `docs/agents/agent-tool.md`.
-    AgentChat { id: String, text: String },
+    AgentChat {
+        id: String,
+        text: String,
+    },
     /// Ctrl+B while a command is running (a model `bash` call or a `!` shell
     /// turn): move it to the background. The loop raises the registry's
     /// background request; the runner's poll loop consumes it, hands the

@@ -395,6 +395,12 @@ pub struct App {
     history_generation: u64,
     /// Which screen is showing (Ctrl+O toggles to the tool-output view).
     pub view: View,
+    /// Whether the **screen-owning** viewport is in use
+    /// (`--fullscreen`, `docs/ui/full-screen.md`): the boundary sets it once at
+    /// bootstrap. The pure key routing reads it only to claim
+    /// PageUp/PageDown/Ctrl+Home/Ctrl+End for the conversation's scroll — the
+    /// inline viewport leaves those keys where they were.
+    fullscreen: bool,
     /// The Git review snapshot and navigation state, released on close.
     diff_review: Option<DiffReview>,
     /// The tool-output view's vertical scroll offset, in lines from the top.
@@ -974,6 +980,15 @@ impl App {
     #[must_use]
     pub const fn history_generation(&self) -> u64 {
         self.history_generation
+    }
+
+    /// Tell the key routing that the screen-owning viewport is painting
+    /// (`docs/ui/full-screen.md`) — the boundary's call at bootstrap, like
+    /// [`set_path_display`](Self::set_path_display). Only the conversation-scroll
+    /// keys read it; the inline viewport leaves PageUp/PageDown/Ctrl+Home/End
+    /// to the composer.
+    pub const fn set_fullscreen(&mut self, on: bool) {
+        self.fullscreen = on;
     }
 
     /// Bump [`history_generation`](Self::history_generation) without touching

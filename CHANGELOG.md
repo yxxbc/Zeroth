@@ -22,10 +22,11 @@ release heading when a version is cut.
   on the alternate screen with the conversation, the live region, the composer
   and the footer painted into one owned frame, instead of committing finished
   rows into the terminal's scrollback (`ZEROTH_TUI=full` does the same).
-  Streaming, tool cells, resizes, Ctrl+O and the full-screen pages work; mouse,
-  scrolling through the conversation, selection/copy and link cards are the
-  next phases. The inline viewport remains the default
-  (`docs/ui/full-screen.md`).
+  Streaming, tool cells, resizes, Ctrl+O and the full-screen pages work;
+  PageUp/PageDown, Ctrl+Home/End and the wheel scroll the conversation, and
+  mouse capture adds link hover/click (through the system opener) and
+  drag-select/copy. Click-to-expand, link cards and editor handoff are the next
+  phases. The inline viewport remains the default (`docs/ui/full-screen.md`).
 
 - **A parallel tool batch now runs — and streams — several calls at once in
   the TUI.** Every call-scoped stream event (`ToolStart`, `ToolEnd`,

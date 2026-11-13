@@ -290,6 +290,34 @@ impl App {
             // exits. Quit below needs an *empty* composer with no target.
             KeyCode::Esc if !self.input.is_empty() => Action::None,
             KeyCode::Esc => Action::Quit,
+            // The screen-owning mode's conversation scroll
+            // (docs/ui/full-screen.md). The inline viewport ignores these
+            // actions, and the composer has no use for the keys; the inline
+            // menus keep them (they close the arm below).
+            KeyCode::PageUp if self.fullscreen && !menu_open && !file_open && !skill_open => {
+                Action::ScrollPageUp
+            }
+            KeyCode::PageDown if self.fullscreen && !menu_open && !file_open && !skill_open => {
+                Action::ScrollPageDown
+            }
+            KeyCode::Home
+                if self.fullscreen
+                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !menu_open
+                    && !file_open
+                    && !skill_open =>
+            {
+                Action::ScrollTop
+            }
+            KeyCode::End
+                if self.fullscreen
+                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !menu_open
+                    && !file_open
+                    && !skill_open =>
+            {
+                Action::ScrollBottom
+            }
             // Shift+Tab cycles the permission mode (docs/state/permissions.md) —
             // Claude Code's key for it, freeing Ctrl+A for the terminal's
             // line-start. Legacy terminals report it as BackTab (`ESC[Z`), the

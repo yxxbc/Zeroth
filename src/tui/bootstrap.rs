@@ -99,6 +99,10 @@ impl<'t> Session<'t> {
         tokio::spawn(frame::run_scheduler(frame_rx, draw_tx));
 
         let mut app = App::new();
+        // Which viewport is painting decides whether the conversation-scroll
+        // keys are claimed (docs/ui/full-screen.md); the inline default leaves
+        // them to the composer.
+        app.set_fullscreen(term.fullscreen());
         // Inject the wall-clock here at the I/O boundary so the pure library never
         // sees a clock. Recorded items are stamped with the local time; the stamp
         // is shown only in the Ctrl+O transcript (see docs/ui/timestamps.md).
@@ -601,6 +605,14 @@ impl<'t> Session<'t> {
             agent_render: ui::StreamRender::new(),
             transcript: ui::TranscriptCache::new(),
             full_tail: None,
+            full_top: None,
+            full_len: 0,
+            full_conv_h: 0,
+            full_window: Vec::new(),
+            full_hover: None,
+            full_press: None,
+            full_select: None,
+            full_start: 0,
             context: ui::ContextCache::new(),
             burst: PasteBurst::new(),
             clocks: StatusClocks::started_now(),
