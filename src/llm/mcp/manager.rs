@@ -2191,7 +2191,7 @@ done"#
     *'"method":"tools/list"'*)
       printf '{{"jsonrpc":"2.0","id":%s,"result":{{"resultType":"complete","tools":[{{"name":"slow","inputSchema":{{"type":"object"}}}},{{"name":"fast","inputSchema":{{"type":"object"}}}}],"ttlMs":0,"cacheScope":"public"}}}}\n' "$id" ;;
     *'"method":"tools/call"'*)
-      tool=$(printf '%s' "$line" | sed -n 's/.*"name":"\([a-z]*\)".*/\1/p')
+      tool=$(printf '%s' "$line" | sed -n 's/.*"params":{{"name":"\([a-z]*\)".*/\1/p')
       echo "$tool" >> '{calls}'
       {on_call} ;;
   esac
