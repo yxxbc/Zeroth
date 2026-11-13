@@ -140,8 +140,12 @@ impl Session<'_> {
     /// depend on which types exist (the tool set does not name them — the
     /// reminder does).
     pub(crate) fn rescan_agents(&mut self) {
-        let (agents, errors) =
-            zeroth::llm::subagent::load_agents(&self.cwd, config::config_home().as_deref());
+        let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+        let (agents, errors) = zeroth::llm::subagent::load_agents(
+            &self.cwd,
+            config::config_home().as_deref(),
+            home.as_deref(),
+        );
         self.subagents.replace(agents);
         self.sync_listings();
         let fresh = zeroth::subagents::unreported_errors(&self.reported_agent_errors, &errors);

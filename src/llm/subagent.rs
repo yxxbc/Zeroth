@@ -56,13 +56,22 @@ pub fn agent_roots(
     cwd: &Path,
     project_root: Option<&Path>,
     config_home: Option<&Path>,
+    home: Option<&Path>,
     override_dir: Option<&Path>,
 ) -> Vec<PathBuf> {
     if let Some(dir) = override_dir {
         return vec![dir.to_path_buf()];
     }
-    let mut roots = vec![project_dir(cwd)];
-    if let Some(root) = project_root.filter(|root| *root != cwd) {
+    let mut roots = Vec::new();
+    // Home is never a project (the skills rule, `docs/state/project-config.md`):
+    // launched in `~`, the cwd rule would read the pre-fork `.alter-zero/agents`
+    // as project definitions.
+    if home.is_none_or(|home| home != cwd) {
+        roots.push(project_dir(cwd));
+    }
+    if let Some(root) =
+        project_root.filter(|root| *root != cwd && home.is_none_or(|home| home != *root))
+    {
         roots.push(project_dir(root));
     }
     if let Some(config_home) = config_home {
@@ -80,11 +89,16 @@ fn project_dir(dir: &Path) -> PathBuf {
 /// `ALTER_ZERO_AGENTS_DIR` read and the `.git` walk-up applied. The **one**
 /// place those happen, so the seeding target and the walk can never disagree.
 #[must_use]
-pub fn resolved_agent_roots(cwd: &Path, config_home: Option<&Path>) -> Vec<PathBuf> {
+pub fn resolved_agent_roots(
+    cwd: &Path,
+    config_home: Option<&Path>,
+    home: Option<&Path>,
+) -> Vec<PathBuf> {
     agent_roots(
         cwd,
         crate::project_doc::find_project_root(cwd).as_deref(),
         config_home,
+        home,
         override_dir().as_deref(),
     )
 }
@@ -244,8 +258,13 @@ pub fn with_builtins(
 pub fn load_agents(
     cwd: &Path,
     config_home: Option<&Path>,
+    home: Option<&Path>,
 ) -> (Vec<AgentDefinition>, Vec<AgentFileError>) {
-    with_builtins(discover_agents(&resolved_agent_roots(cwd, config_home)))
+    with_builtins(discover_agents(&resolved_agent_roots(
+        cwd,
+        config_home,
+        home,
+    )))
 }
 
 #[cfg(test)]
@@ -260,6 +279,7 @@ mod tests {
             Some(std::path::Path::new("/repo")),
             Some(std::path::Path::new("/home/u/.zeroth")),
             None,
+            None,
         );
         assert_eq!(
             roots,
@@ -272,10 +292,27 @@ mod tests {
     }
 
     #[test]
+    fn the_home_directory_is_never_a_project_agent_root() {
+        let home = std::path::Path::new("/home/u");
+        let roots = agent_roots(
+            home,
+            Some(home),
+            Some(std::path::Path::new("/home/u/.zeroth")),
+            Some(home),
+            None,
+        );
+        assert_eq!(
+            roots,
+            vec![std::path::PathBuf::from("/home/u/.zeroth/agents")]
+        );
+    }
+
+    #[test]
     fn the_project_root_is_skipped_when_it_is_the_cwd() {
         let roots = agent_roots(
             std::path::Path::new("/repo"),
             Some(std::path::Path::new("/repo")),
+            None,
             None,
             None,
         );
@@ -292,6 +329,7 @@ mod tests {
             None,
             Some(std::path::Path::new("/home/u/.zeroth")),
             None,
+            None,
         );
         assert!(
             roots
@@ -307,6 +345,7 @@ mod tests {
             std::path::Path::new("/repo"),
             Some(std::path::Path::new("/repo")),
             Some(std::path::Path::new("/home/u/.zeroth")),
+            None,
             Some(std::path::Path::new("/tmp/agents")),
         );
         assert_eq!(roots, vec![std::path::PathBuf::from("/tmp/agents")]);

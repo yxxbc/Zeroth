@@ -75,7 +75,7 @@ const BUILTIN_SKILL_FILES: [(&str, &str); 6] = [
 /// the repo's own skills — the same walk-up `AGENTS.md` discovery does — while
 /// the more specific directory keeps precedence over the more general one.
 ///
-/// The personal `.alter-zero/skills` hangs off `config_home` rather than
+/// The personal `.zeroth/skills` hangs off `config_home` rather than
 /// `$HOME` directly, so it follows `ZEROTH_CONFIG_DIR` like `hooks.json`,
 /// `permissions.json` and `settings.json` do. The `.claude/skills` rows are
 /// deliberate: a skill is portable markdown with no tool-specific behaviour in
@@ -92,8 +92,19 @@ pub fn skill_roots(
     if let Some(dir) = override_dir {
         return vec![dir.to_path_buf()];
     }
-    let mut roots = project_dirs(cwd);
-    if let Some(root) = project_root.filter(|root| *root != cwd) {
+    let mut roots = Vec::new();
+    // The home directory is **never a project** (the `trust::is_project_root`
+    // rule, and the config home's own): launched in `~`, treating it as one
+    // would resurrect the pre-fork `~/.alter-zero/skills` as "project skills"
+    // — a place a skill with a forceful description can hijack the agent on
+    // an unrelated question. Personal skills come from the config home and
+    // `~/.claude/skills` below, not from the cwd rule.
+    if home.is_none_or(|home| home != cwd) {
+        roots.extend(project_dirs(cwd));
+    }
+    if let Some(root) =
+        project_root.filter(|root| *root != cwd && home.is_none_or(|home| home != *root))
+    {
         roots.extend(project_dirs(root));
     }
     if let Some(config_home) = config_home {
@@ -470,6 +481,33 @@ mod tests {
                 PathBuf::from("/work/.alter-zero/skills"),
                 PathBuf::from("/work/.claude/skills"),
                 PathBuf::from("/cfg/.alter-zero/skills"),
+                PathBuf::from("/home/u/.claude/skills"),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_home_directory_is_never_a_project_root() {
+        // The persona-skill incident: launched in `~`, the cwd rule used to
+        // walk `~/.alter-zero/skills` — the pre-fork personal root — so a
+        // SKILL.md there could hijack an unrelated question. Personal skills
+        // come from the config home and `~/.claude/skills` only.
+        let home = Path::new("/home/u");
+        let roots = skill_roots(
+            home,
+            Some(home),
+            Some(Path::new("/home/u/.zeroth")),
+            Some(home),
+            None,
+        );
+        assert!(
+            !roots.contains(&PathBuf::from("/home/u/.alter-zero/skills")),
+            "{roots:?}"
+        );
+        assert_eq!(
+            roots,
+            vec![
+                PathBuf::from("/home/u/.zeroth/skills"),
                 PathBuf::from("/home/u/.claude/skills"),
             ]
         );
@@ -1345,7 +1383,10 @@ mod tests {
             // anywhere inside it breaks this equality.
             assert_eq!(
                 rendered,
-                format!("Base directory for this skill: /seeded\n\n{body}"),
+                format!(
+                    "Base directory for this skill: /seeded\n\n{}\n\n{body}",
+                    crate::skills::SKILL_CONTENT_BOUNDARY
+                ),
                 "{path}: the loader rewrote the body's own text"
             );
         }

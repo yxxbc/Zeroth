@@ -355,8 +355,11 @@ impl<'t> Session<'t> {
                         Some(dir) => zeroth::llm::subagent::seed_default_agents(&dir),
                         None => Vec::new(),
                     };
-                let (found, walk_errors) =
-                    zeroth::llm::subagent::load_agents(&cwd, config_home.as_deref());
+                let (found, walk_errors) = zeroth::llm::subagent::load_agents(
+                    &cwd,
+                    config_home.as_deref(),
+                    home.as_deref(),
+                );
                 errors.extend(walk_errors);
                 (found, errors)
             }

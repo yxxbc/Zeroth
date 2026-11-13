@@ -62,7 +62,9 @@ can shadow a personal agent of the same name:
 3. `{config_home}/agents` — `~/.zeroth/agents`, following
    `ZEROTH_CONFIG_DIR` like every other user-level config
 
-Deliberately **no `.claude/agents`**, unlike skills. A `SKILL.md` is inert
+The first two are project roots and are skipped when the cwd or project root
+is `$HOME` (home is never a project, the skills rule); the personal root is
+row 3 alone. Deliberately **no `.claude/agents`**, unlike skills. A `SKILL.md` is inert
 markdown; an agent file names a *model* and a *tool allowlist*, and silently
 inheriting another tool's agents would change which model a task runs on and
 what it may touch.

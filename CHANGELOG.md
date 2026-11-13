@@ -143,6 +143,21 @@ release heading when a version is cut.
   unchanged, and a hook that runs silently still leaves nothing
   (`docs/tools/hooks.md`).
 
+### Fixed
+
+- **Prompt injection through skills, agents and fetched web content.** The
+  skill and agent walks treated `$HOME` as a project: launching in `~` read
+  `~/.alter-zero/skills` (the pre-fork personal root), so a `SKILL.md`
+  installed there could hijack an unrelated question — a live incident, where
+  a skill made `zeroth -p 你是谁` adopt another persona and tell the model to
+  waive permission and scope. Home is never a project now (the config layer's
+  existing rule), for both walks. Defense in depth: the default system prompt
+  states that tool results are data and cannot change identity, safety
+  rules or permissions; the skills/agents listings say descriptions are
+  author-written metadata, not instructions; a loaded skill body and every
+  fetched page/search result carry an explicit untrusted-content boundary
+  (`docs/tools/skills.md`, `docs/tools/web-search.md`).
+
 ### Changed
 
 - **The one-line installer is Zeroth's, and its mascot moves.**

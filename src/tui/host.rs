@@ -97,7 +97,7 @@ impl Host {
             None => Vec::new(),
         };
         let (agents, walk_errors) =
-            zeroth::llm::subagent::load_agents(&cwd, config_home.as_deref());
+            zeroth::llm::subagent::load_agents(&cwd, config_home.as_deref(), home.as_deref());
         agent_errors.extend(walk_errors);
 
         let mut settings =
