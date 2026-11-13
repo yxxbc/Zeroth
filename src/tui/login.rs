@@ -107,6 +107,28 @@ impl Session<'_> {
         };
         let cancel = CancelToken::new();
         self.device_cancel = Some(cancel.clone());
+        // Before Antigravity sends anyone to a browser page that would
+        // otherwise hang for ten minutes, find out whether Google answers at
+        // all — and say which ambient variable would hijack the credential if
+        // there is one (`docs/providers/antigravity.md`).
+        if self.models.subscription_auth(provider)
+            == Some(zeroth::llm::config::AuthScheme::GoogleAntigravity)
+        {
+            if let llm::antigravity::Reach::Unreachable(why) = llm::antigravity::probe_reach() {
+                self.app.fail_device_login(why);
+                return;
+            }
+            let ambient = llm::antigravity::ambient_google_keys_present();
+            if !ambient.is_empty() {
+                self.toast(
+                    format!(
+                        "{} set in this shell — the sign-in ignores it and uses your account instead",
+                        ambient.join(", ")
+                    ),
+                    ToastKind::Info,
+                );
+            }
+        }
         // The Antigravity sign-in sets the account up on the provider's own
         // host; every other flow ignores it.
         let base = self.models.subscription_base(provider).unwrap_or_default();

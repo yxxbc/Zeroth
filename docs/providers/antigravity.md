@@ -308,6 +308,43 @@ reaches the screen as raw JSON:
 | 429 | rate-limit wording | a transient throttle (the bounded retry already tried) |
 | 503 | `No capacity available` / `MODEL_CAPACITY_EXHAUSTED` | Google has no capacity for the model right now |
 
+### Before the browser opens
+
+Two checks run when the sign-in starts, both taken from
+[`pingdotgg/t3code`](https://github.com/pingdotgg/t3code)'s Antigravity
+provider, which drives the official CLI where this crate reimplements the
+flow. The checks are the part of its design worth having either way.
+
+**Reachability.** `antigravity::probe_reach` sends a `HEAD` to the authorize
+host with a 30-second deadline (`REACH_GOOGLE_AFTER`). Any HTTP status means
+reached — a 405 still proves the route works — and only a transport failure
+is a failure, reported before a browser page that would otherwise hang for ten
+minutes:
+
+> Antigravity has not reached Google yet. Check this machine's network
+> connection — broken IPv6 is a common cause.
+
+The IPv6 sentence is t3code's and it earns its place: a broken IPv6 route
+stalls every Google connection while IPv4 works fine, and it is the one cause
+a user cannot guess. The probe never blocks a sign-in — a probe that cannot
+run is not evidence the sign-in cannot.
+
+**Ambient credentials.** `antigravity::AMBIENT_GOOGLE_KEYS` names the
+variables that make a Google client read a *different* credential:
+`GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`,
+`GOOGLE_GENAI_USE_VERTEXAI`, `GEMINI_API_KEY` and five more. The check is
+**case-insensitive**, because Windows treats environment names that way, and
+any that are set are named in a toast:
+
+> GOOGLE_APPLICATION_CREDENTIALS set in this shell — the sign-in ignores it
+> and uses your account instead
+
+The sign-in itself already ignores them: this crate never reads an ambient
+Google credential, so the variable was never a correctness problem for us —
+only a silent surprise when the user expects it to be used. t3code strips the
+same set from the environment it hands the CLI, for the stronger reason: the
+CLI *would* read them.
+
 ## What this does not do
 
 - **No account rotation, no quota-pool fallback.** One account per sign-in,

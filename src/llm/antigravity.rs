@@ -108,6 +108,19 @@ pub const OAUTH_BASE_ENV: &str = "ALTER_ZERO_GOOGLE_OAUTH_BASE";
 /// How long the sign-in page waits for the browser — the countdown it shows.
 pub const AUTH_TIMEOUT: Duration = Duration::from_secs(600);
 
+/// How long the sign-in waits for Google to answer at all before it says the
+/// network is the problem. t3code stages this the same way (30 s to reach
+/// Google, 90 s for its own runtime to start) because one 600-second deadline
+/// tells a user nothing until it expires.
+pub const REACH_GOOGLE_AFTER: Duration = Duration::from_secs(30);
+
+/// What the sign-in page says when Google has not answered within
+/// [`REACH_GOOGLE_AFTER`]. The IPv6 sentence is t3code's and it is right: a
+/// broken IPv6 route stalls every Google connection while IPv4 works, and it
+/// is the one cause a user cannot guess.
+pub const UNREACHABLE_HINT: &str = "Antigravity has not reached Google yet. Check this machine's network connection — \
+     broken IPv6 is a common cause.";
+
 /// How long one token, userinfo or setup call may take.
 const OP_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -125,10 +138,77 @@ const BODY_MAX_BYTES: u64 = 64 * 1024;
 /// and its experiments.
 const CATALOG_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
+/// The reachability probe's outcome, as the page shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Reach {
+    /// Google answered (any HTTP status — a 405 still proves the route works).
+    Reached,
+    /// Nothing came back: the network, not the sign-in, is the problem.
+    Unreachable(String),
+}
+
+/// Turn a probe result into the page's verdict.
+///
+/// An HTTP answer of **any** status is [`Reach::Reached`]: a 404 or a 405 from
+/// Google proves the route works, and the sign-in proper will report the
+/// credential problem if there is one. Only a transport failure is
+/// [`Reach::Unreachable`].
+#[must_use]
+pub fn verdict(status: Option<u16>, transport_error: Option<&str>) -> Reach {
+    match (status, transport_error) {
+        (Some(_), _) => Reach::Reached,
+        (None, Some(why)) => Reach::Unreachable(format!("{UNREACHABLE_HINT} ({why})")),
+        (None, None) => Reach::Unreachable(UNREACHABLE_HINT.to_string()),
+    }
+}
+
 /// How many times onboarding is asked whether it is done, and how far apart.
 /// It only ever runs at the sign-in, on its cancellable worker.
 const ONBOARD_ATTEMPTS: u32 = 10;
 const ONBOARD_INTERVAL: Duration = Duration::from_secs(3);
+
+/// Variables that make a Google client read a *different* credential than the
+/// one this session signed in with — the ambient service account, a project
+/// override, a Vertex route. Antigravity's sign-in is the only credential a
+/// request may carry, so none of these may reach it.
+///
+/// t3code strips the same set before launching the official CLI
+/// (`antigravityAuthSupport.ts`), for the reason worth copying: a machine with
+/// `GOOGLE_APPLICATION_CREDENTIALS` set silently authenticates as whichever
+/// service account it names, and the symptom is a 403 from a project the user
+/// never chose.
+pub const AMBIENT_GOOGLE_KEYS: [&str; 8] = [
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_QUOTA_PROJECT",
+    "GOOGLE_GENAI_USE_VERTEXAI",
+    "GCLOUD_PROJECT",
+    "CLOUDSDK_CORE_PROJECT",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+];
+
+/// Whether an environment key must be withheld from Antigravity's traffic —
+/// compared **case-insensitively**, because Windows treats environment names
+/// that way and `google_application_credentials` is the same variable to it.
+#[must_use]
+pub fn is_ambient_google_key(name: &str) -> bool {
+    AMBIENT_GOOGLE_KEYS
+        .iter()
+        .any(|known| known.eq_ignore_ascii_case(name))
+}
+
+/// The ambient keys present in this process's environment, for the sign-in
+/// page to name: a user whose shell exports them deserves to know the sign-in
+/// is about to ignore them.
+#[must_use]
+pub fn ambient_google_keys_present() -> Vec<String> {
+    AMBIENT_GOOGLE_KEYS
+        .iter()
+        .filter(|name| std::env::var_os(name).is_some())
+        .map(|name| (*name).to_string())
+        .collect()
+}
 
 // ---------------------------------------------------------------------------
 // The flow's URLs and bodies (pure)
@@ -1010,6 +1090,27 @@ fn failure(status: u16, body: &str) -> LlmError {
     }
 }
 
+/// Probe whether Google answers at all, before the user is sent to a browser
+/// page that would otherwise hang for ten minutes.
+///
+/// A `HEAD` of the authorize host: any HTTP status proves the route works, so
+/// only a transport failure is a failure. Never fails the sign-in — a probe
+/// that cannot run is not evidence the sign-in cannot.
+#[must_use]
+pub fn probe_reach() -> Reach {
+    let Ok(client) = super::http_client(REACH_GOOGLE_AFTER) else {
+        return Reach::Reached;
+    };
+    match client
+        .head(AUTHORIZE_URL)
+        .timeout(REACH_GOOGLE_AFTER)
+        .send()
+    {
+        Ok(response) => verdict(Some(response.status().as_u16()), None),
+        Err(error) => verdict(None, Some(&super::antigravity_transport_text(error))),
+    }
+}
+
 fn post_form(url: &str, body: String) -> Result<TokenSet> {
     let client = super::http_client(OP_TIMEOUT)?;
     let resp = client
@@ -1360,6 +1461,95 @@ pub fn account_email(bearer: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::llm::reasoning::{ReasoningSupport, ThinkingMode};
+
+    // ===== the ambient-key guard =====
+
+    #[test]
+    fn the_ambient_google_keys_are_the_ones_that_hijack_a_credential() {
+        // t3code strips this set before launching the official CLI, for the
+        // reason that applies to us too: `GOOGLE_APPLICATION_CREDENTIALS`
+        // silently authenticates as whichever service account it names, and
+        // the symptom is a 403 from a project nobody chose.
+        for key in [
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            "GOOGLE_CLOUD_PROJECT",
+            "GOOGLE_CLOUD_QUOTA_PROJECT",
+            "GOOGLE_GENAI_USE_VERTEXAI",
+            "GCLOUD_PROJECT",
+            "CLOUDSDK_CORE_PROJECT",
+            "GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+        ] {
+            assert!(is_ambient_google_key(key), "{key}");
+        }
+    }
+
+    #[test]
+    fn the_ambient_check_ignores_case_because_windows_does() {
+        // Windows treats environment names case-insensitively, so a lowercase
+        // spelling is the same variable and must be caught too.
+        for key in [
+            "google_application_credentials",
+            "Google_Cloud_Project",
+            "gcloud_project",
+            "gemini_api_key",
+        ] {
+            assert!(is_ambient_google_key(key), "{key}");
+        }
+    }
+
+    #[test]
+    fn ordinary_variables_are_not_treated_as_ambient_credentials() {
+        for key in [
+            "PATH",
+            "HOME",
+            "ANTIGRAVITY_REFRESH_TOKEN",
+            "HTTPS_PROXY",
+            "GOOGLE_CHROME_BIN",
+        ] {
+            assert!(!is_ambient_google_key(key), "{key}");
+        }
+    }
+
+    // ===== the reachability verdict =====
+
+    #[test]
+    fn any_http_answer_proves_the_route_works() {
+        // A 404 or a 405 from Google still means the network reached it; the
+        // sign-in proper reports a credential problem if there is one.
+        for status in [200u16, 204, 301, 400, 403, 404, 405, 429, 500, 503] {
+            assert_eq!(verdict(Some(status), None), Reach::Reached, "{status}");
+        }
+    }
+
+    #[test]
+    fn a_transport_failure_names_the_network_and_the_ipv6_trap() {
+        let reach = verdict(None, Some("could not connect"));
+        match reach {
+            Reach::Unreachable(why) => {
+                assert!(why.contains("network"), "{why}");
+                assert!(why.contains("IPv6"), "{why}");
+                assert!(why.contains("could not connect"), "{why}");
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_failure_with_no_reason_still_says_what_to_check() {
+        match verdict(None, None) {
+            Reach::Unreachable(why) => assert!(why.contains("broken IPv6"), "{why}"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_reach_stage_is_short_enough_to_be_a_hint() {
+        // One 600-second deadline tells a user nothing until it expires; the
+        // staged one is what makes "your network is down" arrive in time.
+        assert!(REACH_GOOGLE_AFTER < AUTH_TIMEOUT);
+        assert_eq!(REACH_GOOGLE_AFTER.as_secs(), 30);
+    }
 
     #[test]
     fn the_authorize_url_asks_for_offline_access_on_antigravitys_client() {
