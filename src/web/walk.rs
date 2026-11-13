@@ -1,7 +1,7 @@
 //! The walk: try each source in order, honour the cooldown, tidy what comes
 //! back (`docs/tools/web-search.md` *The walk*).
 //!
-//! The I/O is a parameter. [`ask`] is a trait the caller implements — the
+//! The I/O is a parameter. [`Asker`] is a trait the caller implements — the
 //! boundary sends a request, the tests answer from a table — so this module
 //! decides *which* source is tried, *when* one is skipped, and *what* the
 //! caller sees, with nothing that can block.
