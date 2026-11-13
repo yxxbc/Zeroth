@@ -58,6 +58,57 @@ impl HttpAsker {
     }
 }
 
+impl HttpAsker {
+    /// Ask a source for a page's **body** rather than a search result — the
+    /// rescue path (`docs/tools/web-search.md` *`web_fetch`*: a page this
+    /// machine cannot read is retried through the sources that can fetch).
+    ///
+    /// # Errors
+    ///
+    /// The transport failed or the source refused.
+    pub fn fetch_page(&self, attempt: &Attempt<'_>) -> Result<String, Failure> {
+        let body = serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {
+                "name": match attempt.kind {
+                    Kind::Exa => "web_fetch_exa",
+                    Kind::Firecrawl => "firecrawl_scrape",
+                    _ => "web_fetch",
+                },
+                "arguments": match attempt.kind {
+                    Kind::Exa => serde_json::json!({"urls": [attempt.text], "maxCharacters": 200_000}),
+                    Kind::Firecrawl => serde_json::json!({"url": attempt.text}),
+                    _ => serde_json::json!({"urls": [attempt.text]}),
+                }
+            }
+        })
+        .to_string();
+        let request = self
+            .client
+            .post(attempt.url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .timeout(attempt.timeout)
+            .body(body);
+        let request = attempt
+            .headers
+            .iter()
+            .fold(request, |request, (name, value)| {
+                request.header(name.as_str(), value.as_str())
+            });
+        let response = request
+            .send()
+            .map_err(|error| Failure::Failed(transport_reason(error)))?;
+        let status = response.status().as_u16();
+        if let Some(failure) = Failure::from_status(status) {
+            return Err(failure);
+        }
+        let raw = read_capped(response);
+        let text = last_sse_result(&raw)?;
+        Ok(text)
+    }
+}
+
 impl Asker for HttpAsker {
     fn ask(&self, attempt: &Attempt<'_>) -> Result<Vec<Hit>, Failure> {
         let request = build_request_with(
@@ -319,6 +370,276 @@ fn transport_reason(error: reqwest::Error) -> String {
     } else {
         without_url.to_string()
     }
+}
+
+/// Fetch one URL and render it for the model: the address gate, the request,
+/// the charset, the conversion and the page
+/// (`docs/tools/web-search.md` *`web_fetch`*).
+///
+/// A failure no rescue source could fix is reported with the **original**
+/// reason, not the rescuers'.
+///
+/// # Errors
+///
+/// The URL is refused, unreachable, or not something this crate reads as text
+/// — the message is what the model reads.
+pub fn fetch_document(
+    url: &str,
+    page_number: usize,
+    search: Option<&crate::web::walk::Search>,
+) -> Result<String, String> {
+    use std::time::Duration;
+
+    let rules = search.map(|search| search.rules());
+    let page_chars = rules.map_or(16_000, |rules| rules.fetch.page_chars);
+    let timeout = rules.map_or(Duration::from_secs(45), |rules| rules.fetch.timeout);
+    let (text, via) = match fetch_once(url, timeout) {
+        Ok((text, shown)) => {
+            // A body that came back empty or login-wall short is worth asking
+            // a source to fetch instead.
+            let want_rescue =
+                rules.is_some_and(|rules| text.chars().count() < rules.fetch.min_chars);
+            if want_rescue {
+                match rescue(url, search) {
+                    Some((rescued, source)) => (rescued, Some(source)),
+                    None => (text, shown),
+                }
+            } else {
+                (text, shown)
+            }
+        }
+        Err(reason) => match rescue(url, search) {
+            Some((rescued, source)) => (rescued, Some(source)),
+            None => return Err(reason),
+        },
+    };
+
+    let document = crate::web::fetch::pages(&text, page_chars);
+    let page = crate::web::fetch::page(&document, page_number);
+    let mut out = String::new();
+    if let Some(source) = &via {
+        out.push_str(&format!("via {source}\n\n"));
+    }
+    out.push_str(page.text.trim_end());
+    if page.has_more() {
+        out.push_str(&format!(
+            "\n\n(page {} of {} — ask for page: {})",
+            page.number,
+            page.total,
+            page.number + 1
+        ));
+    }
+    Ok(out)
+}
+
+/// One fetch: gate the URL, resolve it, pin the address the gate approved, and
+/// return the body as text plus what the user's cell should say about where it
+/// went.
+fn fetch_once(url: &str, timeout: Duration) -> Result<(String, Option<String>), String> {
+    use crate::web::fetch::{Media, charset_of, decode, looks_like_html, media_from_content_type};
+    use crate::web::guard::{AddressClass, GuardError, classify, parse_target};
+
+    let target = parse_target(url).map_err(|error| describe_guard(&error))?;
+    // The gate resolves, and every address must be routable before anything is
+    // sent. The connection is pinned to the address that passed, so a second
+    // DNS answer cannot swap it (`docs/tools/web-search.md`).
+    let addresses = resolve(&target.host, target.port).map_err(|error| error.to_string())?;
+    if addresses.is_empty() {
+        return Err(format!("{} did not resolve", target.host));
+    }
+    for address in &addresses {
+        let class = classify(*address);
+        if class != AddressClass::Global {
+            return Err(describe_guard(&GuardError::NotGlobal {
+                host: target.host.clone(),
+                address: *address,
+                class,
+            }));
+        }
+    }
+    let pinned = std::net::SocketAddr::new(addresses[0], target.port);
+    let host_for_pin = target.host.clone();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(timeout)
+        .connect_timeout(Duration::from_secs(10))
+        .resolve(&host_for_pin, pinned)
+        .build()
+        .map_err(|error| format!("could not build the request: {error}"))?;
+
+    let response = client
+        .get(url)
+        .header("User-Agent", crate::web::rules::DEFAULT_BROWSER_USER_AGENT)
+        .header(
+            "Accept",
+            "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+        )
+        .send()
+        .map_err(|error| format!("could not fetch: {}", transport_reason(error)))?;
+    let status = response.status().as_u16();
+    if !(200..300).contains(&status) {
+        return Err(format!("HTTP {status}"));
+    }
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let body = read_capped(response);
+    let bytes = body.as_bytes();
+
+    let charset = charset_of(&content_type, bytes);
+    let text = decode(bytes, charset);
+    let media = match media_from_content_type(&content_type) {
+        Media::Unknown if looks_like_html(&text) => Media::Html,
+        media => media,
+    };
+    match media {
+        Media::Html => Ok((html_to_text(&text), None)),
+        Media::Text => Ok((text, None)),
+        Media::Binary(what) => Err(format!("{url} is {what}, which this tool does not read")),
+        Media::Unknown => Err(format!(
+            "{url} did not say what it is, and it does not look like text"
+        )),
+    }
+}
+
+/// Ask the configured sources that can fetch a page body.
+fn rescue(url: &str, search: Option<&crate::web::walk::Search>) -> Option<(String, String)> {
+    let search = search?;
+    for id in &search.rules().fetch.order {
+        let Some(source) = search.rules().sources.get(id) else {
+            continue;
+        };
+        let attempt = crate::web::walk::Attempt {
+            id,
+            kind: source.kind,
+            url: &source.url,
+            headers: &source.headers,
+            text: url,
+            want: 1,
+            timeout: search.rules().fetch.timeout,
+            user_agent: &search.rules().browser_user_agent,
+        };
+        let Ok(asker) = HttpAsker::new(search.session().to_string(), attempt.timeout) else {
+            continue;
+        };
+        if let Ok(body) = asker.fetch_page(&attempt) {
+            return Some((body, source.name.clone()));
+        }
+    }
+    None
+}
+
+/// A guard refusal as the model reads it.
+fn describe_guard(error: &crate::web::guard::GuardError) -> String {
+    format!("{error}")
+}
+
+/// Resolve `host:port` to its addresses.
+fn resolve(host: &str, port: u16) -> std::io::Result<Vec<std::net::IpAddr>> {
+    use std::net::ToSocketAddrs;
+    if let Ok(address) = host.parse::<std::net::IpAddr>() {
+        return Ok(vec![address]);
+    }
+    Ok((host, port)
+        .to_socket_addrs()?
+        .map(|address| address.ip())
+        .collect())
+}
+
+/// HTML to readable text: drop the parts a reader never sees, then the tags.
+///
+/// Deliberately not a markdown converter: `htmd` and `markup5ever` are not
+/// dependencies of this crate, and the measured ratio (220 KB of text from a
+/// 948 KB page, *Measured* §6) is what a reader needs — the structure a model
+/// uses is the headings and the link targets, both of which survive.
+#[must_use]
+pub fn html_to_text(html: &str) -> String {
+    let mut out = String::with_capacity(html.len() / 4);
+    let mut skip: Option<&str> = None;
+    let bytes = html.as_bytes();
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] == b'<' {
+            let Some(close) = html[at..].find('>').map(|offset| at + offset) else {
+                break;
+            };
+            let tag = &html[at + 1..close];
+            let name = tag
+                .trim_start_matches('/')
+                .split(|c: char| c.is_whitespace() || c == '>')
+                .next()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if let Some(watched) = skip {
+                if tag.starts_with('/') && name == watched {
+                    skip = None;
+                }
+            } else if tag.starts_with('/') {
+                if breaks_line(&name) {
+                    out.push('\n');
+                }
+            } else if matches!(name.as_str(), "script" | "style" | "noscript" | "svg") {
+                skip = Some(match name.as_str() {
+                    "script" => "script",
+                    "style" => "style",
+                    "noscript" => "noscript",
+                    _ => "svg",
+                });
+            } else if breaks_line(&name) {
+                out.push('\n');
+            } else if name == "td" || name == "th" {
+                out.push(' ');
+            }
+            at = close + 1;
+            continue;
+        }
+        let end = html[at..]
+            .find('<')
+            .map_or(bytes.len(), |offset| at + offset);
+        if skip.is_none() {
+            out.push_str(&unescape(&html[at..end]));
+        }
+        at = end;
+    }
+    let mut cleaned = String::with_capacity(out.len());
+    let mut blank = 0;
+    for line in out.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            blank += 1;
+            if blank > 1 {
+                continue;
+            }
+        } else {
+            blank = 0;
+        }
+        cleaned.push_str(line);
+        cleaned.push('\n');
+    }
+    cleaned.trim().to_string()
+}
+
+/// Whether a tag ends a line of reading text.
+fn breaks_line(name: &str) -> bool {
+    matches!(
+        name,
+        "p" | "div" | "li" | "tr" | "br" | "section" | "article"
+    ) || (name.len() == 2 && name.starts_with('h') && name.as_bytes()[1].is_ascii_digit())
+}
+
+/// The five entities a page's text actually carries.
+fn unescape(text: &str) -> String {
+    if !text.contains('&') {
+        return text.to_string();
+    }
+    text.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ")
 }
 
 #[cfg(test)]

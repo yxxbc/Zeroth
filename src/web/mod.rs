@@ -12,6 +12,7 @@
 //! providers answer keyless from an ordinary address.
 
 pub mod cooldown;
+pub mod fetch;
 pub mod guard;
 pub mod rules;
 pub mod scrape;

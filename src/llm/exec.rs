@@ -83,6 +83,11 @@ pub struct RealToolExecutor {
     /// fast instead of hijacking the TUI. `None` (tests, embedders without
     /// the hook) just shortens the tier chain.
     detach_helper: Option<std::path::PathBuf>,
+    /// The search rules and their cooldown state, when the boundary attached
+    /// them — what `web_search` walks and `web_fetch` rescues through
+    /// (`docs/tools/web-search.md`). `None` in a run that never attached
+    /// them, where the tools are not offered either.
+    web: Option<std::sync::Arc<crate::web::walk::Search>>,
     /// The active model's image-input support (`ModelConfig::vision`):
     /// `Some(false)` makes an image `read` fail as a recoverable error
     /// instead of attaching pixels the provider would reject with the whole
@@ -112,6 +117,15 @@ impl RealToolExecutor {
     #[must_use]
     pub fn with_background_origin(mut self, origin: BgOrigin) -> Self {
         self.bg_origin = Some(origin);
+        self
+    }
+
+    /// Attach the search state, **enabling `web_search` and `web_fetch`**
+    /// (`docs/tools/web-search.md`). The backend offers the tools under the
+    /// same condition, so a session never has the spec without the executor.
+    #[must_use]
+    pub fn with_web(mut self, search: std::sync::Arc<crate::web::walk::Search>) -> Self {
+        self.web = Some(search);
         self
     }
 
@@ -178,6 +192,12 @@ impl ToolExecutor for RealToolExecutor {
                 on_output,
             ),
             "read" => run_read(&call.arguments, self.vision),
+            crate::llm::tools::WEB_SEARCH_TOOL => {
+                run_web_search(&call.arguments, self.web.as_deref())
+            }
+            crate::llm::tools::WEB_FETCH_TOOL => {
+                run_web_fetch(&call.arguments, self.web.as_deref())
+            }
             "write" => run_write(&call.arguments),
             "edit" => run_edit(&call.arguments),
             other => ToolOutcome::error(format!("unknown tool: {other}")),
@@ -1239,6 +1259,84 @@ fn run_read(arguments: &str, vision: Option<bool>) -> ToolOutcome {
     let numbered = tools::format_read(&content, args.offset, args.limit);
     let (output, truncated) = tools::truncate_output(numbered, TOOL_OUTPUT_MAX_BYTES);
     ToolOutcome::ok(output).with_truncated(truncated)
+}
+
+/// `web_search` (`docs/tools/web-search.md`): walk the sources, tidy what
+/// comes back, and hand the model numbered hits.
+fn run_web_search(arguments: &str, search: Option<&crate::web::walk::Search>) -> ToolOutcome {
+    use crate::web::tidy::Filter;
+    use crate::web::walk::{Asker, Query, Search};
+
+    let args: tools::WebSearchArgs = match tools::parse_args(arguments) {
+        Ok(args) => args,
+        Err(error) => return arg_error(error),
+    };
+    if args.query.trim().is_empty() {
+        return ToolOutcome::error("web_search needs a query");
+    }
+    let Some(search) = search else {
+        return ToolOutcome::error("web search is not configured in this session");
+    };
+    let query = Query {
+        text: args.query.trim().to_string(),
+        filter: Filter {
+            allowed: args
+                .allowed_domains
+                .iter()
+                .map(|domain| Filter::normalize(domain))
+                .filter(|domain| !domain.is_empty())
+                .collect(),
+            blocked: args
+                .blocked_domains
+                .iter()
+                .map(|domain| Filter::normalize(domain))
+                .filter(|domain| !domain.is_empty())
+                .collect(),
+        },
+    };
+    let asker = match crate::llm::web_exec::HttpAsker::new(
+        search.session().to_string(),
+        search.rules().timeout,
+    ) {
+        Ok(asker) => asker,
+        Err(error) => return ToolOutcome::error(format!("web search unavailable: {error}")),
+    };
+    match Search::search(search, &query, &asker as &dyn Asker) {
+        Ok(found) => {
+            let (output, truncated) = tools::truncate_output(
+                tools::format_hits(&found.source, &found.hits),
+                TOOL_OUTPUT_MAX_BYTES,
+            );
+            ToolOutcome::ok(output).with_truncated(truncated)
+        }
+        Err(missed) => ToolOutcome::error(missed.to_string()),
+    }
+}
+
+/// `web_fetch` (`docs/tools/web-search.md`): one URL, read as markdown, a page
+/// at a time.
+fn run_web_fetch(arguments: &str, search: Option<&crate::web::walk::Search>) -> ToolOutcome {
+    let args: tools::WebFetchArgs = match tools::parse_args(arguments) {
+        Ok(args) => args,
+        Err(error) => return arg_error(error),
+    };
+    let url = args.url.trim();
+    if url.is_empty() {
+        return ToolOutcome::error("web_fetch needs a url");
+    }
+    // Checked before the URL is resolved: a session with no rules must not so
+    // much as look a host up.
+    let Some(search) = search else {
+        return ToolOutcome::error("web fetching is not configured in this session");
+    };
+    let outcome = crate::llm::web_exec::fetch_document(url, args.page.unwrap_or(1), Some(search));
+    match outcome {
+        Ok(text) => {
+            let (output, truncated) = tools::truncate_output(text, TOOL_OUTPUT_MAX_BYTES);
+            ToolOutcome::ok(output).with_truncated(truncated)
+        }
+        Err(reason) => ToolOutcome::error(reason),
+    }
 }
 
 /// The image branch of `read` (`docs/tools/tools.md`): bound the size, sniff the
@@ -5076,4 +5174,119 @@ os.write(1, b"\r omarchy [##########] 100%\r\nComplete\r\n\x1b[?25h")'"#;
     const BASH_WAIT: &str = crate::llm::tools::BASH_WAIT_TOOL;
     const BASH_KILL: &str = crate::llm::tools::BASH_KILL_TOOL;
     const BASH_LIST: &str = crate::llm::tools::BASH_LIST_TOOL;
+}
+
+#[cfg(test)]
+mod web_tests {
+    //! The two web tools at the executor seam: what the model reads, and what
+    //! happens when nothing is configured. The walk itself is tested where it
+    //! lives (`src/web/walk/tests.rs`), and the transport by the loopback
+    //! suite; this is the wiring between them.
+
+    use super::*;
+    use crate::web::walk::Search;
+
+    fn search() -> std::sync::Arc<Search> {
+        let rules = crate::web::rules::parse_rules(
+            include_str!("../../web.toml"),
+            std::path::Path::new("web.toml"),
+        )
+        .expect("the shipped file parses");
+        std::sync::Arc::new(Search::new(rules))
+    }
+
+    fn call(name: &str, args: &str) -> ToolCallRequest {
+        ToolCallRequest {
+            id: "c".to_string(),
+            name: name.to_string(),
+            arguments: args.to_string(),
+        }
+    }
+
+    fn run(name: &str, args: &str, with: bool) -> ToolOutcome {
+        let mut executor = RealToolExecutor::new();
+        if with {
+            executor = executor.with_web(search());
+        }
+        executor.execute(&call(name, args), &CancelToken::new(), &mut |_| {})
+    }
+
+    #[test]
+    fn both_web_tools_are_refused_with_a_reason_when_nothing_is_configured() {
+        // The spec is not offered in that session either (`with_web`), so
+        // this is the belt to that braces — a replayed call still answers.
+        for (name, args) in [
+            (crate::llm::tools::WEB_SEARCH_TOOL, r#"{"query":"q"}"#),
+            (
+                crate::llm::tools::WEB_FETCH_TOOL,
+                r#"{"url":"https://a.test/"}"#,
+            ),
+        ] {
+            let outcome = run(name, args, false);
+            assert!(!outcome.ok, "{name} should refuse");
+            assert!(
+                outcome.output.contains("not configured"),
+                "{name}: {}",
+                outcome.output
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_query_or_url_is_refused_before_any_source_is_asked() {
+        let search = run(
+            crate::llm::tools::WEB_SEARCH_TOOL,
+            r#"{"query":"  "}"#,
+            true,
+        );
+        assert!(!search.ok);
+        assert!(search.output.contains("needs a query"), "{}", search.output);
+
+        let fetch = run(crate::llm::tools::WEB_FETCH_TOOL, r#"{"url":""}"#, true);
+        assert!(!fetch.ok);
+        assert!(fetch.output.contains("needs a url"), "{}", fetch.output);
+    }
+
+    #[test]
+    fn malformed_arguments_read_as_the_usual_argument_error() {
+        let outcome = run(crate::llm::tools::WEB_SEARCH_TOOL, "{not json", true);
+        assert!(!outcome.ok);
+        assert!(
+            outcome.output.contains("invalid tool arguments"),
+            "{}",
+            outcome.output
+        );
+    }
+
+    #[test]
+    fn a_fetch_of_a_private_address_is_refused_before_a_request_exists() {
+        // The gate is the boundary's, and this is the shortest proof the
+        // executor consults it at all: no socket is opened for this URL.
+        let outcome = run(
+            crate::llm::tools::WEB_FETCH_TOOL,
+            r#"{"url":"http://127.0.0.1:9/secret"}"#,
+            true,
+        );
+        assert!(!outcome.ok);
+        assert!(
+            outcome.output.contains("loopback") || outcome.output.contains("127.0.0.1"),
+            "{}",
+            outcome.output
+        );
+    }
+
+    #[test]
+    fn a_fetch_of_a_non_http_scheme_is_refused_by_name() {
+        let outcome = run(
+            crate::llm::tools::WEB_FETCH_TOOL,
+            r#"{"url":"file:///etc/passwd"}"#,
+            true,
+        );
+        assert!(!outcome.ok);
+        assert!(
+            outcome.output.contains("only http and https"),
+            "{}",
+            outcome.output
+        );
+    }
 }

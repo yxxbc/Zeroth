@@ -576,6 +576,59 @@ pub fn skill_spec() -> Value {
     )
 }
 
+/// What a search returns as the model reads it (`docs/tools/web-search.md`
+/// *`web_search`*): numbered hits, the URL and date under each title, the
+/// excerpt beneath. The source is **not** in this text — the model cannot act
+/// on it — it is in the user's cell.
+#[must_use]
+pub fn format_hits(source: &str, hits: &[crate::web::Hit]) -> String {
+    if hits.is_empty() {
+        return format!("No results from {source}.");
+    }
+    let mut out = String::new();
+    for (index, hit) in hits.iter().enumerate() {
+        out.push_str(&format!("[{}] {}\n", index + 1, hit.title.trim()));
+        out.push_str(hit.url.trim());
+        if let Some(date) = &hit.date {
+            out.push_str(&format!(" ({date})"));
+        }
+        out.push('\n');
+        if let Some(snippet) = &hit.snippet {
+            out.push_str(snippet.trim());
+            out.push('\n');
+        }
+        if index + 1 < hits.len() {
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// `web_search`'s arguments (`docs/tools/web-search.md`).
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+pub struct WebSearchArgs {
+    /// What to search for.
+    #[serde(default)]
+    pub query: String,
+    /// Domains to keep.
+    #[serde(default)]
+    pub allowed_domains: Vec<String>,
+    /// Domains to drop.
+    #[serde(default)]
+    pub blocked_domains: Vec<String>,
+}
+
+/// `web_fetch`'s arguments.
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+pub struct WebFetchArgs {
+    /// The absolute URL.
+    #[serde(default)]
+    pub url: String,
+    /// Which page of a long document.
+    #[serde(default)]
+    pub page: Option<usize>,
+}
+
 /// The two web tool definitions (`docs/tools/web-search.md` *The two tools*).
 /// Offered only when a [`crate::web::Rules`] is attached
 /// (`LlmBackend::with_web`): with none there is no source to ask and no gate
