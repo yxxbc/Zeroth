@@ -867,9 +867,12 @@ outright; an existing path, or the parent of one that does not exist yet, is
 canonicalized, so a symlink under the project cannot point the write at
 `~/.ssh` or `.git/hooks`; a relative path resolves against each root. A gate
 with no workspace set (a unit test, a caller that never injected one) keeps
-the old un-jailed posture. This is the write/edit jail only — `bash` can still
-reach anything its command names, which is why the classifier and the read
-gates exist.
+the old un-jailed posture. The executor checks again: `write`/`edit` refuse a
+symlink target (dangling included) rather than follow it, because the model's
+path is checked at the gate and written later — a link planted between the two
+must not hand the write outside (`run_write`/`run_edit`). This is the
+write/edit jail only — `bash` can still reach anything its command names,
+which is why the classifier and the read gates exist.
 
 ## Persisted per project (`~/.zeroth/permissions.json`)
 

@@ -541,12 +541,15 @@ fn parse_server(entry: &Value) -> Result<McpServerConfig, String> {
         }
     };
     let url = || -> Result<String, String> {
-        obj.get("url")
+        let url = obj
+            .get("url")
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|u| !u.is_empty())
             .map(str::to_string)
-            .ok_or_else(|| "missing \"url\"".to_string())
+            .ok_or_else(|| "missing \"url\"".to_string())?;
+        check_remote_url(&url)?;
+        Ok(url)
     };
     match kind {
         Some("stdio") if !obj.contains_key("command") => {
@@ -602,6 +605,35 @@ fn parse_server(entry: &Value) -> Result<McpServerConfig, String> {
         Some(other) => Err(format!("unsupported transport type \"{other}\"")),
         None => Err("entry needs a \"command\" (stdio) or a \"url\" (http/sse)".to_string()),
     }
+}
+
+/// A remote MCP server must speak **https**. `http://` is allowed only for a
+/// loopback host (a local dev server); anything else would put the config's
+/// headers and the session's content on the wire in clear (the research's
+/// MCP-egress finding, `docs/research/harness-network-security.md`).
+fn check_remote_url(url: &str) -> Result<(), String> {
+    if url.starts_with("https://") {
+        return Ok(());
+    }
+    if let Some(rest) = url.strip_prefix("http://") {
+        let host = rest
+            .split(['/', '?', '#'])
+            .next()
+            .unwrap_or_default()
+            .rsplit('@')
+            .next()
+            .unwrap_or_default()
+            .split(':')
+            .next()
+            .unwrap_or_default()
+            .trim_matches(['[', ']']);
+        if matches!(host, "localhost" | "127.0.0.1" | "::1") || host.starts_with("127.") {
+            return Ok(());
+        }
+    }
+    Err(format!(
+        "remote MCP server URL must be https (http is only for a localhost server): {url}"
+    ))
 }
 
 /// Is `name` an environment variable's name — `[A-Za-z_][A-Za-z0-9_]*`?

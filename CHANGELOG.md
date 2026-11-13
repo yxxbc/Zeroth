@@ -152,6 +152,19 @@ release heading when a version is cut.
 
 ### Fixed
 
+- **The remaining harness-security P0s.** Auto mode's read-only fast path no
+  longer waves through a command naming private keys, cloud credentials,
+  dotenv files, token stores or the environment (`cat ~/.ssh/id_rsa`,
+  `base64 ~/.aws/credentials`, `printenv`, `echo $OPENAI_API_KEY`): those go
+  to the classifier, whose rules cover them. Provider HTTP clients follow
+  only **same-origin** redirects, so `x-api-key` and the config's headers can
+  no longer ride a cross-origin hop. `write`/`edit` refuse a symlink target —
+  dangling included — at the executor, and the workspace path jail refuses a
+  symlinked target too. Remote MCP server URLs must be `https` (`http` only
+  for a localhost server), and rollouts/checkpoint stores are created
+  `0600`/`0700` with `.env`, key files and credential stores in the
+  checkpoint exclude (`docs/state/permissions.md`,
+  `docs/research/harness-network-security.md`).
 - **Prompt injection through skills, agents and fetched web content.** The
   skill and agent walks treated `$HOME` as a project: launching in `~` read
   `~/.alter-zero/skills` (the pre-fork personal root), so a `SKILL.md`

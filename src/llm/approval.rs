@@ -425,11 +425,53 @@ pub fn approve_call(
 /// what any git command runs (`core.fsmonitor`), so it goes to the
 /// classifier like any command it cannot vouch for.
 fn reads_only(command: &str, cwd: Option<&std::path::Path>) -> bool {
-    if !crate::read_only::is_read_only(command) {
+    if !crate::read_only::is_read_only(command) || mentions_sensitive_data(command) {
         return false;
     }
     let runs_git = command.split_whitespace().any(|word| word == "git");
     !(runs_git && cwd.is_some_and(looks_like_bare_repo))
+}
+
+/// Whether a command names the kind of data the classifier is there to
+/// protect: private keys, cloud credentials, token stores, dotenv files, the
+/// environment itself. A cat/base64/strings read of one of these is *lexically
+/// read-only* but not safe to wave through — auto's fast path would skip the
+/// classifier's "never read `~/.ssh`" rule (`prompts/classifier.md`), and a
+/// prompt-injected model could read a secret and send it out through a
+/// permitted web call. False negatives are the classifier's job; this only
+/// removes the easy bypass.
+fn mentions_sensitive_data(command: &str) -> bool {
+    const NEEDLES: &[&str] = &[
+        ".ssh",
+        "id_rsa",
+        "id_ed25519",
+        "authorized_keys",
+        ".aws",
+        ".azure",
+        ".config/gcloud",
+        ".kube",
+        ".docker/config",
+        ".netrc",
+        ".npmrc",
+        ".pypirc",
+        ".git-credentials",
+        ".gnupg",
+        ".password-store",
+        ".env",
+        "keychain",
+        "/etc/shadow",
+        "api_key",
+        "api-key",
+        "secret",
+        "password",
+        "credential",
+        "token=",
+    ];
+    let lower = command.to_ascii_lowercase();
+    NEEDLES.iter().any(|needle| lower.contains(needle))
+        || command
+            .split_whitespace()
+            .any(|word| matches!(word, "env" | "printenv"))
 }
 
 /// Whether `dir` is laid out as a bare git repository — a `HEAD` file beside
@@ -454,6 +496,24 @@ mod tests {
             name: name.to_string(),
             arguments: args.to_string(),
         }
+    }
+
+    #[test]
+    fn the_read_only_fast_path_skips_sensitive_data() {
+        for command in [
+            "cat ~/.ssh/id_rsa",
+            "base64 ~/.aws/credentials",
+            "cat .env",
+            "printenv",
+            "echo $OPENAI_API_KEY",
+        ] {
+            assert!(
+                !reads_only(command, None),
+                "{command} must go to the classifier"
+            );
+        }
+        assert!(reads_only("cat src/main.rs", None));
+        assert!(reads_only("ls -la", None));
     }
 
     #[test]

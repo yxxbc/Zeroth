@@ -1189,6 +1189,11 @@ fn file_change_inside(inner: &GateInner, target: &str) -> bool {
         } else {
             root.join(path)
         };
+        // A symlink — dangling or not — is never inside: `exists()` misses a
+        // dangling one, and the write would then follow it out.
+        if std::fs::symlink_metadata(&candidate).is_ok_and(|meta| meta.file_type().is_symlink()) {
+            return false;
+        }
         let candidate = if candidate.exists() {
             canonical(&candidate)
         } else {

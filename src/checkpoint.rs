@@ -111,6 +111,22 @@ pub fn store_git_dir(root: &Path, cwd: &Path) -> PathBuf {
 pub const CHECKPOINT_EXCLUDES: &[&str] = &[
     ".git/",
     ".alter-zero/",
+    ".zeroth/",
+    // Credentials and key material are never snapshotted: a restore's
+    // `git clean` must not delete them, and the store must not copy them.
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "id_rsa",
+    "id_ed25519",
+    "authorized_keys",
+    ".netrc",
+    ".npmrc",
+    ".git-credentials",
+    ".ssh/",
+    ".aws/",
+    ".gnupg/",
     "node_modules/",
     "target/",
     ".venv/",
@@ -122,6 +138,24 @@ pub const CHECKPOINT_EXCLUDES: &[&str] = &[
     ".cache/",
     ".DS_Store",
 ];
+
+/// Create a store directory readable by this user only (0700 on Unix): the
+/// checkpoint store holds every snapshotted file, which may include source
+/// and configuration the user has not published.
+fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(path)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(path)
+    }
+}
 
 /// The `info/exclude` file body for a store — [`CHECKPOINT_EXCLUDES`], one
 /// per line, trailing newline.
@@ -683,7 +717,7 @@ impl CheckpointStore {
         if !self.enabled {
             return Ok(());
         }
-        std::fs::create_dir_all(&self.git_dir)?;
+        create_private_dir(&self.git_dir)?;
         if !self.git_dir.join("HEAD").is_file() {
             // A fixed initial branch keeps HEAD valid for the first commit
             // regardless of the user's `init.defaultBranch`; fall back for a
@@ -719,7 +753,7 @@ impl CheckpointStore {
     /// real `.git` and vendor dirs.
     fn write_excludes(&self) -> std::io::Result<()> {
         let info = self.git_dir.join("info");
-        std::fs::create_dir_all(&info)?;
+        create_private_dir(&info)?;
         let mut body = exclude_file_contents();
         if let Some(line) = &self.self_exclude {
             body.push_str(line);

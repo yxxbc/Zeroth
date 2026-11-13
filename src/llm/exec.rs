@@ -1451,6 +1451,21 @@ fn vision_format(format: image::ImageFormat) -> Option<(&'static str, &'static s
     }
 }
 
+/// A `write`/`edit` target that is a symlink — even a dangling one — is
+/// refused rather than followed. The permission gate's path jail canonicalizes
+/// too, but the model's path is checked there and written here; a link planted
+/// between the two (or a dangling link `exists()` cannot see) would otherwise
+/// hand the write to `~/.ssh`, `.git/hooks` or another directory the jail
+/// never approved (`docs/state/permissions.md`).
+fn symlink_refusal(path: &Path, shown: &str) -> Option<ToolOutcome> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => Some(ToolOutcome::error(format!(
+            "refusing to follow the symlink {shown}: write/edit need the real file, not a link"
+        ))),
+        _ => None,
+    }
+}
+
 /// `write`: create parent dirs and write the file, reporting a diff vs the old
 /// contents (or a `Wrote …` summary for a new file).
 fn run_write(arguments: &str) -> ToolOutcome {
@@ -1459,6 +1474,9 @@ fn run_write(arguments: &str) -> ToolOutcome {
         Err(e) => return arg_error(e),
     };
     let path = Path::new(&args.path);
+    if let Some(refusal) = symlink_refusal(path, &args.path) {
+        return refusal;
+    }
     let existed = path.exists();
     let old = if existed {
         std::fs::read_to_string(path).unwrap_or_default()
@@ -1490,6 +1508,9 @@ fn run_edit(arguments: &str) -> ToolOutcome {
         Err(e) => return arg_error(e),
     };
     let path = Path::new(&args.path);
+    if let Some(refusal) = symlink_refusal(path, &args.path) {
+        return refusal;
+    }
     let old = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(err) => return ToolOutcome::error(format!("could not read {}: {err}", args.path)),
@@ -5310,5 +5331,19 @@ mod web_tests {
             "{}",
             outcome.output
         );
+    }
+    #[test]
+    fn write_and_edit_refuse_symlink_targets() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let link = dir.path().join("link.txt");
+        std::os::unix::fs::symlink(outside.path().join("secret.txt"), &link).unwrap();
+        let outcome = run_write(&serde_json::json!({"path": link, "content": "x"}).to_string());
+        assert!(!outcome.ok, "{outcome:?}");
+        assert!(outcome.output.contains("symlink"), "{outcome:?}");
+        let dangling = dir.path().join("dangling");
+        std::os::unix::fs::symlink(outside.path().join("missing"), &dangling).unwrap();
+        let outcome = run_write(&serde_json::json!({"path": dangling, "content": "x"}).to_string());
+        assert!(!outcome.ok, "a dangling link is refused too: {outcome:?}");
     }
 }

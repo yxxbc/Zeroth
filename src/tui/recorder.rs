@@ -112,6 +112,20 @@ pub(crate) struct SessionRecorder {
     generation: u64,
 }
 
+/// Write a session file readable by this user only (0600 on Unix): rollouts
+/// carry the conversation, its tool output and paths.
+fn write_private(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    use std::io::Write as _;
+    options.open(path)?.write_all(bytes)
+}
+
 impl SessionRecorder {
     /// `id` is the first conversation's — the session's startup id, so a
     /// fresh session's rollout file, temp tree and hook payloads all share
@@ -457,7 +471,7 @@ impl SessionRecorder {
             head.push_str(&session::model_line(selection, &meta.timestamp));
             head.push('\n');
         }
-        std::fs::write(&path, head).ok()?;
+        write_private(&path, head.as_bytes()).ok()?;
         Some((path, meta))
     }
 
@@ -496,6 +510,6 @@ impl SessionRecorder {
             text.push('\n');
         }
         self.written = selection;
-        let _ = std::fs::write(path, text);
+        let _ = write_private(&path, text.as_bytes());
     }
 }
