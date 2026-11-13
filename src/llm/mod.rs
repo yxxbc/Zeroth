@@ -482,6 +482,22 @@ fn cached_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
     Ok(client)
 }
 
+/// A transport failure as a person reads it: the classification reqwest knows,
+/// not its multi-line debug form. Six words beat a paragraph when the point is
+/// "your network is down" (`docs/providers/antigravity.md`).
+#[must_use]
+pub fn antigravity_transport_text(error: reqwest::Error) -> String {
+    let timeout = error.is_timeout();
+    let connect = error.is_connect();
+    if timeout {
+        "the request timed out".to_string()
+    } else if connect {
+        "could not connect".to_string()
+    } else {
+        error.without_url().to_string()
+    }
+}
+
 /// Extra trust roots loaded from `ALTER_ZERO_CA_FILE` or `SSL_CERT_FILE` — the
 /// agent proxy's CA bundle, so real calls work behind it. Best-effort: an
 /// unreadable or malformed file yields no extra roots (the built-in Mozilla
