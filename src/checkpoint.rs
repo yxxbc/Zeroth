@@ -157,6 +157,37 @@ fn create_private_dir(path: &Path) -> std::io::Result<()> {
     }
 }
 
+/// A path with its symlinks and `..` resolved as far as the filesystem
+/// allows, for comparing two spellings of one directory.
+///
+/// `canonicalize` fails on a path that does not exist yet — the store is
+/// created after this runs — so the deepest existing ancestor is resolved and
+/// the rest is appended unmodified. Falls back to the given path when nothing
+/// along it exists, which keeps the lexical answer rather than inventing one.
+fn resolve_for_compare(path: &Path) -> PathBuf {
+    if let Ok(resolved) = std::fs::canonicalize(path) {
+        return resolved;
+    }
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    let mut current = path;
+    loop {
+        match (current.parent(), current.file_name()) {
+            (Some(parent), Some(name)) => {
+                tail.push(name.to_os_string());
+                if let Ok(resolved) = std::fs::canonicalize(parent) {
+                    let mut full = resolved;
+                    for name in tail.iter().rev() {
+                        full.push(name);
+                    }
+                    return full;
+                }
+                current = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
+}
+
 /// The `info/exclude` file body for a store — [`CHECKPOINT_EXCLUDES`], one
 /// per line, trailing newline.
 #[must_use]
@@ -343,7 +374,17 @@ pub const SHARED_PARENTS: &[&str] = &[
 /// literal (a store in `ck[1]` must exclude `ck[1]`, not `ck1`).
 #[must_use]
 pub fn store_exclude_line(work_tree: &Path, checkpoints_root: &Path) -> Option<String> {
-    let relative = checkpoints_root.strip_prefix(work_tree).ok()?;
+    // A **lexical** `strip_prefix` is not enough. `ALTER_ZERO_CHECKPOINTS_DIR`
+    // is whatever the user typed, and `cwd` is resolved when the session
+    // starts, so `/tmp/link/ckpts` under a cwd of `/private/tmp/proj` — the
+    // same directory spelled two ways on macOS — looks like it is outside the
+    // tree. The line is then never written, the store is re-staged by every
+    // snapshot, and it compounds into itself. Two spellings of one path is the
+    // whole failure, so the comparison is made on resolved paths
+    // (`docs/state/checkpoint.md`).
+    let work_tree = resolve_for_compare(work_tree);
+    let checkpoints_root = resolve_for_compare(checkpoints_root);
+    let relative = checkpoints_root.strip_prefix(&work_tree).ok()?;
     if relative.as_os_str().is_empty() {
         return None;
     }
@@ -1146,6 +1187,53 @@ mod tests {
                 Path::new("/home/user/proj/build/snapshots")
             ),
             Some("/build/snapshots/\n".to_string())
+        );
+    }
+
+    #[test]
+    fn a_symlinked_spelling_of_one_path_still_excludes_the_store() {
+        // The failure this pins: `ALTER_ZERO_CHECKPOINTS_DIR` is whatever the
+        // user typed, and `cwd` is resolved at startup, so on macOS
+        // `/tmp/link/ckpts` under `/private/tmp/proj` is the SAME directory
+        // spelled two ways. A lexical compare says "outside the tree", writes
+        // no exclude line, and the store is re-staged by every snapshot until
+        // it compounds into itself.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project = tmp.path().join("project");
+        std::fs::create_dir_all(&project).expect("mkdir");
+        let link = tmp.path().join("link");
+        std::os::unix::fs::symlink(&project, &link).expect("symlink");
+
+        // The cwd resolved, the store named through the link.
+        let real_cwd = std::fs::canonicalize(&project).expect("canonical");
+        let store = link.join("ckpts");
+        let line = store_exclude_line(&real_cwd, &store)
+            .expect("the store is inside the tree whichever way it is spelled");
+        assert_eq!(line, "/ckpts/\n");
+    }
+
+    #[test]
+    fn a_store_that_really_is_outside_still_gets_no_line() {
+        // The fix must not turn every path into an exclusion.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project = tmp.path().join("project");
+        let elsewhere = tmp.path().join("elsewhere");
+        std::fs::create_dir_all(&project).expect("mkdir");
+        std::fs::create_dir_all(&elsewhere).expect("mkdir");
+        assert_eq!(store_exclude_line(&project, &elsewhere), None);
+    }
+
+    #[test]
+    fn a_store_path_that_does_not_exist_yet_is_still_placed() {
+        // The store is created after this runs, so `canonicalize` fails on it;
+        // the deepest existing ancestor is what gets resolved.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project = tmp.path().join("project");
+        std::fs::create_dir_all(&project).expect("mkdir");
+        let store = project.join("deep").join("not-yet").join("ckpts");
+        assert_eq!(
+            store_exclude_line(&project, &store),
+            Some("/deep/not-yet/ckpts/\n".to_string())
         );
     }
 
