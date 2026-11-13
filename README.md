@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="assets/banner.jpg" alt="Zeroth" width="100%">
+<img src="assets/banner-v2.jpg" alt="Zeroth's crested hatchling under the glowing zero ring" width="100%">
 
-# Zeroth
+<h1><img src="assets/mascot-crest.png" alt="" height="58" align="center"> Zeroth</h1>
 
-### Give your terminal a coding agent.
+### A coding agent that works in your terminal.
 
 Read, build, debug, and review code with an agent that works alongside you.<br>
 Use the same tools for cybersecurity research, technical investigation, and everyday automation.
@@ -226,6 +226,7 @@ The essentials are always one keystroke away: `/` opens commands, and `?` in an 
 | `/model` | Switch the active model |
 | `/fast`, `/ultrafast`, … | Switch the model's speed tier — one command per tier its listing names, shown only on a model that lists it |
 | `/login` | Sign in, add an API key, or connect a local model |
+| `/logout` | Sign out of an account or remove a saved API key; also available under login |
 | `/settings` | Open the settings menu |
 | `/theme` | Choose the colour theme |
 | `/mascot` | Choose the banner mascot |
