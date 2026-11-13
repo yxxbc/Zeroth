@@ -28,6 +28,13 @@ one the TUI would have.
 - The app runs in ratatui's **inline viewport** (no alternate screen). Normal
   terminal scrollback is preserved — finished messages scroll up into your
   real terminal history, exactly like Claude Code.
+  **Direction (2026-11-13, owner decision):** a screen-owning full-screen mode
+  is the target, because anything that needs to know where a cell is — hover,
+  click-to-expand, preview cards, drawn scrolling — is otherwise a favour asked
+  of the terminal. The inline viewport stays the default until the full mode
+  reaches parity; the design and rollout are in
+  [`ui/full-screen.md`](ui/full-screen.md). The paragraph below (and invariant
+  3 in `CLAUDE.md`) describe the inline mode specifically.
 - The **live region** stays pinned at the bottom:
   - an **input field framed by a top/bottom rule** (`❯ ...`),
   - and, **only while a turn is in flight**, a strip above the box: a **preview

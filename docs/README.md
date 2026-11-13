@@ -37,6 +37,7 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/export.md`](ui/export.md): `/export` — the conversation as plain text
 - [`ui/flicker.md`](ui/flicker.md): Flicker-free rendering — scrollback commits join the draw frame
 - [`ui/footer.md`](ui/footer.md): The session-context footer under the input box
+- [`ui/full-screen.md`](ui/full-screen.md): The screen-owning TUI — full-screen mode (Design)
 - [`ui/header.md`](ui/header.md): The startup header banner
 - [`ui/images.md`](ui/images.md): Inline images
 - [`ui/inline-diff.md`](ui/inline-diff.md): Character-level diff marking in the `edit`/`write` cell

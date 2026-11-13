@@ -94,15 +94,16 @@ cell-to-target map at paint time is what needs the screen.
 | Click one event to expand | no | in the transcript page | everywhere |
 | Native text selection | untouched | untouched outside the page | lost; must reimplement |
 | Screen ownership | none | while a page is open | always |
-| Fits `CLAUDE.md` invariant 3 | yes | yes (overlays already exist) | no; a second front end |
+| Fits `CLAUDE.md` invariant 3 | yes | yes (overlays already exist) | replaces it deliberately |
+| Screen ownership | none | while a page is open | always |
 
-**Recommendation: A first, then B. Treat C as a separate product decision.**
-A is small and pays for itself immediately; B reuses the transcript cache and
-the existing alternate-screen lifecycle, and gives the card and click-to-expand
-without rewriting the conversation's home. C is the only way to have cards
-*inline* and hover *in the conversation*, and it costs a scroll model,
-selection/copy, suspend/resume, and a second rendering path — worth doing only
-if inline cards are a hard requirement.
+**Recommendation: A first, then C. B is an optional interim.** The owner has
+decided that owning the screen matters — without it, every affordance after
+this one is delegated to the terminal — so C is the target, not a contingency.
+A is still the right first slice (it is renderer-level and lands in either
+mode); B's hit map and mouse dispatch are the same work C needs, so B is worth
+building only if C slips far enough that a stopgap is wanted. C itself has its
+own page: [`full-screen.md`](full-screen.md).
 
 ## A. Clickable paths in the inline view
 
@@ -302,33 +303,31 @@ Previewing a URL is a network request on the user's behalf, so it is
   tmux path proves flaky, the pty harness writes the SGR mouse sequence
   directly.
 
-## C. Opt-in full screen (sketch)
+## C. Opt-in full screen (the target)
 
-A `--fullscreen` mode (or `ui.fullscreen`) would re-home the conversation in an
-alternate screen: `ui::transcript` already renders the whole history into
-`Vec<Line>`, so the page is largely there; what is missing is the viewport
-state (scroll offset, follow mode, resize reflow), selection/copy, wheel and
-drag, suspend/`fg`, and the editor handoff. With the screen owned, cards can be
-drawn inline in the reply and a click can toggle any entry; hover underlines
-work everywhere.
-
-This is a second front end, not a switch. It conflicts with invariant 3 today
-(the inline viewport is the product's identity; `docs/design.md` argues for
-it), loses the terminal's native selection and scrollback, and doubles the
-surface the smoke suite must drive. It is the right design **only if** inline
-cards and hover in the conversation are requirements that cannot be met by the
-`/links` page.
+The full-screen mode is designed on its own page:
+[`full-screen.md`](full-screen.md). In short: a screen-owning viewport over the
+same `App`, `ui::transcript` as the frame builder, its own scroll model,
+mouse capture and a per-frame hit map, selection/copy, and the alternate-screen
+lifecycle. With the screen owned, cards can be drawn inline in a reply and a
+click can toggle any entry; hover underlines work everywhere. It is the target
+because it removes the palm-up dependency on the terminal for every future
+interaction, and it replaces invariant 3 with a scroll contract of its own.
+It lands as an opt-in mode first and becomes the default only on parity.
 
 ## Phasing
 
 1. **A — paths.** Detector + targets + render seams + prefix-stability
    predicate; tests and one raw-stream smoke phase. No mouse, no new state.
-2. **B1 — overlay mouse.** Capture lifecycle, hit map, hover/click/toggle,
-   wheel; keyboard unchanged; native selection documented (Shift bypass).
-3. **B2 — `/links` page and cards.** Collection, fetch worker, cache, card
-   rendering; policy tests. Optional own selection/copy.
-4. **C — full screen.** Only after 1–3, and only on an explicit product
-   decision.
+   The renderer change lands in both viewport modes.
+2. **C — the screen-owning mode.** See [`full-screen.md`](full-screen.md):
+   skeleton, parity, then mouse and selection/copy. The hit map built there is
+   the one cards and click-to-expand need.
+3. **Rich links in full mode.** Bare paths everywhere; preview cards inline
+   (the fetch/cache policy above); hover; click-to-expand.
+4. **B — only if C slips.** Overlay-scoped mouse and a `/links` page remain a
+   useful stopgap, and their hit map is a subset of C's, but they are not the
+   target.
 
 ## Open questions
 
