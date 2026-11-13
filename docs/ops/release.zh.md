@@ -295,6 +295,10 @@ git tag -a v0.2.0 -m "zeroth v0.2.0"
 git push origin HEAD v0.2.0
 ```
 
+带日期的 `[0.0.0]` 小节是这个 fork 的开发基线；它下面的版本属于继承历史，
+不是本仓库里的 release tag。发布工具会在这里截断 release 比较，所以 Zeroth
+的首个 release 链接到自己的 tag 提交列表，后续 release 再和上一个 Zeroth tag 比较。
+
 第一个 release 不能是 `0.1.0`：继承下来的 changelog 已经占着那个小节，
 `0.1.1` 到 `0.18.0` 也一样，而 `prepare` 拒绝一个已经有小节的版本。选
 `0.19.0` 接在上游最后一个 release 后面延续这条累积的线，或者选 `1.0.0`
@@ -312,8 +316,7 @@ badge。小节的日期是它被写下的那天；如果不同，把它改成打
 `.github/workflows/ci.yml` 在每次推送到 `main` 和每个 pull request 上运行：
 **gate**（那四条命令）、**smoke**（在真实二进制之上跑 tmux 套件）、
 **release tooling**（对脚本和 `install.sh` 跑 `shellcheck`、`selftest`、
-`check`），以及 **内置 skill 脚本**（`web-search` skill 所播种的那些脚本的离线
-`unittest`）。smoke job 每核跑一个 worker，而不是套件默认的两倍：在四核机器上
+`check`）。smoke job 每核跑一个 worker，而不是套件默认的两倍：在四核机器上
 一次 `-j 8`
 运行在这里让 phase 58 和 61 失败——权限 prompt 在它的等待里「从未出现」——而
 两者单独都通过。于是这个 job 在判红之前，把并行那一趟失败的东西各串行重跑一次，

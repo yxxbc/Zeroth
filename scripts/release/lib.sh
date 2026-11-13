@@ -147,9 +147,12 @@ readme_alt_version() {
 # ---------------------------------------------------------------------------
 changelog_path() { printf '%s/CHANGELOG.md\n' "$RELEASE_ROOT"; }
 
-# The released versions, newest first, in the order the headings appear.
+# Releases in this repository, newest first. A dated 0.0.0 section is the
+# fork's development baseline; headings below it are inherited history, not
+# tags on this repository, so they do not define release comparisons.
 changelog_versions() {
-	sed -n 's/^## \[\([0-9][^]]*\)\] - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/\1/p' "$(changelog_path)"
+	sed '/^## \[0\.0\.0\] - /,$d' "$(changelog_path)" |
+		sed -n 's/^## \[\([0-9][^]]*\)\] - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/\1/p'
 }
 # The date on a version's heading — empty when the heading is missing or
 # malformed (a heading without a date is not a release).

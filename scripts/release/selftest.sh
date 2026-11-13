@@ -599,7 +599,8 @@ EOF
 			# (`Zeroth (v0.4.2)`, docs/ui/header.md), from what the installer
 			# can know without a lookup: a pinned ZEROTH_VERSION, or the
 			# Cargo.toml beside a checkout's copy of this script.
-			expect_contains "…naming the version from the checkout's Cargo.toml" "$OUT" "Zeroth (v0.0.0)"
+			checkout_version="$(RELEASE_ROOT="$CHECKOUT" manifest_version)"
+			expect_contains "…naming the version from the checkout's Cargo.toml" "$OUT" "Zeroth (v$checkout_version)"
 			run_on_tty env TERM=xterm-kitty ZEROTH_VERSION=v0.4.2 ZEROTH_INSTALL_ASSET_DIR="$T/no-assets" \
 				ZEROTH_INSTALL_ART_BASE_URL="http://127.0.0.1:1/art" sh "$CHECKOUT/install.sh" --preview 1
 			expect_contains "…and the pinned version, without the v the tag carries" "$OUT" "Zeroth (v0.4.2)"
@@ -714,6 +715,37 @@ awk '/^## \[Unreleased\]$/ { print; print ""; print "- First."; next } { print }
 EOF
 RELEASE_ROOT="$T/first" RELEASE_DATE=2026-10-01 expect_ok "prepare handles a first release" bash "$STEPS/prepare.sh" 0.5.0
 expect_eq "…linking the tag, with nothing to compare against" "https://github.com/example/zeroth/releases/tag/v0.5.0" "$(RELEASE_ROOT="$T/first" changelog_link 0.5.0)"
+
+# A fork's dated 0.0.0 entry is a development baseline. Sections below it
+# are inherited history, not releases in this repository, so the first
+# release still links to its tag and its notes list commits through that tag.
+fixture "$T/fork"
+cat >"$T/fork/CHANGELOG.md" <<'EOF'
+# Changelog
+
+## [Unreleased]
+
+### Added
+
+- A fork feature.
+
+## [0.0.0] - 2026-11-12
+
+Development baseline.
+
+## [0.18.0] - 2026-11-03
+
+Inherited release.
+
+[Unreleased]: https://github.com/example/zeroth/commits/main
+[0.0.0]: https://github.com/example/zeroth
+[0.18.0]: https://github.com/alter-zero/compare/v0.17.0...v0.18.0
+EOF
+RELEASE_ROOT="$T/fork" RELEASE_DATE=2026-11-13 expect_ok "prepare treats the fork baseline as history" bash "$STEPS/prepare.sh" 0.19.0
+expect_eq "…baseline is not a published release" "0.19.0" "$(RELEASE_ROOT="$T/fork" changelog_versions | tr '\n' ' ' | sed 's/ $//')"
+expect_eq "…linking the first Zeroth release to its tag" "https://github.com/example/zeroth/releases/tag/v0.19.0" "$(RELEASE_ROOT="$T/fork" changelog_link 0.19.0)"
+RELEASE_ROOT="$T/fork" expect_ok "…notes identify the first release" bash "$STEPS/notes.sh" 0.19.0
+expect_contains "…listing commits through its tag" "$OUT" "**Full changelog**: https://github.com/example/zeroth/commits/v0.19.0"
 
 # ---------------------------------------------------------------------------
 # Every case stops the stand-in it started; one left running would outlive

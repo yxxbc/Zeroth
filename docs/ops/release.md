@@ -359,6 +359,12 @@ git tag -a v0.2.0 -m "zeroth v0.2.0"
 git push origin HEAD v0.2.0
 ```
 
+The dated `[0.0.0]` section is this fork's development baseline; versions
+below it are inherited history, not release tags in this repository. The
+release tooling stops release comparisons at that boundary, so the first
+Zeroth release links to its own tag's commit list and later releases compare
+against the previous Zeroth tag.
+
 The first release cannot be `0.1.0`: the inherited changelog already owns
 that section, and `0.1.1` through `0.18.0` besides, while `prepare` refuses
 a version that already has one. Choose `0.19.0` to continue the cumulative
@@ -377,9 +383,8 @@ the reviewer who reads the commit.
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull
 request: **gate** (the four commands), **smoke** (the tmux suite over the
-real binary), **release tooling** (`shellcheck` over the scripts and
-`install.sh`, `selftest`, `check`), and **built-in skill scripts**
-(the offline `unittest`s of the scripts the `web-search` skill seeds). The
+real binary), and **release tooling** (`shellcheck` over the scripts and
+`install.sh`, `selftest`, `check`). The
 smoke job runs one worker per core rather than the suite's default of twice
 that: a `-j 8`
 run on a four-core box here failed phases 58 and 61 — the permission

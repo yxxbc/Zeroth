@@ -16,6 +16,8 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-13
+
 ### Added
 
 - **Accounts and API keys can now be disconnected.** The login menu adds
@@ -2634,7 +2636,8 @@ version it starts from; everything below this entry is Alter Zero's history.
   release whose notes come from this file — driven end to end by
   `scripts/release.sh`, which also rehearses a release locally.
 
-[Unreleased]: https://github.com/yxxbc/zeroth/commits/main
+[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/yxxbc/zeroth/releases/tag/v0.19.0
 [0.0.0]: https://github.com/yxxbc/zeroth
 [0.18.0]: https://github.com/linuztx/alter-zero/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/linuztx/alter-zero/compare/v0.16.0...v0.17.0
