@@ -38,7 +38,9 @@ printf '%s\n' "$skillseed_menu"
 expect_has "$skillseed_menu" -F "flaredantic" "the first launch's /skills does not list flaredantic"
 expect_has "$skillseed_menu" -F "skill-creator" "the first launch's /skills does not list skill-creator"
 expect_has "$skillseed_menu" -F "yt-dlp" "the first launch's /skills does not list yt-dlp"
-expect_has "$skillseed_menu" -F "web-search" "the first launch's /skills does not list web-search"
+if printf '%s' "$skillseed_menu" | grep -q "web-search"; then
+	fail "web-search is still seeded as a skill — search is the native web_search/web_fetch tools now"
+fi
 tmux send-keys -t "$S102" Escape
 sleep 0.3
 submit "$S102" "/quit"
@@ -62,29 +64,10 @@ for seeded in SKILL.md reference.md; do
 		fail "the first launch did not seed the authored flaredantic/$seeded"
 	fi
 done
-# web-search's body runs the scripts seeded beside it, so they have to land
-# too, and as programs that start from there: three of them import
-# mcp_http.py from their own directory. `--help` touches no network.
-SK_WEB="$SK_CFG/skills/web-search"
-if ! grep -q "^name: web-search" "$SK_WEB/SKILL.md" 2>/dev/null; then
-	fail "the first launch did not seed web-search/SKILL.md"
-fi
-for seeded in exa_search.py parallel_search.py tavily_search.py mcp_http.py jina_web_search.py; do
-	if [ ! -f "$SK_WEB/scripts/$seeded" ]; then
-		fail "the first launch did not seed web-search/scripts/$seeded"
-	fi
-done
-if command -v python3 >/dev/null 2>&1; then
-	# Run the way an agent would, bytecode writes allowed: importing
-	# mcp_http.py must not leave a __pycache__ folder in the user's skill.
-	for script in exa_search.py parallel_search.py tavily_search.py jina_web_search.py; do
-		sk_help="$(env -u PYTHONDONTWRITEBYTECODE -u PYTHONPYCACHEPREFIX python3 "$SK_WEB/scripts/$script" --help 2>&1)" ||
-			fail "the seeded web-search/scripts/$script --help failed: $sk_help"
-		expect_has "$sk_help" -F "usage:" "the seeded web-search/scripts/$script --help printed no usage"
-	done
-	if [ -e "$SK_WEB/scripts/__pycache__" ]; then
-		fail "running the seeded web-search scripts left a __pycache__ folder in the skill"
-	fi
+# Search is no longer a skill: the native tools replace it, so the seeded
+# directory must not come back for an install that still has the old copy.
+if [ -d "$SK_CFG/skills/web-search" ]; then
+	fail "the first launch seeded skills/web-search, which is retired"
 fi
 # Edit one file, delete the other, relaunch: the edit survives and the deletion
 # is repaired — a seed that overwrote would discard the user's own copy on

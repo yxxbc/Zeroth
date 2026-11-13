@@ -585,9 +585,9 @@ one the TUI would have.
   `jina-reader`, `yt-dlp` and `flaredantic` ship embedded and seed absent files
   in the personal root before discovery. Existing files are never overwritten,
   project skills keep precedence, and `ALTER_ZERO_SKILLS_DIR` is never seeded.
-  Jina Reader adds curl-based public web/PDF retrieval instructions
-  (`web-search`, the fifth, is proposed to be removed in favour of the native
-  `web_search`/`web_fetch` tools, `docs/tools/web-search.md`); `yt-dlp` guides
+  Jina Reader adds curl-based public web/PDF retrieval instructions; the
+  fifth, `web-search`, is retired in favour of the native
+  `web_search`/`web_fetch` tools (`docs/tools/web-search.md`); `yt-dlp` guides
   the external media CLI (not bundled); `flaredantic` guides public tunnels
   through the external `flare` CLI, with Cloudflare HTTP by default, deliberate
   Serveo TCP or Microsoft anonymous hosting with port-inventory checks, tracked
