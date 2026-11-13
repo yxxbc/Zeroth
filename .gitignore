@@ -20,3 +20,4 @@
 # Python's bytecode cache (scripts/release/release_server.py under the selftest).
 __pycache__/
 .DS_Store
+.workbuddy
