@@ -117,6 +117,13 @@ pub struct LlmBackend {
     /// Subagents carry it too — a side agent benefits from a skill exactly as
     /// the lead does, and loading one is pure text.
     skills: Option<crate::skills::SkillRegistry>,
+    /// The search rules, when the boundary attached them — **enables the
+    /// `web_search` and `web_fetch` tools** (`docs/tools/web-search.md`).
+    /// Attached only when the file loaded and at least one source is
+    /// configured, the `with_skills` posture: a tool that can only answer
+    /// "no sources" spends the model's attention on a dead end. Subagents
+    /// carry it too — research is the case a subagent exists for.
+    web: Option<std::sync::Arc<crate::web::Rules>>,
     /// The session's MCP servers, when the boundary attached the manager —
     /// **adds every connected server's tools** under their
     /// `mcp__server__tool` wire names (`docs/tools/mcp.md`). Attached only when at
@@ -244,6 +251,7 @@ impl LlmBackend {
             ask: None,
             tasks: None,
             skills: None,
+            web: None,
             mcp: None,
             classifier,
             turn_context: Arc::new(Mutex::new(ClassifierContext::new())),
@@ -390,6 +398,18 @@ impl LlmBackend {
         self
     }
 
+    /// Attach the search rules, **enabling `web_search` and `web_fetch`**
+    /// (`docs/tools/web-search.md`). Attached only when tools are enabled and
+    /// the rules name at least one source — with none there is nothing to ask.
+    #[must_use]
+    pub fn with_web(mut self, rules: std::sync::Arc<crate::web::Rules>) -> Self {
+        if self.tools_enabled && !rules.order.is_empty() {
+            self.web = Some(rules);
+            self.sync_tool_specs();
+        }
+        self
+    }
+
     /// Attach the session's MCP manager, **adding every connected server's
     /// tools** (`docs/tools/mcp.md`): the client's tool set gains one
     /// `mcp__server__tool` spec per discovered tool (tools must already be
@@ -425,6 +445,9 @@ impl LlmBackend {
         }
         if self.skills.is_some() {
             specs.push(tools::skill_spec());
+        }
+        if self.web.is_some() {
+            specs.extend(tools::web_specs());
         }
         if let Some(manager) = &self.mcp {
             specs.extend(manager.tool_specs());

@@ -173,7 +173,9 @@ byte-for-byte.
 `https://r.jina.ai/` using curl. Mention `$jina-reader` with a URL, or ask to
 read a webpage and let its description select it. No Jina API key is required
 for basic access; an existing `JINA_API_KEY` can provide optional authentication.
-The skill requires curl, not a new dependency or a native web-fetch tool.
+The skill still uses curl, not the native `web_fetch` tool: the point of
+`jina-reader` is the *proxy* (a page that refuses a direct request), which is
+the one thing a direct fetch cannot do ([`docs/tools/web-search.md`](web-search.md)).
 
 Its single `prompts/skills/jina-reader/SKILL.md` covers extracted Markdown,
 plain text, rendered HTML, JSON envelopes, screenshot URLs, selectors,
@@ -198,6 +200,11 @@ seed → discovery → listing → tool-load path and verify that local edits
 survive reseeding and deleted files are restored.
 
 #### `web-search`
+
+> **Proposed to change:** [`docs/tools/web-search.md`](web-search.md) moves
+> search and page-reading into two native tools (`web_search`, `web_fetch`) and
+> retires this skill's `scripts/`. The section below describes the shipped
+> behaviour until that lands.
 
 **`web-search`** gives the agent web search without a native search tool:
 four standard-library Python scripts in its `scripts/` directory, each

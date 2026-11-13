@@ -200,3 +200,4 @@ pub mod tokens;
 pub mod trust;
 pub mod ui;
 pub mod update;
+pub mod web;

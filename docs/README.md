@@ -96,6 +96,7 @@ What the model can do: the tool loop, bash and its terminal engine, MCP, hooks, 
 - [`tools/skills.md`](tools/skills.md): The `Skill` tool
 - [`tools/task-tools.md`](tools/task-tools.md): The task tools — a live checklist instead of tool cells
 - [`tools/tools.md`](tools/tools.md): LLM tool calling — `bash` and its companions / `read` / `write` / `edit`
+- [`tools/web-search.md`](tools/web-search.md): The `web_search` and `web_fetch` tools — sources, fallback, cooldown, the address gate
 - [`tools/tty-detach.md`](tools/tty-detach.md): Detaching subprocesses from the controlling terminal
 
 ## Agents

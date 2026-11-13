@@ -1,0 +1,144 @@
+# Web search and page-reading (`docs/tools/web-search.md`).
+#
+# These are the sources the native `web_search` / `web_fetch` tools use, in
+# the order they are tried. This file is embedded in the binary; to change a
+# value or add a source, **don't copy this file** — write the block you want
+# in ~/.zeroth/search.toml, which is laid over these:
+#
+#   - a scale key you set (`results`, `timeout_seconds`, a source's `url`)
+#     changes that one value and leaves everything else alone;
+#   - a list key you set (`order`, `cooldown_minutes`, `fetch.order`)
+#     **replaces the whole list** — appending to a fallback order from a
+#     partial edit is never what you meant, so it is not attempted;
+#   - a `[sources.<id>]` block with a new id adds a source; naming it in
+#     `order` is how you put it first.
+#
+# A document that cannot work (an `order` naming an unconfigured source, a
+# zero count) is refused, and `web_search` says so. An entry that is merely
+# wrong (an unknown key, a misspelled `kind`) is reported and skipped, so a
+# bad block costs only that block.
+#
+# The shipped set and order are **measured**, not assumed — docs/tools/
+# web-search.md *Measured* §1. Refused sources stay commented out below with
+# the date and the reason, so the next person does not repeat the probe.
+
+# The walk's order. `parallel` answered first and is the only source with
+# dates and long excerpts; `anysearch` gave the cheapest answer (1.8 KB);
+# `tavily` needs its keyless header (below); `bing` is the scrape tier and
+# spends no quota; `exa` needs a key today. A source named here but skipped
+# for an unmet `needs` costs nothing.
+order = ["parallel", "anysearch", "tavily", "bing", "exa"]
+
+# Hits handed back. Parallel returns 10 and dedupe eats the overlap.
+results = 8
+
+# Per-hit excerpt cap. Halves Parallel's ~2,400-char excerpts; never binds on
+# AnySearch's ~150-char snippets.
+excerpt_chars = 1200
+
+# One request's deadline.
+timeout_seconds = 20
+
+# The cooldown after each consecutive limit: 30 min, 1 h, 2 h, then 6 h for
+# every further one. A source is skipped while cooling and returns on its own.
+cooldown_minutes = [30, 60, 120, 360]
+
+# What a scraped result page must be asked as. Bing answers a bot check to a
+# client that names itself.
+browser_user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+
+[fetch]
+# Sources that can return a page's body, in order. Only the three MCP servers
+# with a scrape tool and Tavily's extract qualify; the walk skips a keyless
+# one that refuses.
+order = ["parallel", "exa"]
+# Below this a body reads as a login wall, so the next source is tried.
+min_chars = 200
+# The ceiling before paging; one page never exceeds it.
+max_chars = 200_000
+# Characters per returned page. A docs.rs API reference is 220 KB of text
+# after stripping, so paging is the normal path, not a pathological one.
+page_chars = 16_000
+timeout_seconds = 45
+
+[limits]
+# Politeness, not self-defence: 32 concurrent fetches were tolerated by a
+# real host. Cap 2 tripled a ten-page burst, cap 4 costs 1.9x — the measured
+# trade (docs/tools/web-search.md *Measured* §3).
+max_in_flight = 8
+max_per_host = 4
+requests_per_minute = 60
+
+[sources.parallel]
+name = "Parallel"
+kind = "parallel"
+url = "https://search.parallel.ai/mcp"
+needs = "nothing"
+site_operator = true
+
+[sources.anysearch]
+name = "AnySearch"
+kind = "anysearch"
+url = "https://api.anysearch.com/v1/search"
+needs = "nothing"
+site_operator = false
+
+[sources.tavily]
+name = "Tavily"
+kind = "tavily"
+url = "https://mcp.tavily.com/mcp/"
+needs = "nothing"
+site_operator = false
+# Measured: a bare request is a 401 with an EMPTY body, and with this header
+# it is a 200 and 8.4 KB. The header is part of the source, not a detail.
+headers = { X-Tavily-Access-Mode = "keyless" }
+
+[sources.bing]
+name = "Bing"
+kind = "bing"
+url = "https://www.bing.com/search"
+needs = "nothing"
+site_operator = true
+
+# Needs a key. Free tier spent on a shared address, so it sits last; a user
+# with a key lists it first in their own file.
+[sources.exa]
+name = "Exa"
+kind = "exa"
+url = "https://mcp.exa.ai/mcp"
+needs = "key_optional"
+site_operator = false
+
+# The key-or-address tier: configured, and the walk skips it while unset.
+# `needs = "key"` reads <secret:…> from /secrets; write the key there, never
+# here.
+#
+# [sources.brave]
+# name = "Brave"
+# kind = "brave"
+# url = "https://api.search.brave.com/res/v1/web/search"
+# needs = "key"
+# site_operator = true
+#
+# [sources.searxng]
+# name = "SearXNG"
+# kind = "searxng"
+# url = ""
+# needs = "address"
+# site_operator = true
+#
+# [sources.deepseek]
+# name = "DeepSeek"
+# kind = "deepseek"
+# url = "https://api.deepseek.com/v1/tools/search"
+# needs = "key"
+# site_operator = true
+
+# Measured out on 2026-11-13, from an ordinary address — left here with the
+# reason so nobody re-probes them:
+#
+# [sources.firecrawl]   # 200 with isError: "Anonymous keyless access is
+#                       # unavailable" — not a keyless source at all
+# [sources.duckduckgo]  # html.duckduckgo.com answers a 202 anomaly page,
+#                       # the same IP reputation problem that killed
+#                       # jina_web_search.py
