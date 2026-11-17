@@ -147,8 +147,9 @@ expect_has "$perm_amend" -F "Enter to reject with this feedback" "the amend fiel
 if [ -z "$perm_done" ]; then
 	fail "approving did not commit the cell with the draft restored"
 fi
-# The footer's right-edge mode flipped with the option-2 mode switch.
-expect_has "$perm_done" -E "dummy_model_name · .*edit$" "the footer's right-edge mode did not flip to edit after option 2"
+# The restored draft can land while the reply is still streaming. Its
+# Enter/Tab hint replaces the model/cwd chain; the mode stays pinned right.
+expect_has "$perm_done" -E "^  (dummy_model_name · .*|Enter steers · Tab queues +)edit$" "the footer's right-edge mode did not flip to edit after option 2"
 if [ -z "$perm_silent" ]; then
 	fail "the allow-listed second request asked again"
 fi
