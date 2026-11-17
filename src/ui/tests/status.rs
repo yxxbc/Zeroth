@@ -13,6 +13,221 @@ use crate::ui::theme::{
     status_retry_color, status_thinking_color, tool_diff_add_color, tool_diff_del_color,
     tool_dim_color, tool_pulse_dim,
 };
+use crate::ui::wrap::cols;
+
+fn review_hint_summary() -> HistoryItem {
+    HistoryItem::Summary(TurnSummary {
+        verb: "Worked",
+        secs: 2,
+        timestamp: String::new(),
+        shells: 0,
+        tokens: 0,
+        estimated: 0,
+        cached: 0,
+        cache_write: 0,
+    })
+}
+
+fn review_hint_app(path: &str, output: &str, state: ToolStatus) -> App {
+    let mut app = App::new();
+    app.set_path_display(PathDisplay::new("/project", None));
+    app.history
+        .push(HistoryItem::Tool(tool("Edit", path, state, output)));
+    app.history.push(review_hint_summary());
+    app
+}
+
+fn review_hint_inline(app: &App, width: u16) -> Vec<String> {
+    conversation_lines(&app.history, width, app.path_display(), false)
+        .iter()
+        .map(plain)
+        .collect()
+}
+
+#[test]
+fn review_hint_follows_a_successful_project_edit_once() {
+    let mut app = review_hint_app(
+        "/project/a.rs",
+        "Updated a.rs (+1 -1)\n1 +new",
+        ToolStatus::Ok,
+    );
+    app.history.insert(
+        0,
+        HistoryItem::Tool(tool(
+            "Write",
+            "/project/b.rs",
+            ToolStatus::Ok,
+            "Wrote 2 lines to b.rs\n1 new",
+        )),
+    );
+    let lines = review_hint_inline(&app, 80);
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|s| s.contains("Review the current worktree with /diff"))
+            .count(),
+        1,
+        "{lines:?}"
+    );
+    let receipt = lines
+        .iter()
+        .position(|s| s.starts_with("Worked for"))
+        .unwrap();
+    assert_eq!(lines[receipt + 1], "Review the current worktree with /diff");
+}
+
+#[test]
+fn review_hint_is_shared_by_inline_and_transcript() {
+    let app = review_hint_app(
+        "/project/a.rs",
+        "Updated a.rs (+1 -1)\n1 +new",
+        ToolStatus::Ok,
+    );
+    let expanded: Vec<String> = transcript_lines(&app, 80).iter().map(plain).collect();
+    assert_eq!(
+        expanded
+            .iter()
+            .filter(|s| s.contains("Review the current worktree with /diff"))
+            .count(),
+        1,
+        "{expanded:?}"
+    );
+}
+
+#[test]
+fn review_hint_excludes_failed_noop_external_and_scratchpad_edits() {
+    for (path, output, state) in [
+        ("/project/a.rs", "edit failed", ToolStatus::Failed),
+        ("/project/a.rs", "No changes to a.rs", ToolStatus::Ok),
+        (
+            "/project-other/a.rs",
+            "Updated a.rs (+1 -1)",
+            ToolStatus::Ok,
+        ),
+        (
+            "/project/scratch/a.rs",
+            "Updated a.rs (+1 -1)",
+            ToolStatus::Ok,
+        ),
+    ] {
+        let mut app = review_hint_app(path, output, state);
+        app.set_path_display(
+            PathDisplay::new("/project", None).with_scratchpad(Some("/project/scratch".into())),
+        );
+        assert!(
+            !review_hint_inline(&app, 80)
+                .iter()
+                .any(|s| s.contains("/diff")),
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn review_hint_is_suppressed_by_an_error_and_does_not_leak_into_the_next_turn() {
+    let mut app = review_hint_app("/project/a.rs", "Updated a.rs (+1 -1)", ToolStatus::Ok);
+    app.history.insert(
+        1,
+        HistoryItem::Message(Message {
+            role: Role::Error,
+            text: "Conversation interrupted".into(),
+            timestamp: String::new(),
+            images: Vec::new(),
+        }),
+    );
+    assert!(
+        !review_hint_inline(&app, 80)
+            .iter()
+            .any(|s| s.contains("/diff"))
+    );
+    app.history.remove(1);
+    app.history.push(review_hint_summary());
+    let lines = review_hint_inline(&app, 80);
+    assert_eq!(
+        lines.iter().filter(|s| s.contains("/diff")).count(),
+        1,
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn review_hint_keeps_edits_before_a_steering_message_and_wraps() {
+    let mut app = review_hint_app("/project/a.rs", "Updated a.rs (+1 -1)", ToolStatus::Ok);
+    app.history.insert(
+        1,
+        HistoryItem::Message(Message {
+            role: Role::User,
+            text: "also check this".into(),
+            timestamp: String::new(),
+            images: Vec::new(),
+        }),
+    );
+    let lines = review_hint_inline(&app, 20);
+    assert!(lines.iter().all(|s| cols(s) <= 20), "{lines:?}");
+    assert!(
+        lines
+            .join(" ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .contains("Review the current worktree with /diff"),
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn review_hint_recovers_after_a_previous_failed_turn() {
+    let mut app = review_hint_app("/project/a.rs", "Updated a.rs (+1 -1)", ToolStatus::Ok);
+    app.history.insert(0, msg(Role::User, "new task"));
+    app.history
+        .insert(0, msg(Role::Error, "previous request failed"));
+    let lines = review_hint_inline(&app, 80);
+    assert!(
+        lines
+            .iter()
+            .any(|s| s.contains("Review the current worktree with /diff")),
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn review_hint_resolves_relative_scratchpad_and_traversal_paths() {
+    for path in ["scratch/a.rs", "src/../scratch/a.rs", "../external/a.rs"] {
+        let mut app = review_hint_app(path, "Updated a.rs (+1 -1)", ToolStatus::Ok);
+        app.set_path_display(
+            PathDisplay::new("/project", None).with_scratchpad(Some("/project/scratch".into())),
+        );
+        assert!(
+            !review_hint_inline(&app, 80)
+                .iter()
+                .any(|s| s.contains("/diff")),
+            "{path} must not suggest project review"
+        );
+    }
+    let mut unknown = review_hint_app("/project/a.rs", "Updated a.rs (+1 -1)", ToolStatus::Ok);
+    unknown.set_path_display(PathDisplay::VERBATIM);
+    assert!(
+        !review_hint_inline(&unknown, 80)
+            .iter()
+            .any(|s| s.contains("/diff"))
+    );
+}
+
+#[test]
+fn review_hint_includes_actual_empty_file_creation_reports() {
+    for output in ["Wrote 0 lines to empty.rs", "Created empty.rs (0 lines)"] {
+        let mut app = review_hint_app("/project/empty.rs", output, ToolStatus::Ok);
+        let HistoryItem::Tool(created) = &mut app.history[0] else {
+            unreachable!()
+        };
+        created.name = "Write".into();
+        let lines = review_hint_inline(&app, 80);
+        assert!(
+            lines.iter().any(|s| s.contains("/diff")),
+            "{output}: {lines:?}"
+        );
+    }
+}
 
 #[test]
 fn edit_cell_colours_the_summary_counts() {

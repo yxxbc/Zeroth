@@ -830,11 +830,89 @@ fn tool_cell_lines(
     paths: &PathDisplay,
 ) -> Vec<Line<'static>> {
     let mut lines = tool_cell_body(tool, width, pulse, paths);
+    lines.extend(command_receipt_lines(tool, width));
     lines.extend(session_state_row(tool));
     let quiet_mcp =
         tool.status == ToolStatus::Ok && crate::mcp::display_server(&tool.name).is_some();
     if !quiet_mcp {
         lines.extend(approval_note_row(tool));
+    }
+    lines
+}
+
+/// Recorded execution facts, never inferred from a command or its output.
+/// Live, background, local shell and interactive-session cells keep their own
+/// state rows. The record and model-facing output are never changed.
+fn command_receipt_lines(tool: &ToolCall, width: u16) -> Vec<Line<'static>> {
+    if tool.shell
+        || !is_command_tool(tool)
+        || !matches!(tool.status, ToolStatus::Ok | ToolStatus::Failed)
+        || session_frame(&tool.output).is_some()
+        || (tool.run.error_kind == Some(crate::stream::ToolErrorKind::Interrupted)
+            && tool.run.exit_code.is_none()
+            && tool.run.duration_ms.is_none())
+    {
+        return Vec::new();
+    }
+    let mut facts = Vec::new();
+    if let Some(code) = tool.run.exit_code {
+        facts.push(format!("{TOOL_RUN_EXIT_LABEL}{code}"));
+    }
+    if let Some(kind) = tool.run.error_kind
+        && (tool.run.exit_code.is_none() || kind != crate::stream::ToolErrorKind::ToolError)
+    {
+        facts.push(kind.wire().replace('_', " "));
+    }
+    if let Some(ms) = tool.run.duration_ms {
+        facts.push(format_timeout(ms));
+    }
+    if facts.is_empty() {
+        return Vec::new();
+    }
+    let room = width.saturating_sub(cols(TOOL_RESULT_PREFIX) as u16).max(1);
+    wrap_output(&facts.join(TOOL_RUN_SEPARATOR), room)
+        .into_iter()
+        .enumerate()
+        .map(|(i, text)| result_row(i, text))
+        .collect()
+}
+
+/// Keep the first output row and the newest two rows on failure, within the
+/// ordinary four-row peek budget. Count hidden display rows exactly while
+/// retaining only a bounded tail, even for large command output.
+fn failed_command_peek(display: &[String], room: usize) -> Vec<Line<'static>> {
+    let width = u16::try_from(room).unwrap_or(u16::MAX);
+    let total: usize = display
+        .iter()
+        .map(|line| WrapMode::Output.rows(line, width))
+        .sum();
+    if total <= TOOL_FOLD_ROWS + 1 {
+        return result_peek_block(
+            display,
+            room,
+            WrapMode::Output,
+            BlankPolicy::Keep,
+            |i, text, _| output_row(i, text),
+        );
+    }
+    let mut first = None;
+    let mut tail = std::collections::VecDeque::new();
+    for line in display {
+        for text in WrapMode::Output.wrap(line, width) {
+            if first.is_none() {
+                first = Some(text);
+            } else {
+                tail.push_back(text);
+                if tail.len() > TOOL_FOLD_ROWS.saturating_sub(1) {
+                    tail.pop_front();
+                }
+            }
+        }
+    }
+    let mut lines = vec![output_row(0, first.unwrap_or_default())];
+    lines.push(more_hint_line(total.saturating_sub(TOOL_FOLD_ROWS)));
+    for text in tail {
+        lines.push(output_row(lines.len(), text));
     }
     lines
 }
@@ -1327,6 +1405,9 @@ fn tool_cell_body(
                     TOOL_NO_OUTPUT.to_string()
                 },
             )],
+            ToolStatus::Failed if session_frame(&tool.output).is_none() => {
+                failed_command_peek(&display, peek_width)
+            }
             _ => result_peek_block(
                 &display,
                 peek_width,
@@ -1517,6 +1598,7 @@ pub(super) fn tool_full_lines(
     paths: &PathDisplay,
 ) -> Vec<Line<'static>> {
     let mut lines = tool_full_body(tool, width, paths);
+    lines.extend(command_receipt_lines(tool, width));
     lines.extend(session_state_row(tool));
     // The classifier's provenance row closes the expanded cell too
     // (docs/state/permissions.md).

@@ -43,6 +43,8 @@ tmux kill-session -t "$S18" 2>/dev/null
 # opposite.
 expect_has "$tabqueue_band" -F "  ❯ world" "the Enter-queued 'world' was not shown inset above the box while turn 1 streamed"
 expect_has "$tabqueue_band" -F "  ❯ later" "the Tab-queued 'later' was not shown inset above the box — did Tab fail to queue?"
+expect_has "$tabqueue_band" -F "Pending current turn" "the current turn's pending steering has no explicit label"
+expect_has "$tabqueue_band" -F "Queued next turn" "the separate follow-up turn has no explicit label"
 if ! printf '%s' "$tabqueue" | grep -qF "❯ world" ||
 	! printf '%s' "$tabqueue" | grep -qF "❯ later"; then
 	fail "the queued messages never reached scrollback — '❯ world' and '❯ later' did not both commit"

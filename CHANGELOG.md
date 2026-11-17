@@ -16,6 +16,14 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- Finished model Bash calls show recorded execution facts and keep failure
+  output tails visible. Pending steering and follow-up turns have explicit
+  labels, with a contextual Enter/Tab hint. Successful turns with project file
+  changes offer `/diff` to review the current worktree without attributing
+  existing changes or claiming checks passed.
+
 ## [0.19.0] - 2026-11-13
 
 ### Added

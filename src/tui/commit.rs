@@ -294,11 +294,16 @@ impl Session<'_> {
     /// (`docs/input/interrupt.md`). The caller settles the turn's held background
     /// completions first, so they land above it (`docs/tools/background.md`).
     pub(crate) fn commit_turn_summary(&mut self, summary: TurnSummary) {
+        self.app.record_turn_summary(summary);
         if self.commits_allowed() {
             let width = self.term.screen().width;
-            self.term.insert_before(ui::summary_lines(&summary, width));
+            self.term.insert_before(ui::review_turn_summary_lines(
+                &self.app.history,
+                self.app.history.len() - 1,
+                width,
+                self.app.path_display(),
+            ));
             self.term.insert_before(vec![Line::default()]);
         }
-        self.app.record_turn_summary(summary);
     }
 }

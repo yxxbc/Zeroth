@@ -349,13 +349,12 @@ fn an_agent_pinned_to_another_model_names_it_in_its_views_footer() {
 
 #[test]
 fn steered_messages_show_above_the_box_until_the_turn_takes_them() {
-    // A message handed to the running turn reads exactly like a queued one —
-    // it is pending either way; what differs is which turn it belongs to.
+    // Pending text keeps the user-message styling under its current-turn label.
     let mut app = App::new();
     app.steered.push_back("also check the tests".to_string());
-    assert_eq!(queued_rows(&app, 40), 1);
+    assert_eq!(queued_rows(&app, 40), 2);
     assert!(
-        plain(&queued_lines(&app, 40)[0]).contains("❯ also check the tests"),
+        plain(&queued_lines(&app, 40)[1]).contains("❯ also check the tests"),
         "the user-message style, inset"
     );
 }
@@ -368,10 +367,10 @@ fn steered_messages_lead_the_follow_up_turns() {
     app.steered.push_back("now".to_string());
     app.queued.push_back(batch(&["later"]));
     let rows: Vec<String> = queued_lines(&app, 40).iter().map(plain).collect();
-    assert_eq!(rows.len(), 3, "one each + the divider");
-    assert!(rows[0].contains("❯ now"), "{rows:?}");
-    assert!(rows[1].trim().is_empty(), "{rows:?}");
-    assert!(rows[2].contains("❯ later"), "{rows:?}");
+    assert_eq!(rows.len(), 5, "two labels + one each + the divider");
+    assert!(rows[1].contains("❯ now"), "{rows:?}");
+    assert!(rows[2].trim().is_empty(), "{rows:?}");
+    assert!(rows[4].contains("❯ later"), "{rows:?}");
 }
 
 #[test]
@@ -385,9 +384,9 @@ fn an_agent_session_view_shows_that_agents_own_queue() {
     app.queue_agent_chat("a1", "also check Manila");
     app.open_agent_view("a1");
     let rows: Vec<String> = queued_lines(&app, 40).iter().map(plain).collect();
-    assert_eq!(rows.len(), 1, "{rows:?}");
-    assert!(rows[0].contains("❯ also check Manila"), "{rows:?}");
-    assert_eq!(queued_rows(&app, 40), 1);
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert!(rows[1].contains("❯ also check Manila"), "{rows:?}");
+    assert_eq!(queued_rows(&app, 40), 2);
 }
 
 #[test]
@@ -403,11 +402,15 @@ fn an_agent_session_view_shows_its_steered_rows_over_its_follow_ups() {
     app.open_agent_view("a1");
     app.queue_agent_followup("later");
     let rows: Vec<String> = queued_lines(&app, 40).iter().map(plain).collect();
-    assert_eq!(rows.len(), 3, "one each + the divider: {rows:?}");
-    assert!(rows[0].contains("\u{276f} now"), "{rows:?}");
-    assert!(rows[1].trim().is_empty(), "{rows:?}");
-    assert!(rows[2].contains("\u{276f} later"), "{rows:?}");
-    assert_eq!(queued_rows(&app, 40), 3);
+    assert_eq!(
+        rows.len(),
+        5,
+        "two labels + one each + the divider: {rows:?}"
+    );
+    assert!(rows[1].contains("\u{276f} now"), "{rows:?}");
+    assert!(rows[2].trim().is_empty(), "{rows:?}");
+    assert!(rows[4].contains("\u{276f} later"), "{rows:?}");
+    assert_eq!(queued_rows(&app, 40), 5);
 }
 
 #[test]
@@ -474,8 +477,8 @@ fn the_memo_follows_the_agent_session_view() {
     let agent_rows: Vec<String> = queued_lines(&app, 40).iter().map(plain).collect();
     app.close_agent_view();
     let back: Vec<String> = queued_lines(&app, 40).iter().map(plain).collect();
-    assert!(main_rows[0].contains("a main follow-up"), "{main_rows:?}");
-    assert!(agent_rows[0].contains("an agent one"), "{agent_rows:?}");
+    assert!(main_rows[1].contains("a main follow-up"), "{main_rows:?}");
+    assert!(agent_rows[1].contains("an agent one"), "{agent_rows:?}");
     assert_eq!(back, main_rows, "the return serves the main rows again");
 }
 
@@ -484,16 +487,20 @@ fn queued_rows_is_zero_empty_and_counts_the_queue() {
     let mut app = App::new();
     assert_eq!(queued_rows(&app, 40), 0);
     app.queued.push_back(batch(&["a", "b"]));
-    assert_eq!(queued_rows(&app, 40), 2, "one short message per row");
+    assert_eq!(
+        queued_rows(&app, 40),
+        3,
+        "label + one short message per row"
+    );
 }
 
 #[test]
 fn queued_rows_counts_the_blank_between_batches() {
-    // Two single-message batches occupy three rows — a blank divides them.
+    // Two single-message batches plus a label occupy four rows — a blank divides them.
     let mut app = App::new();
     app.queued.push_back(batch(&["a"]));
     app.queued.push_back(batch(&["b"]));
-    assert_eq!(queued_rows(&app, 40), 3);
+    assert_eq!(queued_rows(&app, 40), 4);
 }
 
 #[test]
@@ -504,21 +511,25 @@ fn queued_lines_separate_batches_with_a_blank_row() {
     app.queued.push_back(batch(&["first"]));
     app.queued.push_back(batch(&["later"]));
     let lines = queued_lines(&app, 40);
-    assert_eq!(lines.len(), 3, "two single-message batches + one separator");
+    assert_eq!(
+        lines.len(),
+        4,
+        "label + two single-message batches + one separator"
+    );
     assert!(
-        plain(&lines[0]).contains("❯ first"),
+        plain(&lines[1]).contains("❯ first"),
         "{:?}",
-        plain(&lines[0])
+        plain(&lines[1])
     );
     assert_eq!(
-        plain(&lines[1]).trim(),
+        plain(&lines[2]).trim(),
         "",
         "a blank separator row divides the batches"
     );
     assert!(
-        plain(&lines[2]).contains("❯ later"),
+        plain(&lines[3]).contains("❯ later"),
         "{:?}",
-        plain(&lines[2])
+        plain(&lines[3])
     );
 }
 
@@ -530,14 +541,14 @@ fn queued_lines_render_a_shell_entry_with_the_red_bang_prompt() {
     app.queued.push_back(QueuedTurn::Shell("ls -la".into()));
     let lines = queued_lines(&app, 40);
     let expected = message_lines(Role::Shell, "ls -la", 38); // 40 minus the indent
-    assert_eq!(lines.len(), expected.len());
+    assert_eq!(lines.len(), expected.len() + 1);
     assert!(
-        plain(&lines[0]).contains("! ls -la"),
+        plain(&lines[1]).contains("! ls -la"),
         "the red shell prompt, not ❯: {:?}",
-        plain(&lines[0])
+        plain(&lines[1])
     );
     assert_eq!(
-        lines[0].spans[0].content.as_ref(),
+        lines[1].spans[0].content.as_ref(),
         "  ",
         "inset two columns, the indent outside the dark block"
     );
@@ -551,14 +562,14 @@ fn queued_lines_divide_a_text_batch_and_a_shell_entry() {
     app.queued.push_back(batch(&["hello"]));
     app.queued.push_back(QueuedTurn::Shell("ls".into()));
     let lines = queued_lines(&app, 40);
-    assert_eq!(lines.len(), 3, "message + blank divider + shell");
+    assert_eq!(lines.len(), 4, "label + message + blank divider + shell");
     assert!(
-        plain(&lines[0]).contains("❯ hello"),
+        plain(&lines[1]).contains("❯ hello"),
         "{:?}",
-        plain(&lines[0])
+        plain(&lines[1])
     );
-    assert_eq!(plain(&lines[1]).trim(), "", "a blank divider");
-    assert!(plain(&lines[2]).contains("! ls"), "{:?}", plain(&lines[2]));
+    assert_eq!(plain(&lines[2]).trim(), "", "a blank divider");
+    assert!(plain(&lines[3]).contains("! ls"), "{:?}", plain(&lines[3]));
 }
 
 #[test]
@@ -573,13 +584,13 @@ fn queued_rows_count_wrapped_lines() {
 #[test]
 fn queued_rows_are_uncapped_every_message_counts() {
     // No display cap (codex shows the whole backlog): ten queued messages
-    // are ten rows.
+    // are eleven rows with their label.
     let mut app = App::new();
     app.queued.push_back(QueuedTurn::Messages {
         texts: (0..10).map(|i| format!("m{i}")).collect(),
         images: Vec::new(),
     });
-    assert_eq!(queued_rows(&app, 40), 10);
+    assert_eq!(queued_rows(&app, 40), 11);
 }
 
 #[test]
@@ -592,16 +603,16 @@ fn queued_lines_indent_two_columns_and_keep_the_user_style() {
     app.queued.push_back(batch(&["world"]));
     let lines = queued_lines(&app, 40);
     let expected = message_lines(Role::User, "world", 38); // 40 minus the indent
-    assert_eq!(lines.len(), expected.len());
-    assert_eq!(plain(&lines[0]), format!("  {}", plain(&expected[0])));
-    let indent = &lines[0].spans[0];
+    assert_eq!(lines.len(), expected.len() + 1);
+    assert_eq!(plain(&lines[1]), format!("  {}", plain(&expected[0])));
+    let indent = &lines[1].spans[0];
     assert_eq!(indent.content.as_ref(), "  ");
     assert_eq!(
         indent.style.bg, None,
         "the indent sits outside the dark block"
     );
     assert!(
-        lines[0].spans[1..].iter().all(|s| s.style.bg.is_some()),
+        lines[1].spans[1..].iter().all(|s| s.style.bg.is_some()),
         "past the indent the user-message background holds: {lines:?}"
     );
 }
@@ -640,8 +651,12 @@ fn queued_lines_list_the_whole_backlog_uncapped() {
         images: Vec::new(),
     });
     let lines = queued_lines(&app, 40);
-    assert_eq!(lines.len(), 10, "every queued message shows");
-    assert!(plain(&lines[9]).contains("❯ m9"), "{:?}", plain(&lines[9]));
+    assert_eq!(lines.len(), 11, "label and every queued message show");
+    assert!(
+        plain(&lines[10]).contains("❯ m9"),
+        "{:?}",
+        plain(&lines[10])
+    );
 }
 
 #[test]
@@ -1120,7 +1135,7 @@ fn the_queued_memo_rebuilds_when_the_theme_changes() {
     let mut app = App::new();
     app.queued.push_back(batch(&["also check the tests"]));
     // The bubble's ground rides the content spans (the indent stays bare).
-    let ground = |app: &App| queued_lines(app, 40)[0].spans[1].style.bg;
+    let ground = |app: &App| queued_lines(app, 40)[1].spans[1].style.bg;
     assert_eq!(ground(&app), Some(palette_of(Theme::Mocha).user_bg));
     assert_eq!(
         with_theme(Theme::Latte, || ground(&app)),
@@ -1227,4 +1242,56 @@ fn the_footer_brackets_the_provider_and_shows_the_models_suffix() {
         Some(footer_model_color()),
         "the model keeps the accent"
     );
+}
+
+#[test]
+fn pending_sets_name_their_target_turns_without_changing_message_rows() {
+    let mut app = App::new();
+    app.steered.push_back("now".into());
+    app.queued.push_back(batch(&["later"]));
+    app.queued.push_back(batch(&["last"]));
+    let rows: Vec<_> = queued_lines(&app, 40).iter().map(plain).collect();
+    assert_eq!(rows[0].trim(), "Pending current turn");
+    assert_eq!(rows[1].trim(), "❯ now");
+    assert_eq!(rows[3].trim(), "Queued next turn");
+    assert_eq!(rows[4].trim(), "❯ later");
+    assert_eq!(rows[6].trim(), "❯ last");
+    assert_eq!(queued_rows(&app, 40) as usize, rows.len());
+    assert_eq!(
+        rows.iter()
+            .filter(|row| row.contains("Queued next turn"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn a_running_agent_labels_its_own_pending_sets() {
+    let mut app = App::new();
+    app.begin_stream();
+    app.start_agent_group(false, &[spec("a1", "Task", false)]);
+    app.steered.push_back("main only".into());
+    app.queue_agent_chat("a1", "agent now");
+    app.open_agent_view("a1");
+    app.queue_agent_followup("agent later");
+    let text = queued_lines(&app, 40)
+        .iter()
+        .map(plain)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("Pending current turn"), "{text}");
+    assert!(text.contains("Queued next turn"), "{text}");
+    assert!(text.contains("agent now") && text.contains("agent later"));
+    assert!(!text.contains("main only"));
+}
+
+#[test]
+fn a_mid_turn_text_draft_explains_steering_and_queueing() {
+    let mut app = App::new();
+    app.set_session_info("model", "~/repo");
+    app.begin_stream();
+    app.input.insert_str("change direction");
+    assert!(plain(&footer_line(&app, 80)).contains("Enter steers · Tab queues"));
+    app.input.clear();
+    assert!(!plain(&footer_line(&app, 80)).contains("Enter steers"));
 }

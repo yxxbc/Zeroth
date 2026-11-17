@@ -2877,6 +2877,18 @@ pub(super) const SHORTCUTS_BACKTRACK: (&str, &str) = ("esc esc", " to edit previ
 /// Indent prefixed to every queued row, insetting the queue from the strip's
 /// left edge; the dark user-message block starts after it.
 pub(super) const QUEUED_INDENT: &str = "  ";
+/// Messages awaiting the running model turn's next boundary.
+pub(super) const QUEUED_CURRENT_LABEL: &str = "Pending current turn";
+/// Separate follow-up turns awaiting dispatch.
+pub(super) const QUEUED_NEXT_LABEL: &str = "Queued next turn";
+/// Composer hint for a draft that can steer the running turn.
+pub(super) const FOOTER_STEER_QUEUE_HINT: &str = "Enter steers · Tab queues";
+/// Recorded command exit status in a settled run receipt.
+pub(super) const TOOL_RUN_EXIT_LABEL: &str = "exit ";
+/// Separator between recorded execution facts.
+pub(super) const TOOL_RUN_SEPARATOR: &str = " · ";
+/// Review entry after a successful turn with recorded project file changes.
+pub(super) const TURN_REVIEW_HINT: &str = "Review the current worktree with /diff";
 
 // --- The session-context footer: the dim `{model} · {cwd}` row pinned under
 // the input box (codex's footer status line). See docs/ui/footer.md. ---

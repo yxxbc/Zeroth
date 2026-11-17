@@ -160,27 +160,54 @@ fn build_queued_lines(app: &App, width: u16) -> Vec<Line<'static>> {
             .into_iter()
             .map(indent_queued_line)
     };
+    let label_row = |label: &str| {
+        Line::from(vec![
+            Span::raw(QUEUED_INDENT),
+            Span::styled(
+                truncate_cols(label, inner as usize),
+                Style::new().fg(footer_color()),
+            ),
+        ])
+    };
     if let Some(agent) = app.viewed_agent() {
         // The main branch's shape exactly: what the running loop reads next
         // leads as one undivided block, its Tab follow-up turns come after,
         // a blank row dividing each of them (`docs/input/queue.md`).
-        for text in &agent.queued {
-            lines.extend(user_rows(text));
+        if !agent.queued.is_empty() {
+            lines.push(label_row(QUEUED_CURRENT_LABEL));
+            for text in &agent.queued {
+                lines.extend(user_rows(text));
+            }
         }
-        for text in &agent.followups {
+        if !agent.followups.is_empty() {
             divide(&mut lines);
-            lines.extend(user_rows(text));
+            lines.push(label_row(QUEUED_NEXT_LABEL));
+            for (index, text) in agent.followups.iter().enumerate() {
+                if index > 0 {
+                    divide(&mut lines);
+                }
+                lines.extend(user_rows(text));
+            }
         }
         return lines;
     }
     // What the *running* turn is about to read comes first — it is what
     // happens next. They share one undivided block: the model reads them
     // together at its next round boundary.
-    for text in &app.steered {
-        lines.extend(user_rows(text));
+    if !app.steered.is_empty() {
+        lines.push(label_row(QUEUED_CURRENT_LABEL));
+        for text in &app.steered {
+            lines.extend(user_rows(text));
+        }
     }
-    for entry in &app.queued {
+    if !app.queued.is_empty() {
         divide(&mut lines);
+        lines.push(label_row(QUEUED_NEXT_LABEL));
+    }
+    for (index, entry) in app.queued.iter().enumerate() {
+        if index > 0 {
+            divide(&mut lines);
+        }
         match entry {
             QueuedTurn::Messages { texts, .. } => {
                 for msg in texts {
@@ -382,6 +409,17 @@ pub fn footer_line(app: &App, width: u16) -> Line<'static> {
         };
         segments.push(Span::styled(FOOTER_SEPARATOR.to_string(), dim));
         segments.push(Span::styled(format!("{shells} shell{plural}"), style));
+    }
+    // The draft's keys depend on the conversation on screen. Attachments and
+    // local shell drafts cannot steer a model request, so keep their ambient
+    // footer instead of advertising a delivery route they cannot take.
+    let steerable = if app.viewed_agent().is_some() {
+        app.viewed_agent_running()
+    } else {
+        app.turn_steerable()
+    };
+    if steerable && !app.input.is_empty() && !app.shell_mode && app.images.is_empty() {
+        segments = vec![Span::styled(FOOTER_STEER_QUEUE_HINT, dim)];
     }
     let mut budget = (width as usize).saturating_sub(cols(FOOTER_INDENT) + reserved);
     let mut spans = vec![Span::raw(FOOTER_INDENT)];

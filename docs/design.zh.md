@@ -81,6 +81,15 @@ README 横幅保留午夜蓝湖面和发光的零环，用幼兽替换兜帽人�
   钟一样，由循环持有那些 `Instant`，只把算好的 `Duration` 喂给纯状态
   （`App::set_status_times`；同一个值同时驱动显示的秒数与两个动画相位）。见
   `docs/ui/status-indicator.md`。
+- **结果反馈依据事实（2026-11-17）。** 完成的模型 `bash` 单元格根据已记录的
+  `ToolRun` 显示简短执行回执；失败输出的预览保留错误尾部。没有执行元数据的旧
+  调用不增加回执行，用户 shell 命令仍显示完整输出。待处理消息用
+  `Pending current turn` 标明当前轮追加指令，用 `Queued next turn` 标明独立
+  后续回合；可向当前轮追加的草稿显示 `Enter steers · Tab queues`。成功结束且
+  记录了项目文件变更的回合，显示一次暗色的
+  `Review the current worktree with /diff` 提示。它指向整个工作区，包括已有
+  改动，不声称是本轮精确 Git 差异，也不声称测试通过。这些仅是展示变化：原始
+  工具结果和 rollout 格式不变，重建时从历史推导出相同反馈。
 - **响应式：** 每次绘制都按当前终端宽度重新换行，宽度以**显示列**计
   （`unicode-width`），所以 CJK/emoji 的换行与填充都正确。
 - **可增长的输入框。** 输入框是多行的，随文本换行向下生长（或因**Ctrl+J /

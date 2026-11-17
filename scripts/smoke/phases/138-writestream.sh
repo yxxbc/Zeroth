@@ -33,6 +33,8 @@ settled="$(wait_settled 40 "$S138" -S -80 -- -E "$SUMMARY_RE")" || fail "the dem
 expect_has "$settled" -F "Wrote 16 lines to fizzbuzz.py" "the write committed"
 expect_has "$settled" -F '1 #!/usr/bin/env python3' "the committed cell shows the file's head"
 expect_lacks "$settled" -F "Writing " "no streaming corner survives the commit"
+expect_has "$settled" -F "Review the current worktree with /diff" \
+    "the successful project-write turn has no worktree review hint"
 
 # --- the real backend, against a stub provider ---
 WS_PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"

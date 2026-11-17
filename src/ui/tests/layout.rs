@@ -375,7 +375,7 @@ fn live_height_grows_with_the_queue() {
     let q = queued_rows(&app, 40);
     let with = live_height(&app.input, 40, 24, true, 1, 0, q, 0, 0, 0, 0);
     assert_eq!(with, without + q, "the queue grows the region by its rows");
-    assert_eq!(q, 1, "one short queued message is one row");
+    assert_eq!(q, 2, "one short queued message and its target-turn label");
 }
 
 #[test]

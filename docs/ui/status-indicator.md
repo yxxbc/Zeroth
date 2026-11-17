@@ -560,3 +560,14 @@ Past the preview slot, `live_layout` starves the strip itself, and the status
 row was simply not painted — the spinner, the elapsed and the token tally gone
 with it. It freezes into the terminal's real scrollback now, like every other
 strip row the region cannot show (`docs/ui/strip-flow.md`).
+
+## Reviewing recorded project changes
+
+A successfully completed model turn with a recorded project file change adds
+one dim `Review the current worktree with /diff` line below its summary.
+The hint is derived from history on commit, replay and transcript rendering.
+Failed, unchanged, scratchpad and external file writes do not qualify; an
+interrupted or failed turn does not add the hint. It points to the entire
+current worktree, which may include pre-existing edits. It claims neither
+per-turn Git attribution nor successful verification, and runs no Git command
+at render time. Outside a repository, `/diff` retains its normal neutral notice.

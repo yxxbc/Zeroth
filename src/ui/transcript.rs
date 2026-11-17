@@ -149,9 +149,19 @@ pub fn agent_transcript_lines(app: &App, width: u16) -> Option<Vec<Line<'static>
     let mut lines = header_lines(app, width);
     lines.push(Line::default());
     let chrome_rows = lines.len();
-    for item in &run.history {
-        let (rows, _) = transcript_item_lines(item, width, app.path_display());
-        lines.extend(rows);
+    for (index, item) in run.history.iter().enumerate() {
+        if matches!(item, HistoryItem::Summary(_)) {
+            lines.extend(super::status::review_turn_summary_lines(
+                &run.history,
+                index,
+                width,
+                app.path_display(),
+            ));
+            lines.push(Line::default());
+        } else {
+            let (rows, _) = transcript_item_lines(item, width, app.path_display());
+            lines.extend(rows);
+        }
     }
     if let Some(text) = run.streaming.as_deref().filter(|text| !text.is_empty()) {
         lines.extend(message_lines(Role::Assistant, text, width));
@@ -334,12 +344,13 @@ struct TranscriptSig {
     /// no length above, and the overlay follows it like a streaming tool's
     /// output (`docs/ui/write-streaming.md`).
     drafts_revision: u64,
-    /// How many messages are waiting above the box — the follow-up entries
-    /// **and** the ones handed to the running turn. Both, because pushing onto
+    /// Separate counts for follow-up entries and messages handed to the running
+    /// turn: reclaiming a steer changes its label even when the total is equal.
+    /// Both, because pushing onto
     /// `App::steered` changes no history length and no tool queue, so a
     /// signature blind to it would leave the overlay frozen on a page that no
     /// longer matches the strip (`docs/input/queue.md`).
-    queued_len: usize,
+    queued_len: (usize, usize),
     backtrack_selected: Option<usize>,
     /// The subagent roster's mutation counter — a live agent streaming (its
     /// tree counters, its Ctrl+O cell) invalidates the tail exactly like a
@@ -367,7 +378,7 @@ impl TranscriptSig {
             ),
             tool_revision: app.tool_revision(),
             drafts_revision: app.tool_drafts().revision(),
-            queued_len: app.queued.len() + app.steered.len(),
+            queued_len: (app.queued.len(), app.steered.len()),
             backtrack_selected: app.backtrack.selected,
             agents_generation: app.agents_generation(),
         }
@@ -450,8 +461,19 @@ impl TranscriptCache {
         }
         // Append the not-yet-rendered items (all of them after a reset). The
         // generation guarantees the cached prefix is a prefix of `history`.
-        for item in app.history.get(self.items.len()..).unwrap_or(&[]) {
-            let (rows, user_rows) = transcript_item_lines(item, width, app.path_display());
+        for (index, item) in app.history.iter().enumerate().skip(self.items.len()) {
+            let (rows, user_rows) = if matches!(item, HistoryItem::Summary(_)) {
+                let mut rows = super::status::review_turn_summary_lines(
+                    &app.history,
+                    index,
+                    width,
+                    app.path_display(),
+                );
+                rows.push(Line::default());
+                (rows, None)
+            } else {
+                transcript_item_lines(item, width, app.path_display())
+            };
             self.items.push(RenderedItem {
                 rows: rows.len(),
                 user_rows,

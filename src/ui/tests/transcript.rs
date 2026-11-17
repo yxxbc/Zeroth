@@ -1173,3 +1173,27 @@ fn an_expanded_item_uses_its_transcript_form() {
     );
     assert!(is_expandable(&history[0]));
 }
+
+#[test]
+fn reclaiming_a_steer_refreshes_the_cached_pending_turn_label() {
+    let mut app = App::new();
+    app.steered.push_back("same message".into());
+    let mut cache = TranscriptCache::default();
+    let before = cache
+        .lines(&app, 80)
+        .iter()
+        .map(plain)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(before.contains("Pending current turn"), "{before}");
+    app.reclaim_steered();
+    let after = cache
+        .lines(&app, 80)
+        .iter()
+        .map(plain)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(after.contains("Queued next turn"), "{after}");
+    assert!(!after.contains("Pending current turn"), "{after}");
+    assert_eq!(cache.lines(&app, 80), transcript_lines(&app, 80).as_slice());
+}

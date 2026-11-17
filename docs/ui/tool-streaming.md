@@ -28,11 +28,11 @@ runs under** — `(9s · wait 2m)` — and it is on the live cell whatever
 the output's shape (*The clock row is always there*, below).
 
 The two states are deliberately asymmetric — while **running** you want the
-**tail** (what just happened); once **finished** you want the **head** with an
-expand hint. The tail shows the last `TOOL_PEEK_ROWS` (4) display rows; the
+**tail** (what just happened); once **finished**, successful commands show the **head** with an
+expand hint, while failures retain the head and error tail. The tail shows the last `TOOL_PEEK_ROWS` (4) display rows; the
 head **folds** at `TOOL_FOLD_ROWS` (3) rows over the hint — Claude Code's
-fold, at most the same four rows hint included — so the cell never grows when
-it settles. (It can settle *shorter*: the finished head is the output's first
+fold, at most the same four rows hint included — so the output preview never grows when
+it settles. Recorded execution facts may add a separate receipt row. (It can settle *shorter*: the finished head is the output's first
 **block**, so a blank line ends it — `docs/ui/long-lines.md`. The running tail
 keeps its blanks, being what the command just printed, and shows the output
 as printed where the settled cell reshapes a JSON line for display.)
@@ -436,3 +436,13 @@ bottom-anchors now and commits the rows it cannot paint into the terminal's own
 scrollback, frozen: the cell **scrolls**, keeping its newest rows and its
 clock row on screen while its head stays readable by scrolling up.
 See `docs/ui/strip-flow.md`.
+
+## Finished execution feedback
+
+Finished model command cells add a compact run receipt from recorded `ToolRun`
+fields: exit status, duration, and failure kind where available. Legacy calls
+with no facts add no receipt. Failed command previews retain the beginning and
+end of their output, with an exact hidden-row hint between them; successful
+commands retain the head preview. Interactive sessions, background launches and
+user shell output keep their existing display. Receipts are derived for both
+inline and expanded views; they do not modify raw output or model context.

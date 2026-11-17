@@ -548,6 +548,84 @@ pub fn summary_lines(summary: &TurnSummary, width: u16) -> Vec<Line<'static>> {
         .collect()
 }
 
+/// A recorded turn's receipt, with one review affordance when the turn
+/// successfully changed a project file. The hint describes the current
+/// worktree, never a Git diff attributed to this turn. It is derived from
+/// history so scrollback, resume and the expanded transcript agree.
+#[must_use]
+pub fn review_turn_summary_lines(
+    history: &[HistoryItem],
+    summary_index: usize,
+    width: u16,
+    paths: &PathDisplay,
+) -> Vec<Line<'static>> {
+    let Some(HistoryItem::Summary(summary)) = history.get(summary_index) else {
+        return Vec::new();
+    };
+    let mut lines = summary_lines(summary, width);
+    if turn_has_project_edit(&history[..summary_index], paths) {
+        let style = Style::new().fg(status_done_color());
+        lines.extend(
+            super::wrap::wrap_output(TURN_REVIEW_HINT, width)
+                .into_iter()
+                .map(|text| Line::from(Span::styled(text, style))),
+        );
+    }
+    lines
+}
+
+fn turn_has_project_edit(history: &[HistoryItem], paths: &PathDisplay) -> bool {
+    // file_url resolves and normalizes paths lexically using the same cwd
+    // policy as file links. An absent cwd cannot establish project ownership.
+    let Some(root) = paths.file_url(".") else {
+        return false;
+    };
+    let prefix = format!("{}/", root.trim_end_matches('/'));
+    let mut edited = false;
+    let mut saw_user = false;
+    for item in history.iter().rev() {
+        match item {
+            HistoryItem::Summary(_) | HistoryItem::Compaction(_) => break,
+            HistoryItem::Message(message) => match message.role {
+                Role::Shell => break,
+                // A failed request may have no receipt. A later user message
+                // starts a new turn; steering alone must not hide earlier edits.
+                Role::Error if saw_user => break,
+                Role::Error => return false,
+                Role::User => saw_user = true,
+                _ => {}
+            },
+            HistoryItem::Tool(tool)
+                if !tool.shell
+                    && matches!(tool.name.as_str(), "Write" | "Edit")
+                    && tool.status == ToolStatus::Ok =>
+            {
+                let changes = crate::app::edit_lines(tool);
+                let head = tool.output.lines().next().unwrap_or_default();
+                let empty_creation = tool.name == "Write"
+                    && (head.starts_with("Wrote 0 lines to ")
+                        || (head.starts_with("Created ") && head.ends_with(" (0 lines)")));
+                if (changes.added > 0 || changes.removed > 0 || empty_creation)
+                    && paths.file_url(&tool.args).is_some_and(|url| {
+                        url.starts_with(&prefix)
+                            && url::Url::parse(&url)
+                                .ok()
+                                .and_then(|url| url.to_file_path().ok())
+                                .and_then(|path| {
+                                    path.to_str().map(|path| !paths.in_scratchpad(path))
+                                })
+                                .unwrap_or(false)
+                    })
+                {
+                    edited = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    edited
+}
+
 /// A background shell's completion notice as committed lines: the coloured
 /// `●` bullet — green for a clean exit, red for a failure or a user stop —
 /// over the wrapped one-line headline (`Background command "{description}"

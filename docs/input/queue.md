@@ -15,8 +15,10 @@ finish**. The two keys carry codex's two intents:
 
 So there are two pending sets, and which key you press picks one: what the
 current turn is about to read (`App::steered`), and the follow-up turns waiting
-behind it (`App::queued`). Both render the same way above the box — a pending
-message is a pending message — and a turn that ends **before** reading what was
+behind it (`App::queued`). Above the box, steering carries a `Pending current turn` label and
+follow-up batches share a `Queued next turn` label; the message rows retain their user
+bubble styling. A steerable draft also shows `Enter steers · Tab queues` in
+the footer. A turn that ends **before** reading what was
 handed to it gives it back, so the follow-up path is also the fallback and
 nothing the user typed is ever dropped.
 

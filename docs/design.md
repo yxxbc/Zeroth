@@ -106,6 +106,18 @@ hatchling replacing the hooded figure. See `docs/ui/mascot.md`,
   the timestamp clock — the loop owns the `Instant`s and feeds the pure status
   only computed `Duration`s (`App::set_status_times`; the same value drives the
   displayed seconds and both animation phases). See `docs/ui/status-indicator.md`.
+- **Result feedback stays factual (2026-11-17).** Finished model `bash`
+  cells show a compact receipt derived from recorded `ToolRun` facts;
+  failed output previews retain the error tail. Unmeasured legacy calls
+  add no receipt, and user shell commands retain their full
+  output. Pending messages use `Pending current turn` for steering and
+  `Queued next turn` for separate follow-ups; a steerable draft explains
+  `Enter steers · Tab queues`. After a successful turn with recorded project
+  file changes, one dim `Review the current worktree with /diff` hint links
+  the result to review. It refers to the entire worktree, including existing
+  changes, and claims neither an exact per-turn Git diff nor test success.
+  These are presentation changes: raw tool results and rollout schemas stay
+  unchanged, and rebuilds derive the same feedback from history.
 - **Responsive:** every draw re-wraps to the current terminal width, measured in
   **display columns** (`unicode-width`) so CJK/emoji wrap and pad correctly.
 - **Growing input box.** The input field is multi-line and grows downward as the

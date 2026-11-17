@@ -150,7 +150,9 @@ pub fn conversation_lines_carded(
                     Some(paths),
                 )),
                 HistoryItem::Tool(t) => lines.extend(tool_lines(t, width, paths)),
-                HistoryItem::Summary(s) => lines.extend(summary_lines(s, width)),
+                HistoryItem::Summary(_) => lines.extend(super::status::review_turn_summary_lines(
+                    history, item_index, width, paths,
+                )),
                 HistoryItem::Background(n) => lines.extend(background_notice_lines(n, width)),
                 HistoryItem::AgentGroup(g) => lines.extend(agent_group_lines(g, width)),
                 HistoryItem::AgentNotice(n) => lines.extend(agent_notice_lines(n, width)),

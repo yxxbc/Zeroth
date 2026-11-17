@@ -4972,3 +4972,108 @@ fn the_strip_follows_the_apps_live_tail() {
         "the strip is sized by the same walk it is painted from"
     );
 }
+
+#[test]
+fn finished_bash_receipt_uses_recorded_facts_in_both_views() {
+    let mut call = tool(
+        "Bash",
+        "cargo check",
+        ToolStatus::Failed,
+        "Exit code: 7\nstart\nerror at end",
+    );
+    call.run = crate::stream::ToolRun {
+        exit_code: Some(7),
+        duration_ms: Some(1250),
+        error_kind: Some(crate::stream::ToolErrorKind::ToolError),
+    };
+    for lines in [
+        tool_lines(&call, 80, &PathDisplay::VERBATIM),
+        tool_full_lines(&call, 80, &PathDisplay::VERBATIM),
+    ] {
+        let text = lines.iter().map(plain).collect::<Vec<_>>().join("\n");
+        assert!(text.contains("exit 7 · 1.25s"), "{text}");
+    }
+}
+
+#[test]
+fn failed_bash_peek_keeps_the_first_and_last_output_rows() {
+    let call = tool(
+        "Bash",
+        "cargo check",
+        ToolStatus::Failed,
+        "Exit code: 1\nstart\na\nb\nc\nd\nlast error",
+    );
+    let lines = tool_lines(&call, 80, &PathDisplay::VERBATIM);
+    let text = lines.iter().map(plain).collect::<Vec<_>>().join("\n");
+    assert!(text.contains("start"), "{text}");
+    assert!(text.contains("last error"), "{text}");
+    assert!(text.contains("+3 lines"), "{text}");
+}
+
+#[test]
+fn receipts_leave_legacy_shell_and_live_cells_alone() {
+    let mut call = tool("Bash", "echo ok", ToolStatus::Ok, "ok");
+    let legacy = tool_lines(&call, 80, &PathDisplay::VERBATIM);
+    call.run.duration_ms = Some(1250);
+    call.shell = true;
+    let shell = tool_lines(&call, 80, &PathDisplay::VERBATIM);
+    assert!(!shell.iter().map(plain).any(|line| line.contains("1.25s")));
+    call.shell = false;
+    call.status = ToolStatus::Running;
+    assert!(
+        !tool_lines(&call, 80, &PathDisplay::VERBATIM)
+            .iter()
+            .map(plain)
+            .any(|line| line.contains("1.25s"))
+    );
+    assert!(!legacy.iter().map(plain).any(|line| line.contains("exit ")));
+}
+
+#[test]
+fn timed_out_bash_receipt_wraps_without_losing_the_reason() {
+    let mut call = tool("Bash", "sleep 20", ToolStatus::Failed, "timed out");
+    call.run = crate::stream::ToolRun {
+        exit_code: None,
+        duration_ms: Some(1000),
+        error_kind: Some(crate::stream::ToolErrorKind::TimedOut),
+    };
+    let wide = tool_lines(&call, 80, &PathDisplay::VERBATIM)
+        .iter()
+        .map(plain)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(wide.contains("timed out · 1s"), "{wide}");
+    let narrow = tool_lines(&call, 16, &PathDisplay::VERBATIM);
+    assert!(narrow.iter().all(|line| cols(&plain(line)) <= 16));
+    assert!(
+        narrow
+            .iter()
+            .map(plain)
+            .any(|line| line.contains("timed out"))
+    );
+}
+
+#[test]
+fn bash_receipts_leave_background_and_interactive_states_and_raw_output_alone() {
+    for status in [
+        ToolStatus::Backgrounded,
+        ToolStatus::Running,
+        ToolStatus::Waiting,
+    ] {
+        let mut call = tool("Bash", "command", status, "original output");
+        call.run.duration_ms = Some(1250);
+        let text = tool_lines(&call, 80, &PathDisplay::VERBATIM)
+            .iter()
+            .map(plain)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!text.contains("1.25s"), "{text}");
+        assert_eq!(call.output, "original output");
+    }
+    let mut call = tool("Bash", "command", ToolStatus::Ok, "original output");
+    call.run.duration_ms = Some(1250);
+    call.approval_note = Some("approved for this project".to_string());
+    let rows = tool_lines(&call, 80, &PathDisplay::VERBATIM);
+    assert!(plain(rows.last().unwrap()).contains("approved for this project"));
+    assert_eq!(call.output, "original output");
+}
