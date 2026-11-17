@@ -916,6 +916,7 @@ impl Session<'_> {
 fn opener(url: &str) -> std::process::Command {
     let mut command = std::process::Command::new("open");
     command.arg(url);
+    detach_stdio(&mut command);
     command
 }
 
@@ -923,6 +924,7 @@ fn opener(url: &str) -> std::process::Command {
 fn opener(url: &str) -> std::process::Command {
     let mut command = std::process::Command::new("cmd");
     command.args(["/C", "start", "", url]);
+    detach_stdio(&mut command);
     command
 }
 
@@ -930,5 +932,18 @@ fn opener(url: &str) -> std::process::Command {
 fn opener(url: &str) -> std::process::Command {
     let mut command = std::process::Command::new("xdg-open");
     command.arg(url);
+    detach_stdio(&mut command);
     command
+}
+
+/// A missing handler's complaint must not land on the TUI's terminal: the
+/// opener inherits this process's stdio by default, and one line of
+/// `xdg-open: no method available` written over the live region is a flash
+/// nobody asked for.
+fn detach_stdio(command: &mut std::process::Command) {
+    use std::process::Stdio;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
 }

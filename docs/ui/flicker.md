@@ -117,6 +117,8 @@ the cursor is only ever *shown* where it comes to rest:
   visible flicker (the same hide-then-show-at-rest dance ratatui does per draw).
   The mid-stream "cursor stays visible on the prompt row" behaviour is
   unchanged — between frames it is shown, on the prompt, exactly as before.
+  (The per-frame hide below has since been narrowed to frames that scroll or
+  rebuild; an ordinary diff only moves the caret. See *The caret only moves*.)
 
 ### Why deferral is safe (ordering)
 
@@ -146,6 +148,50 @@ now repainted **in place** — the blit overwrites every cell — and
 `paint_frame` blanks only the rows the previous region left below the new
 one, so no frame ever holds a boxless state, bracketed or not. Phase 121 pins
 the count of region clears at zero.
+
+## The caret only moves (2026-11-14)
+
+`draw` used to bracket **every** frame with `Hide` and `Show`. That is the
+pattern the IME- and cursor-trail-safe terminal harnesses avoid: kitty's
+`cursor_trail` reacts to the toggle, and an IME's preedit is attached to the
+cursor. The rule now:
+
+- A **visible** caret is only moved (`CUP`) — never hidden and re-shown.
+- A **hidden** caret is also only moved to its seat. It must not be left on the
+  last cell the frame wrote, or a terminal with `cursor_trail` draws a trail as
+  spinners and counters change.
+- `Hide`/`Show` are **transitions**, emitted only when the caret changes
+  visibility (a modal opens or closes, focus enters the entry field) or when a
+  frame scrolls/rebuilds the screen and would otherwise drag a shown cursor
+  across it. A scrollback flush and `reflow` still hide for their body.
+
+An ordinary keystroke therefore ships the changed cells and one cursor move —
+no `Hide`/`Show` pair. The full-screen frame follows the same rule.
+
+## Idle frames are silent (2026-11-14)
+
+The inline animation chain ticks at 32 ms while a turn runs, and `draw` used to
+paint — and *seat the cursor* — on every tick even when not one cell had
+changed. An idle `AskUserQuestion` modal recorded **34 of 35** frames whose
+whole body was `Hide` + a cursor move to the same seat. On a terminal with a
+cursor-trail animation (kitty's `cursor_trail`) those writes play as a flicker,
+and the same harnesses that do not emit them do not flicker. `draw` now builds
+a no-pending frame before any terminal I/O (`draw_still`): when the buffer and
+the cursor seat (`live_seat`) are both unchanged it returns without emitting
+even the synchronized-update bracket. Only a real change — the modal's
+once-a-second Timeout tick included — writes anything.
+
+## The overlay switch joins the frame (2026-11-14)
+
+`enter_overlay` queued `Hide`/`EnterAlternateScreen`/`Clear(All)` *before* the
+first `draw_overlay` opened its synchronized update, and `exit_overlay` flushed
+`LeaveAlternateScreen` on its own before the return repaint. Both left a
+presentable state outside the bracket: a blank alternate screen between the
+switch and its first cell, and a stale primary screen for as long as the
+catch-up frame took to build. The switch now rides inside the frame that paints
+the other side — `enter_overlay` only records it, the next `draw_overlay`
+emits it after `ESC[?2026h`, and `exit_overlay` defers the leave to the next
+`draw`/`reflow`, which emits it in the same bracket as the inline catch-up.
 
 ## Known divergences from codex
 
@@ -185,6 +231,21 @@ asserts at the **byte level** instead, where the property is exact:
   Deterministic in both directions: the pre-fix build recorded **0 hides** in
   the resize frame (`scripts/cursor_hide_check.sh` is the standalone Red→Green
   probe), the fix records the Hide before the first home/clear.
+- **Phase 160 / 161** record ten typed characters in the ask entry field, in
+  the inline and full-screen modes. The caret is visible (`cursor_flag=1`),
+  every frame is a real edit, and none may contain `Hide` or `Show`: a visible
+  caret only moves. Deterministic in both directions — the pre-fix build
+  recorded a `Hide`/`Show` pair on every typing frame; the fix records zero.
+- **Phase 159** records an idle ask modal for a second and requires no
+  `Hide`+cursor-only frame in the synchronized-update stream. Deterministic in
+  both directions — the pre-fix build recorded 34 of 35 frames pure idle; the
+  fix records zero.
+- **Phase 158** records a Ctrl+O overlay open and close (`tmux pipe-pane`) and
+  walks the stream: every `EnterAlternateScreen` (`ESC[?1049h`),
+  `LeaveAlternateScreen` (`ESC[?1049l`) and `ESC[2J` must sit between
+  `ESC[?2026h` and `ESC[?2026l`. Deterministic in both directions — the
+  pre-fix build recorded all three outside (`outside=3`); the fix records
+  zero.
 - All existing phases (streaming bottom-pin, resize, overlay round-trips,
   interrupt, queue flushes, `/clear`) exercise the deferred-flush ordering
   end to end — they prove the queued lines land, in order, with the box

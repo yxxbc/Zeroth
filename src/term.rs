@@ -107,6 +107,25 @@ pub struct InlineViewport {
     ///
     /// [`draw_overlay`]: InlineViewport::draw_overlay
     overlay_prev: Option<Buffer>,
+    /// [`enter_overlay`]'s switch is waiting for a frame: the next
+    /// [`draw_overlay`] emits `EnterAlternateScreen` + the clear **inside**
+    /// its synchronized update, so the switch and the first painted page are
+    /// one presented state. Queuing them before the bracket left a
+    /// presentable blank alternate screen between the two (the overlay's
+    /// black flash on a terminal that renders what it has parsed).
+    ///
+    /// [`enter_overlay`]: InlineViewport::enter_overlay
+    /// [`draw_overlay`]: InlineViewport::draw_overlay
+    overlay_pending_switch: bool,
+    /// [`exit_overlay`]'s leave is waiting for the return repaint: the next
+    /// inline [`draw`]/[`reflow`] emits `LeaveAlternateScreen` **inside** its
+    /// synchronized update, so the switch back and the inline catch-up are
+    /// one presented state instead of a flushed stale primary screen.
+    ///
+    /// [`exit_overlay`]: InlineViewport::exit_overlay
+    /// [`draw`]: InlineViewport::draw
+    /// [`reflow`]: InlineViewport::reflow
+    overlay_pending_leave: bool,
     /// Lines queued by [`insert_before`] awaiting the next frame (codex's
     /// `pending_history_lines`): [`draw`] writes them above the viewport inside
     /// the same synchronized update as the live-region repaint, so scrollback
@@ -147,6 +166,14 @@ pub struct InlineViewport {
     /// [`modal_scrolled`]: InlineViewport::modal_scrolled
     /// [`take_modal_scrolled`]: InlineViewport::take_modal_scrolled
     modal_scrolled: bool,
+    /// The inline cursor seat `(x, y, visible)` the last painted frame left —
+    /// the inline twin of the screen-owning mode's `full_seat`. An unchanged
+    /// frame whose seat is also unchanged emits **nothing at all**: no
+    /// synchronized-update bracket, no `Hide`, no cursor move. Without it the
+    /// animation chain's 32 ms ticks redrew an unchanged live region forever,
+    /// and a terminal with a cursor-trail animation (kitty's `cursor_trail`)
+    /// played the repeated seat as a flicker even though not one cell moved.
+    live_seat: Option<(u16, u16, bool)>,
     /// The screen row just below the live region as it was last **painted**
     /// ([`paint_frame`] records it; every `scroll_up` carries it along, since
     /// the painted rows move with the screen) — unlike `view.height`, immune
@@ -351,8 +378,11 @@ impl InlineViewport {
             view,
             prev: None,
             overlay_prev: None,
+            overlay_pending_switch: false,
+            overlay_pending_leave: false,
             pending: Vec::new(),
             modal_scrolled: false,
+            live_seat: None,
             painted_bottom: top.saturating_add(height),
             keyboard_enhanced,
             hyperlinks: !links::hyperlinks_disabled(
@@ -469,8 +499,12 @@ impl InlineViewport {
         if matches!(paint, OverlayPaint::Unchanged) && self.full_seat == Some((x, y, visible)) {
             return Ok(());
         }
+        // Like the inline path and the other harnesses, never hide-then-show
+        // on every frame: a visible caret is only moved, a hidden one stays
+        // hidden. The hide is a transition, not a frame ritual (kitty's
+        // cursor trail and an IME's preedit both react to the toggle).
+        let was_visible = self.full_seat.map(|(_, _, shown)| shown);
         queue!(self.backend, BeginSynchronizedUpdate)?;
-        queue!(self.backend, Hide)?;
         let drawn = match paint {
             OverlayPaint::Unchanged => Ok(()),
             OverlayPaint::Diff(updates) => self.draw_cells(updates.into_iter()),
@@ -481,7 +515,13 @@ impl InlineViewport {
         };
         let seated = self.backend.set_cursor_position(Position::new(x, y));
         let shown = if visible {
-            queue!(self.backend, Show)
+            if was_visible != Some(true) {
+                queue!(self.backend, Show)
+            } else {
+                Ok(())
+            }
+        } else if was_visible != Some(false) {
+            queue!(self.backend, Hide)
         } else {
             Ok(())
         };
@@ -539,8 +579,11 @@ impl InlineViewport {
             view: Rect::new(0, 0, width, 1),
             prev: None,
             overlay_prev: None,
+            overlay_pending_switch: false,
+            overlay_pending_leave: false,
             pending: Vec::new(),
             modal_scrolled: false,
+            live_seat: None,
             painted_bottom: 1,
             keyboard_enhanced: false,
             hyperlinks: false,
@@ -681,17 +724,27 @@ impl InlineViewport {
             return Ok(());
         }
         let height = height.clamp(1, self.screen.height.max(1));
-        // Emit the whole frame inside a synchronized update (BSU/ESU, DEC mode 2026):
-        // the terminal buffers everything between the markers and swaps it in one
-        // atomic step, so neither a fast burst of keystrokes nor a scrollback commit
-        // ever shows a half-painted frame, a missing box, or the cursor mid-flight.
-        // This is the trick codex wraps its draws in. Terminals lacking 2026 ignore
-        // the markers. `EndSynchronizedUpdate` is always *queued* (before the
-        // `painted?` short-circuit below) so a clean frame closes the update; if a
-        // write fails mid-frame the ESU may go unflushed with the cursor still
-        // hidden, but that error unwinds the loop and `restore()` flushes + shows
-        // the cursor microseconds later, so the terminal is never left that way.
-        queue!(self.backend, BeginSynchronizedUpdate)?;
+        // Nothing is queued above the region: build the frame before touching
+        // the terminal, so a frame whose cells and cursor seat are both
+        // unchanged emits nothing at all (see `live_seat`). The animation
+        // chain ticks at 32 ms while a turn runs; a still ask modal or an idle
+        // composer must not write a `Hide` + cursor move on every tick.
+        if self.pending.is_empty() {
+            return self.draw_still(height, render, app);
+        }
+        // A queued scrollback commit: emit the whole frame inside a
+        // synchronized update (BSU/ESU, DEC mode 2026) — the terminal buffers
+        // everything between the markers and swaps it in one atomic step, so
+        // neither a fast burst of keystrokes nor a scrollback commit ever
+        // shows a half-painted frame, a missing box, or the cursor mid-flight.
+        // This is the trick codex wraps its draws in. Terminals lacking 2026
+        // ignore the markers. `EndSynchronizedUpdate` is always *queued*
+        // (before the `painted?` short-circuit below) so a clean frame closes
+        // the update; if a write fails mid-frame the ESU may go unflushed with
+        // the cursor still hidden, but that error unwinds the loop and
+        // `restore()` flushes + shows the cursor microseconds later, so the
+        // terminal is never left that way.
+        self.begin_frame()?;
         // Hide the hardware cursor for the duration of the frame, before any
         // scroll (`flush_pending`'s `write_above`) or cell blit moves it — the
         // frame's closing `paint_frame` re-seats it on the prompt row and shows
@@ -757,8 +810,64 @@ impl InlineViewport {
         let mut buf = Buffer::empty(self.view);
         render(self.view, &mut buf);
         self.images.stamp(&mut buf);
-        self.paint_frame(&buf, &repin, height, app)?;
+        self.paint_frame(&buf, &repin, height, app, true)?;
         Ok(buf)
+    }
+
+    /// Open one synchronized frame — and, on an overlay return, leave the
+    /// alternate screen inside it (see `overlay_pending_leave`). Split out so
+    /// every frame that paints the inline screen shares the same bracket.
+    fn begin_frame(&mut self) -> io::Result<()> {
+        queue!(self.backend, BeginSynchronizedUpdate)?;
+        if self.overlay_pending_leave {
+            queue!(self.backend, LeaveAlternateScreen)?;
+            self.overlay_pending_leave = false;
+            OVERLAY_ACTIVE.store(false, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+
+    /// One inline frame with nothing queued above the region. The frame is
+    /// built **before** any terminal I/O, so an unchanged buffer with an
+    /// unchanged cursor seat can return without emitting even the
+    /// synchronized-update bracket. That silence is what keeps an idle ask
+    /// modal or composer still: the old path hid the cursor and re-seated it
+    /// on every 32 ms animation tick, which a terminal with a cursor-trail
+    /// animation draws as a flicker (the full-screen mode's `full_seat` makes
+    /// the same decision).
+    fn draw_still(
+        &mut self,
+        height: u16,
+        render: impl FnOnce(Rect, &mut Buffer),
+        app: &App,
+    ) -> io::Result<()> {
+        let repin = ui::repin(self.view.y, self.view.height, height, self.screen.height);
+        let view = Rect::new(0, repin.top, self.screen.width, height);
+        let mut buf = Buffer::empty(view);
+        render(view, &mut buf);
+        self.images.stamp(&mut buf);
+        let (x, y) = ui::cursor_position(view, app);
+        let visible = ui::cursor_visible(app);
+        if repin.scroll_up == 0
+            && repin.clear_below == 0
+            && self
+                .prev
+                .as_ref()
+                .is_some_and(|prev| prev.area == view && prev.diff(&buf).is_empty())
+            && self.live_seat == Some((x, y, visible))
+        {
+            return Ok(());
+        }
+        self.begin_frame()?;
+        if ui::region_is_modal(app) && repin.scroll_up > 0 {
+            self.modal_scrolled = true;
+        }
+        self.view = view;
+        self.paint_frame(&buf, &repin, height, app, false)?;
+        let ended = queue!(self.backend, EndSynchronizedUpdate);
+        self.prev = Some(buf);
+        ended?;
+        Backend::flush(&mut self.backend)
     }
 
     /// Paint one already-rendered frame `buf` to the backend: scroll as `repin`
@@ -792,7 +901,24 @@ impl InlineViewport {
         repin: &ui::Repin,
         height: u16,
         app: &App,
+        force_show: bool,
     ) -> io::Result<()> {
+        // `force_show` says the caller hid the cursor for this frame (a
+        // scrollback flush or a reflow), so the Show below is mandatory.
+        // Otherwise the cursor is hidden only when the frame itself moves it
+        // across the screen — a scroll, a shrink, or a full repaint. An
+        // ordinary diff never hides: the cursor is simply seated at its new
+        // place, the model the IME- and cursor-trail-safe harnesses use
+        // (hide-then-show every frame is what makes kitty's trail and fcitx's
+        // preedit flicker).
+        let was_visible = self.live_seat.map(|(_, _, visible)| visible);
+        let full_repaint = self.prev.as_ref().is_none_or(|prev| prev.area != buf.area);
+        let hidden = force_show
+            || ((full_repaint || repin.scroll_up > 0 || repin.clear_below > 0)
+                && was_visible != Some(false));
+        if hidden && !force_show {
+            queue!(self.backend, Hide)?;
+        }
         self.scroll_up(repin.scroll_up)?;
         let bottom = repin.top.saturating_add(height);
         match &self.prev {
@@ -832,9 +958,21 @@ impl InlineViewport {
         // the frame-start Hide simply stands, and the cursor stays away for as
         // long as the options do. It is still *seated* above, so its return
         // when the prompt closes starts from a sensible row.
-        if ui::cursor_visible(app) {
-            queue!(self.backend, Show)?;
+        let visible = ui::cursor_visible(app);
+        // Show/Hide only on a transition or when this frame hid the cursor —
+        // never both on every frame. A visible caret that stays visible just
+        // moves; a hidden caret just moves.
+        if visible {
+            if hidden || was_visible != Some(true) {
+                queue!(self.backend, Show)?;
+            }
+        } else if !hidden && was_visible != Some(false) {
+            queue!(self.backend, Hide)?;
         }
+        // What an identical next frame compares its seat against (see
+        // `live_seat`) — recorded here, at the one place every inline frame
+        // seats the cursor.
+        self.live_seat = Some((x, y, visible));
         Ok(())
     }
 
@@ -1085,7 +1223,9 @@ impl InlineViewport {
         // keeps every rebuild source honest — the resize purge and the
         // Ctrl+O / Ctrl+D / agent-view returns alike (`docs/state/permissions.md`).
         self.modal_scrolled |= ui::region_is_modal(app);
-        queue!(self.backend, BeginSynchronizedUpdate)?;
+        // An overlay return rides this frame's bracket (see [`draw`]): the
+        // switch back and the rebuilt inline screen are one presented state.
+        self.begin_frame()?;
         // Hide the cursor before the rebuild (see [`draw`]): a reflow homes the
         // cursor to the top (`clear_scrollback_and_screen`'s `ESC[H`, or
         // `write_above`'s scroll) before `paint_frame` re-seats it on the prompt.
@@ -1134,7 +1274,7 @@ impl InlineViewport {
         let mut buf = Buffer::empty(self.view);
         render(self.view, &mut buf);
         self.images.stamp(&mut buf);
-        self.paint_frame(&buf, &repin, height, app)?;
+        self.paint_frame(&buf, &repin, height, app, true)?;
         Ok(buf)
     }
 
@@ -1160,42 +1300,37 @@ impl InlineViewport {
         // the exit paths still emit a LeaveAlternateScreen (harmless when the
         // terminal never actually switched) rather than risk stranding it.
         OVERLAY_ACTIVE.store(true, Ordering::SeqCst);
-        // QUEUE the whole switch — no flush: the caller paints the first
-        // overlay frame right after ([`draw_overlay`]), whose flush delivers
-        // the switch and the painted frame as one write, so the terminal hops
-        // from the live inline frame straight to the finished overlay. The old
-        // flush-then-build order parked the terminal on a blank alternate
-        // screen for as long as the first frame took to build — long enough on
-        // a big resumed session for kitty's cursor-trail animation to streak
-        // up the empty screen before the overlay appeared (and the build now
-        // stalls with the inline view still intact instead of a black hole).
-        // The cursor Hide leads the switch so no flushed state ever shows it
-        // mid-hop: the overlay never displays a cursor ([`draw_overlay`]
-        // re-asserts the hide), and the inline reflow re-seats it on the
-        // prompt after [`exit_overlay`].
+        // Do NOT write the switch here. The caller paints the first overlay
+        // frame right after ( [`draw_overlay`] ); the switch and the
+        // `Clear(All)` ride **inside that frame's synchronized update**, so
+        // the terminal hops from the live inline frame straight to the
+        // finished overlay with no presentable blank alternate screen in
+        // between. Queuing them before the bracket was the overlay's black
+        // flash on a terminal that renders what it has parsed.
         //
         // [`draw_overlay`]: InlineViewport::draw_overlay
-        // [`exit_overlay`]: InlineViewport::exit_overlay
-        queue!(
-            self.backend,
-            Hide,
-            EnterAlternateScreen,
-            CrosstermClear(CrosstermClearType::All)
-        )?;
+        if std::mem::take(&mut self.overlay_pending_leave) {
+            // A previous overlay closed without its return repaint yet: the
+            // screen is still the alternate one, so entering again needs a
+            // full paint, not another switch and clear.
+            self.overlay_pending_switch = false;
+        } else {
+            self.overlay_pending_switch = true;
+            // The pictures don't come along (`docs/ui/images.md`): kitty keeps
+            // a *separate image store per screen buffer*, so one transmitted
+            // on the primary screen is not addressable from the alternate one
+            // and its placeholders resolve to nothing — reserved rows with no
+            // picture in them. Following the switch is what makes the first
+            // overlay frame transmit afresh onto *this* screen.
+            self.images.enter_screen(true);
+        }
         self.prev = None; // the inline view isn't on screen now
-        // …and the Clear(All) queued above blanks the alternate screen, so the
-        // previous overlay frame no longer describes it: the next
-        // [`draw_overlay`] must paint every cell before it can diff again.
+        // The clear blanks the alternate screen, so the previous overlay frame
+        // no longer describes it: the next [`draw_overlay`] must paint every
+        // cell before it can diff again.
         //
         // [`draw_overlay`]: InlineViewport::draw_overlay
         self.overlay_prev = None;
-        // The pictures don't come along either (`docs/ui/images.md`): kitty keeps
-        // a *separate image store per screen buffer*, so one transmitted on
-        // the primary screen is not addressable from the alternate one and
-        // its placeholders resolve to nothing — reserved rows with no picture
-        // in them. Following the switch is what makes the first overlay frame
-        // transmit afresh onto *this* screen.
-        self.images.enter_screen(true);
         Ok(())
     }
 
@@ -1215,10 +1350,25 @@ impl InlineViewport {
             self.full_seat = None;
             return Ok(());
         }
-        execute!(self.backend, LeaveAlternateScreen)?;
-        // Cleared only once the leave was actually written — on failure the
-        // flag stays set and restore()/the panic hook retry the leave.
-        OVERLAY_ACTIVE.store(false, Ordering::SeqCst);
+        if self.overlay_pending_switch {
+            // The switch never reached a frame, so the primary screen is
+            // still the one showing: there is nothing to leave.
+            self.overlay_pending_switch = false;
+            self.overlay_pending_leave = false;
+            OVERLAY_ACTIVE.store(false, Ordering::SeqCst);
+            self.prev = None;
+            self.overlay_prev = None;
+            self.images.enter_screen(false);
+            return Ok(());
+        }
+        // Leave on the return repaint's synchronized update instead of
+        // flushing the switch here: the primary screen would otherwise be
+        // presented stale (a whole turn may have committed under the overlay)
+        // for as long as the catch-up frame takes to build and write.
+        // `draw`/`reflow` emit the leave inside their bracket and clear
+        // `OVERLAY_ACTIVE` once it is written; `restore` still leaves the
+        // screen if the session dies before that frame.
+        self.overlay_pending_leave = true;
         self.prev = None; // returning to a screen the inline view will repaint
         // The alternate screen is gone; a re-entry clears it and starts over.
         self.overlay_prev = None;
@@ -1226,7 +1376,7 @@ impl InlineViewport {
         // touched — so its encodings are still good and the return costs no
         // upload at all (`docs/ui/images.md`).
         self.images.enter_screen(false);
-        Backend::flush(&mut self.backend)
+        Ok(())
     }
 
     /// Paint a full-screen `render` onto the alternate screen (used for the
@@ -1260,13 +1410,22 @@ impl InlineViewport {
         // Stamp before the diff, so the baseline describes the picture too and
         // a still page stays silent (`docs/ui/images.md`, `docs/ui/overlay-repaint.md`).
         self.images.stamp(&mut buf);
-        let paint = overlay_paint(self.overlay_prev.as_ref(), &buf);
+        // A pending `EnterAlternateScreen` makes this the first frame on the
+        // new screen: there is no comparable baseline, and the switch + clear
+        // must ride inside the synchronized update below (see
+        // `overlay_pending_switch`).
+        let switching = self.overlay_pending_switch;
+        let paint = if switching {
+            OverlayPaint::Full
+        } else {
+            overlay_paint(self.overlay_prev.as_ref(), &buf)
+        };
         // Nothing moved: emit NOTHING. Not a cell, not a synchronized-update
         // bracket, not a cursor move — the whole point is that a terminal
         // holding a selection over this page sees no write at all. (Skipping
         // the Hide here is safe: the alternate screen is always entered with a
         // Full frame right behind it, which asserts it.)
-        if matches!(paint, OverlayPaint::Unchanged) {
+        if !switching && matches!(paint, OverlayPaint::Unchanged) {
             return Ok(());
         }
         // The policy seat for the hidden cursor: just past the frame's last
@@ -1275,6 +1434,18 @@ impl InlineViewport {
         // Atomic frame (see `draw`): the overlay swaps in one shot, so scrolling it
         // never tears.
         queue!(self.backend, BeginSynchronizedUpdate)?;
+        if switching {
+            // The switch and its clear are part of THIS frame, not escapes
+            // queued before it: a terminal that renders what it has parsed
+            // could otherwise present the blank alternate screen between the
+            // switch and the first cell (the overlay's black flash).
+            queue!(
+                self.backend,
+                Hide,
+                EnterAlternateScreen,
+                CrosstermClear(CrosstermClearType::All)
+            )?;
+        }
         // Keep the cursor hidden while painting the overlay — [`enter_overlay`]
         // already hid it, but re-assert here so a terminal that resets cursor
         // visibility on the buffer switch can't leave it visible to trail across
@@ -1309,7 +1480,11 @@ impl InlineViewport {
         // Keep this frame as the next one's baseline — but only if it landed
         // whole. A write that failed part-way leaves the alternate screen in a
         // state no buffer describes, so drop the baseline and let the next
-        // frame repaint in full rather than diff against a fiction.
+        // frame repaint in full rather than diff against a fiction. A failed
+        // switch stays pending so the next frame retries it.
+        if painted.is_ok() {
+            self.overlay_pending_switch = false;
+        }
         self.overlay_prev = painted.is_ok().then_some(buf);
         painted
     }

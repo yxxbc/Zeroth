@@ -24,6 +24,35 @@ release heading when a version is cut.
   changes offer `/diff` to review the current worktree without attributing
   existing changes or claiming checks passed.
 
+### Fixed
+
+- **Typing and clicking no longer hide and re-show the caret every frame.** A
+  visible caret is now only moved, and a hidden one is only moved to its seat;
+  `Hide`/`Show` happen on a visibility transition or when a frame scrolls or
+  rebuilds the screen. The old `Hide` … `Show` pair on every edit made kitty's
+  cursor trail and an IME's preedit flicker. The full-screen frame follows the
+  same rule (`docs/ui/flicker.md`, smoke Phases 160/161).
+
+- **An idle ask modal no longer flickers.** The inline animation chain used to
+  hide and re-seat the cursor every 32 ms even when the live region was
+  unchanged — an idle `AskUserQuestion` modal wrote 34 Hide+cursor-only frames
+  in 35 ticks. On a terminal with a cursor-trail animation that plays as a
+  flicker. An unchanged frame now emits nothing at all (`docs/ui/flicker.md`,
+  smoke Phase 159).
+
+- **Opening and closing an alternate-screen page no longer flashes.** Ctrl+O,
+  Ctrl+D, `/resume` and `/diff` used to queue the alternate-screen switch and
+  its clear *before* the first frame's synchronized update, and flush the
+  leave on its own before the inline catch-up — a presentable blank screen
+  between the switch and its first cell, and a stale one while the return
+  repainted. Both switches now ride inside the frame that paints the other
+  side (`docs/ui/flicker.md`, smoke Phase 158).
+
+- **A link opener's complaint can no longer land on the TUI.** The
+  `open`/`xdg-open`/`cmd start` child inherited this process's stdout/stderr,
+  so a failed handler wrote its error over the live region. Its stdio is
+  detached now.
+
 ## [0.19.0] - 2026-11-13
 
 ### Added

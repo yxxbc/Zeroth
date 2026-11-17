@@ -1,0 +1,63 @@
+{
+  "artifact": "about.html",
+  "world": "digital-design-canon-teletext-weather-mosaic",
+  "seededFrom": {
+    "seedReference": "seed:03ae98d3cd6b055c",
+    "mode": "persuade",
+    "buildPath": "code"
+  },
+  "tokens": {
+    "elevation": [
+      "0 18px 44px -28px #000000CC"
+    ],
+    "motion": [
+      {
+        "name": "receipt-stamp",
+        "duration": "0.6s",
+        "easing": "cubic-bezier(.16,.84,.24,1)",
+        "delay": "0.25s",
+        "note": "the page's only authored moment; disabled under prefers-reduced-motion"
+      },
+      {
+        "name": "scroll-behavior",
+        "duration": "auto",
+        "note": "smooth, disabled under prefers-reduced-motion"
+      }
+    ],
+    "focusRing": "2px solid #5FE0DC, offset 3px",
+    "selection": {
+      "background": "#5FE0DC",
+      "color": "#07080A"
+    },
+    "grid": {
+      "columns": 40,
+      "cell": "calc(100% / 40)",
+      "seamEvery": 8,
+      "scanlinePeriod": "2px"
+    },
+    "fonts": [
+      {
+        "family": "Zeroth Broadcast",
+        "source": "assets/fonts/zeroth-broadcast.otf",
+        "licence": "SIL OFL 1.1 (assets/fonts/OFL.txt); base face 得意黑 / Smiley Sans by atelierAnchor; renamed per the Reserved Font Name clause",
+        "subset": "79 glyphs",
+        "delivery": "base64 @font-face, embedded"
+      },
+      {
+        "family": "system Chinese sans",
+        "source": "platform",
+        "note": "body copy only"
+      },
+      {
+        "family": "system mono",
+        "source": "platform",
+        "note": "code, numerals, short labels"
+      }
+    ]
+  },
+  "rasterProvenance": {
+    "assets/fonts/zeroth-broadcast.otf": "subset of SmileySans-Oblique.otf to this page's display characters; renamed to Zeroth Broadcast",
+    ".impeccable/mocks/decision/*.png": "direction round comps, gpt-image-2.5, prompt sidecars alongside"
+  },
+  "defectsNotCanonized": []
+}

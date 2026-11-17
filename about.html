@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#07080A">
+<title>Zeroth — 跑在终端里的编码代理</title>
+<meta name="description" content="Zeroth 是终端里的 AI 编码代理：读代码、做改动、跑验证，每一步都摊开给你看。">
+<style>
+  /* 显示字体：得意黑（atelierAnchor，OFL 1.1）按本页用字裁到 79 字形，
+     按 OFL 的保留名条款改名后自托管。正文不接它——中文字形是海报/广播体，
+     只用于大标题，正文继续走系统黑体以免读起来累。 */
+  @font-face {
+    font-family: "Zeroth Broadcast";
+    font-style: normal;
+    font-weight: 400 900;
+    font-display: swap;
+    src: url(data:font/otf;base64,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dW5pNTQwRXVuaTU2Njh1bmk1NzI4dW5pNUI1N3VuaTVCODN1bmk1REYxdW5pNUUyRXVuaTVFOEZ1bmk2MEYzdW5pNjI4QXVuaTYzMDl1bmk2M0E1dW5pNjczQXVuaTY3RDN1bmk2OTVBdW5pNkJCNXVuaTZFMDV1bmk2RTMydW5pNzQwNnVuaTc2ODR1bmk3ODAxdW5pN0FFRnVuaTdFQzh1bmk3RjE2dW5pODFFQXVuaThCRDV1bmk4RDcwdW5pOEREMXVuaThGRDl1bmk5MDEwdW5pOTBBM3VuaTkxQ0N1bmk5NUVFdW5pOTc2MnVuaTk4N0F1bmk5ODk4dW5pMzAwMXVuaUZFMTF1bmkzMDAydW5pRkUxMnVuaUZGMUF1bmlGRjBDdW5pRkYwMXVuaUZGMUZ1bmlGRjFCdW5pRkUxMHVuaTJFM0F1bmlGRTMxdW5pMkUzQS52ZXJ0dW5pMzAwQ3VuaTMwMER1bmkzMDBBdW5pMzAwQnVuaUZFNDF1bmlGRTQydW5pRkUzRHVuaUZFM0V1bmlGRjA4dW5pRkYwOXVuaUZFMzV1bmlGRTM2Mi4wQ29weXJpZ2h0IENvcHlyaWdodCAyMDIyPzIwMjQgYXRlbGllckFuY2hvci4gQWxsIHJpZ2h0cyByZXNlcnZlZC5TbWlsZXkgU2FucyBPYmxpcXVlU21pbGV5IFNhbnMAhwIAAQAHAA0AEgAYAB0AIwApAC8ANQA7AEEARwBNAFIAVwBdAGMAaQBvAHQAegCCAIoAkACWAJwAoQCnAK0AtwC7AMAA1ADbAOQA6gDyAPsBBAEdAS4BOgFQAWUBcQF/AYcBjAGRAZYBmwGgAaUBqgGvAbQBuQG+AcMByAHNAdIB1wHcAeEB5gHrAfAB9QH6Af8CBAIJAg4CFAIZAh4CIwIoAi4CMwI4Aj0CQgJHAk0CUgJXAl0CYgJnAm0CcwJ4An0CgwKIAo4ClAKZAp4CowKoAq0CswK5Ar4CxALxAwMDGgMgAysDOwNPA1sDZAN0A3wDhQOeA9AD5AQEBBwEMAREBFgEagR8BIwEmwSpBLcExAZ6+zAFCwZ9+xUFCwX7DgYLFZn3GAULBfsSBgsGmvcmBQsGpveRBQsGmfcXBQsVmPcRBQsGevs0BQsGYPwqBQsGZvvuBQsGeftCBQsF92wGCwX3bgYLBp73SwULBm/7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) format("opentype");
+  }
+
+  :root {
+    color-scheme: dark;
+
+    /* 接收机的地面：近黑，面板比地面高一档，分隔线只做一格的亮度。 */
+    --ground: #07080A;
+    --panel: #0C0E11;
+    --panel-2: #101318;
+    --rule: #313A45;
+    --rule-soft: #1F262F;
+    /* 单元格网的两档：格线本身，和每隔八格的一条更亮的缝。 */
+    --cell: #161C24;
+    --cell-major: #2A3340;
+
+    /* 中性阶（奶油白到灰）：文字全部落在这条阶上。 */
+    --ink: #EDE7D6;
+    --ink-2: #C6C2B4;
+    --ink-3: #9BA3AD;
+
+    /* 全页唯一强调色，只花在四处：页号、主按钮、章节号、当前区块的标记条。 */
+    --accent: #5FE0DC;
+
+    /* 状态色只在实录里出现，因为它们携带语义，不是装饰。 */
+    --ok: #8FD08A;
+    --warn: #E2B45C;
+    --bad: #E0705F;
+
+    --sans: "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC",
+            "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+    --display: "Zeroth Broadcast", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas,
+            "Liberation Mono", monospace;
+
+    /* 40 格骨架：所有面板边缘、分隔线、区块起点都落在格线上。 */
+    --u: calc(100% / 40);
+    --gutter: clamp(16px, 4vw, 56px);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  /* 单元材料：这是这个世界唯一的装饰，也是它的身体。
+     一层 40 列 x 24px 的格线，加一层两格高的水平扫描线，全部画在 body
+     的背景上，任何面板都盖在它上面而不是另起一张皮。 */
+  body {
+    margin: 0;
+    color: var(--ink-2);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--ground);
+    background-image:
+      /* 扫描线：每 2px 一条 1px 的极暗行，模拟逐行刷新的电子束 */
+      repeating-linear-gradient(
+        to bottom,
+        #FFFFFF05 0 1px,
+        transparent 1px 2px
+      ),
+      /* 主格线：每 8 格一条，稍亮 */
+      repeating-linear-gradient(
+        to right,
+        var(--cell-major) 0 1px,
+        transparent 1px calc(var(--u) * 8)
+      ),
+      /* 次格线：每格一条 */
+      repeating-linear-gradient(
+        to right,
+        var(--cell) 0 1px,
+        transparent 1px var(--u)
+      );
+    background-attachment: fixed, scroll, scroll;
+  }
+
+  ::selection { background: var(--accent); color: var(--ground); }
+
+  a { color: var(--ink); text-decoration: none; }
+  a:hover { color: var(--accent); }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .page { width: min(1180px, 100% - var(--gutter) * 2); margin-inline: auto; }
+
+  /* ── 网格 ───────────────────────────────────────────────── */
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(40, minmax(0, 1fr));
+    column-gap: 0;
+  }
+
+  /* ── 报头 ───────────────────────────────────────────────── */
+
+  .masthead {
+    align-items: center;
+    padding: 18px 0 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .mark {
+    grid-column: 1 / span 3;
+    display: block;
+    width: 34px;
+    height: 34px;
+  }
+  .mark rect { fill: var(--ink); }
+
+  .wordmark {
+    grid-column: 4 / span 9;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: .22em;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .service {
+    grid-column: 14 / span 16;
+    font-size: .76rem;
+    letter-spacing: .05em;
+    color: var(--ink-3);
+    line-height: 1.5;
+  }
+  .pager {
+    grid-column: 33 / span 8;
+    justify-self: end;
+    text-align: right;
+    font-family: var(--mono);
+    font-size: .78rem;
+    letter-spacing: .1em;
+    color: var(--ink-3);
+    line-height: 1.5;
+  }
+  .pager b {
+    display: block;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--accent);
+  }
+
+  /* ── 首屏 ──────────────────────────────────────────────── */
+
+  .hero {
+    padding: clamp(34px, 5vw, 62px) 0 clamp(42px, 5.4vw, 66px);
+    align-items: start;
+    border-bottom: 1px solid var(--rule);
+  }
+  .hero-copy { grid-column: 1 / span 23; padding-right: clamp(0px, 2vw, 24px); }
+
+  h1 {
+    margin: 0 0 .5em;
+    font-family: var(--display);
+    font-size: clamp(2.6rem, 7.4vw, 5.4rem);
+    line-height: 1.06;
+    font-weight: 400;
+    letter-spacing: .01em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  .lede {
+    margin: 0 0 1.35em;
+    max-width: 34em;
+    font-size: 1rem;
+    color: var(--ink-2);
+    text-wrap: pretty;
+  }
+
+  /* 接收状态：这个世界自己的条件面板语法，三行全是事实。 */
+  .status {
+    grid-column: 1 / span 40;
+    margin: clamp(20px, 2.6vw, 28px) 0 0;
+    border-top: 1px solid var(--rule);
+  }
+  .status > div {
+    display: block;
+    padding: 11px 0 12px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .status > div:nth-child(1) { grid-column: 1 / span 13; }
+  .status > div:nth-child(2) { grid-column: 14 / span 13; padding-left: 16px; }
+  .status > div:nth-child(3) { grid-column: 27 / span 14; padding-left: 16px; }
+  .status dt {
+    font-family: var(--mono);
+    font-size: .78rem;
+    letter-spacing: .1em;
+    color: var(--ink-3);
+    line-height: 1.6;
+    margin-bottom: 2px;
+  }
+  .status dd {
+    margin: 0;
+    font-size: .88rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+
+  /* 500 段里那一条同样的命令：与首屏同一套规则——单行、可横向滑。
+     选择器要压过 `code` 那条通用的 pre-wrap，所以带 .cmd。 */
+  .cmd.cmd-wide code {
+    font-size: .78rem;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+  }
+
+  /* 主操作：全页唯一的实心色块，就在首屏、就在文案下面。 */
+  .act {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: clamp(22px, 3vw, 32px);
+  }
+  /* 命令独享一整列宽：按钮若与它同行会吃掉 167px，那条 URL 就会在一个
+     token 中间折断——它是页面让人去信任的东西，不能读起来像坏的。 */
+  .act .cmd { flex: 1 1 100%; }
+  /* 整条命令一行读完：字号收到 11px，实测 530px < 562px 的可用宽度
+     （1440 视口下首屏左栏整列）。窄屏由下面的断点放开横向滚动。 */
+  .act .cmd code {
+    font-size: .79rem;
+    padding: 0;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .act .copy { flex: 0 0 auto; height: 46px; }
+  .act .note { flex: 1 1 100%; margin-top: 2px; }
+  .cmd {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    min-width: 0;
+    padding: 0 14px;
+    border: 1px solid var(--rule);
+    background: var(--panel);
+  }
+  .cmd code {
+    display: block;
+    width: 100%;
+    padding: 12px 0;
+    font-family: var(--mono);
+    font-size: .82rem;
+    line-height: 1.75;
+    color: var(--ink-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .cmd code .sig { color: var(--ink-3); }
+
+  .copy {
+    padding: 0 18px;
+    min-height: 46px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--ground);
+    font: 700 .88rem var(--sans);
+    letter-spacing: .04em;
+    cursor: pointer;
+  }
+  .copy:hover { background: #7BEBE7; border-color: #7BEBE7; }
+  .copy:active { background: #4ED2CE; }
+  .copy:disabled { opacity: .65; cursor: default; }
+
+  .flag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .06em;
+    color: var(--ink-3);
+    vertical-align: 1px;
+  }
+
+  .note {
+    margin: 12px 0 0;
+    font-size: .8rem;
+    color: var(--ink-3);
+    min-height: 1.4em;
+  }
+
+  /* 广播窗：实录就在这一格里。 */
+  .window { grid-column: 24 / span 17; }
+
+  .panel {
+    border: 1px solid var(--rule);
+    background:
+      radial-gradient(120% 90% at 50% 0%, #13192210 0%, transparent 70%),
+      var(--panel);
+    box-shadow: 0 18px 44px -28px #000000CC;
+  }
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: .78rem;
+    letter-spacing: .04em;
+    color: var(--ink-3);
+  }
+  .panel-head b { color: var(--ink-2); font-weight: 500; }
+
+  .transcript {
+    margin: 0;
+    padding: 14px 14px 16px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: .76rem;
+    line-height: 1.9;
+    color: var(--ink-2);
+    tab-size: 2;
+  }
+  /* 行由源码换行给出；只有顶层行是块，内层着色 span 必须留行内，
+     否则 `● Read(path)` 会被拆成四行。 */
+  .transcript > span { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .transcript .t { color: var(--accent); }
+  .transcript .u { color: var(--ink); }
+  .transcript .d { color: var(--ink-3); }
+  .transcript .ok { color: var(--ok); }
+  .transcript .er { color: var(--bad); }
+
+  /* ── 页索引 ─────────────────────────────────────────────── */
+
+  .index {
+    padding: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .index a {
+    display: block;
+    padding: 15px 0 16px;
+    border-right: 1px solid var(--rule-soft);
+    font-family: var(--mono);
+    font-size: .8rem;
+    letter-spacing: .05em;
+    color: var(--ink-3);
+  }
+  .index a:last-child { border-right: 0; }
+  .index a b {
+    display: block;
+    margin-bottom: 3px;
+    font-size: .95rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--ink-3);
+  }
+  /* 当前区块：强调色的第四次、也是最后一次花在这里。 */
+  .index a[aria-current] b { color: var(--accent); }
+  .index a[aria-current] span { color: var(--ink); }
+  .index a[aria-current] { box-shadow: inset 0 2px 0 var(--accent); }
+  .index a span { display: block; font-family: var(--sans); font-size: .88rem; letter-spacing: .02em; color: var(--ink-2); }
+  .index a:hover span { color: var(--ink); }
+  .index a:nth-child(1) { grid-column: 1 / span 10; }
+  .index a:nth-child(2) { grid-column: 11 / span 10; padding-left: 16px; }
+  .index a:nth-child(3) { grid-column: 21 / span 10; padding-left: 16px; }
+  .index a:nth-child(4) { grid-column: 31 / span 10; padding-left: 16px; }
+
+  /* ── 章节 ──────────────────────────────────────────────── */
+
+  section {
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(30px, 4.4vw, 52px) 0 clamp(46px, 6vw, 72px);
+  }
+  section > :last-child { margin-bottom: 0; }
+  /* 最后一条子边框由 section 自己的下边框收，避免两条线叠在一起。 */
+  section > :last-child > :last-child { border-bottom: 0; }
+
+  .page-head {
+    align-items: baseline;
+    margin-bottom: clamp(18px, 2.6vw, 30px);
+  }
+  .page-no {
+    grid-column: 1 / span 3;
+    font-family: var(--mono);
+    font-size: .8rem;
+    letter-spacing: .1em;
+    color: var(--accent);
+    line-height: 1.6;
+  }
+  h2 {
+    grid-column: 4 / span 24;
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+    line-height: 1.28;
+    font-weight: 400;
+    letter-spacing: .01em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .page-head > p:not(.page-no) {
+    grid-column: 29 / span 12;
+    margin: 0;
+    font-size: .88rem;
+    line-height: 1.7;
+    color: var(--ink-3);
+  }
+
+  /* ── 现场：三条注解 ─────────────────────────────────────── */
+
+  .notes { row-gap: clamp(16px, 2.4vw, 26px); }
+  .note-row {
+    grid-column: 1 / span 40;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule-soft);
+    align-items: start;
+  }
+  .note-row h3 {
+    grid-column: 1 / span 11;
+    margin: 0;
+    font-size: .98rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .note-row p {
+    grid-column: 13 / span 28;
+    margin: 0;
+    max-width: 42em;
+    font-size: .93rem;
+    line-height: 1.8;
+    color: var(--ink-2);
+  }
+  .note-row code {
+    font-family: var(--mono);
+    font-size: .86em;
+    color: var(--ink);
+  }
+
+  /* ── 怎么推进：真的有序，所以带序号 ─────────────────────── */
+
+  .steps { row-gap: 0; }
+  .step {
+    grid-column: 1 / span 40;
+    display: grid;
+    grid-template-columns: repeat(40, minmax(0, 1fr));
+    align-items: baseline;
+    padding: 18px 0;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .step em {
+    grid-column: 1 / span 2;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: .78rem;
+    letter-spacing: .06em;
+    color: var(--ink-3);
+  }
+  .step b {
+    grid-column: 3 / span 11;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .step p {
+    grid-column: 15 / span 26;
+    margin: 0;
+    font-size: .93rem;
+    line-height: 1.8;
+    color: var(--ink-2);
+  }
+
+  /* ── 能做什么：能力表 ───────────────────────────────────── */
+
+  .cap {
+    grid-column: 1 / span 40;
+    align-items: start;
+    padding: 17px 0;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .cap dt {
+    grid-column: 1 / span 11;
+    font-size: .98rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .cap dd {
+    grid-column: 13 / span 28;
+    margin: 0;
+    max-width: 44em;
+    font-size: .93rem;
+    line-height: 1.8;
+    color: var(--ink-2);
+  }
+  .cap dd code {
+    font-family: var(--mono);
+    font-size: .86em;
+    color: var(--ink);
+  }
+
+  /* 量表：这个世界自己的读法——一条分段条 + 一个数字，不是四张等宽卡片。 */
+  .meters {
+    grid-column: 1 / span 40;
+    margin-top: clamp(24px, 3vw, 34px);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .meter {
+    grid-column: span 10;
+    padding: 14px 16px 16px;
+  }
+  .meter + .meter { border-left: 1px solid var(--rule-soft); }
+  .meter dt {
+    font-family: var(--mono);
+    font-size: .8rem;
+    letter-spacing: .04em;
+    color: var(--ink-3);
+    line-height: 1.5;
+  }
+  .meter dt span {
+    display: block;
+    font-family: var(--sans);
+    font-size: .84rem;
+    letter-spacing: .02em;
+    color: var(--ink-2);
+  }
+  .meter dd {
+    margin: 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .meter dd b {
+    font-family: var(--map-mono, var(--mono));
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  /* 分段条：八个硬边的格子，填满的部分用强调色。 */
+  .bar {
+    flex: 1 1 auto;
+    display: block;
+    height: 12px;
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        var(--ink-3) 0 1px,
+        transparent 1px calc(100% / 8)
+      );
+    border-right: 1px solid var(--ink-3);
+    border-left: 1px solid var(--ink-3);
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    background:
+      repeating-linear-gradient(
+        to right,
+        var(--accent) 0 calc(100% / 8 - 2px),
+        transparent calc(100% / 8 - 2px) calc(100% / 8)
+      );
+  }
+
+  /* ── 安装 ──────────────────────────────────────────────── */
+
+  .install { grid-column: 1 / span 26; }
+  .install .copy { width: fit-content; margin-top: 12px; }
+
+  .boundary {
+    grid-column: 28 / span 13;
+    align-self: start;
+    padding: 16px 18px;
+    border: 1px solid var(--rule);
+    background: var(--panel);
+    font-size: .87rem;
+    line-height: 1.78;
+    color: var(--ink-3);
+  }
+  .boundary b {
+    display: block;
+    margin-bottom: 6px;
+    font-size: .9rem;
+    color: var(--ink);
+  }
+
+  .links {
+    grid-column: 1 / span 40;
+    margin: clamp(18px, 2.4vw, 26px) 0 0;
+    font-size: .87rem;
+    color: var(--ink-3);
+  }
+  .links a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: .25em; }
+  .links a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+
+  /* ── 收尾 ──────────────────────────────────────────────── */
+
+  footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 22px 0 44px;
+    font-family: var(--mono);
+    font-size: .78rem;
+    letter-spacing: .04em;
+    color: var(--ink-3);
+  }
+  footer b { font-weight: 500; color: var(--ink-2); font-family: var(--sans); letter-spacing: .02em; }
+
+  /* ── 一个动作：载入时回执行落章。之后全部静止。 ─────────── */
+
+  @keyframes stamp {
+    from { opacity: 0; clip-path: inset(0 100% 0 0); }
+    to   { opacity: 1; clip-path: inset(0 0 0 0); }
+  }
+  .receipt {
+    animation: stamp .6s cubic-bezier(.16,.84,.24,1) .25s both;
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* ── 响应式：格线收成 24 / 12 格，不缩字号 ──────────────── */
+
+  @media (max-width: 980px) {
+    .hero-copy { grid-column: 1 / span 40; padding-right: 0; }
+    .window { grid-column: 1 / span 40; margin-top: clamp(24px, 4vw, 36px); }
+    h1 { font-size: clamp(1.9rem, 6vw, 2.6rem); }
+    .service { grid-column: 14 / span 19; }
+    .pager { grid-column: 33 / span 8; }
+    .page-head > p:not(.page-no) { grid-column: 1 / span 40; margin-top: 10px; }
+    h2 { grid-column: 4 / span 37; }
+    .note-row h3, .cap dt { grid-column: 1 / span 40; }
+    .note-row p, .cap dd { grid-column: 1 / span 40; margin-top: 6px; }
+    .step b { grid-column: 3 / span 12; }
+    .step p { grid-column: 15 / span 26; }
+    .install { grid-column: 1 / span 40; }
+    .boundary { grid-column: 1 / span 40; margin-top: 22px; }
+    .meter { grid-column: span 20; }
+    .meter:nth-child(odd) { border-left: 0; }
+    .meter:nth-child(-n + 2) { border-bottom: 1px solid var(--rule-soft); }
+  }
+
+  @media (max-width: 620px) {
+    body { font-size: 15.5px; }
+    /* 390px 放不下一行 76 字符的命令。手机上改为折行到可见，并在命令上方
+       标一行说明——藏起来的可横向滚动区在触屏上几乎没人会发现。 */
+    .act .cmd {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0;
+    }
+    .act .note::before {
+      content: "左右滑动可看完整一行 · 复制得到的也是一整行。";
+    }
+    /* 一条 60 字符的 URL 在 390px 里折行只会在 token 中间断开，读起来像
+       命令本身是坏的。宁可横向滑动——但字号不能因此掉到说明之下：
+       它是这页最该被信任的一行，至少与解释它的那句话同级。 */
+    .act .cmd code {
+      font-size: .8rem;
+      padding: 10px 14px 12px;
+      white-space: pre;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* 500 段那条同样的命令：同样单行可滑，也同样把"可以滑"说出来。 */
+    .cmd.cmd-wide code {
+      font-size: .8rem;
+      white-space: pre;
+      overflow-wrap: normal;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .cmd.cmd-wide::after {
+      content: "左右滑动可看完整一行 · 复制得到的也是一整行";
+      display: block;
+      padding: 0 14px 12px;
+      font-size: .74rem;
+      line-height: 1.5;
+      color: var(--ink-3);
+    }
+    .masthead { row-gap: 12px; }
+    .mark { grid-column: 1 / span 4; }
+    .wordmark { grid-column: 5 / span 20; }
+    .pager { grid-column: 25 / span 16; }
+    .service { grid-column: 1 / span 40; margin-top: 4px; }
+    .index a { grid-column: 1 / span 40; border-right: 0; border-bottom: 1px solid var(--rule-soft); padding-left: 0; }
+    .index a:nth-child(n) { grid-column: 1 / span 40; padding-left: 0; }
+    .index a:last-child { border-bottom: 0; }
+    .step { grid-template-columns: repeat(12, minmax(0, 1fr)); row-gap: 4px; }
+    .step em { grid-column: 1 / span 2; }
+    .step b { grid-column: 3 / span 10; }
+    .step p { grid-column: 3 / span 10; margin-top: 0; }
+    .meter { grid-column: span 40; border-left: 0; }
+    .meter + .meter { border-top: 1px solid var(--rule-soft); }
+    .transcript { font-size: .72rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .receipt { animation: none; clip-path: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="masthead grid" id="top">
+    <svg class="mark" viewBox="0 0 5 5" role="img" aria-label="Zeroth 标记：一枚由方块拼成的零">
+      <rect x="0" y="0" width="2" height="1"/><rect x="3" y="0" width="2" height="1"/>
+      <rect x="0" y="1" width="1" height="3"/><rect x="4" y="1" width="1" height="3"/>
+      <rect x="0" y="4" width="2" height="1"/><rect x="3" y="4" width="2" height="1"/>
+    </svg>
+    <div class="wordmark">ZEROTH</div>
+    <p class="service">编码代理服务 · 终端单进程<br>LIVE SESSION FEED</p>
+    <p class="pager">PAGE<b>100/400</b></p>
+  </header>
+
+  <section class="hero grid" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <h1 id="hero-title">跑在终端里的<br>编码代理</h1>
+      <p class="lede">读代码、动手改、跑验证，然后把每一步摊开给你看——你始终知道它在做什么，也知道它没做什么。一个二进制，没有账号，没有第二个应用。</p>
+
+      <div class="act">
+        <div class="cmd">
+          <code id="install-command"><span class="sig">$ </span>curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh</code>
+        </div>
+        <button class="copy" type="button" data-copy-target="install-command">复制安装命令</button>
+        <p class="note" id="copy-status" role="status" aria-live="polite">macOS 与 Linux · 校验 SHA-256 · 运行前请先读一遍</p>
+      </div>
+    </div>
+
+    <div class="window">
+      <div class="panel">
+        <div class="panel-head">
+          <b>现场实录 · ~/projects/api</b>
+          <span>sonnet-4.5</span>
+        </div>
+        <pre class="transcript" aria-label="示例会话记录：字符串取自本仓库的渲染代码，路径是示意的"><span><span class="t">❯</span> <span class="u">这个测试为什么挂了</span></span>
+<span> </span>
+<span><span class="ok">●</span> <span class="u">Read</span>(<span class="u">src/handlers/search.rs</span>)</span>
+<span><span class="d">  ⎿  </span>Read 6 lines</span>
+<span> </span>
+<span><span class="ok">●</span> <span class="u">Bash</span>(<span class="u">cargo test --lib search</span>)</span>
+<span><span class="d">  ⎿  </span><span class="er">thread 'search::empty_query' panicked at search.rs:87</span></span>
+<span><span class="d">    </span><span class="er">index out of bounds: the len is 0 but the index is 0</span></span>
+<span><span class="d">  ⎿  </span><span class="d">… +11 lines (ctrl+o to expand)</span></span>
+<span> </span>
+<span><span class="t">⣤⣀⣀⣀⣀⣀⣀⣀</span> <span class="u">Working…</span> <span class="d">(9s · esc to interrupt)</span></span>
+<span> </span>
+<span><span class="ok">●</span> <span class="u">Edit</span>(<span class="u">src/handlers/search.rs</span>)</span>
+<span><span class="d">  ⎿  </span>Updated src/handlers/search.rs (<span class="ok">+3</span> <span class="er">-1</span>)</span>
+<span> </span>
+<span><span class="ok">●</span> <span class="u">Bash</span>(<span class="u">cargo test --lib search</span>)</span>
+<span><span class="d">  ⎿  </span><span class="ok">test result: ok. 7 passed; 0 failed</span></span>
+<span> </span>
+<span class="receipt"><span class="d">Worked for 21s · ≈2.4k tokens</span></span></pre>
+      </div>
+    </div>
+
+    <dl class="status grid" aria-label="接收状态">
+      <div><dt>平台</dt><dd>macOS · Linux · x86_64 / arm64</dd></div>
+      <div><dt>安装</dt><dd>单条命令 · 校验 SHA-256</dd></div>
+      <div><dt>默认权限</dt><dd>auto · 写文件免问，命令过审核</dd></div>
+    </dl>
+
+  </section>
+
+  <nav class="index grid" aria-label="页面索引">
+    <a href="#scene"><b>200</b><span>现场</span></a>
+    <a href="#process"><b>300</b><span>怎么推进</span></a>
+    <a href="#range"><b>400</b><span>能做什么</span></a>
+    <a href="#install"><b>500</b><span>安装</span></a>
+  </nav>
+
+  <!-- ── 200 ─────────────────────────────────────────────── -->
+  <section id="scene" aria-labelledby="scene-title">
+    <div class="page-head grid">
+      <p class="page-no">200</p>
+      <h2 id="scene-title">上面那段逐字取自渲染代码。</h2>
+      <p>形状是真的——<code>●</code>、<code>⎿</code>、<code>Worked for 21s</code> 都从本仓库的渲染代码里抄来；里面的文件路径是示范。<span class="flag">示例会话</span></p>
+    </div>
+
+    <div class="notes grid">
+      <div class="note-row grid">
+        <h3>工具调用是可见的一行</h3>
+        <p>每个调用一个 <code>●</code> 开头的标题，结果跟在 <code>⎿</code> 后面：文件改动是带行号的 diff，命令输出只留前几行。想看全文按 <code>Ctrl+O</code>。</p>
+      </div>
+      <div class="note-row grid">
+        <h3>跑的时候有时间、有节奏</h3>
+        <p>转轮在跑、秒在走、token 在涨。<code>esc</code> 任何时候都能中断，已流出的内容留在原地，不会凭空消失。</p>
+      </div>
+      <div class="note-row grid">
+        <h3>结束时有一行回执</h3>
+        <p><code>Worked for 21s</code> 连同这一轮烧掉的 token 一起落进对话记录，之后滚动、重开、恢复都不会丢。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 300 ─────────────────────────────────────────────── -->
+  <section id="process" aria-labelledby="process-title">
+    <div class="page-head grid">
+      <p class="page-no">300</p>
+      <h2 id="process-title">接到任务以后，按这个顺序走。</h2>
+      <p>顺序是有意义的：没有第一步的改动通常是猜测，没有最后一步的汇报等于没做完。</p>
+    </div>
+
+    <div class="steps grid">
+      <div class="step">
+        <em>01</em>
+        <b>先读懂</b>
+        <p>读相关代码、项目约定和现有测试，弄清目标、边界，以及这里以前为什么这么做。</p>
+      </div>
+      <div class="step">
+        <em>02</em>
+        <b>再定路</b>
+        <p>挑一条最小可行的改动路径；多步的任务拆成能单独检查的小块，而不是一次写完再回头看。</p>
+      </div>
+      <div class="step">
+        <em>03</em>
+        <b>动手并验证</b>
+        <p>跟着项目已有的写法改，只跑与这次改动相关的检查。红了就查原因，不绕过。</p>
+      </div>
+      <div class="step">
+        <em>04</em>
+        <b>如实交代</b>
+        <p>说清改了什么、验证了什么，以及哪些没做、哪些没法验证——后者比前者更值得写出来。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 400 ─────────────────────────────────────────────── -->
+  <section id="range" aria-labelledby="range-title">
+    <div class="page-head grid">
+      <p class="page-no">400</p>
+      <h2 id="range-title">它不只写代码，也帮你把问题理清楚。</h2>
+      <p>可以从一个明确的实现目标开始，也可以从一段报错、一个现象、一个还说不清的想法开始。</p>
+    </div>
+
+    <dl class="grid">
+      <div class="cap grid">
+        <dt>理解与调查</dt>
+        <dd>顺着调用链读代码，翻文档和配置，解释模块各自负责什么；也可以分析日志、定位失败原因，带你熟悉一个陌生仓库。</dd>
+      </div>
+      <div class="cap grid">
+        <dt>实现与修改</dt>
+        <dd>按项目现有风格写功能、修缺陷、调界面、补测试和文档，改动尽量收在需求范围内，不顺手做无关重构。</dd>
+      </div>
+      <div class="cap grid">
+        <dt>检查与验证</dt>
+        <dd>按改动挑测试、构建或静态检查，报告执行了什么、结果如何；跑不了的时候说明原因，不拿推断当结论。</dd>
+      </div>
+      <div class="cap grid">
+        <dt>工具与自动化</dt>
+        <dd>命令行、脚本、浏览器、MCP 服务器、子代理和技能都能用上；长时间的命令可以移到后台（<code>Ctrl+B</code>）。</dd>
+      </div>
+      <div class="cap grid">
+        <dt>控制权在你手上</dt>
+        <dd>四种权限模式：<code>manual</code> 每次都问，<code>edit</code> 放行文件改动，<code>auto</code> 由审核模型代看常规命令，<code>master</code> 全部放行。项目里的 hook 和 MCP 服务器在运行前都要你点头。</dd>
+      </div>
+    </dl>
+
+    <dl class="meters grid" aria-label="本仓库里的实测数量">
+      <div class="meter">
+        <dt>COMMANDS <span>斜杠命令</span></dt>
+        <dd><b>22</b><span class="bar" aria-hidden="true"><i style="width:100%"></i></span></dd>
+      </div>
+      <div class="meter">
+        <dt>THEMES <span>配色主题</span></dt>
+        <dd><b>11</b><span class="bar" aria-hidden="true"><i style="width:50%"></i></span></dd>
+      </div>
+      <div class="meter">
+        <dt>MASCOTS <span>吉祥物</span></dt>
+        <dd><b>6</b><span class="bar" aria-hidden="true"><i style="width:27%"></i></span></dd>
+      </div>
+      <div class="meter">
+        <dt>SPINNERS <span>转轮样式</span></dt>
+        <dd><b>9</b><span class="bar" aria-hidden="true"><i style="width:41%"></i></span></dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ── 500 ─────────────────────────────────────────────── -->
+  <section id="install" aria-labelledby="install-title">
+    <div class="page-head grid">
+      <p class="page-no">500</p>
+      <h2 id="install-title">想在自己机器上试？</h2>
+      <p>支持 macOS（Intel / Apple 芯片）和 Linux（x86_64 / arm64）。一条命令，装完就能跑。</p>
+    </div>
+
+    <div class="grid">
+      <div class="install">
+        <div class="panel">
+          <div class="panel-head">
+            <b>macOS / Linux</b>
+            <span>sh</span>
+          </div>
+          <div class="cmd cmd-wide" style="border:0; border-bottom:1px solid var(--rule); min-height:54px;">
+            <code id="install-command-2"><span class="sig">$ </span>curl -fsSL https://raw.githubusercontent.com/yxxbc/zeroth/main/install.sh | sh</code>
+          </div>
+          <div style="padding:0 14px 16px;">
+            <button class="copy" type="button" data-copy-target="install-command-2">复制安装命令</button>
+            <p class="note" id="copy-status-2" role="status" aria-live="polite">装之前请先读一遍这条命令，确认来源再运行。</p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="boundary">
+        <b>它也有边界</b>
+        回答只依据当前会话里看得见的对话、文件和工具输出；上下文可能不全，未经验证的改动也不保证是对的。碰到生产数据、外部服务或任何有实际后果的操作，先确认影响范围，关键结果由你自己过一眼。
+      </aside>
+
+      <p class="links">
+        安装脚本会挑适配你机器的构建，并用发布页上的 SHA-256 校验之后才安装。还没发布首个 release 时可以<a href="https://github.com/yxxbc/zeroth#%E4%BB%8E%E6%BA%90%E7%A0%81%E6%9E%84%E5%BB%BA">从源码构建</a>；其他选项见<a href="https://github.com/yxxbc/zeroth/blob/main/README.zh.md#%E5%AE%89%E8%A3%85">中文安装说明</a>。
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <span><b>目标你定，推进我来。</b></span>
+    <span>看得见的改动 / 跑得过的检查 / 说得清的结果 · END OF PAGE</span>
+  </footer>
+</div>
+
+<script>
+  // 复制按钮：两条独立的命令位，各自有自己的状态行。
+  document.querySelectorAll('[data-copy-target]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const id = button.dataset.copyTarget;
+      const target = document.getElementById(id);
+      const status = document.getElementById(id === 'install-command' ? 'copy-status' : 'copy-status-2');
+      const text = target?.innerText.replace(/^\$\s*/, '').trim();
+      if (!text || !status) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = '命令已复制。粘贴到终端前，请再确认一次。';
+      } catch {
+        status.textContent = '浏览器拒绝了自动复制，请手动选中上面那行命令。';
+      }
+    });
+  });
+
+  // 当前区块：索引条要说出你读到哪一页了。没有 JS 时它只是普通链接，
+  // 不会留下一条指向错误区块的高亮。
+  (() => {
+    const links = [...document.querySelectorAll('.index a[href^="#"]')];
+    if (!links.length || !('IntersectionObserver' in window)) return;
+    const byId = new Map(links.map((a) => [a.hash.slice(1), a]));
+    const sections = [...byId.keys()].map((id) => document.getElementById(id)).filter(Boolean);
+    const set = (id) => {
+      links.forEach((a) => a.removeAttribute('aria-current'));
+      byId.get(id)?.setAttribute('aria-current', 'true');
+    };
+    const seen = new Map();
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => seen.set(e.target.id, e.isIntersecting ? e.intersectionRatio : 0));
+      let best = null, top = 0;
+      seen.forEach((ratio, id) => { if (ratio > top) { top = ratio; best = id; } });
+      if (best) set(best);
+    }, { rootMargin: '-20% 0px -55% 0px', threshold: [0, .25, .5, .75, 1] });
+    sections.forEach((s) => io.observe(s));
+  })();
+</script>
+</body>
+</html>
