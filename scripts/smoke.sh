@@ -304,6 +304,16 @@ if ! command -v tmux >/dev/null 2>&1; then
 	exit 1
 fi
 
+# Prime the binary's pages before any phase times it. A `cargo build` leaves a
+# fresh ~28 MiB debug binary on disk, and the FIRST exec of it faults every page
+# back in — 2.3–3.5 s of it here, more on a CI runner. Five phases assert a
+# latency (6, 32, 48, 133, 134), and the phase that opens first would charge
+# that page-in to whatever it is measuring: Phase 133 read a cold start as "the
+# first frame waited on the SessionStart hook" and failed deterministically
+# after every build. One `--version` reads the file through, writes nothing, and
+# leaves the page cache warm for every phase after it.
+"$SMOKE_BIN" --version >/dev/null 2>&1
+
 mkdir -p "$SMOKE_LOGS"
 
 # --- scheduling ---------------------------------------------------------------
