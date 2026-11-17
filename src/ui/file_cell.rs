@@ -188,6 +188,54 @@ fn file_cell_lang(args: &str) -> Option<&str> {
     (!stem.is_empty() && !ext.is_empty() && !ext.contains(' ')).then_some(ext)
 }
 
+/// How much of one file body may go through the syntax highlighter.
+///
+/// A cell shows a whole file in the Ctrl+O transcript, and syntect's markdown
+/// grammar is not linear in bytes: one real 4.8 KB skill doc cost 91 ms to
+/// colour while a 6.5 KB one cost 4 ms, and the whole 65 KB cell measured
+/// 540 ms before the cap. A `/resume` warms every item of a loaded conversation
+/// in one go, so one such cell freezes the loop's thread — measured 986 ms of
+/// colour across eight markdown cells with no cap at all.
+///
+/// Past [`CODE_HIGHLIGHT_MAX_BYTES`] the remaining rows render plain: **every
+/// line of text still shows**, only the syntax colour stops — the same trade the
+/// highlighter's own per-line cap already makes
+/// (`highlight::MAX_LINE_BYTES`), and the same shape as
+/// [`TOOL_JSON_PRETTY_MAX_BYTES`]'s cap on the JSON reshaping.
+struct HighlightBudget {
+    remaining: usize,
+}
+
+impl HighlightBudget {
+    fn new() -> Self {
+        Self {
+            remaining: CODE_HIGHLIGHT_MAX_BYTES,
+        }
+    }
+
+    /// Whether `row` may still be highlighted, spending its bytes against the
+    /// budget. Once the budget is gone every later row answers `false`, so a
+    /// body is never half-highlighted per row in a way that costs the grammar
+    /// the bytes it was meant to save.
+    fn allows(&mut self, row: &str) -> bool {
+        if row.len() > self.remaining {
+            self.remaining = 0;
+            return false;
+        }
+        self.remaining -= row.len();
+        true
+    }
+}
+
+/// `text` as the single unstyled segment a [`HighlightBudget`] that has run out
+/// renders — what a `Highlighter` built with no language emits.
+fn plain_segments(text: &str) -> Vec<highlight::Seg> {
+    vec![highlight::Seg {
+        text: text.to_string(),
+        style: highlight::plain_style(super::palette::palette().code),
+    }]
+}
+
 /// The summary head of a file cell (`Wrote …`/`Updated …`/`Read N lines`) in
 /// the white output colour ([`tool_output_color`]) so it's as noticeable as the
 /// output, with its `(+A -D)` counts coloured green/red (codex's header counts);
@@ -592,13 +640,18 @@ pub(super) fn numbered_body_lines(
         .map(|raw| parse_file_row(raw, signed))
         .collect();
     let changed = refine_rows(&refine_input(&parsed));
+    let mut highlight_budget = HighlightBudget::new();
     let mut hl = highlight::Highlighter::new(lang, super::palette::palette().code);
     let mut out = Vec::new();
     let mut used = 0usize;
     for (i, raw) in source.iter().enumerate() {
         let display = match &parsed[i] {
             Some(FileRow::Numbered { gutter, sign, text }) => {
-                let segs = hl.line(text);
+                let segs = if highlight_budget.allows(text) {
+                    hl.line(text)
+                } else {
+                    plain_segments(text)
+                };
                 numbered_row_lines(
                     gutter,
                     *sign,
@@ -662,6 +715,7 @@ pub(super) fn file_cell_lines(
     let mut used = 0usize;
     let mut hidden = 0usize;
     let mut cut = false;
+    let mut highlight_budget = HighlightBudget::new();
     let mut hl = highlight::Highlighter::new(lang, super::palette::palette().code);
     for (i, row) in rows.iter().enumerate() {
         // A spent budget starts no further row; one it starts gets the rows
@@ -692,7 +746,11 @@ pub(super) fn file_cell_lines(
                 Span::styled(truncate_cols(raw, note_width), dim),
             ])],
             FileRow::Numbered { gutter, sign, text } => {
-                let segs = hl.line(text);
+                let segs = if highlight_budget.allows(text) {
+                    hl.line(text)
+                } else {
+                    plain_segments(text)
+                };
                 let (display, was_cut) = numbered_row_lines(
                     gutter,
                     *sign,

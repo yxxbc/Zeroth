@@ -3,12 +3,13 @@
 
 use super::*;
 use crate::ui::theme::{
-    CODE_TAB_WIDTH, EXPAND_HINT, FILE_PEEK_LINES, INLINE_DIFF_MARK_MIN_CONTRAST, TOOL_BULLET,
-    TOOL_FOLD_ROWS, TOOL_HEADER_ELLIPSIS, TOOL_HEADER_MAX_COLS, TOOL_HEADER_MAX_LINES,
-    TOOL_HEADER_MAX_ROWS, TOOL_JSON_PRETTY_MAX_BYTES, TOOL_PULSE_PERIOD, TOOL_TRUNCATED_MARKER,
-    tool_args_color, tool_diff_add_bg, tool_diff_add_color, tool_diff_add_mark_bg,
-    tool_diff_del_bg, tool_diff_del_color, tool_diff_del_mark_bg, tool_dim_color, tool_fail_color,
-    tool_ok_color, tool_output_color, tool_running_color, tool_waiting_color,
+    CODE_HIGHLIGHT_MAX_BYTES, CODE_TAB_WIDTH, EXPAND_HINT, FILE_PEEK_LINES,
+    INLINE_DIFF_MARK_MIN_CONTRAST, TOOL_BULLET, TOOL_FOLD_ROWS, TOOL_HEADER_ELLIPSIS,
+    TOOL_HEADER_MAX_COLS, TOOL_HEADER_MAX_LINES, TOOL_HEADER_MAX_ROWS, TOOL_JSON_PRETTY_MAX_BYTES,
+    TOOL_PULSE_PERIOD, TOOL_TRUNCATED_MARKER, tool_args_color, tool_diff_add_bg,
+    tool_diff_add_color, tool_diff_add_mark_bg, tool_diff_del_bg, tool_diff_del_color,
+    tool_diff_del_mark_bg, tool_dim_color, tool_fail_color, tool_ok_color, tool_output_color,
+    tool_running_color, tool_waiting_color,
 };
 use crate::ui::tool::{live_tool_lines, running_command_lines, tool_full_lines};
 use crate::ui::wrap::{cols, contrast_ratio};
@@ -5076,4 +5077,73 @@ fn bash_receipts_leave_background_and_interactive_states_and_raw_output_alone() 
     let rows = tool_lines(&call, 80, &PathDisplay::VERBATIM);
     assert!(plain(rows.last().unwrap()).contains("approved for this project"));
     assert_eq!(call.output, "original output");
+}
+
+#[test]
+fn the_transcript_does_not_highlight_a_body_past_its_byte_budget() {
+    // A `Read` of a markdown file is the expensive case: syntect's markdown
+    // grammar goes non-linear on a long line carrying several inline code
+    // spans (measured: one 4 KB line of real prose at 53 ms — and the Ctrl+O
+    // transcript expands every line of a 65 KB file, which measured 540 ms for
+    // one cell). The body past `CODE_HIGHLIGHT_MAX_BYTES` renders plain, the
+    // way `TOOL_JSON_PRETTY_MAX_BYTES` already bounds the JSON reshaping: the
+    // text is all still there, only the syntax colour stops.
+    let prose = "When image generation exists, every card also declares a `comp` path \
+                 under `.impeccable/mocks/decision/`, the canon card included. ";
+    // The `Read` cell's format: one line number per source line (llm::tools).
+    let content: String = (1..=400).map(|n| format!("{prose}{n}\n")).collect();
+    let body = crate::llm::tools::render_numbered_content(&content);
+    assert!(
+        body.len() > CODE_HIGHLIGHT_MAX_BYTES,
+        "the fixture must exceed the cap ({} B)",
+        body.len()
+    );
+
+    let call = crate::ui::tests::tool("Read", "notes.md", ToolStatus::Ok, &body);
+    let started = std::time::Instant::now();
+    let lines = tool_full_lines(&call, 120, &PathDisplay::VERBATIM);
+    let elapsed = started.elapsed();
+
+    // The cap must actually bite, or this test proves nothing about the
+    // highlighter: a row inside the budget carries more than one span (the
+    // gutter plus styled content), a row past it carries exactly one.
+    let first = lines
+        .iter()
+        .find(|l| plain(l).contains("When image"))
+        .map(|l| l.spans.len());
+    let last = lines
+        .iter()
+        .rev()
+        .find(|l| plain(l).contains("When image"))
+        .map(|l| l.spans.len());
+    assert!(
+        first.is_some_and(|n| n > 2),
+        "the head of the body is highlighted (several spans), got {first:?}"
+    );
+    assert_eq!(
+        last,
+        Some(3),
+        "past the budget the row is the indent, the line number and one plain \
+         span, got {last:?}"
+    );
+
+    // Every source line still shows — the cap drops colour, never text. Each
+    // numbered row wraps to a second display row at this width, so count the
+    // rows that OPEN one rather than looking for the prose whole.
+    let texts: Vec<String> = lines.iter().map(plain).collect();
+    let opened = texts
+        .iter()
+        .filter(|t| t.contains("When image generation"))
+        .count();
+    assert_eq!(opened, 400, "every line of the body renders, got {opened}");
+    assert!(
+        texts.iter().any(|t| t.contains("canon card")),
+        "a wrapped line's continuation renders too"
+    );
+    assert!(
+        elapsed < std::time::Duration::from_millis(120),
+        "one expanded Read cell of {} B took {elapsed:?} — the highlighter is \
+         unbounded again",
+        body.len()
+    );
 }

@@ -356,6 +356,47 @@ character is one grapheme one column wide, row `k` starts at byte
 same line. Any other text is wrapped whole and its head dropped. The rows are
 the same either way, which a differential test holds the arithmetic to.
 
+### 7b. A big file body is highlighted only as far as `CODE_HIGHLIGHT_MAX_BYTES`
+
+§7 made a file cell show every line of the file, which is right — and it made
+the Ctrl+O transcript grammar-highlight **every** line of every file a session
+ever read. That is unbounded work the reader never asked for, and syntect's
+markdown grammar is not linear in bytes, so the cost is not merely
+proportional to what is on screen.
+
+Measured on the eight markdown cells of one real session (expanded transcript
+path, warm grammar): colouring all of them cost **986 ms**, worst cell
+**526 ms**, for a `/resume` that re-renders the whole loaded history in one
+call. The distribution is what made it hard to see: a 6.5 KB file cost 4 ms
+while a 4.8 KB one cost 91 ms — the expensive rows are ordinary prose that
+puts the grammar into a state where a later row re-scans from the same
+position on every pop. Nothing about the *text* predicts it (a byte cap cannot
+see a 461-byte row that costs 61 ms; a wall-clock bound lets it through the
+first time, and the row is cheap forever after — measured 82.8 ms then
+0.12 ms — so a time guard only ever fires on costs that are already one-off).
+
+What works is bounding the work: rows past `CODE_HIGHLIGHT_MAX_BYTES` (2 KB)
+render plain, **text intact**, which is the same trade §6's JSON cap and
+`highlight::MAX_LINE_BYTES` already make. The cap was chosen by sweeping it
+over those cells:
+
+| cap | total | worst cell |
+| --- | --- | --- |
+| none | 986 ms | 526 ms |
+| 4 KB | 166 ms | 91 ms |
+| **2 KB** | **40 ms** | **25 ms** |
+| 1 KB | 31 ms | 25 ms |
+| 512 B | 29 ms | 25 ms |
+
+2 KB is where the curve flattens — what remains is one grammar's fixed work
+per cell, not the rows — and it leaves the head of the file coloured, which is
+the part a reader looks at first. The whole `/resume` warm measured 1073 ms
+before and 109 ms after on the same session. `ui::file_cell::HighlightBudget`
+spends the budget row by row, so a body is never half-highlighted in a way
+that costs the grammar the bytes it was meant to save, and
+`ui::tests::tool::the_transcript_does_not_highlight_a_body_past_its_byte_budget`
+holds the behaviour (it fails when the cap is removed).
+
 ### 8. The file peek's ten rows are a ceiling
 
 The cost §7 accepted came back as a report: a `Write` of a stylesheet whose
