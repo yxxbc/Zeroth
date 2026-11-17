@@ -14,9 +14,10 @@
 > （`](#标题)`）随标题一起翻译，因此只要求它在本文档内解析得到，不与英文文本比对；
 > 散文的长度与换行随译者。改动任何有译本的页面后跑一次，改动矩阵见 `AGENTS.md`。
 >
-> 目前除 `docs/research/` 的三篇研究文档外，全站都有译本：`docs/` 其余分类、`guide/`
-> 与仓库顶层。那三篇（`harness-network-security`、`harness-security-threats`、
-> `miyu-path-jail`）**本来就是用中文写的**，没有英文原文，所以也没有 `.zh.md` ——
+> `docs/research/` 中有直接以中文撰写的研究与设计文档，例如
+> `harness-network-security`、`harness-security-threats`、`miyu-path-jail`。
+> `docs/` 其余分类、`guide/` 与仓库顶层采用上述双语约定。
+> 直接以中文撰写的页面没有英文原文，所以也没有 `.zh.md` ——
 > 在它们旁边放一份译文只会是一份字节复制，结构对账必然通过，看起来被维护着，实则
 > 什么也没做。`scripts/docs/zh_parity.py` 会把这种复制报为失败，也不会把这类页面
 > 列进「待译」。
@@ -24,6 +25,7 @@
 ## 从这里开始
 
 - [`design.md`](design.md)：内联会话 TUI —— 设计
+- [Agent 可靠性与效果工程提案](research/agent-reliability.md)：任务恢复、效果评估、上下文证据与执行契约（中文；提案）
 
 ## 架构
 
@@ -76,6 +78,7 @@
 - [`ui/timestamps.md`](ui/timestamps.md)：Ctrl+O transcript 里的时间戳 —— 设计
 - [`ui/tips.md`](ui/tips.md)：Spinner 提示 —— 回合运行期间状态行下方的一句提醒
 - [`ui/toast.md`](ui/toast.md)：瞬时 toast
+- [搜索摘要与工具详情](ui/search-details.md): 查询预览、结果分组与可读的展开详情
 - [`ui/tool-groups.md`](ui/tool-groups.md)：折叠的读/搜组 —— 非 verbose 的工具视图
 - [`ui/tool-pulse.md`](ui/tool-pulse.md)：运行中圆点的闪烁
 - [`ui/tool-streaming.md`](ui/tool-streaming.md)：实时流式输出 `bash` 的输出 —— 运行中的尾巴 + 折叠的窥视行
@@ -103,7 +106,7 @@
 
 ## 工具
 
-模型能做什么：工具循环、bash 及其终端引擎、MCP、hooks、skills、tasks、后台 shell 与 scratchpad。
+模型能做什么：工具循环、bash 及其终端引擎、MCP、hooks、skills、tasks、后台 shell 与内部临时存储。
 
 - [`tools/ask.md`](tools/ask.md)：`AskUserQuestion` 工具 —— 在回合中途向用户提问
 - [`tools/background.md`](tools/background.md)：后台 shell —— `wait: 0`、一次会超时的 `wait`、Ctrl+B 与 ↓ 管理器
@@ -113,7 +116,7 @@
 - [`tools/interactive-shell.md`](tools/interactive-shell.md)：交互式 shell —— bash 工具背后的终端引擎
 - [`tools/mcp.md`](tools/mcp.md)：MCP 服务器 —— `/mcp` 管理器与 `mcp__server__tool` 工具
 - [`tools/parallel-tools.md`](tools/parallel-tools.md)：并行工具调用 —— 可见批处理 + `⎿ Waiting…`
-- [`tools/scratchpad.md`](tools/scratchpad.md)：会话 scratchpad —— 设计
+- [`tools/scratchpad.md`](tools/scratchpad.md)：会话临时存储与已移除的 Agent scratchpad
 - [`tools/skills.md`](tools/skills.md)：`Skill` 工具
 - [`tools/task-tools.md`](tools/task-tools.md)：task 工具 —— 用实时清单取代工具单元格
 - [`tools/tools.md`](tools/tools.md)：LLM 工具调用 —— `bash` 及其伙伴 / `read` / `write` / `edit`

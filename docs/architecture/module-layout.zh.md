@@ -137,7 +137,7 @@
 | `commit.rs` | Scrollback 提交 —— invariant 4 唯一被强制执行的地方 —— 以及 toast。 |
 | `models.rs` | `ModelSession`：backend 以及选择它的每一个旋钮，外加 `/model`、Ctrl+T 与探测的分支（`docs/providers/llm.md`）。 |
 | `login.rs` | `/login` 流程的边界一半：打开它、运行某个订阅的登录 —— 按 provider 是设备码或浏览器 PKCE 流程 —— 并持久化它所铸造的东西（`docs/providers/copilot.md`、`docs/providers/chatgpt.md`）。 |
-| `config.rs` | 读取环境：provider、key、按目录的 `/model` 选择与 `/settings` 旋钮（`docs/state/per-directory-state.md`）、权限规则、按用户的 `telemetry.json`（`TELEMETRY.md`）、`update.json`（`docs/ops/update.md`）与 `tips.json`（`docs/ui/tips.md`）、各条路径。 |
+| `config.rs` | 读取环境：provider、key、按目录的 `/model` 选择与 `/settings` 旋钮（`docs/state/per-directory-state.md`）、权限规则、按用户的 `update.json`（`docs/ops/update.md`）与 `tips.json`（`docs/ui/tips.md`）、各条路径。 |
 | `bootstrap.rs` | `Session::bootstrap` / `shutdown` / `after_iteration` —— 装配、拆除、循环底部的工作。 |
 | `startup.rs` | `--continue`/`--resume`/`[PROMPT]` 的参数解析、`-C` 的 `chdir`、带样式的 `--help` / usage 错误打印，以及 `mcp` / `update` 子命令分发（`docs/cli/cli.md`）。 |
 | `headless.rs` | `zeroth -p`：在 runtime 之前从参数和 stdin 读取的 prompt、无屏幕地运行同一个 `Session` 的循环、信号、各条流、退出状态（`docs/cli/headless.md`）。 |
@@ -152,12 +152,11 @@
 | `context_usage.rs` | 让打开的 `/context` 页面保持实时：在打开时和每次循环底部把 backend 的 tool 集合（或被查看 agent 类型的）交出去，然后重新计数（`docs/architecture/context-usage.md`）。 |
 | `secrets.rs` | `/secrets` 页面的保存、删除与复制：`secrets.json` 的读-改-写、共享 store、提醒同步（`docs/state/secrets.md`）。 |
 | `usage.rs` | `/usage` 页面的读取：每个已登录订阅一个 worker、它们所回答的那一轮、其倒计时所依的墙钟、分钟刷新、空态 toast、`c` 写剪贴板（`docs/providers/usage.md`）。 |
-| `telemetry.rs` | 每天一次的匿名用量 ping（更新当天再多一次）：install id 的铸造、横幅下方的一次性提示、分离式发送，以及对已送达日期与版本的记录（`TELEMETRY.md`）。 |
 | `update.rs` | 每天一次的更新检查：对仓库最新 release 的分离式 `HEAD`、横幅下方的 `Update available` 卡片（有回合在流式输出时暂缓）、尝试与提示的日期记在 `update.json`（`docs/ops/update.md`）。 |
 | `update_cli.rs` | `zeroth update` 子命令：同样的检查，然后把单行安装器取到临时文件，并在这个二进制自身所在目录上运行（`docs/ops/update.md`）。 |
 | `herdr.rs` | 向它所运行的 herdr 窗格报告 session 的状态：循环底部同步进库里的 `herdr::Tracker` 与 `herdr::Reporter` worker、失败回合的保持、resume 命令中经 `PATH` 检查的第一个词、退出时的释放（`docs/architecture/herdr.md`）。 |
 | `shell.rs` | `!` 命令运行器及其 drain/cap 单元测试（`docs/input/shell-command.md`）。 |
-| `workers.rs` | 线程外的文件搜索 / 剪贴板 / 模型列表 / 设备登录 / usage / telemetry ping / update 检查任务。 |
+| `workers.rs` | 线程外的文件搜索 / 剪贴板 / 模型列表 / 设备登录 / usage / update 检查任务。 |
 | `host.rs` | 时钟、日期、OS 字符串、uid、id —— 原始的杂质。 |
 
 ### `src/stream/` —— 后端接缝

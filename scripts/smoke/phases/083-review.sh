@@ -54,7 +54,7 @@ rv_user_hook() {
 rv_user_hook "./guard.sh --strict"
 # The phase runs in a temp cwd (-c "$RV_WORK"), so the binary path must be
 # absolute — the Phase 46 BIN_ABS rule.
-RV_APP="env ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PROJECT_CONFIG=1 ZEROTH_CONFIG_DIR=$RV_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HOOKS=1 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+RV_APP="env ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PROJECT_CONFIG=1 ZEROTH_CONFIG_DIR=$RV_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HOOKS=1 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 rv_open() {
 	tmux send-keys -t "$S83" -l "$1"
 	sleep 0.4
@@ -332,7 +332,7 @@ mkdir -p "$RV_HOME/.zeroth"
 cat >"$RV_HOME/.zeroth/hooks.json" <<'RVHOME'
 {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./home-fmt.sh"}]}]}}
 RVHOME
-RV_HOME_APP="env HOME=$RV_HOME ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PROJECT_CONFIG=1 ZEROTH_CHECKPOINTS=0 ZEROTH_HOOKS=1 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+RV_HOME_APP="env HOME=$RV_HOME ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PROJECT_CONFIG=1 ZEROTH_CHECKPOINTS=0 ZEROTH_HOOKS=1 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 launch -c "$RV_HOME" -w "Esc to continue without trusting" "$S83" 100 40 "$RV_HOME_APP"
 rv_home="$(tmux capture-pane -t "$S83" -p)"
 dump "launched in the home directory" "$rv_home"

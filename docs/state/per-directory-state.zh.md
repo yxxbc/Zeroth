@@ -202,14 +202,10 @@ opt **out**，记作 `"hooks": false`；hooks 字段的 diff 谓词随它的默�
 - **`theme.json`** —— 颜色是用户的：一个主题是与用户所坐的终端相配的，不是与一个
   项目（`docs/ui/theme.md`）。
 - **`permissions.json`**、**`skills.json`** —— 本来就按项目；不变。
-- **`telemetry.json`** —— 匿名每日 ping 的开关和 install id（`TELEMETRY.md`）。
-  一个只作用于你碰巧所在目录的退出会是个意外，所以 `/settings` 的 **Telemetry**
-  行是唯一按*用户*持久化的旋钮：`SessionSettings::telemetry` 是
-  `#[serde(skip)]`，`copy_value` 从不搬动它，而边界只从 `telemetry.json` 播种它、
-  也只写回它。
 - **`update.json`** —— 每天一次的更新检查的开关与记录（`docs/ops/update.md`）：
-  同样的按*用户*规则，同样的理由，`SessionSettings::update_check` 与 `telemetry`
-  并排是 `#[serde(skip)]`。
+  一个只作用于你碰巧所在目录的选择会是个意外，所以 `/settings` 的
+  **Update check** 行按*用户*持久化：`SessionSettings::update_check` 是
+  `#[serde(skip)]`，而 `copy_value` 从不搬动它。
 - **`tips.json`** —— spinner tip 的 **Show tips** 开关，以及目录的行走走到了哪里
   （`docs/ui/tips.md`）：也是按*用户*——一个在一个目录里关掉、在下一个目录里又打开
   的开关会读起来像设置不生效——而行走应当在下一个 session 开始的地方接着走——

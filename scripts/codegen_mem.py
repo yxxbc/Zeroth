@@ -144,7 +144,7 @@ def main():
         'ZEROTH_MODEL': 'memory-fixture-model', 'FIXTURE_API_KEY': 'stand-in',
         'ZEROTH_HISTORY_FILE': '/dev/null', 'ZEROTH_CHECKPOINTS': '0',
         'ZEROTH_PROJECT_CONFIG': '0', 'ZEROTH_PROJECT_DOC_MAX_BYTES': '0',
-        'ZEROTH_TELEMETRY': '0', 'ZEROTH_UPDATE_CHECK': '0', 'ZEROTH_TIPS': '0',
+        'ZEROTH_UPDATE_CHECK': '0', 'ZEROTH_TIPS': '0',
         'ZEROTH_PERMISSIONS': '0', 'ZEROTH_CONTEXT_WINDOW': '1000000',
     }
     # Isolate all app-specific overrides and model keys. Keep the runtime's

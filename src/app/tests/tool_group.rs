@@ -144,15 +144,12 @@ fn a_shell_command_the_user_ran_is_never_grouped() {
 }
 
 #[test]
-fn a_read_that_ran_stays_in_its_group_whatever_its_exit() {
-    // A search that found nothing exits 1; a missing file fails the read.
-    // Either way the read happened, and the model reads the error — the
-    // reference absorbs it, and Ctrl+O keeps the output.
-    assert!(is_group_member(
-        &resolved("Bash", "grep -rn nope src", false),
-        &PathDisplay::VERBATIM
-    ));
-    assert!(is_group_member(
+fn a_no_match_search_can_group_but_read_errors_keep_their_cell() {
+    let mut no_match = resolved("Bash", "grep -rn nope src", false);
+    no_match.output = "Exit code: 1\n".to_string();
+    no_match.run.exit_code = Some(1);
+    assert!(is_group_member(&no_match, &PathDisplay::VERBATIM));
+    assert!(!is_group_member(
         &resolved("Read", "missing.rs", false),
         &PathDisplay::VERBATIM
     ));

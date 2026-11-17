@@ -18,7 +18,7 @@ AG_CFG="$(mktemp -d)"
 # parse there first, so the same launch has to seed AND report.
 mkdir -p "$AG_CFG/agents"
 printf 'just a body, no frontmatter at all\n' >"$AG_CFG/agents/broken.md"
-APP_AG="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$AG_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_AG="env ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$AG_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux kill-session -t "$S100" 2>/dev/null
 # 160 columns, not 100: the toast quotes the file's whole path (this phase's
 # config home is a `mktemp -d` under `$TMPDIR`, which on macOS is a long

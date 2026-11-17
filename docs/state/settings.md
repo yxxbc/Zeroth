@@ -57,8 +57,7 @@ same thing on every row and the menu never needs an edit mode.
 | **Max tool calls** | **`0`** / `5` / `10` / `20` / `50` / `100` | How many tool **calls** one turn may run before it gives up (`llm::agent::run_agent`'s cap). **`0` is no limit, and the default** — see below. |
 | **Ask timeout** | `5m` / **`10m`** / `20m` / `30m` / `1h` / `never` | How long an `AskUserQuestion` question waits on an **idle** user before it resolves unanswered and the agent keeps working on its own judgment (`docs/tools/ask.md`) — any key press or paste starts the wait over, and the modal's closing rule counts it down. `never` stops the clock. Seeded from `ZEROTH_ASK_TIMEOUT_SECS` (seconds, `0` = never), whose odd values still read whole (`1m 30s`). Read where it is used: the draw tick reads it on every reading of the idle clock, so a new value applies to a wait already running and `never` stops it at once. |
 | **Show tips** | `true` / `false` | Whether a dim `⎿  Tip: …` row hangs off the status line once a turn has run three seconds — a key or command worth knowing, the next in the catalog each turn (`docs/ui/tips.md`; Claude Code's `spinnerTipsEnabled`). **Per user, not per directory**: persisted in `tips.json` beside the walk's position, never in `settings.json`. Seeded from `ZEROTH_TIPS`, which — not being a privacy switch — never withdraws the row. Needs nothing from the host, so it is never unavailable. |
-| **Update check** | `true` / `false` | Whether the app asks the repository once a day whether a newer release is out and says so under the banner (`docs/ops/update.md`: one `HEAD` of `/releases/latest`, answered by a redirect whose tag is the version — no body, no install id, nothing about you; the card names the release, `zeroth update` and the off switch, once a day, never mid-reply). **Per user, not per directory**: persisted in `update.json`, never in `settings.json`. Seeded from `ZEROTH_UPDATE_CHECK`; **unavailable** without a config home (nowhere to remember the day) **and whenever the variable forbids it** — the Telemetry rule, an environment that says no withdraws the row. `zeroth update` on the command line is the user's own request and runs regardless. |
-| **Telemetry** | `true` / `false` | Whether the anonymous daily usage ping is sent (`TELEMETRY.md`: five fields — a payload version, a random install id, the app version, the OS and the architecture — never a prompt, path, model or key; the collector notes the country, never the address). **Per user, not per directory**: persisted in `telemetry.json`, never in `settings.json`. Seeded from `ZEROTH_TELEMETRY`, outranked by `DO_NOT_TRACK=1`; **unavailable** without a config home (nowhere to keep the install id) **and whenever either variable forbids it** — alone among the rows, an environment that says no withdraws the row rather than merely seeding it, since an opt-out a keystroke could undo is not one (`TELEMETRY.md`). |
+| **Update check** | `true` / `false` | Whether the app asks the repository once a day whether a newer release is out and says so under the banner (`docs/ops/update.md`: one `HEAD` of `/releases/latest`, answered by a redirect whose tag is the version — no body, no install id, nothing about you; the card names the release, `zeroth update` and the off switch, once a day, never mid-reply). **Per user, not per directory**: persisted in `update.json`, never in `settings.json`. Seeded from `ZEROTH_UPDATE_CHECK`; **unavailable** without a config home (nowhere to remember the day) **and whenever the variable forbids it** — an environment that says no withdraws the row. `zeroth update` on the command line is the user's own request and runs regardless. |
 
 ### The ceiling counts calls, not rounds
 
@@ -318,11 +317,6 @@ docs`.
     of is announced, and the day's request is sent when none has run
     (`Session::apply_update_setting`, `docs/ops/update.md`); turning it off sends
     nothing more.
-  - **Telemetry** writes its own file — `telemetry.json`, beside the install
-    id — instead of this directory's `settings.json` entry, and turning it on
-    sends today's ping at once when none has gone
-    (`Session::apply_telemetry_setting`, `TELEMETRY.md`); turning it off
-    sends nothing more.
 
 Every change confirms with a transient toast (`{label}: {value}`) and persists.
 
@@ -370,14 +364,13 @@ An entry is a whole blob, never a layer over the seed (the diff format cannot
 tell a `true` left at its default from one deliberately chosen), and it is
 kept even once it equals the defaults — dropping it would let the seed back in.
 
-**Telemetry**, **Update check** and **Show tips** are the three rows that
-are not in this file at all. An opt-out that applied only to the directory you
-happened to be in would be a surprise, so their values live in
-`telemetry.json`, `update.json` and `tips.json` (`TELEMETRY.md`,
-`docs/ops/update.md`, `docs/ui/tips.md`) — each field is `#[serde(skip)]` on
+**Update check** and **Show tips** are the two rows that are not in this file
+at all. A choice that applied only to the directory you happened to be in
+would be a surprise, so their values live in `update.json` and `tips.json`
+(`docs/ops/update.md`, `docs/ui/tips.md`) — each field is `#[serde(skip)]` on
 `SessionSettings` and `copy_value` never moves it (the `PermissionMode`
-pattern); `apply_setting` writes each to its own file, and none of them
-ever moves into this directory's entry.
+pattern); `apply_setting` writes each to its own file, and neither ever moves
+into this directory's entry.
 
 Precedence at startup is the same rule the rest of the app follows — **the
 environment wins**: an explicitly set `ZEROTH_*` variable overrides the saved

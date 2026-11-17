@@ -1,5 +1,9 @@
 # 折叠的读取/搜索组 —— 非 verbose 的 tool 视图
 
+Agent scratchpad 已移除。下文 scratchpad 示例仅说明已保存会话的显示兼容，
+不代表新会话会创建专属目录。阶段 147 现在验证不创建、不注入 scratchpad。
+
+
 agent 在一个回合里，往往要花上大半天四处摸索，然后才开始动手改东西：一次列目录、
 一次搜索、一个文件、又一个文件。若按每次调用一个单元格来画，这些探索会用没人会读
 的输出填满屏幕 —— 一段目录列表上的 `● Bash(ls -la)`、十行带编号的内容上的 `●
@@ -11,7 +15,7 @@ Read(src/app.rs)`、一堆匹配结果上的 `● Bash(grep -rn …)` —— 并
 ```
 ● I'll get my bearings first.
 
-● Searching for 1 pattern, reading 2 files, listing 1 directory… (ctrl+o to expand)
+● Running 1 search, reading 2 files, listing 1 directory… (ctrl+o to expand)
   ⎿  $ grep -rn 'card()' .
 ```
 
@@ -20,7 +24,7 @@ Read(src/app.rs)`、一堆匹配结果上的 `● Bash(grep -rn …)` —— 并
 ```
 ● I'll get my bearings first.
 
-Searched for 1 pattern, read 2 files, listed 1 directory (ctrl+o to expand)
+Ran 1 search, read 2 files, listed 1 directory (ctrl+o to expand)
 
 ● Bash(python3 about.py)
   ⎿  zeroth — an autonomous AI agent that lives in your terminal
@@ -29,6 +33,13 @@ Searched for 1 pattern, read 2 files, listed 1 directory (ctrl+o to expand)
 每一次调用仍然完整地被记录：**Ctrl+O** 的 transcript 像以前一样把每一个都展开，
 派生的上下文（Ctrl+D）与 rollout 未被触碰，一次 `/resume` 从同样的记录重绘出同一
 行。组只是 *对话*显示它们的方式。
+
+## 搜索预览与详情
+
+汇总行统计搜索调用次数，不把它称作关键词数量。已关闭的分组保留至多三条查询与结果
+预览，每条不超过两行。已知 grep/rg 输出报告匹配行数和文件数；未知命令保留原命令
+预览，不虚构数量。执行错误保留独立且可见的单元；可识别的空无匹配结果仍可并入组。
+展开结果按文件分组，显示行号，并单独呈现命令。参见[搜索详情](search-details.md)。
 
 ## Verbose 输出
 
@@ -63,8 +74,7 @@ phase 保留它们所断言的逐调用单元格）。
   格，只会说明工作已经停了，而它并没有。它在组关闭时停下（见下文）：另一次调用、
   文字、一个错误、回合的结束。
 - 各个分句按参考实现的顺序 —— 组改了什么，然后它读了什么：scratchpad 编辑，然后
-  搜索、读取与列目录 —— 每个动词用组所处的时态（`Making`、`searching
-  for`、`reading`、`listing`），第一个大写，计数**加粗**，名词在超过一个时用复数
+  搜索、读取与列目录 —— 每个动词用组所处的时态（`Making`、`running`、`reading`、`listing`），第一个大写，计数**加粗**，名词在超过一个时用复数
   （`1 pattern`、`2 patterns`；`1 directory`、`2 directories`），行以一个 `…` 收
   尾。
 - `⎿` 行说明组正在做什么，**一次一个调用的值，按调用运行的顺序**（下面的*提示
@@ -155,13 +165,11 @@ expand)`），因为剩下的是一条关于这个回合的事实，而不是正
 - 对某个 session **scratchpad** 里一个文件的 `Write` 或 `Edit` —— 但只在它**成
   功** 之后（下面的*scratchpad 编辑*）。
 
-而一次读取只在它**跑起来了**之后才加入，无论它在运行中是成功还是失败 —— 一次什么
-也没匹配到的搜索以 1 退出、一次对缺失文件的读取失败；两种情况下模型都读到了那个
-错误，而 Ctrl+O 保留它。一个从未运行或从未结束的调用保留自己的单元格，因为它的单
-元格就是*为什么*的记录：在 prompt 处被拒或被 classifier 拒、被 hook 挡住、被 Esc
-或一个后端错误切断、被 tool-call 上限拒绝，或者被移到后台（`wait:
-0`、`run_in_background`，或对一次长搜索按 Ctrl+B）。用户跑的 `!` 命令也一样，还
-有 MCP 调用 —— 它有自己的折叠行（`docs/tools/mcp.md`）。
+成功的读取会加入组；可识别的 grep/rg 调用以 1 退出且输出为空时也加入，表示没有匹配。
+实际执行错误保留独立单元格。从未运行或从未结束的调用也保留独立单元格：在 prompt
+处或被 classifier 拒绝、被 hook 阻止、被中断、达到 tool-call 上限，或者移入后台
+（`wait: 0`、`run_in_background`，或对长搜索按 Ctrl+B）。用户执行的 `!` 命令与
+MCP 调用同样保留独立单元格（`docs/tools/mcp.md`）。
 
 成员自己的附加物随它一起进 Ctrl+O：一条严格检查担保不了的命令所挣到的 `⎿ Allowed
 by auto mode classifier` 注记（`grep -c TODO *.rs` 是一次搜索，但它的 glob 把它
@@ -239,9 +247,7 @@ scratchpad，而它的记录点名的是更早那个进程写进去的那个
 
 **只有成功的编辑才加入。** 失败的、或从未运行的 —— 在 hook 强制的 prompt 处被
 拒、被 hook 挡住、被 Esc 或后端错误切断 —— 什么都没改，所以它保留自己那个红色的
-单元格，说明原因，而「做了 N 次编辑」依然为真。这比读取更严格，读取跑过之后无论
-怎么结束都会加入：一次失败的读取仍然告诉了模型一些东西，一次失败的编辑什么也没
-做。
+单元格，说明原因，而「做了 N 次编辑」依然为真。失败的读取与编辑都保留可见的错误单元格。
 
 ## 组的生命周期
 
@@ -334,16 +340,11 @@ verbose，把每个念头显示在它在调用之间的位置上，而 **Verbose
 离线 dummy 的 **`explore`** 场景（一个点名 "explore" 的 prompt）在没有网络的情况
 下驱动一个完整的组：一次列目录、轮次之间的一个念头、一次并行搜索与两次读取、第二
 个念头 —— 活模型在它下一次调用之前的停顿，提示行在其中把这一轮的值播放完 —— 然后
-是一次关闭它脚本运行，每个调用都以真实执行器的输出解析。它的 **`scratchpad`** 场
-景（一个点名 "scratchpad" 的 prompt）把一个写小游戏的 `write` 按活模型生成它的方
-式流式输出进这个 session 的 scratchpad，然后 `edit` 它，两者都经真实的
-`write_report`/ `update_report` 解析。
+是一次关闭它脚本运行，每个调用都以真实执行器的输出解析。
 
 `scripts/smoke.sh` Phase 146 对着真实二进制播放第一个 —— 模型思考时只有那个实时
 单元格（状态行在数念头，单元格下面没有块）、分句在增长、并行轮次的三个值依次占据
 提示行、关闭它的那个调用之上是唯一一条沉降行且没有逐读取的单元格、它所保留的两个
 念头都没有 `Thought for` 行、Ctrl+O 展开每次调用与两个念头、一次 resize 重建画出
-同一行，以及 **Verbose output** 把它展开。Phase 147 播放第二个 —— 实时的 `Making
-1 scratchpad edit +N…` 行在 write 流式输出的同时在文件路径上数字往上走、任何地方
-都没有 `Write(` 单元格、一条沉降的 `Made 2 scratchpad edits +26 -1`，以及 Ctrl+O
-把两次调用都展开。其他每个 phase 都用 `ZEROTH_VERBOSE=1` 跑。
+同一行，以及 **Verbose output** 把它展开。阶段 147 验证新会话不创建 Agent
+scratchpad，也不注入其上下文。其他每个 phase 都用 `ZEROTH_VERBOSE=1` 跑。

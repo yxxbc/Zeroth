@@ -46,7 +46,6 @@
 //! | [`recorder`] | Mirroring history to a rollout file (`docs/state/resume.md`). |
 //! | [`resume`] | Finding recorded sessions on disk. |
 //! | [`settings`] | Applying a `/settings` knob the menu cycled (`docs/state/settings.md`). |
-//! | [`telemetry`] | The once-a-day anonymous usage ping (once more on the day of an update): the install id, the notice, the send, the recorded day and version (`TELEMETRY.md`). |
 //! | [`update`] | The once-a-day update check: the request, the card under the banner, the recorded day (`docs/ops/update.md`). |
 //! | [`update_cli`] | The `zeroth update` subcommand: the check, then the one-line installer over this binary (`docs/ops/update.md`). |
 //! | [`herdr`] | Telling the herdr pane this session runs in what it is doing: the loop-bottom sync into the library's tracker and worker, and the failed-turn hold (`docs/architecture/herdr.md`). |
@@ -113,7 +112,6 @@ pub(crate) mod shell;
 pub(crate) mod spinner;
 pub(crate) mod startup;
 pub(crate) mod stream;
-pub(crate) mod telemetry;
 pub(crate) mod theme;
 pub(crate) mod timing;
 pub(crate) mod trust;
@@ -342,22 +340,10 @@ pub(crate) struct Session<'t> {
     /// MCP server state changes (`docs/tools/mcp.md`) — never swapped either;
     /// connections outlive turns like background shells.
     mcp_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::llm::mcp::McpEvent>,
-    /// The telemetry ping worker's report (`TELEMETRY.md`): the UTC day
-    /// it delivered and the version the ping carried, which the **loop**
-    /// then records in `telemetry.json` — the worker never writes the file,
-    /// so it can't race the `/settings` toggle's write. Silent on failure.
-    telemetry_tx: tokio::sync::mpsc::UnboundedSender<zeroth::telemetry::Delivery>,
-    telemetry_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::telemetry::Delivery>,
-    /// The UTC day this **session** last spawned a ping for, successful or
-    /// not (`TELEMETRY.md`). Two jobs: the turn-start rollover check
-    /// compares against it and returns without touching the file on the
-    /// common path, and it bounds a failing collector to one attempt per day
-    /// per session rather than one per turn — the file's `last_ping_day`,
-    /// written only on a `2xx`, is still what retries the next launch.
-    telemetry_attempted: Option<String>,
+
     /// The update check worker's report (`docs/ops/update.md`): the newest
     /// release it found, which the **loop** then records in `update.json`
-    /// and announces — the telemetry channel's twin.
+    /// and announces.
     update_tx: tokio::sync::mpsc::UnboundedSender<String>,
     update_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
     /// The UTC day this **session** last spawned a check for, so the
@@ -463,6 +449,16 @@ pub(crate) struct Session<'t> {
     /// Bumped whenever history is replaced or rewound: a snapshot that
     /// started before the rewind is dropped when it lands.
     checkpoint_epoch: u64,
+    /// The checkpoint **restore** runs on its own thread too — a backtrack or a
+    /// `/resume` resets the work tree with `git reset --hard` + `git clean`,
+    /// which measured 1.5 s on a large tree (`docs/state/checkpoint.md`). Both
+    /// ends of its result channel live here, so the loop keeps painting and
+    /// reports the outcome when it lands.
+    restore_tx: tokio::sync::mpsc::UnboundedSender<turn::RestoreDone>,
+    restore_rx: tokio::sync::mpsc::UnboundedReceiver<turn::RestoreDone>,
+    /// The restore in flight, and the token the next one takes.
+    restore_pending: Option<turn::PendingRestore>,
+    restore_token: u64,
     /// Where the `/settings` knobs persist (`settings.json`, this directory's
     /// entry — `docs/state/per-directory-state.md`); `None` disables persistence,
     /// like `config.json`'s path (`docs/state/settings.md`). The live values

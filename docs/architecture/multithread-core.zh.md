@@ -221,7 +221,7 @@ stderr 是空的。这就是验收的形状：没有 bootstrap 警告、远在 R
   Host 现在是唯一一处会在 session 启动之前跑它们的地方）；
 - skill 与 subagent 的遍历，连同它们的解析错误，以及本项目 `skills.json` 里
   禁用的集合；
-- 本目录的 `/settings` 条目，加上 telemetry/update/tips 文件与 `ZEROTH_*` 覆盖
+- 本目录的 `/settings` 条目，加上 update/tips 文件与 `ZEROTH_*` 覆盖
   项，以及 tips 游标；
 - secrets 文件、用户的 `hooks.json`（路径与解析），以及模型解析器的输入：
   provider 表、`.env`，还有已保存的选择（`adopt_selection` 现在每个进程钉一个

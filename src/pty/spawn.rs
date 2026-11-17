@@ -123,6 +123,9 @@ pub fn apply_terminal_env(command: &mut Command) {
     if let Some((name, value)) = utf8_locale(|name| std::env::var(name).ok()) {
         command.env(name, value);
     }
+    command
+        .env_remove("ZEROTH_SCRATCHPAD")
+        .env_remove("ZEROTH_SCRATCHPAD_DIR");
 }
 
 /// A command running in its own pseudo-terminal.

@@ -14,12 +14,7 @@ S91="${S}_scratchpad"
 SP_TMP="$(mktemp -d "$SMOKE_TMP/pad.XXXXXX")"
 SPAPP="env $CFG_ENV_NOHIST TMPDIR=$SP_TMP ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 tmux new-session -d -s "$S91" -x 80 -y 24 "$SPAPP"
-sp_dir=""
-for _ in $(seq 1 60); do
-	sp_dir="$(find "$SP_TMP" -maxdepth 3 -type d -name scratchpad 2>/dev/null | head -1)"
-	if [ -n "$sp_dir" ]; then break; fi
-	sleep 0.15
-done
+wait_for 10 "$S91" -E '^❯' || fail "the app did not start"
 # A backgrounded `!` command tees into the tasks leaf beside it.
 submit "$S91" "!sleep 30"
 sleep 0.6
@@ -34,16 +29,13 @@ done
 # capture taken the moment the file appears can still hold the old frame.
 sp_pane="$(wait_pane 3 "$S91" -F "Running in the background")"
 tmux kill-session -t "$S91" 2>/dev/null
-echo "==== Phase 91: scratchpad='${sp_dir#"$SP_TMP"}', task output='${sp_out#"$SP_TMP"}' ===="
-if [ -z "$sp_dir" ]; then
-	fail "no scratchpad directory was created under the session root"
-elif ! printf '%s' "$sp_dir" | grep -qE "^$SP_TMP/zeroth-[0-9]+/[^/]+/scratchpad$"; then
-	fail "the scratchpad is not at {tmp}/zeroth-{uid}/{session}/scratchpad (got '$sp_dir')"
-fi
+sp_dir="$(find "$SP_TMP" -maxdepth 3 -type d -name scratchpad 2>/dev/null | head -1)"
+echo "==== Phase 91: scratchpad='$sp_dir', task output='${sp_out#"$SP_TMP"}' ===="
+[ -z "$sp_dir" ] || fail "an agent scratchpad directory was created"
 if [ -z "$sp_out" ]; then
 	fail "a backgrounded command left no interim output file"
-elif [ "$(dirname "$(dirname "$sp_out")")" != "$(dirname "$sp_dir")" ]; then
-	fail "the tasks dir is not the scratchpad's sibling (output '$sp_out', scratchpad '$sp_dir')"
+elif ! printf '%s' "$sp_out" | grep -qE "^$SP_TMP/zeroth-[0-9]+/[^/]+/tasks/[^/]+\.output$"; then
+    fail "background output is not scoped to the session: $sp_out"
 fi
 expect_has "$sp_pane" -F "Running in the background" "Ctrl+B did not move the command to the background"
 rm -rf "$SP_TMP" 2>/dev/null

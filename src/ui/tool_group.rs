@@ -59,9 +59,9 @@ fn clauses(counts: GroupCounts, active: bool) -> Vec<Clause> {
     }
     if counts.searches > 0 {
         out.push(Clause {
-            verb: pick("searching for", "searched for"),
+            verb: pick("running", "ran"),
             count: counts.searches,
-            noun: plural(counts.searches, "pattern", "patterns"),
+            noun: plural(counts.searches, "search", "searches"),
             lines: None,
         });
     }
@@ -164,17 +164,30 @@ pub fn tool_group_lines(
     width: u16,
     paths: &PathDisplay,
 ) -> Vec<Line<'static>> {
-    let members = items.iter().filter_map(|item| match item {
-        HistoryItem::Tool(tool) => Some(tool),
-        _ => None,
-    });
-    let counts = group_counts(members, paths);
+    let members: Vec<_> = items
+        .iter()
+        .filter_map(|item| match item {
+            HistoryItem::Tool(tool) => Some(tool),
+            _ => None,
+        })
+        .collect();
+    let counts = group_counts(members.iter().copied(), paths);
     let style = Style::new().fg(reasoning_label_color());
-    vec![Line::from(fit(
+    let mut lines = vec![Line::from(fit(
         summary_spans(counts, false, style, style),
         style,
         usize::from(width),
-    ))]
+    ))];
+    let previews: Vec<_> = members
+        .iter()
+        .rev()
+        .filter_map(|tool| super::search::summary(tool, width))
+        .take(SEARCH_PREVIEW_ENTRIES)
+        .collect();
+    for preview in previews.into_iter().rev() {
+        lines.extend(preview);
+    }
+    lines
 }
 
 /// What the group's `⎿` row says a value is about.

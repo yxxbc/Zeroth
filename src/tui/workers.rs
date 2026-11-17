@@ -20,9 +20,6 @@
 //!   `cancel` trips.
 //! - [`spawn_usage_fetch`] — one subscription's usage, for the `/usage` page
 //!   (`docs/providers/usage.md`).
-//! - [`spawn_telemetry_ping`] — the once-a-day anonymous usage ping
-//!   (`TELEMETRY.md`), fire-and-forget: it reports only success, so the
-//!   loop can record the day, and a dead collector costs the user nothing.
 //!
 //! **Invariant 1:** a worker only ever *sends*. None of them reads stdin, so
 //! the `EventStream` stays the single stdin reader.
@@ -399,30 +396,6 @@ fn spawn_copilot_login(cancel: CancelToken, tx: tokio::sync::mpsc::UnboundedSend
         // walked away from it.
         if !cancel.is_cancelled() {
             let _ = tx.send(DeviceEvent::Done(result));
-        }
-    });
-}
-
-/// Deliver the day's telemetry ping on a detached thread (`TELEMETRY.md`),
-/// sending `day` and the version the ping carried back on success
-/// (`telemetry::Delivery`) so the loop — never this thread — records them in
-/// `telemetry.json`. A failure sends nothing: there is nothing the user
-/// could act on, and the next launch that day simply tries again. The send
-/// itself is `telemetry::send_ping`, over the shared cached HTTP client; the
-/// receiver closing first (a quick quit) just drops the result. It only
-/// *sends* — never a stdin reader (invariant 1).
-pub(crate) fn spawn_telemetry_ping(
-    endpoint: String,
-    ping: zeroth::telemetry::Ping,
-    day: String,
-    tx: tokio::sync::mpsc::UnboundedSender<zeroth::telemetry::Delivery>,
-) {
-    std::thread::spawn(move || {
-        if zeroth::telemetry::send_ping(&endpoint, &ping).is_ok() {
-            let _ = tx.send(zeroth::telemetry::Delivery {
-                day,
-                version: ping.version,
-            });
         }
     });
 }

@@ -15,6 +15,62 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-17
+
+### 移除
+
+- **移除 Agent scratchpad。** 会话不再创建专属笔记目录，不向提示词追加目录路径与
+  使用指令，也不再提供特殊写入豁免。停用 `ZEROTH_SCRATCHPAD` 和
+  `ZEROTH_SCRATCHPAD_DIR`。后台输出和图片缓存继续作为内部存储
+  （`docs/tools/scratchpad.md`）。
+
+- **匿名的每日用量 ping 没了。** 没有 install id，没有 `telemetry.json`，没有
+  首启披露，没有 `/settings → Telemetry` 那一行，也不再向任何收集端发请求 ——
+  `ZEROTH_TELEMETRY` 与 `DO_NOT_TRACK` 两个变量、以及根目录的 `TELEMETRY.md`
+  都随之删除。更新检查其它地方没变：仍然每天一个发往 `/releases/latest` 的
+  `HEAD`，不带 install id，保留它自己的开关。
+
+### 变更
+
+- **搜索摘要与详情更易阅读。** 搜索组按调用次数计数，并保留查询与结果预览。
+  展开代码搜索按文件显示匹配和行号，命令单独成区；联网搜索区分标题、链接、日期和摘要。
+  未知格式保留原始输出，执行错误保持可见。
+
+- 模型 Bash 调用结束后显示已记录的执行事实，并保留失败输出的尾部。待处理的引导消息
+  和后续回合有明确标签，以及 Enter/Tab 操作提示。成功回合修改项目文件后提供
+  `/diff` 入口，供检查当前工作区；不把原有修改算作本轮成果，也不声称检查通过。
+
+### 修复
+
+- **`/resume` 不再为了给载入的 transcript 上色而卡住一秒。** Ctrl+O transcript
+  里的一个文件体现在只对前 2 KB 做语法高亮（`CODE_HIGHLIGHT_MAX_BYTES`），超出的
+  部分文字照常显示，只是不上色。在一个真实 session 上实测：它那些 markdown 文件
+  单元格合计 986 ms 的高亮变成 40 ms，整次 warm 从 1073 ms 降到 109 ms
+  （`docs/ui/long-lines.md`）。
+
+- **回退或 `/resume` 重置文件时不再冻结 UI。** 检查点恢复（`git reset --hard`
+  加 `git clean`）和回合末快照一样在工作线程执行。新消息和 shell 命令等待恢复结束，
+  防止恢复重置覆盖新回合的修改。期间 UI 继续接收输入（`docs/state/checkpoint.md`）。
+
+- **打字和点击不再每帧隐藏又显示光标。** 可见光标只移动，隐藏光标只调整位置；
+  `Hide`/`Show` 仅用于可见性变化、滚动或重建画面。此前每次编辑的 `Hide` … `Show`
+  会让 kitty 光标拖尾和 IME 预编辑闪烁。全屏模式遵循相同规则
+  （`docs/ui/flicker.md`，smoke 阶段 160/161）。
+
+- **空闲的提问弹窗不再闪烁。** 内联动画以前即使 live 区域未变化，也每 32 ms
+  隐藏并重新定位光标；空闲 `AskUserQuestion` 弹窗在 35 个 tick 里写出 34 帧仅含
+  Hide 和光标操作的画面。现在未变化的帧不输出内容
+  （`docs/ui/flicker.md`，smoke 阶段 159）。
+
+- **打开和关闭备用屏幕页面不再闪屏。** Ctrl+O、Ctrl+D、`/resume` 和 `/diff`
+  的屏幕切换及清屏现在与第一帧同步输出，返回时也与内联画面重绘同步，避免中间出现
+  空白或旧画面（`docs/ui/flicker.md`，smoke 阶段 158）。
+
+- **链接打开器的报错不再覆盖 TUI。** `open`/`xdg-open`/`cmd start` 子进程
+  以前继承标准输出和错误输出；现在分离这些流，失败信息不会写到 live 区域。
+
+## [0.19.0] - 2026-11-13
+
 ### 新增
 
 - **账户和 API key 现在都可以退出。** 登录菜单增加连接管理入口，
@@ -2101,7 +2157,9 @@ Zeroth 的开发基线。第一个打上标签的发布将决定它从哪个版�
   （Intel、Apple silicon）归档并附 SHA-256 校验和，发布一个 GitHub release，其
   说明来自本文件 —— 全程由 `scripts/release.sh` 驱动，它还能在本地排演一次发布。
 
-[Unreleased]: https://github.com/yxxbc/zeroth/commits/main
+[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/yxxbc/zeroth/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/yxxbc/zeroth/releases/tag/v0.19.0
 [0.0.0]: https://github.com/yxxbc/zeroth
 [0.18.0]: https://github.com/linuztx/alter-zero/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/linuztx/alter-zero/compare/v0.16.0...v0.17.0

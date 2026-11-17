@@ -160,7 +160,7 @@ streamed, undoes the submission. Every turn end dispatches **one** queued entry.
 - **The agent's own name is one constant**: `zeroth::APP_NAME`. Ported sentences
   keep their source tool's name unless you change it deliberately.
 - **The README is the front door, not the manual.** Mechanism goes in `docs/`,
-  changes in `CHANGELOG.md`, the privacy statement in `TELEMETRY.md`.
+  changes in `CHANGELOG.md`.
 - **Working style: TDD.** No production code before a failing test you watched
   fail. `src/main.rs` + `src/tui/` are the exception — verify with the app and
   smoke. For non-trivial features: explore, ask, propose 2–3 designs, agree,

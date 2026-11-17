@@ -1,7 +1,7 @@
 //! The once-a-day update check at the boundary (`docs/ops/update.md`): the
 //! request, the card under the banner, the recorded day — everything
 //! `update` (the pure half) leaves to the side that can read a clock, touch
-//! the file and spawn a thread. `tui::telemetry`'s twin, and it keeps the
+//! the file and spawn a thread. It keeps the
 //! same four rules:
 //!
 //! - **Nothing happens unless the check is active.** No config home, an
@@ -38,7 +38,7 @@ impl Session<'_> {
         self.update_tick();
     }
 
-    /// A turn start's day rollover — `telemetry_day_check`'s twin: cheap on
+    /// A turn start's day rollover: cheap on
     /// the common path (a date read and a string compare), and the bound on
     /// a failing request within one session.
     pub(crate) fn update_day_check(&mut self) {

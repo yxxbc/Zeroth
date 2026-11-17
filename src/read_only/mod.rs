@@ -22,6 +22,17 @@ mod flags;
 mod git;
 mod lex;
 
+/// Literal words of a single supported search command, for display only.
+/// This never grants execution permission or interprets a compound shell.
+pub(crate) fn search_words(command: &str) -> Option<Vec<String>> {
+    let parsed = lex::parse(command)?;
+    if parsed.hazards.any() || parsed.segments.len() != 1 {
+        return None;
+    }
+    let segment = parsed.segments.into_iter().next()?;
+    matches!(segment.program()?, "rg" | "grep" | "egrep" | "fgrep").then_some(segment.words)
+}
+
 use flags::Rules;
 use lex::Segment;
 

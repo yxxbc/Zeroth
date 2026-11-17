@@ -221,13 +221,9 @@ impl Session<'_> {
             mcp: self.mcp.has_servers(),
             // Whether this terminal can draw a picture (`docs/ui/images.md`).
             images: self.term.image_capability().0,
-            // Nowhere to keep an install id without a config home — and
-            // nothing to turn on when the environment forbade it, which is
-            // what stops `DO_NOT_TRACK=1` being cycled around from inside
-            // the app (`TELEMETRY.md`).
-            telemetry: config::telemetry_json_path().is_some()
-                && !config::telemetry_forbidden_by_env(),
-            // The same two conditions for the update check (`docs/ops/update.md`).
+            // Nowhere to remember the day without a config home — and
+            // nothing to turn on when the environment forbade it
+            // (`docs/ops/update.md`).
             update_check: config::update_json_path().is_some()
                 && !config::update_check_forbidden_by_env(),
         });
@@ -356,11 +352,8 @@ impl Session<'_> {
             SettingKey::HideThinking | SettingKey::AutoCompact | SettingKey::AskTimeout => {}
             // Shift+Tab's path owns this one; the menu never routes it here.
             SettingKey::PermissionMode => {}
-            // The one per-user row: its file is telemetry.json, and turning
-            // it on sends today's ping if none has gone (TELEMETRY.md).
-            SettingKey::Telemetry => self.apply_telemetry_setting(),
-            // Its twin: update.json, and turning it on runs today's check if
-            // none has (docs/ops/update.md).
+            // The one per-user row: its file is update.json, and turning it
+            // on runs today's check if none has (docs/ops/update.md).
             SettingKey::UpdateCheck => self.apply_update_setting(),
             // Per user too: tips.json, beside the walk's position. Nothing to
             // redraw by hand — the next frame reads the row (docs/ui/tips.md).
@@ -374,10 +367,10 @@ impl Session<'_> {
         // itself, moving across only the key the user cycled — so an
         // `ZEROTH_*` override merged in at startup never sticks, and two
         // sessions in two directories never clobber each other
-        // (`docs/state/settings.md`, `docs/state/per-directory-state.md`). The Telemetry
-        // and Show tips rows were written above, to their own files: a
-        // user's choice, not a directory's.
-        if !matches!(key, SettingKey::Telemetry | SettingKey::Tips) {
+        // (`docs/state/settings.md`, `docs/state/per-directory-state.md`). The
+        // Show tips row was written above, to its own file: a user's choice,
+        // not a directory's.
+        if !matches!(key, SettingKey::Tips) {
             config::save_setting(
                 self.settings_path.as_deref(),
                 &self.cwd.display().to_string(),

@@ -56,8 +56,7 @@
 | **Max tool calls** | **`0`** / `5` / `10` / `20` / `50` / `100` | 一个回合在放弃之前可以跑多少个 tool **call**（`llm::agent::run_agent` 的上限）。**`0` 是无限制，也是默认**——见下文。 |
 | **Ask timeout** | `5m` / **`10m`** / `20m` / `30m` / `1h` / `never` | 一个 `AskUserQuestion` 问题在一个**空闲**用户身上等多久才无答复地解决、让 agent 按自己的判断继续（`docs/tools/ask.md`）——任何按键或粘贴都重新开始计时，而模态的收尾规则把它倒数出来。`never` 停掉这个钟。由 `ZEROTH_ASK_TIMEOUT_SECS` 播种（秒，`0` = never），它的奇数取值仍整段读出（`1m 30s`）。在用到它的地方读：绘制 tick 每一次读空闲时钟时都读它，于是一个新值作用于一个已经在跑的等待，而 `never` 立刻停掉它。 |
 | **Show tips** | `true` / `false` | 一个回合跑过三秒后，状态行下是否挂一行 dim 的 `⎿  Tip: …`——一个值得知道的按键或命令，每回合取目录里的下一个（`docs/ui/tips.md`；Claude Code 的 `spinnerTipsEnabled`）。**按用户，不按目录**：存在 `tips.json` 里、与行走的位置并排，从不进 `settings.json`。由 `ZEROTH_TIPS` 播种，它——不是隐私开关——从不撤回那一行。不需要宿主提供什么，所以它永不不可用。 |
-| **Update check** | `true` / `false` | 应用是否每天一次问仓库有没有更新的 release，并在横幅下面说（`docs/ops/update.md`：对 `/releases/latest` 的一个 `HEAD`，由一个 tag 就是版本的 redirect 回答——没有 body、没有 install id、没有关于你的任何东西；卡片点名那个 release、`zeroth update` 和关闭开关，每天一次，绝不在一段答复中途）。**按用户，不按目录**：存在 `update.json`，从不进 `settings.json`。由 `ZEROTH_UPDATE_CHECK` 播种；**不可用**于没有 config home（没地方记住那一天）**以及只要该变量禁止它**——Telemetry 的规则，一个说不的环境就撤回那一行。命令行的 `zeroth update` 是用户自己的请求，无论如何都会跑。 |
-| **Telemetry** | `true` / `false` | 匿名的每日用量 ping 是否发送（`TELEMETRY.md`：五个字段——一个载荷版本、一个随机 install id、应用版本、操作系统和架构——绝无 prompt、路径、模型或 key；收集端记下国家，绝不记地址）。**按用户，不按目录**：存在 `telemetry.json`，从不进 `settings.json`。由 `ZEROTH_TELEMETRY` 播种，被 `DO_NOT_TRACK=1` 压过；**不可用**于没有 config home（没地方留 install id）**以及只要任一变量禁止它**——各行之中唯独它，一个说不的环境是撤回这一行，而不只是播种，因为一个一次按键就能撤销的退出不算退出（`TELEMETRY.md`）。 |
+| **Update check** | `true` / `false` | 应用是否每天一次问仓库有没有更新的 release，并在横幅下面说（`docs/ops/update.md`：对 `/releases/latest` 的一个 `HEAD`，由一个 tag 就是版本的 redirect 回答——没有 body、没有 install id、没有关于你的任何东西；卡片点名那个 release、`zeroth update` 和关闭开关，每天一次，绝不在一段答复中途）。**按用户，不按目录**：存在 `update.json`，从不进 `settings.json`。由 `ZEROTH_UPDATE_CHECK` 播种；**不可用**于没有 config home（没地方记住那一天）**以及只要该变量禁止它**——一个说不的环境就撤回那一行。命令行的 `zeroth update` 是用户自己的请求，无论如何都会跑。 |
 
 ### 上限计的是 call，不是轮
 
@@ -278,10 +277,6 @@ Space 用于循环，正是搜索不能含空格的原因；这没关系——la
     步：文件已经知道的一个更新的 release 会被宣告，而当一次都还没跑过时，今天的
     请求被发出（`Session::apply_update_setting`，`docs/ops/update.md`）；关掉它
     就不再发任何东西。
-  - **Telemetry** 写它自己的文件——`telemetry.json`，与 install id 并排——而不是
-    这个目录 `settings.json` 里的条目，而打开它在今天还没发过时立刻发今天的 ping
-    （`Session::apply_telemetry_setting`，`TELEMETRY.md`）；关掉它就不再发任何
-    东西。
 
 每次改动都以一个瞬时 toast 确认（`{label}: {value}`）并持久化。
 
@@ -324,12 +319,12 @@ diff**——里面只有你真正改过的东西：
 `true` 和一个刻意选的 `true`），而且即使它等于默认也保留着——丢掉它会让种子
 重新进来。
 
-**Telemetry**、**Update check** 和 **Show tips** 是三个完全不在此文件里的行。
-一个只作用于你碰巧所在目录的退出会是个意外，所以它们的值住在 `telemetry.json`、
-`update.json` 和 `tips.json`（`TELEMETRY.md`、`docs/ops/update.md`、
-`docs/ui/tips.md`）——每个字段在 `SessionSettings` 上是 `#[serde(skip)]`，而
-`copy_value` 从不搬动它（`PermissionMode` 的模式）；`apply_setting` 把每个写进
-自己的文件，它们一个都不会移进这个目录的条目。
+**Update check** 和 **Show tips** 是两条完全不在此文件里的行。
+一个只作用于你碰巧所在目录的选择会是个意外，所以它们的值住在
+`update.json` 和 `tips.json`（`docs/ops/update.md`、`docs/ui/tips.md`）——每个
+字段在 `SessionSettings` 上是 `#[serde(skip)]`，而 `copy_value` 从不搬动它
+（`PermissionMode` 的模式）；`apply_setting` 把每个写进自己的文件，它们一个都
+不会移进这个目录的条目。
 
 启动时的优先级是应用其余部分遵循的同一条规则——**环境胜出**：一个显式设置的
 `ZEROTH_*` 变量为那一个设置覆盖已保存的值

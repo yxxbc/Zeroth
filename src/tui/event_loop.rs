@@ -4,7 +4,7 @@
 //! coalesced draw ticks, `@` file-search results, finished Ctrl+V clipboard
 //! reads, the `/login` sign-in worker, `/model` list fetches, the startup
 //! capability probe, background-shell events, subagent events, MCP server
-//! events, the telemetry ping's report and the turn-end checkpoint's result.
+//! events and the turn-end checkpoint's result.
 //! `select!` polls its branches in
 //! randomized order, so input and draws can't starve each other — the
 //! round-robin fairness codex builds explicitly.
@@ -127,11 +127,6 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             //     flow progressed) — docs/tools/mcp.md.
             Some(event) = session.mcp_rx.recv() => session.on_mcp_event(event),
 
-            // 11. The day's telemetry ping was delivered: record the day and
-            //     the version so the next launch today on this version sends
-            //     nothing (TELEMETRY.md).
-            Some(delivered) = session.telemetry_rx.recv() => session.on_telemetry_result(&delivered),
-
             // 12. The update check answered: record what it found and, if
             //     newer, announce it once the session is idle (docs/ops/update.md).
             Some(latest) = session.update_rx.recv() => session.on_update_result(&latest),
@@ -140,6 +135,10 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             //     thread: record it, then dispatch the turn-end work that
             //     waited for it (docs/state/checkpoint.md).
             Some(done) = session.checkpoint_rx.recv() => session.on_checkpoint_done(done),
+
+            // 14. A backtrack's or a `/resume`'s code reset finished on its
+            //     worker thread: report it (docs/state/checkpoint.md).
+            Some(done) = session.restore_rx.recv() => session.on_restore_done(done),
         }
         session.after_iteration();
     }

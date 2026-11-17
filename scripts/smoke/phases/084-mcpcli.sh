@@ -88,7 +88,7 @@ for expect in "OAuth client: 123.apps" "Callback port: 8976" "Client secret: kep
 done
 expect_lacks "$mcp84_get" -F "s3cret-value" "mcp get printed the client secret"
 $MCP84_ENV "$BIN" mcp remove calendar >/dev/null 2>&1
-APP_MCP84="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$MCP84_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_MCP84="env ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$MCP84_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux new-session -d -s "$S84" -x 100 -y 36 "$APP_MCP84"
 sleep 0.8
 tmux send-keys -t "$S84" -l "/mcp"

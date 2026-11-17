@@ -155,7 +155,6 @@ prompt 挑中了*哪个*场景。`ui::TranscriptCache` 的那些计数器用的�
 | `markdown` | "markdown"，不是 "agents.md" | 慢流速压力巡游：一段长纯文本回复里每一个 markdown 元素，以 **token 尺寸**的碎片流出（`tokens`）—— 也就是 `smoke.sh` Phase 121 以每秒几个 token 流出的那份文档（`docs/ui/slow-stream.md`） |
 | `agents` | "agents"，不是 "agents.md" | 一个两 subagent 的组，前台或后台（`docs/agents/agent-tool.md`） |
 | `parallel-batch` | "parallel" | 三个并行的 `Bash(ping …)` 调用和它们的 `⎿ Waiting…` cell（`docs/tools/parallel-tools.md`） |
-| `scratchpad` | "scratchpad" | agent 在它的 **session scratchpad** 里起草一个小游戏 —— 一个以 token 尺寸碎片生成的 `write`，然后一个单行 `edit` —— 两者都折进折叠组：一行 `Making 1 scratchpad edit +N…` 在文件路径上随流式计数，最后沉降为 `Made 2 scratchpad edits +26 -1`（`docs/ui/tool-groups.md` *Scratchpad edits*、`smoke.sh` Phase 147）。它写进这个 session 自己的 scratchpad（在边界处交给 `DummyAi`），否则写进一个带 scratchpad 布局的路径 |
 | `files` | "diff"/"edit"/"write"，不是 "agents.md" | 同一个文件的一次 `Write` 然后一次 `Edit`：带编号的 file cell 和它的绿/红 diff hunk（`docs/tools/tools.md`） |
 | `download` | "pacman"/"download" | pacman 的并行数据库刷新，按终端看到的样子：一次 `bash` 调用，它的四个进度条按 pacman 自己的宽度绘制（所以每个都折成两行），一帧一帧地原地重绘，两个小的在第一秒内结束并**坐在**两个仍在下载的**下面** —— 一个钉在输出末尾的窗口会搞错的那个形状，所以运行中 cell 的窗口跟随还在动的那些条（`docs/ui/tool-streaming.md` *The window follows what is still moving*、`smoke.sh` Phase 130） |
 | `interactive` | "interactive" | 经由终端 session 驱动的安装向导：一次 `bash` 启动停在一个 prompt 上、一个 `bashsend` 回答遇上下一个问题、最后一个答案结束程序 —— 每轮一个调用，每个结果都是真的 `pty::report::report`，所以这些 cell 穿着它们暗色的 `Waiting for input · session …` 行（`docs/tools/interactive-shell.md`、`smoke.sh` Phase 124）。只认整词：`tty` 藏在 "pretty" 里，`repl` 藏在 "reply" 里 |
@@ -165,13 +164,11 @@ prompt 挑中了*哪个*场景。`ui::TranscriptCache` 的那些计数器用的�
 cue 的顺序就是注册表的顺序，所以更窄的 cue 坐在也会匹配它的更宽的 cue 之上 ——
 `agent-stream` 坐在 `table` 之上，因为那张表是它的 subagent 流出的东西，于是同时
 点名两者的 prompt 指的是前者；`agent-permission` 出于同样的理由坐在整个权限块之
-上（它的 cue 是 "permission" 加一个词）；而 `scratchpad` 坐在 `files` 之上，因为
-一个关于 scratchpad 的 prompt 很可能说 "write"。有两个 cue 带的是守卫而不是顺
-序：`agents` 和 `files` 都排除 `agents.md`，因为 `/init` 提交一条点名它的罐头
+上（它的 cue 是 "permission" 加一个词）。有两个 cue 带的是守卫而不是顺序：`agents` 和 `files` 都排除 `agents.md`，因为 `/init` 提交一条点名它的罐头
 prompt 并说「do not over**write**」—— 没有这个守卫，那个回合会被一个脚本化的
 fizzbuzz 回答。
 
-`files` 和 `scratchpad` 两个 demo 的 `write` 是**生成**出来的，就像真模型生成一
+`files` demo 的 `write` 是**生成**出来的，就像真模型生成一
 个那样 —— 这一点其他任何脚本化调用都没有：它真实的 JSON 参数在这个调用的槽位下被
 切成 token 尺寸的碎片（`stream::tokens`），每一块暂停一个 chunk 延迟，像回复文本
 里的一个词 ——于是文件离线地流进它的 cell，尾部窗口沿着它下移，内容闭合时翻回头部

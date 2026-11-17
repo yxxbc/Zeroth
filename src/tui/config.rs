@@ -771,37 +771,12 @@ pub(crate) fn tmp_dir() -> Option<PathBuf> {
 // ===== the session's temp layout (docs/tools/scratchpad.md) =====
 
 /// This session's temp root — `{temp}/zeroth-{uid}/{session}`, the parent
-/// of both the agent's scratchpad and the background shells' `tasks` dir. The
+/// of background output and image caches. The
 /// uid and session id are the boundary's (`host::process_uid`/`session_id`),
 /// the shape is the pure [`scratchpad::session_root`]; `TMPDIR` moves the
 /// whole tree, since [`std::env::temp_dir`] honours it.
 pub(crate) fn session_tmp_root(session: &str) -> PathBuf {
     scratchpad::session_root(&std::env::temp_dir(), host::process_uid(), session)
-}
-
-/// Is the scratchpad on? On by default; a falsy `ZEROTH_SCRATCHPAD` turns
-/// it off entirely — no directory, no `## Scratchpad` block in the system
-/// prompt, and no permission exemption (`docs/tools/scratchpad.md`).
-pub(crate) fn scratchpad_enabled() -> bool {
-    env_flag("ZEROTH_SCRATCHPAD")
-}
-
-/// The session's scratchpad directory, **created**: `ZEROTH_SCRATCHPAD_DIR`
-/// puts it at an exact path (the `ZEROTH_SKILLS_DIR` convention), else
-/// `{session_root}/scratchpad`.
-///
-/// `None` means the agent is told about no scratchpad at all: the feature is
-/// off, or the directory could not be created. Pointing the model at a path
-/// that does not exist — and refusing its writes there in the same breath —
-/// is worse than saying nothing, so the whole feature hangs off this one
-/// answer (`docs/tools/scratchpad.md`).
-pub(crate) fn prepare_scratchpad(session_root: &Path) -> Option<PathBuf> {
-    if !scratchpad_enabled() {
-        return None;
-    }
-    let dir = std::env::var_os("ZEROTH_SCRATCHPAD_DIR")
-        .map_or_else(|| scratchpad::scratchpad_dir(session_root), PathBuf::from);
-    std::fs::create_dir_all(&dir).ok().map(|()| dir)
 }
 
 /// Where this session's **pasted images** are saved: `{config_home}/image-cache/{session}`
@@ -879,7 +854,7 @@ fn folder_bytes(dir: &Path) -> u64 {
 /// later turn re-sending an attachment reads a small file instead of decoding
 /// the original again (`docs/ui/images.md` "Memory"). `None` when it could not
 /// be created — payloads are then rebuilt per turn, exactly as before the
-/// cache existed. Not gated with the scratchpad: it is the backend's own
+/// cache existed. It is the backend's own
 /// working space, never something the model is told about.
 pub(crate) fn prepare_image_cache(session_root: &Path) -> Option<PathBuf> {
     let dir = scratchpad::images_dir(session_root);
@@ -1127,53 +1102,6 @@ pub(crate) fn theme_json_path() -> Option<PathBuf> {
     config_home().map(|dir| dir.join("theme.json"))
 }
 
-/// The telemetry file — `{config_home}/telemetry.json`, its own file like
-/// `theme.json` (one file per feature that owns it, `TELEMETRY.md`):
-/// the install id, the on/off switch, the last delivered day and whether
-/// the one-time notice has been shown. `None` (no config home) disables the
-/// feature outright — nowhere to keep an id means no ping, since a fresh
-/// random id per launch would count one person as many.
-pub(crate) fn telemetry_json_path() -> Option<PathBuf> {
-    config_home().map(|dir| dir.join(zeroth::telemetry::TELEMETRY_FILE_NAME))
-}
-
-/// Read `telemetry.json`. Best-effort like [`load_theme`] — an absent,
-/// unreadable or corrupt file reads as the defaults (on, no id yet), so a
-/// bad file costs at most a fresh install id and a repeated notice.
-pub(crate) fn load_telemetry_file(path: Option<&Path>) -> zeroth::telemetry::TelemetryFile {
-    path.and_then(|p| std::fs::read_to_string(p).ok())
-        .map(|text| zeroth::telemetry::TelemetryFile::parse(&text))
-        .unwrap_or_default()
-}
-
-/// Change `telemetry.json` through `edit`, as a **read-modify-write** over
-/// the file itself — re-read, edited, written back only when the edit
-/// changed something — and return the file as it now stands. Every writer
-/// goes through here (the id mint, the notice mark, the delivered day, the
-/// `/settings` toggle), and all of them run on the loop thread, so two
-/// writers can never interleave and one field's write can never clobber
-/// another's. Best-effort like [`save_theme`]: a failed write is swallowed
-/// (a read-only home must never kill the TUI) and a `None` path (no config
-/// home) edits nothing — the feature is off there anyway
-/// (`TELEMETRY.md`).
-pub(crate) fn update_telemetry_file(
-    path: Option<&Path>,
-    edit: impl FnOnce(&mut zeroth::telemetry::TelemetryFile),
-) -> zeroth::telemetry::TelemetryFile {
-    let before = load_telemetry_file(path);
-    let mut file = before.clone();
-    edit(&mut file);
-    if let Some(path) = path
-        && file != before
-    {
-        if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = std::fs::write(path, file.to_json());
-    }
-    file
-}
-
 /// Where OpenAI's sign-in flows go: `ZEROTH_OPENAI_ISSUER` when set and
 /// non-empty (the smoke suite's local stand-in for the auth server, or a
 /// fork's own), else `None` — the module's built-in default stands
@@ -1235,49 +1163,13 @@ fn nonempty_env(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// Where the daily ping goes: `ZEROTH_TELEMETRY_URL` when set and
-/// non-empty (a fork's own collector, the smoke suite's local stub), else
-/// the built-in collector (`telemetry::DEFAULT_ENDPOINT`).
-pub(crate) fn telemetry_endpoint() -> String {
-    std::env::var(zeroth::telemetry::ENDPOINT_ENV)
-        .ok()
-        .map(|url| url.trim().to_string())
-        .filter(|url| !url.is_empty())
-        .unwrap_or_else(|| zeroth::telemetry::DEFAULT_ENDPOINT.to_string())
-}
-
-/// Whether the environment **forbids** telemetry this run — a falsy
-/// `ZEROTH_TELEMETRY`, or a set `DO_NOT_TRACK`.
-///
-/// This is what makes the opt-out *hard* rather than a mere seed
-/// (`TELEMETRY.md`): the `/settings` row reports itself unavailable, so
-/// it cannot be cycled back on, and `telemetry_active()` stays false however
-/// the row is set. Every other `ZEROTH_*` override only seeds its row —
-/// but the others are preferences, and this one is a statement that nothing
-/// should be sent. The asymmetry is deliberate and one-directional: an
-/// environment that forces telemetry *on* leaves the row cyclable, because
-/// turning it **off** must always be possible.
-pub(crate) fn telemetry_forbidden_by_env() -> bool {
-    telemetry_env_override() == Some(false)
-}
-
-/// What the environment says about telemetry for this run —
-/// `ZEROTH_TELEMETRY` in the app's on/off grammar, outranked by a set
-/// `DO_NOT_TRACK` — or `None` to defer to `telemetry.json`
-/// (`telemetry::enabled_by_env`, `TELEMETRY.md`).
-fn telemetry_env_override() -> Option<bool> {
-    let telemetry = std::env::var(zeroth::telemetry::TELEMETRY_ENV).ok();
-    let dnt = std::env::var(zeroth::telemetry::DNT_ENV).ok();
-    zeroth::telemetry::enabled_by_env(telemetry.as_deref(), dnt.as_deref())
-}
-
 /// The update-check file — `{config_home}/update.json`, its own per-user
-/// file like `telemetry.json` (`docs/ops/update.md`).
+/// file (`docs/ops/update.md`).
 pub(crate) fn update_json_path() -> Option<PathBuf> {
     config_home().map(|dir| dir.join(zeroth::update::UPDATE_FILE_NAME))
 }
 
-/// Read `update.json`. Best-effort like [`load_telemetry_file`]: an absent,
+/// Read `update.json`. Best-effort like [`load_theme`]: an absent,
 /// unreadable or corrupt file reads as the defaults (on, nothing known yet).
 pub(crate) fn load_update_file(path: Option<&Path>) -> zeroth::update::UpdateFile {
     path.and_then(|p| std::fs::read_to_string(p).ok())
@@ -1286,7 +1178,7 @@ pub(crate) fn load_update_file(path: Option<&Path>) -> zeroth::update::UpdateFil
 }
 
 /// Change `update.json` through `edit`, as a **read-modify-write** over the
-/// file itself — [`update_telemetry_file`]'s twin: every writer (the check's
+/// file itself — a read-modify-write: every writer (the check's
 /// day, the version it found, the notice's day, the `/settings` toggle) goes
 /// through here on the loop thread, a failed write is swallowed, and a
 /// `None` path edits nothing.
@@ -1320,7 +1212,7 @@ pub(crate) fn update_repo_url() -> String {
 }
 
 /// Whether the environment **forbids** the update check this run — a falsy
-/// `ZEROTH_UPDATE_CHECK`. The telemetry rule (`telemetry_forbidden_by_env`):
+/// `ZEROTH_UPDATE_CHECK`. A forbidding environment:
 /// the `/settings` row reports itself unavailable, so a "send nothing"
 /// stated in the environment cannot be cycled around from inside the app.
 pub(crate) fn update_check_forbidden_by_env() -> bool {
@@ -1489,13 +1381,6 @@ pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionS
     {
         settings.ask_timeout_secs = secs;
     }
-    // The Telemetry row: `ZEROTH_TELEMETRY` (and the cross-tool
-    // `DO_NOT_TRACK`, which outranks it) seed it for the run over the value
-    // `telemetry.json` supplied — an override, never saved
-    // (`TELEMETRY.md`).
-    if let Some(on) = telemetry_env_override() {
-        settings.telemetry = on;
-    }
     // The Show tips row: `ZEROTH_TIPS` seeds it for the run over the
     // value `tips.json` supplied, the `ZEROTH_TOOLS` grammar — not a
     // privacy switch, so it never withdraws the row (`docs/ui/tips.md`).
@@ -1590,59 +1475,34 @@ pub(crate) fn context_window_override() -> Option<u64> {
 /// (`prompts/zeroth.md`) unless `ZEROTH_SYSTEM_PROMPT` overrides it
 /// (an empty value sends no system prompt at all — `with_system_prompt` drops
 /// blanks). Either way we fold in the runtime environment — date, os, user,
-/// cwd — so the agent has context awareness (`docs/architecture/environment.md`), and —
-/// when the session has one — the `## Scratchpad` block pointing every
-/// temporary file at the session's own directory (`docs/tools/scratchpad.md`), for
-/// an assembled persona → environment → scratchpad. The values are
-/// gathered here at the boundary (the `set_clock` pattern), the assembly is
-/// the pure `backend::augment_with_environment`/`augment_with_scratchpad`.
+/// cwd — so the agent has context awareness (`docs/architecture/environment.md`).
 /// Resolved once at startup, so
 /// every backend the loop rebuilds (a `/model` switch, a Ctrl+T thinking
 /// change, the capability probe) inherits it by clone.
-pub(crate) fn system_prompt(cwd: &Path, scratchpad: Option<&Path>) -> Option<String> {
+pub(crate) fn system_prompt(cwd: &Path) -> Option<String> {
     std::env::var("ZEROTH_SYSTEM_PROMPT")
         .ok()
         .or_else(|| Some(DEFAULT_SYSTEM_PROMPT.to_string()))
         .map(|base| {
-            let base = llm::backend::augment_with_environment(
+            llm::backend::augment_with_environment(
                 &base,
                 &local_date(),
                 &os_context(),
                 &user_context(),
                 &cwd.display().to_string(),
-            );
-            match scratchpad {
-                Some(dir) => {
-                    llm::backend::augment_with_scratchpad(&base, &dir.display().to_string())
-                }
-                None => base,
-            }
+            )
         })
 }
 
-/// The **runtime half** of [`system_prompt`] alone: the environment block and
-/// — when the session has one — the scratchpad block, without the persona.
-///
-/// What a subagent definition whose body *replaces* the persona still carries
-/// (`docs/agents/subagents.md`): the date, the os, the user, the cwd and where
-/// temporary files go are facts about this session, and an agent that doesn't
-/// know them writes into `/tmp` and guesses the year. Built from the same two pure
-/// renderers `system_prompt` composes with, from the same boundary reads, so
-/// the two can never describe different environments.
-pub(crate) fn prompt_context(cwd: &Path, scratchpad: Option<&Path>) -> Option<String> {
-    let environment = llm::backend::render_environment(
+/// The runtime environment without the persona, for custom subagent bodies.
+/// Uses the same renderer as [`system_prompt`].
+pub(crate) fn prompt_context(cwd: &Path) -> Option<String> {
+    Some(llm::backend::render_environment(
         &local_date(),
         &os_context(),
         &user_context(),
         &cwd.display().to_string(),
-    );
-    Some(match scratchpad {
-        Some(dir) => format!(
-            "{environment}\n\n{}",
-            llm::backend::render_scratchpad(&dir.display().to_string())
-        ),
-        None => environment,
-    })
+    ))
 }
 
 /// The **user** MCP config file: `ZEROTH_MCP_FILE` (what makes a smoke

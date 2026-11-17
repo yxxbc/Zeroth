@@ -119,10 +119,6 @@ smoke_sanitize_env() {
 	# native arboard path wins, the OSC 52 fallback they read back never fires,
 	# and the suite overwrites the developer's real clipboard on its way past.
 	unset DISPLAY WAYLAND_DISPLAY XAUTHORITY
-	# Telemetry (TELEMETRY.md) is opt-out and pings a real collector once
-	# a day per config home — off for the suite, both exported (the tmux
-	# server inherits it) and spelled out in every launch string.
-	export ZEROTH_TELEMETRY=0
 	# …nor may one ask github.com for a newer release (docs/ops/update.md).
 	export ZEROTH_UPDATE_CHECK=0
 	# The spinner tip (docs/ui/tips.md) hangs a row under the status line once a
@@ -368,7 +364,7 @@ smoke_begin() {
 	# Lifecycle hooks, the project config layer and the spinner tips are off
 	# for hermeticity too, and the permission mode is manual (the sanitizer's
 	# note on it).
-	CFG_ENV="ZEROTH_CONFIG_DIR=$SMOKE_CFG ZEROTH_SESSIONS_DIR=$SMOKE_SESSIONS ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_PROJECT_CONFIG=0 ZEROTH_TELEMETRY=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PERMISSION_MODE=manual ZEROTH_VERBOSE=1"
+	CFG_ENV="ZEROTH_CONFIG_DIR=$SMOKE_CFG ZEROTH_SESSIONS_DIR=$SMOKE_SESSIONS ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_PROJECT_CONFIG=0 ZEROTH_UPDATE_CHECK=0 ZEROTH_TIPS=0 ZEROTH_PERMISSION_MODE=manual ZEROTH_VERBOSE=1"
 	# Persistence seeds the input history from a file on startup; /dev/null
 	# gives every launch an EMPTY history so the ↑/↓ and Ctrl+R assertions are
 	# unaffected by earlier submissions.

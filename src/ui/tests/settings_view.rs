@@ -336,7 +336,6 @@ fn an_unavailable_row_is_labelled_and_dimmed() {
         skills: true,
         mcp: true,
         images: true,
-        telemetry: true,
         update_check: true,
     });
     let at = labels(&app)

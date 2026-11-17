@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use crate::APP_NAME;
 
 /// The file's name under the config home: `{config_home}/update.json` — its
-/// own file, per user, like `telemetry.json` (`docs/state/per-directory-state.md`).
+/// own file, per user, like `tips.json` (`docs/state/per-directory-state.md`).
 pub const UPDATE_FILE_NAME: &str = "update.json";
 
 /// The app's own on/off switch for a run (`0`/`false`/`no`/`off` = off, the
@@ -386,7 +386,7 @@ pub fn enabled_by_env(value: Option<&str>) -> Option<bool> {
 /// versions, the release page, `command` — what updates this install,
 /// [`update_command`] — and the opt-out. Inline markdown marks the labels
 /// and commands; the blank line separates the news from the opt-out, the
-/// telemetry card's shape.
+/// notice card's shape.
 #[must_use]
 pub fn notice(current: &str, latest: &str, repo: &str, command: &str) -> String {
     let current = current.strip_prefix('v').unwrap_or(current);
@@ -445,7 +445,7 @@ pub fn fetch_installer(repo: &str, current_version: &str) -> Result<String, Stri
         crate::llm::http_client(crate::llm::openai::NET_OP_TIMEOUT).map_err(|e| e.to_string())?;
     let response = client
         .get(&url)
-        .header("user-agent", crate::telemetry::user_agent(current_version))
+        .header("user-agent", crate::user_agent(current_version))
         .send()
         .map_err(|e| e.to_string())?;
     let status = response.status();
@@ -476,7 +476,7 @@ pub fn fetch_latest(repo: &str, current_version: &str) -> Result<String, String>
         crate::llm::http_client(crate::llm::openai::NET_OP_TIMEOUT).map_err(|e| e.to_string())?;
     let response = client
         .head(&url)
-        .header("user-agent", crate::telemetry::user_agent(current_version))
+        .header("user-agent", crate::user_agent(current_version))
         .send()
         .map_err(|e| e.to_string())?;
     let status = response.status();

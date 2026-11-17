@@ -44,7 +44,6 @@ fn an_old_session_scratchpad_is_no_longer_recognised() {
 fn the_public_environment_overrides_are_renamed() {
     assert_eq!(zeroth::update::UPDATE_ENV, "ZEROTH_UPDATE_CHECK");
     assert_eq!(zeroth::update::REPO_URL_ENV, "ZEROTH_UPDATE_URL");
-    assert_eq!(zeroth::telemetry::TELEMETRY_ENV, "ZEROTH_TELEMETRY");
     assert_eq!(zeroth::herdr::DISABLE_ENV, "ZEROTH_HERDR");
     assert_eq!(zeroth::links::HYPERLINKS_ENV, "ZEROTH_HYPERLINKS");
     assert_eq!(zeroth::tips::TIPS_ENV, "ZEROTH_TIPS");

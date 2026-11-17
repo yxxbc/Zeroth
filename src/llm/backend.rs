@@ -78,10 +78,10 @@ pub struct LlmBackend {
     /// (`docs/tools/tools.md`).
     vision: Option<bool>,
     /// The runtime half of [`system_prompt`](Self::system_prompt) alone — the
-    /// environment and scratchpad blocks, without the persona
+    /// environment block, without the persona
     /// (`docs/agents/subagents.md`). Kept apart so an agent definition whose body
     /// **replaces** the persona can still carry the facts about this session:
-    /// the date, the os, the user, the cwd, where temporary files go. `None`
+    /// the date, the os, the user and the cwd. `None`
     /// when the boundary composed no context (the tests, an embedder).
     prompt_context: Option<String>,
     /// The shared subagent registry, when the boundary attached one — enables
@@ -287,8 +287,7 @@ impl LlmBackend {
         self
     }
 
-    /// Attach the runtime half of the system prompt — the environment and
-    /// scratchpad blocks alone (`docs/agents/subagents.md`). Only a subagent whose
+    /// Attach the runtime half of the system prompt — the environment block alone (`docs/agents/subagents.md`). Only a subagent whose
     /// definition **overrides** the persona reads it; the main prompt already
     /// contains it.
     #[must_use]
@@ -565,35 +564,6 @@ pub fn augment_with_environment(base: &str, date: &str, os: &str, user: &str, cw
     )
 }
 
-/// The scratchpad block appended to the system prompt when the session has a
-/// scratchpad directory — authored in
-/// [`prompts/scratchpad.md`](../../prompts/scratchpad.md) (terse, in the
-/// persona's own style) with the one `{scratchpad}` placeholder
-/// [`render_scratchpad`] fills. See `docs/tools/scratchpad.md`.
-const SCRATCHPAD_TEMPLATE: &str = include_str!("../../prompts/scratchpad.md");
-
-/// Fill the scratchpad template with this session's scratchpad `dir`. Pure:
-/// the boundary builds the path ([`crate::scratchpad::scratchpad_dir`]) and
-/// creates the directory, the same split the environment block uses.
-#[must_use]
-pub fn render_scratchpad(dir: &str) -> String {
-    SCRATCHPAD_TEMPLATE.trim().replace("{scratchpad}", dir)
-}
-
-/// Append the scratchpad block to a base system prompt so the agent writes its
-/// temporary files into the session's own directory instead of `/tmp`
-/// (`docs/tools/scratchpad.md`). Composes *after* [`augment_with_environment`], so
-/// the assembled prompt reads persona → environment → scratchpad; a blank base
-/// is returned unchanged, keeping the "empty `ZEROTH_SYSTEM_PROMPT` → no
-/// system message" contract (`docs/architecture/context.md`).
-#[must_use]
-pub fn augment_with_scratchpad(base: &str, dir: &str) -> String {
-    if base.trim().is_empty() {
-        return base.to_string();
-    }
-    format!("{}\n\n{}", base.trim_end(), render_scratchpad(dir))
-}
-
 /// The headless block appended to the system prompt of a run with no screen
 /// — authored in [`prompts/headless.md`](../../prompts/headless.md) in the
 /// persona's own terse style (`docs/cli/headless.md`).
@@ -602,7 +572,7 @@ const HEADLESS_TEMPLATE: &str = include_str!("../../prompts/headless.md");
 /// Append the headless block to a base system prompt, so the model knows no
 /// one can answer it, that a call needing approval is refused, and that the
 /// run ends with its turn (`docs/cli/headless.md`). Composes *after*
-/// [`augment_with_scratchpad`], the prompt's last block; a blank base is
+/// [`augment_with_environment`], the prompt's last block; a blank base is
 /// returned unchanged, keeping the "empty `ZEROTH_SYSTEM_PROMPT` → no
 /// system message" contract (`docs/architecture/context.md`).
 #[must_use]
@@ -1328,8 +1298,7 @@ impl ReplySource for LlmBackend {
 #[derive(Clone)]
 struct SubagentConfig {
     client: OpenAiClient,
-    /// The session's own assembled system prompt (persona → environment →
-    /// scratchpad) — what a definition **without** a body keeps, plus the
+    /// The session's own assembled system prompt (persona → environment) — what a definition **without** a body keeps, plus the
     /// subagent note (`prompts/subagent.md`).
     base_system_prompt: Option<String>,
     /// Its runtime half alone, for a definition whose body replaces the
@@ -3148,13 +3117,7 @@ mod tests {
 
     #[test]
     fn augment_with_headless_appends_the_block_last() {
-        // docs/cli/headless.md: the fourth block, after the scratchpad's — the
-        // model learns it runs with nobody watching the way it learns its
-        // cwd and its scratchpad.
-        let base = augment_with_scratchpad(
-            &augment_with_environment("You are Zeroth", "d", "linux", "root", "/repo"),
-            "/tmp/zeroth-0/s1/scratchpad",
-        );
+        let base = augment_with_environment("You are Zeroth", "d", "linux", "root", "/repo");
         let out = augment_with_headless(&base);
         assert!(out.starts_with(&base), "{out}");
         let block = &out[base.len()..];
@@ -3169,53 +3132,6 @@ mod tests {
         }
         // A blank base stays blank: no system message at all.
         assert_eq!(augment_with_headless("  "), "  ");
-    }
-
-    #[test]
-    fn render_scratchpad_fills_the_dir() {
-        let block = render_scratchpad("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad");
-        assert!(
-            block.starts_with("## Scratchpad"),
-            "the section header leads: {block}"
-        );
-        assert!(
-            block.contains("/tmp/zeroth-1000/18cea7cc0aee22c0-5d77f/scratchpad"),
-            "the dir is in: {block}"
-        );
-        assert!(
-            block.contains("/tmp"),
-            "the block still names /tmp as the thing not to use: {block}"
-        );
-        assert!(!block.contains('{'), "no leftover placeholder: {block}");
-    }
-
-    #[test]
-    fn augment_with_scratchpad_appends_the_block_after_the_base() {
-        let base = augment_with_environment(
-            "You are Zeroth",
-            "Sunday 2026-07-19",
-            "linux",
-            "root",
-            "/repo",
-        );
-        let out = augment_with_scratchpad(&base, "/tmp/zeroth-0/s1/scratchpad");
-        let persona = out.find("Zeroth").expect("persona present");
-        let env = out.find("/repo").expect("environment present");
-        let pad = out
-            .find("/tmp/zeroth-0/s1/scratchpad")
-            .expect("scratchpad present");
-        assert!(
-            persona < env && env < pad,
-            "order persona<environment<scratchpad: {out}"
-        );
-    }
-
-    #[test]
-    fn augment_with_scratchpad_leaves_a_blank_base_unchanged() {
-        // The "empty ZEROTH_SYSTEM_PROMPT → no system message" contract
-        // (docs/architecture/context.md), exactly as the environment block honours it.
-        assert_eq!(augment_with_scratchpad("   ", "/tmp/s"), "   ");
-        assert_eq!(augment_with_scratchpad("", "/tmp/s"), "");
     }
 
     #[test]

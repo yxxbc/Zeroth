@@ -42,7 +42,7 @@ writes it, and the old app keeps working from it.
 | `ALTER_ZERO_*` | `ZEROTH_*` | All 73 override variables, hook payload fields, docs, smoke phases |
 | `alter-zero-{uid}` | `zeroth-{uid}` | `scratchpad::session_root`, `is_session_scratchpad`, prompt/docs layout |
 | `.alter-zero-paste-*` | `.zeroth-paste-*` | `clipboard.rs` staging prefix |
-| `alter-zero/{version}` | `zeroth/{version}` | Telemetry User-Agent (`TELEMETRY.md`) |
+| `alter-zero/{version}` | `zeroth/{version}` | The update check's User-Agent (`update.rs`) |
 | `alter-zero` (command, path, temp dir) | `zeroth` | CLI examples, smoke fixtures, test paths, docs |
 | `Alter Zero` (as the app's name) | `Zeroth` | Header/help/callback/banner docs and smoke markers |
 | `.alter-zero/` (as the current config root) | `.zeroth/` | Docs and fixtures that describe the *current* home |
@@ -86,8 +86,8 @@ legal notice:
 - A resumed conversation's scratchpad moves to a new session root. Files
   written by older sessions under `alter-zero-{uid}` are no longer exempt from
   the write permission prompt and no longer displayed as scratchpad edits.
-- The telemetry User-Agent changes; any allow-list keyed on the old string
-  must be updated.
+- The update check's User-Agent changes; any allow-list keyed on the old
+  string must be updated.
 - Clipboard staging files get a new prefix; a stale `.alter-zero-paste-*`
   file is simply never cleaned up by the new name's sweep.
 

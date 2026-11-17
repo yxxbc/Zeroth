@@ -103,9 +103,6 @@ pub enum SettingKey {
     /// so under the banner (`docs/ops/update.md`). Persists **per user**
     /// (`update.json`), like its neighbour.
     UpdateCheck,
-    /// Send the anonymous daily usage ping (`TELEMETRY.md`). The one
-    /// row that persists **per user** (`telemetry.json`), not per directory.
-    Telemetry,
 }
 
 impl SettingKey {
@@ -130,7 +127,6 @@ impl SettingKey {
         Self::AskTimeout,
         Self::Tips,
         Self::UpdateCheck,
-        Self::Telemetry,
     ];
 
     /// The name shown in the menu's left column.
@@ -156,7 +152,6 @@ impl SettingKey {
             Self::AskTimeout => "Ask timeout",
             Self::Tips => "Show tips",
             Self::UpdateCheck => "Update check",
-            Self::Telemetry => "Telemetry",
         }
     }
 
@@ -213,9 +208,6 @@ impl SettingKey {
             Self::UpdateCheck => {
                 "Ask GitHub once a day whether a newer release is out and say so under the banner — one request that carries nothing about you"
             }
-            Self::Telemetry => {
-                "Send one anonymous ping a day (app version, OS, country) so Zeroth's users can be counted — never your prompts, files or keys"
-            }
         }
     }
 }
@@ -249,10 +241,6 @@ pub struct SettingAvailability {
     /// way, since it is about the request, not the screen.
     pub images: bool,
     /// Whether there is a config home to keep an install id in
-    /// (`TELEMETRY.md`). Without one a fresh random id per launch would
-    /// count one person as many, so the row reports `false (unavailable)`
-    /// rather than offering a toggle that would miscount.
-    pub telemetry: bool,
     /// Whether there is a config home to remember the day a check ran in
     /// (`docs/ops/update.md`), and the environment did not forbid the check.
     /// Without one the row reports `false (unavailable)`.
@@ -268,7 +256,6 @@ impl Default for SettingAvailability {
             skills: true,
             mcp: true,
             images: true,
-            telemetry: true,
             update_check: true,
         }
     }
@@ -357,14 +344,6 @@ pub struct SessionSettings {
     /// [`crate::ask::DEFAULT_ASK_TIMEOUT`]); `0` never times out.
     #[serde(skip_serializing_if = "is_default_ask_timeout")]
     pub ask_timeout_secs: u64,
-    /// Send the anonymous daily ping (default `true` — opt-out,
-    /// `TELEMETRY.md`). **Never in `settings.json`**: an opt-out that
-    /// applied only to the directory you happened to be in would be a
-    /// surprise, so the value lives in `telemetry.json` beside the install
-    /// id and the boundary seeds it from there (the `PermissionMode` pattern:
-    /// a second door onto state another file owns).
-    #[serde(skip, default = "on")]
-    pub telemetry: bool,
     /// Ask once a day whether a newer release is out (default `true` —
     /// opt-out, `docs/ops/update.md`). **Never in `settings.json`** either: a
     /// user preference kept in `update.json` beside the day of the last
@@ -375,7 +354,7 @@ pub struct SessionSettings {
     /// Claude Code's `spinnerTipsEnabled`, `docs/ui/tips.md`). **Never in
     /// `settings.json`**: whether you want tips is yours, not a project's,
     /// so the switch lives in `tips.json` beside the walk's position and the
-    /// boundary seeds it from there (the `telemetry` pattern).
+    /// boundary seeds it from there (the `update_check` pattern).
     #[serde(skip, default = "on")]
     pub tips: bool,
     /// What this host can actually run — never persisted, never cycled.
@@ -402,7 +381,6 @@ impl Default for SessionSettings {
             temperature: None,
             max_tool_calls: 0,
             ask_timeout_secs: crate::ask::DEFAULT_ASK_TIMEOUT.as_secs(),
-            telemetry: true,
             update_check: true,
             tips: true,
             availability: SettingAvailability::default(),
@@ -457,14 +435,6 @@ impl SessionSettings {
         self.mcp && self.availability.mcp
     }
 
-    /// Whether the daily ping is actually sent: the knob **and** a config
-    /// home to keep the install id in ([`hooks_active`](Self::hooks_active)'s
-    /// twin, `TELEMETRY.md`).
-    #[must_use]
-    pub const fn telemetry_active(&self) -> bool {
-        self.telemetry && self.availability.telemetry
-    }
-
     /// Whether the daily update check actually runs: the knob **and** a
     /// config home to remember the day in (`docs/ops/update.md`).
     #[must_use]
@@ -513,7 +483,6 @@ impl SessionSettings {
             SettingKey::ShowImages | SettingKey::ImageWidth => self.availability.images,
             SettingKey::PermissionMode => mode.is_some(),
             // Nowhere to keep an install id = nothing to turn on.
-            SettingKey::Telemetry => self.availability.telemetry,
             // Nowhere to remember the day a check ran, or forbidden for the run.
             SettingKey::UpdateCheck => self.availability.update_check,
             _ => true,
@@ -550,7 +519,6 @@ impl SessionSettings {
             SettingKey::AskTimeout => ask_timeout_text(self.ask_timeout_secs),
             SettingKey::Tips => bool_text(self.tips),
             SettingKey::UpdateCheck => bool_text(self.update_check_active()),
-            SettingKey::Telemetry => bool_text(self.telemetry_active()),
         };
         if self.is_available(key, mode) {
             text
@@ -595,7 +563,6 @@ impl SessionSettings {
             }
             SettingKey::Tips => self.tips = !self.tips,
             SettingKey::UpdateCheck => self.update_check = !self.update_check,
-            SettingKey::Telemetry => self.telemetry = !self.telemetry,
         }
         true
     }
@@ -629,9 +596,6 @@ impl SessionSettings {
             SettingKey::AskTimeout => self.ask_timeout_secs = live.ask_timeout_secs,
             // Not ours — the posture persists per project in permissions.json.
             SettingKey::PermissionMode => {}
-            // Not ours either — the switch persists per user in telemetry.json
-            // (`TELEMETRY.md`).
-            SettingKey::Telemetry => {}
             // Nor this one — update.json (`docs/ops/update.md`).
             SettingKey::UpdateCheck => {}
             // …nor this one — tips.json (`docs/ui/tips.md`).
@@ -755,7 +719,7 @@ fn is_default_ask_timeout(v: &u64) -> bool {
     *v == crate::ask::DEFAULT_ASK_TIMEOUT.as_secs()
 }
 
-/// The deserialized value of a field the file never carries — `telemetry`
+/// The deserialized value of a field the file never carries — `update_check`
 /// is `#[serde(skip)]`, so a plain `Default` would read it as `false` and a
 /// parsed blob would silently turn the ping off.
 const fn on() -> bool {

@@ -16,7 +16,30 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-17
+
+### Removed
+
+- **The agent scratchpad is removed.** Sessions no longer create a dedicated
+  notes directory, add its path and instructions to the prompt, or grant its
+  writes a special exemption. `ZEROTH_SCRATCHPAD` and `ZEROTH_SCRATCHPAD_DIR`
+  are retired. Background output and image caches remain internal storage
+  (`docs/tools/scratchpad.md`).
+
+- **The anonymous daily usage ping is gone.** No install id, no `telemetry.json`,
+  no first-launch disclosure, no `/settings → Telemetry` row, and no request to
+  any collector — the `ZEROTH_TELEMETRY` and `DO_NOT_TRACK` variables and the
+  root `TELEMETRY.md` went with it. Nothing else about the update check
+  changed: it still makes one `HEAD` of `/releases/latest` a day, carries no
+  install id, and keeps its own switch.
+
 ### Changed
+
+- **Search summaries and details are easier to read.** Search groups count
+  calls rather than patterns and retain query/result previews. Expanded code
+  searches group matches by file with line numbers and a separate command;
+  web searches separate titles, links, dates and excerpts. Unknown formats keep
+  their original output, and execution errors remain visible.
 
 - Finished model Bash calls show recorded execution facts and keep failure
   output tails visible. Pending steering and follow-up turns have explicit
@@ -25,6 +48,20 @@ release heading when a version is cut.
   existing changes or claiming checks passed.
 
 ### Fixed
+
+- **`/resume` no longer stalls for a second while it colours the loaded
+  transcript.** A file body in the Ctrl+O transcript is now syntax-highlighted
+  only for its first 2 KB (`CODE_HIGHLIGHT_MAX_BYTES`); past that the text still
+  shows, just uncoloured. Measured on a real session: 986 ms of highlighting
+  across its markdown file cells became 40 ms, and the whole warm went 1073 ms
+  → 109 ms (`docs/ui/long-lines.md`).
+
+- **A backtrack or a `/resume` no longer freezes the UI while it resets your
+  files.** The checkpoint restore (`git reset --hard` plus `git clean`) now runs
+  on a worker like the turn-end snapshot. New messages and shell commands wait
+  for restoration to finish, so its reset cannot overwrite a new turn's edits.
+  The UI continues accepting input while the worker runs
+  (`docs/state/checkpoint.md`).
 
 - **Typing and clicking no longer hide and re-show the caret every frame.** A
   visible caret is now only moved, and a hidden one is only moved to its seat;
@@ -2673,7 +2710,8 @@ version it starts from; everything below this entry is Alter Zero's history.
   release whose notes come from this file — driven end to end by
   `scripts/release.sh`, which also rehearses a release locally.
 
-[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/yxxbc/zeroth/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/yxxbc/zeroth/releases/tag/v0.19.0
 [0.0.0]: https://github.com/yxxbc/zeroth
 [0.18.0]: https://github.com/linuztx/alter-zero/compare/v0.17.0...v0.18.0

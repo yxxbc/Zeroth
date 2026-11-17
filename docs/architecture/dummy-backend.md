@@ -172,7 +172,6 @@ picked. Same trick `ui::TranscriptCache`'s counters use.
 | `markdown` | "markdown", not "agents.md" | the slow-stream stress tour: every markdown element in one long text-only reply, streamed in **token-sized** pieces (`tokens`) — the document `smoke.sh` Phase 121 streams at a few tokens a second (`docs/ui/slow-stream.md`) |
 | `agents` | "agents", not "agents.md" | a two-subagent group, foreground or background (`docs/agents/agent-tool.md`) |
 | `parallel-batch` | "parallel" | three parallel `Bash(ping …)` calls and their `⎿ Waiting…` cells (`docs/tools/parallel-tools.md`) |
-| `scratchpad` | "scratchpad" | the agent drafting a little game in its **session scratchpad** — a `write` generated in token-sized pieces, then a one-line `edit` — both folded into the collapsed group: a `Making 1 scratchpad edit +N…` line counting up over the file's path as it streams, settled as `Made 2 scratchpad edits +26 -1` (`docs/ui/tool-groups.md` *Scratchpad edits*, `smoke.sh` Phase 147). It writes into the session's own scratchpad, handed to `DummyAi` at the boundary, else into a path with a scratchpad's layout |
 | `files` | "diff"/"edit"/"write", not "agents.md" | a `Write` then an `Edit` of the same file: the numbered file cell and its green/red diff hunk (`docs/tools/tools.md`) |
 | `download` | "pacman"/"download" | pacman's parallel database refresh as a terminal sees it: one `bash` call whose four bars, drawn at pacman's own width so each wraps to two rows, redraw in place frame by frame, the two small ones finishing in the first second and sitting **below** the two still downloading — the shape a window pinned to the output's end got wrong, so the running cell's window follows the bars that move (`docs/ui/tool-streaming.md` *The window follows what is still moving*, `smoke.sh` Phase 130) |
 | `interactive` | "interactive" | a setup wizard driven through a terminal session: a `bash` launch stopping at a prompt, a `bashsend` answer met by the next question, and the last answer ending the program — one call a round, every result the real `pty::report::report`, so the cells wear their dim `Waiting for input · session …` rows (`docs/tools/interactive-shell.md`, `smoke.sh` Phase 124). The whole word only: `tty` hides in "pretty", `repl` in "reply" |
@@ -183,14 +182,13 @@ Cue order is registry order, so a narrower cue sits above a broader one that
 would also match it — `agent-stream` sits above `table` because the table is
 what its subagent streams, so a prompt naming both means that one, and
 `agent-permission` sits above the whole permission block for the same reason
-(its cue is "permission" plus one more word), and `scratchpad` sits above
-`files` because a prompt about the scratchpad may well say "write". Two cues
+(its cue is "permission" plus one more word). Two cues
 carry a guard rather than an order: `agents` and `files` both exclude
 `agents.md`, because `/init` submits a canned prompt that names it and says
 "do not over**write**" — without the guard that turn would be answered with a
 scripted fizzbuzz.
 
-The `files` and `scratchpad` demos' `write`s are **generated** the way a live
+The `files` demo's `write`s are **generated** the way a live
 model generates one, which no other scripted call is: its real JSON arguments, cut into
 token-sized pieces (`stream::tokens`) under the call's slot, each pausing a
 chunk delay like a word of reply text — so the file streams into its cell

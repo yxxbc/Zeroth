@@ -474,11 +474,6 @@ pub struct ClassifierVerdict {
 /// record that no human approved this call.
 pub const CLASSIFIER_ALLOWED_NOTE: &str = "Allowed by auto mode classifier";
 
-/// The dim note appended to a cell allowed because it writes inside the
-/// session's own scratchpad — the transcript's record that no human approved
-/// this call ([`CLASSIFIER_ALLOWED_NOTE`]'s sibling, `docs/tools/scratchpad.md`).
-pub const SCRATCHPAD_ALLOWED_NOTE: &str = "Allowed in the session scratchpad";
-
 /// The short output recorded on a cell the classifier **denied** — the red
 /// counterpart of [`CLASSIFIER_ALLOWED_NOTE`], with the classifier's reason
 /// on a second line when it gave one (the amend-feedback shape).
@@ -1168,8 +1163,7 @@ impl PermissionsFile {
     }
 }
 
-/// Whether a file change lands **inside** the session's workspace or its
-/// scratchpad. Lexical `..` is refused outright; existing paths (and the
+/// Whether a file change lands **inside** the session's workspace. Lexical `..` is refused outright; existing paths (and the
 /// parent of one that does not exist yet) are canonicalized, so a symlink
 /// under the workspace cannot point the write at the user's home. A relative
 /// path resolves against each root before the check.
@@ -1206,7 +1200,6 @@ fn file_change_inside(inner: &GateInner, target: &str) -> bool {
         candidate.starts_with(&root) && candidate != root
     };
     inner.workspace.as_deref().is_some_and(resolve)
-        || inner.scratchpad.as_deref().is_some_and(resolve)
 }
 
 /// State shared between the blocked tool threads and the event loop.
@@ -1223,10 +1216,6 @@ struct GateInner {
     /// unattended run — each is invited to retry once
     /// ([`PermissionGate::first_check_failure`]).
     check_failures: HashSet<(PermissionKind, String)>,
-    /// This session's scratchpad directory, when it has one
-    /// ([`PermissionGate::set_scratchpad`]) — the root
-    /// [`PermissionGate::scratchpad_covers`] measures a file change against.
-    scratchpad: Option<PathBuf>,
     /// Decisions the loop has posted, keyed by request id — each taken by the
     /// one thread waiting on it.
     decisions: HashMap<String, PermissionDecision>,
@@ -1235,7 +1224,7 @@ struct GateInner {
     /// ends with the process, and its id means nothing to the next one.
     sessions: HashSet<String>,
     /// The session's workspace root: a `write`/`edit` outside it and the
-    /// scratchpad asks even in `auto`/`edit` mode (`docs/state/permissions.md`).
+    /// project asks even in `auto`/`edit` mode (`docs/state/permissions.md`).
     /// `None` leaves the old posture — a gate with no workspace (a test, a
     /// caller that never set one) does not jail paths.
     workspace: Option<PathBuf>,
@@ -1291,8 +1280,8 @@ impl PermissionGate {
         let covered = inner.rules.allows(request)
             || (request.kind == PermissionKind::Session
                 && inner.sessions.contains(&request.target));
-        // The path jail: a file change outside the workspace and the session
-        // scratchpad must go through the prompt (or, unattended, the refusal)
+        // The path jail: a file change outside the workspace must go through
+        // the prompt (or, unattended, the refusal)
         // even in `auto`/`edit` mode. A cloned repository's AGENTS.md can
         // induce a silent `write` of `~/.bashrc`, `.git/hooks/*` or
         // `authorized_keys`; the mode's "always edit" is about the project,
@@ -1312,33 +1301,6 @@ impl PermissionGate {
     /// at startup, `None` to leave the old un-jailed posture (unit tests).
     pub fn set_workspace(&self, dir: Option<PathBuf>) {
         self.lock().workspace = dir;
-    }
-
-    /// Point the gate at this session's scratchpad directory — the boundary
-    /// does it once at startup, `None` when the feature is off or the
-    /// directory could not be created (`docs/tools/scratchpad.md`).
-    pub fn set_scratchpad(&self, dir: Option<PathBuf>) {
-        self.lock().scratchpad = dir;
-    }
-
-    /// Does this request only change a file **inside** the session scratchpad
-    /// (so it runs unasked, wearing [`SCRATCHPAD_ALLOWED_NOTE`])?
-    ///
-    /// Deliberately narrow, and not a [`PermissionRules`] entry: only the two
-    /// file tools are covered, because only their `target` *is* the thing
-    /// being changed. A `bash` command naming a scratchpad path still asks —
-    /// what it goes on to touch is its own business — and so does an MCP call.
-    /// The containment test is the strict lexical
-    /// [`crate::scratchpad::contains`]. See `docs/tools/scratchpad.md`.
-    #[must_use]
-    pub fn scratchpad_covers(&self, request: &PermissionRequest) -> bool {
-        if !matches!(request.kind, PermissionKind::Write | PermissionKind::Edit) {
-            return false;
-        }
-        let inner = self.lock();
-        inner.scratchpad.as_deref().is_some_and(|root| {
-            crate::scratchpad::contains(root, std::path::Path::new(&request.target))
-        })
     }
 
     /// Record option 2's standing approval — a rule, or for a session's
@@ -1620,57 +1582,6 @@ mod tests {
                 "{needle}: {UNATTENDED_RESULT}"
             );
         }
-    }
-
-    // --- the session scratchpad (docs/tools/scratchpad.md) ---
-
-    #[test]
-    fn the_scratchpad_note_names_the_scratchpad() {
-        assert_eq!(SCRATCHPAD_ALLOWED_NOTE, "Allowed in the session scratchpad");
-    }
-
-    #[test]
-    fn the_scratchpad_covers_file_changes_inside_it_and_nothing_else() {
-        let gate = PermissionGate::new();
-        let inside = request(
-            PermissionKind::Write,
-            "/tmp/zeroth-0/s1/scratchpad/notes.md",
-        );
-        assert!(
-            !gate.scratchpad_covers(&inside),
-            "no scratchpad attached, no exemption"
-        );
-        gate.set_scratchpad(Some(std::path::PathBuf::from(
-            "/tmp/zeroth-0/s1/scratchpad",
-        )));
-        assert!(gate.scratchpad_covers(&inside), "a write inside is covered");
-        assert!(
-            gate.scratchpad_covers(&request(
-                PermissionKind::Edit,
-                "/tmp/zeroth-0/s1/scratchpad/deep/b.txt"
-            )),
-            "an edit inside is covered"
-        );
-        // A command is never covered: it can touch anything, whatever path it
-        // happens to name — only the two file tools have a target we can trust.
-        assert!(!gate.scratchpad_covers(&request(
-            PermissionKind::Bash,
-            "rm -rf /tmp/zeroth-0/s1/scratchpad"
-        )));
-        assert!(!gate.scratchpad_covers(&request(PermissionKind::Mcp, "mcp__fs__write")));
-        // Outside it, relative to the project, or escaping through `..`: ask.
-        assert!(
-            !gate.scratchpad_covers(&request(PermissionKind::Write, "/home/user/proj/main.rs"))
-        );
-        assert!(!gate.scratchpad_covers(&request(PermissionKind::Write, "notes.md")));
-        assert!(!gate.scratchpad_covers(&request(
-            PermissionKind::Write,
-            "/tmp/zeroth-0/s1/scratchpad/../../../etc/passwd"
-        )));
-        assert!(!gate.scratchpad_covers(&request(
-            PermissionKind::Write,
-            "/tmp/zeroth-0/s1/tasks/bvyo7tkbe.output"
-        )));
     }
 
     #[test]

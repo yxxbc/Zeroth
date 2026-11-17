@@ -514,7 +514,7 @@ A `bash` command that **provably only reads** — `ls -la`, `grep -rn foo src`,
 `cat README.md | head -20`, `git log --oneline -5`, `rg --files` — runs in
 auto mode without a classifier request at all, and so without the
 `Allowed by auto mode classifier` note (`llm::approval`'s fast path, ahead of
-the scratchpad check, under the `PreToolUse` forced ask). Asking a model
+the standing rules, under the `PreToolUse` forced ask). Asking a model
 whether `ls` is safe costs a round trip per call for an answer that is never
 in doubt, and the exploring an agent does before it changes anything is
 exactly a run of such calls; Claude Code skips its reviewer for the same set
@@ -832,31 +832,18 @@ A **subagent** keeps its own context (seeded from its launch prompt), which
 the page shows while viewing that agent. Its own verdicts read its own log,
 under the same classifier system prompt as the lead.
 
-## The scratchpad exemption
+## Retired scratchpad exemption
 
-One more thing resolves before the prompt: a `write`/`edit` **inside the
-session's own scratchpad directory** (`docs/tools/scratchpad.md`). The system prompt
-sends every temporary file there, and the directory is outside the user's
-project, so `approve_call` consults `PermissionGate::scratchpad_covers` right
-beside the standing allowlist — before the `PermissionRequest` hook, the
-classifier and the prompt, because it answers the same question they do.
-
-It is narrow: the two file tools only (a `bash` command naming a scratchpad
-path still asks — what it goes on to touch is its own business), the path
-strictly inside and lexically checked, and a forced ask still asks. And it is
-visible, through the same channel the classifier's verdict uses:
-
-```
-● Write(/tmp/zeroth-1000/18ce…-5d77f/scratchpad/plan.md)
-  ⎿  Wrote 12 lines to …/scratchpad/plan.md
-  ⎿  Allowed in the session scratchpad
-```
+The dedicated agent scratchpad and its automatic write exemption have been
+removed (`docs/tools/scratchpad.md`). Temporary file writes use the ordinary
+permission policy. Historical approval notes remain in saved conversations;
+they cannot authorize a new call.
 
 ## The workspace path jail
 
 `auto` and `edit` mode's "never ask again for file changes" is about the
 **project**, not the user's home. A `write`/`edit` whose target is outside the
-session's workspace (the cwd it was launched in) and the scratchpad is not
+session's workspace (the cwd it was launched in) is not
 covered by the standing rules even in those modes: `PermissionGate::allows`
 returns false, the call falls through to the prompt (or, in a headless run,
 the unattended refusal). `master` is the explicit everything posture and
@@ -1109,7 +1096,7 @@ cursor identically.
 A headless run (`zeroth -p`, `docs/cli/headless.md`) has no screen to put a
 prompt on, so its gate is **unattended** (`PermissionGate::set_unattended`).
 Everything that answers before a prompt still answers — the allowlist, the
-scratchpad exemption, the read-only fast path, a `PermissionRequest` hook,
+the read-only fast path, a `PermissionRequest` hook,
 the classifier — and only the last step changes: where `approve_call` would
 send `StreamEvent::Permission` and wait, it refuses the call instead
 (`PermissionGate::refuses_unattended`). No request exists, nothing waits,

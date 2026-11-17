@@ -420,6 +420,7 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
                 agents_deadline.unwrap_or_else(Instant::now),
             )), if agents_deadline.is_some() => {}
             Some(done) = session.checkpoint_rx.recv() => session.on_checkpoint_done(done),
+            Some(done) = session.restore_rx.recv() => session.on_restore_done(done),
         }
         // Compaction at the loop bottom only while the run waits on its
         // subagents — the idle boundary a follow-up turn will come out of.
@@ -740,6 +741,7 @@ impl Session<'_> {
         self.app.sync_context_used();
         if compact
             && self.inflight.is_none()
+            && !self.checkpoint_pending()
             && !self.models.is_stalled_test_backend()
             && self.app.should_auto_compact()
         {

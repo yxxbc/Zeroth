@@ -28,7 +28,7 @@ use ratatui::crossterm::event::EventStream;
 use ratatui::text::Line;
 
 use zeroth::agents::AgentRegistry;
-use zeroth::app::{App, CHECKPOINT_RESTORED_NOTICE, Mascot, Spinner, ToastKind};
+use zeroth::app::{App, Mascot, Spinner, ToastKind};
 use zeroth::background::{BackgroundRegistry, BgEvent};
 use zeroth::checkpoint::{self, CheckpointRefusal, CheckpointStore};
 use zeroth::frame;
@@ -167,27 +167,16 @@ impl<'t> Session<'t> {
         // The session id, minted ONCE (it is nanos-derived — a second call is a
         // different id) and shared by everything that needs one: the temp tree
         // below and the lifecycle hooks' payloads, so a hook can find this
-        // session's scratchpad and task output by the id it was handed.
+        // session's task output by the id it was handed.
         let session_id = host::session_id();
-        // This session's own temp tree (docs/tools/scratchpad.md):
-        // `{tmp}/zeroth-{uid}/{session}/` holding `scratchpad/` — where the
-        // system prompt sends every temporary file — beside the `tasks/` dir
-        // the background shells tee into. The scratchpad is created here,
-        // before the prompt is assembled: `None` back means the agent is told
-        // about no scratchpad and its writes there get no exemption.
+        // Internal task output and image caches remain scoped to this session.
         let session_tmp = config::session_tmp_root(&session_id);
-        let scratchpad_dir = config::prepare_scratchpad(&session_tmp);
         // How a `Read`/`Write`/`Edit` cell names its file (`docs/tools/tools.md`
         // *Path display*): relative under this cwd, `~`-relative under home,
         // absolute elsewhere — injected once, like the clock, so the pure
         // renderers never read the environment. An unreadable cwd (the
-        // `unwrap_or_default` above) leaves the verbatim policy. It knows the
-        // scratchpad too, so a `write`/`edit` there folds into the collapsed
-        // group as a scratchpad edit (docs/ui/tool-groups.md).
-        app.set_path_display(
-            zeroth::app::PathDisplay::new(cwd.clone(), home.clone())
-                .with_scratchpad(scratchpad_dir.clone()),
-        );
+        // `unwrap_or_default` above) leaves the verbatim policy.
+        app.set_path_display(zeroth::app::PathDisplay::new(cwd.clone(), home.clone()));
         // Where Ctrl+V pastes land (docs/input/image-paste.md): the config home,
         // not /tmp, so a resumed session still finds its pictures.
         let paste_dir = config::paste_store_dir(&session_id);
@@ -209,7 +198,7 @@ impl<'t> Session<'t> {
         let (bg_tx, bg_rx) = tokio::sync::mpsc::unbounded_channel::<BgEvent>();
         // The interim files sit in the session's own temp tree —
         // `{tmp}/zeroth-{uid}/{session}/tasks/{id}.output`, beside the
-        // agent's `scratchpad/` (the pure `scratchpad::tasks_dir` over the
+        // image cache (the pure `scratchpad::tasks_dir` over the
         // root resolved above; the uid/session injected at the boundary).
         // Short deliberately: the model reads these paths back out of every
         // background launch text.
@@ -259,13 +248,9 @@ impl<'t> Session<'t> {
         // `write`/`edit`/`bash` call, the main turn's and its subagents', raises
         // the inline prompt and blocks its own thread on the answer.
         let permissions = PermissionStore::open(&cwd, permission_mode);
-        // …and pointed at the scratchpad, so a `write`/`edit` inside the
-        // session's own temp directory resolves without a prompt
-        // (`docs/tools/scratchpad.md`). Nothing to point at = no exemption.
         if let Some(gate) = permissions.gate() {
-            gate.set_scratchpad(scratchpad_dir.clone());
             // The path jail: a `write`/`edit` outside the project and the
-            // scratchpad asks even in auto/edit mode (`docs/state/permissions.md`).
+            // project asks even in auto/edit mode (`docs/state/permissions.md`).
             gate.set_workspace(Some(cwd.clone()));
             // Nobody can answer a prompt in a headless run: what would ask
             // is refused instead, and the model is told (docs/cli/headless.md).
@@ -388,11 +373,6 @@ impl<'t> Session<'t> {
         let (trust, trust_error) =
             super::trust::TrustState::load(user_hooks, super::trust::load_project_layer(&cwd));
 
-        // The telemetry ping's report channel (TELEMETRY.md) — its own
-        // `select!` source, because the worker outlives nothing but must
-        // never write the file itself.
-        let (telemetry_tx, telemetry_rx) =
-            tokio::sync::mpsc::unbounded_channel::<zeroth::telemetry::Delivery>();
         // The update check's report channel (docs/ops/update.md), the same shape.
         let (update_tx, update_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
@@ -407,12 +387,6 @@ impl<'t> Session<'t> {
             None => {
                 let mut settings = config::load_settings_file(settings_path.as_deref())
                     .settings_for(&cwd.display().to_string());
-                // The Telemetry row's standing value is `telemetry.json`'s, not this
-                // directory's entry — a user preference, not a project's
-                // (`TELEMETRY.md`); the environment then overrides it for the
-                // run like every other knob.
-                settings.telemetry =
-                    config::load_telemetry_file(config::telemetry_json_path().as_deref()).enabled;
                 // Likewise the Update check row's: update.json's (docs/ops/update.md).
                 settings.update_check =
                     config::load_update_file(config::update_json_path().as_deref()).enabled;
@@ -485,10 +459,6 @@ impl<'t> Session<'t> {
             // `ZEROTH_HOOKS` already merged over it for this run.
             enabled: settings.hooks,
             handles: hook_handles,
-            // Claude Code's `scratchpad_dir` (docs/tools/hooks.md): how a hook
-            // finds this temp tree once `session_id` follows the
-            // conversation rather than the process.
-            scratchpad_dir: scratchpad_dir.clone(),
             // What a refused call's cell names the hook's `hooks.json` from
             // — the home the app's own path display reads (docs/tools/hooks.md).
             home: home.clone(),
@@ -504,7 +474,6 @@ impl<'t> Session<'t> {
         let models = ModelSession::resolve(
             &cwd,
             home.as_deref(),
-            scratchpad_dir.as_deref(),
             &registry,
             &agent_registry,
             &steer,
@@ -601,6 +570,7 @@ impl<'t> Session<'t> {
         // The turn-end snapshot reports back through this channel; the loop
         // records the commit when it lands (`docs/state/checkpoint.md`).
         let (checkpoint_tx, checkpoint_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (restore_tx, restore_rx) = tokio::sync::mpsc::unbounded_channel();
         let (card_tx, card_rx) = tokio::sync::mpsc::unbounded_channel();
         let cards = super::link_cards::load();
         let link_cards = super::link_cards::enabled();
@@ -684,9 +654,6 @@ impl<'t> Session<'t> {
             bg_rx,
             agent_rx,
             mcp_rx,
-            telemetry_tx,
-            telemetry_rx,
-            telemetry_attempted: None,
             update_tx,
             update_rx,
             update_attempted: None,
@@ -722,6 +689,10 @@ impl<'t> Session<'t> {
             checkpoint_rx,
             checkpoint_pending: None,
             checkpoint_epoch: 0,
+            restore_tx,
+            restore_rx,
+            restore_pending: None,
+            restore_token: 0,
             settings_path,
             tips_saved: Some(tips_next),
             inflight: None,
@@ -761,7 +732,7 @@ impl<'t> Session<'t> {
         session.spawn_pending_probe();
         // A headless run stops here (docs/cli/headless.md): no startup review
         // (nobody to ask — what waits for trust stays off, and the headless
-        // loop says so), no first frame, no telemetry ping, no update check,
+        // loop says so), no first frame, no update check,
         // no herdr pane. SessionStart fires as the session opens, as in the
         // TUI, and the headless loop submits the prompt.
         if headless {
@@ -794,15 +765,9 @@ impl<'t> Session<'t> {
         if !picker {
             session.models.fire_session_start();
         }
-        // The day's anonymous usage ping (TELEMETRY.md), AFTER the first
-        // frame is queued so it can never delay it: the install id is minted
-        // if this is the first launch, the one-time notice is committed under
-        // the banner (before a [PROMPT]'s bubble below), and the send goes to
-        // a detached thread. Nothing here can fail the boot.
-        session.start_telemetry();
-        // The day's update check (docs/ops/update.md), the same posture: after
-        // the first frame, a known newer release announced under the banner
-        // at once, the request itself on a detached thread.
+        // The day's update check (docs/ops/update.md), after the first frame
+        // so it can never delay it: a known newer release is announced under
+        // the banner at once, the request itself on a detached thread.
         session.start_update_check();
         // The [PROMPT] shortcut (docs/cli/cli.md): the message given on the
         // command line becomes the first turn — after the loaded transcript
@@ -1039,7 +1004,9 @@ impl<'t> Session<'t> {
                 // pipeline the tree is whatever the pipeline made it, and
                 // reverting it to the conversation's last checkpoint would
                 // undo that silently (docs/cli/headless.md *Resume*).
-                let restored =
+                // The code reset runs on a worker (docs/state/checkpoint.md);
+                // `on_restore_done` reports it, ahead of the first paint.
+                let _restoring =
                     !self.headless && self.restore_final_checkpoint(&session_checkpoints);
                 let count = items.len();
                 self.app.load_session(items);
@@ -1077,9 +1044,6 @@ impl<'t> Session<'t> {
                 // startup one: swap the seeded source so the SessionStart
                 // hooks hear what actually happened (docs/tools/hooks.md).
                 self.models.set_session_source("resume");
-                if restored {
-                    self.toast(CHECKPOINT_RESTORED_NOTICE, ToastKind::Info);
-                }
                 // Last, so the actionable failure outranks the confirmation.
                 if let Some(failure) = model.failure {
                     self.toast(failure, ToastKind::Error);
@@ -1238,6 +1202,7 @@ impl<'t> Session<'t> {
         // an Esc'd or failed compaction never loops. The StallAi test backend opts
         // out (it ignores the script).
         if self.inflight.is_none()
+            && !self.checkpoint_pending()
             && !self.models.is_stalled_test_backend()
             && self.app.should_auto_compact()
         {

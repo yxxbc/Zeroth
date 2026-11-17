@@ -18,9 +18,9 @@ use super::tools::{
 use crate::permission::{
     Approval, CHECK_FAILED_AGAIN_DISPLAY, CHECK_FAILED_AGAIN_RESULT, CHECK_FAILED_DISPLAY,
     CHECK_FAILED_RESULT, CLASSIFIER_ALLOWED_NOTE, ClassifierVerdict, PermissionDecision,
-    PermissionGate, PermissionKind, PermissionMode, PermissionRequest, SCRATCHPAD_ALLOWED_NOTE,
-    UNATTENDED_DISPLAY, UNATTENDED_RESULT, classifier_denial_result, classifier_denied_display,
-    denial_result, denied_display, explain_display, explain_result,
+    PermissionGate, PermissionKind, PermissionMode, PermissionRequest, UNATTENDED_DISPLAY,
+    UNATTENDED_RESULT, classifier_denial_result, classifier_denied_display, denial_result,
+    denied_display, explain_display, explain_result,
 };
 use crate::stream::{CancelToken, StreamEvent};
 
@@ -276,17 +276,6 @@ pub fn approve_call(
         && reads_only(&request.target, std::env::current_dir().ok().as_deref())
     {
         return Approval::Allow;
-    }
-    // The session scratchpad (docs/tools/scratchpad.md) sits with the standing rules
-    // rather than beside the classifier: a `write`/`edit` under the session's
-    // own temp directory changes nothing of the user's, and the system prompt
-    // sends every temporary file there — so it resolves here, before the
-    // prompt, wearing the note that says no human approved it. A forced ask
-    // still asks, exactly as it overrides the allowlist above.
-    if !force_ask && gate.scratchpad_covers(&request) {
-        return Approval::AllowNoted {
-            note: SCRATCHPAD_ALLOWED_NOTE.to_string(),
-        };
     }
     // `PermissionRequest` (docs/tools/hooks.md) sits exactly where the auto-mode
     // classifier does — after the standing rules, before the user — because it
@@ -671,52 +660,9 @@ mod tests {
     }
 
     #[test]
-    fn a_write_inside_the_scratchpad_runs_unasked_with_a_note() {
-        // docs/tools/scratchpad.md: the session's own temp dir is outside the user's
-        // project, so a file change there resolves before the prompt is ever
-        // raised — visibly, wearing the dim note.
-        let dir = std::env::temp_dir().join("zeroth-0/s1/scratchpad");
-        let path = dir.join("notes.md");
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        // Manual: in the modes that let file changes run, the mode covers
-        // the write before the exemption is ever asked (docs/tools/scratchpad.md).
-        let gate = gate_in(crate::permission::PermissionMode::Manual);
-        gate.set_scratchpad(Some(dir));
-        let call = call(
-            "write",
-            &serde_json::json!({"path": path, "content": "scratch"}).to_string(),
-        );
-        // Pre-cancelled deliberately: the exemption resolves before the gate
-        // is ever consulted, so this changes nothing here — but a regression
-        // that raises the prompt fails fast instead of blocking the suite.
-        let cancel = CancelToken::new();
-        cancel.cancel();
-        assert_eq!(
-            approve_call(
-                Some(&gate),
-                None,
-                None,
-                &NoHooks,
-                false,
-                &tx,
-                &cancel,
-                None,
-                &call,
-                None
-            ),
-            Approval::AllowNoted {
-                note: SCRATCHPAD_ALLOWED_NOTE.to_string()
-            }
-        );
-        assert!(rx.try_recv().is_err(), "no request was raised");
-    }
-
-    #[test]
-    fn a_write_outside_the_scratchpad_still_asks() {
-        let dir = std::env::temp_dir().join("zeroth-0/s1/scratchpad");
+    fn a_file_write_in_manual_mode_still_asks() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = gate_in(crate::permission::PermissionMode::Manual);
-        gate.set_scratchpad(Some(dir));
         let cancel = CancelToken::new();
         let call = call(
             "write",
@@ -754,15 +700,12 @@ mod tests {
     }
 
     #[test]
-    fn a_forced_ask_still_prompts_for_a_scratchpad_write() {
+    fn a_forced_ask_still_prompts_for_a_temporary_file_write() {
         // A PreToolUse hook's `permissionDecision: "ask"` means *a human
-        // decides* — it outranks the standing allowlist, and the scratchpad
-        // exemption sits right beside it (docs/tools/hooks.md).
-        let dir = std::env::temp_dir().join("zeroth-0/s1/scratchpad");
-        let path = dir.join("notes.md");
+        // decides* — it outranks the standing allowlist (docs/tools/hooks.md).
+        let path = std::env::temp_dir().join("notes.md");
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = PermissionGate::new();
-        gate.set_scratchpad(Some(dir));
         let cancel = CancelToken::new();
         cancel.cancel(); // reap the wait at once — we only care that it waits
         let approval = approve_call(

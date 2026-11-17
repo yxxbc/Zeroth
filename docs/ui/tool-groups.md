@@ -1,5 +1,10 @@
 # Collapsed read/search groups — the non-verbose tool view
 
+Agent scratchpads are retired. The scratchpad examples below document display
+compatibility for saved conversations, not a directory provisioned for new
+sessions. Phase 147 now verifies that no scratchpad is created or advertised.
+
+
 An agent spends much of a turn finding its way around before it changes
 anything: a listing, a search, a file, another file. Drawn as a cell per call,
 that exploring fills the screen with output nobody reads — a `● Bash(ls -la)`
@@ -13,7 +18,7 @@ reads (*Scratchpad edits*, below).
 ```
 ● I'll get my bearings first.
 
-● Searching for 1 pattern, reading 2 files, listing 1 directory… (ctrl+o to expand)
+● Running 1 search, reading 2 files, listing 1 directory… (ctrl+o to expand)
   ⎿  $ grep -rn 'card()' .
 ```
 
@@ -22,7 +27,7 @@ while it runs, and once something that is not a read arrives:
 ```
 ● I'll get my bearings first.
 
-Searched for 1 pattern, read 2 files, listed 1 directory (ctrl+o to expand)
+Ran 1 search, read 2 files, listed 1 directory (ctrl+o to expand)
 
 ● Bash(python3 about.py)
   ⎿  zeroth — an autonomous AI agent that lives in your terminal
@@ -32,6 +37,16 @@ Every call is still recorded whole: the **Ctrl+O** transcript expands each one
 exactly as before, the derived context (Ctrl+D) and the rollout are untouched,
 and a `/resume` repaints the same line from the same records. The group is only
 what the *conversation* shows of them.
+
+## Search previews and details
+
+The aggregate counts search calls, not patterns. A closed group keeps up to
+three query/result previews, each at most two display rows. Known grep/rg
+match output reports matching lines and files; unknown commands keep their
+command preview without invented counts. Execution errors keep their own
+visible cells; a recognised empty no-match result can still join the group.
+Expanded search results are grouped by file, with line-number gutters and a
+separate command section. See [search details](search-details.md).
 
 ## Verbose output
 
@@ -73,7 +88,7 @@ go and the rebuild paints its calls as cells.
   error, the turn's end.
 - The clauses are in the reference's order — what the group changed, then
   what it read: scratchpad edits, then searches, reads and listings — each
-  verb in the tense the group is in (`Making`, `searching for`, `reading`,
+  verb in the tense the group is in (`Making`, `running`, `reading`,
   `listing`), the first capitalised, the counts **bold**, the nouns
   pluralised past one (`1 pattern`, `2 patterns`; `1 directory`,
   `2 directories`), the line closed by a `…`.
@@ -179,15 +194,13 @@ A **member** is a call the group takes ([`app::is_group_member`]):
 - a `Write` or `Edit` of a file in a session's **scratchpad** — but only
   once it has **succeeded** (*Scratchpad edits*, below).
 
-and a read joins only once it has **run**, whether it succeeded or failed in
-the running — a search that matched nothing exits 1, a read of a missing file
-fails; the model read the error either way, and Ctrl+O keeps it. A call that
-never ran or never finished keeps a cell of its own, because its cell is the
-record of *why*: refused at the prompt or by the classifier, blocked by a hook,
-cut by Esc or a backend error, refused by the tool-call limit, or moved to the
-background (`wait: 0`, `run_in_background`, or Ctrl+B on a long search). So
-does a `!` command the user ran, and an MCP call, which has a collapsed line of
-its own (`docs/tools/mcp.md`).
+Successful reads join, as do recognised grep/rg calls that exit 1 with no
+output (no matches). Actual execution errors keep their own visible cell.
+A call that never ran or never finished also keeps its own cell: refused at
+the prompt or by the classifier, blocked by a hook, interrupted, refused by
+the tool-call limit, or moved to the background (`wait: 0`,
+`run_in_background`, or Ctrl+B on a long search). So does a `!` command the
+user ran, and an MCP call (`docs/tools/mcp.md`).
 
 A member's own extras ride with it into Ctrl+O: the `⎿ Allowed by auto mode
 classifier` note a command the strict check could not vouch for earned
@@ -279,9 +292,7 @@ session's own scratchpad and nothing else.
 **Only an edit that succeeded joins.** One that failed, or never ran —
 refused at a prompt a hook forced, blocked by a hook, cut by Esc or a backend
 error — changed nothing, so it keeps its red cell, which says why, and "made
-N edits" stays true. That is stricter than a read, which joins however it
-ended once it ran: a read that failed still told the model something, an
-edit that failed did nothing.
+N edits" stays true. Failed reads and failed edits both retain their visible error cells.
 
 ## The group's lifecycle
 
@@ -395,10 +406,7 @@ a whole group with no network: a listing, a thought between the rounds, a
 parallel search and two reads, a second thought — a live model's pause before
 its next call, in which the hint row plays the round's values through — then
 a script run that closes it, every call resolving with the real executor's
-output. Its **`scratchpad`** scenario (a prompt naming "scratchpad") streams
-a `write` of a little game into the session's scratchpad the way a live model
-generates one, then `edit`s it, both resolving through the real
-`write_report`/`update_report`.
+output.
 
 `scripts/smoke.sh` Phase 146 plays the first against the real binary — the
 live cell alone while the model thinks (the status line counting the thought,
@@ -406,8 +414,6 @@ no block under the cell), the clauses growing, the parallel round's three
 values taking the hint row in turn, the one settled line above the closing
 call with no per-read cell, no `Thought for` line for either thought it held,
 Ctrl+O expanding every call and both thoughts, a resize rebuild painting the
-same line, and **Verbose output** unfolding it. Phase 147 plays the second —
-the live `Making 1 scratchpad edit +N…` line counting up over the file's path
-while the write streams, no `Write(` cell anywhere, one settled
-`Made 2 scratchpad edits +26 -1` line, and Ctrl+O expanding both calls. Every
-other phase runs with `ZEROTH_VERBOSE=1`.
+same line, and **Verbose output** unfolding it. Phase 147 checks that new
+sessions create no agent scratchpad and inject no scratchpad context.
+Every other phase runs with `ZEROTH_VERBOSE=1`.

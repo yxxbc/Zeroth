@@ -355,7 +355,6 @@ fn an_unavailable_checkpoint_row_shows_its_effective_value_not_the_stored_one() 
             skills: true,
             mcp: true,
             images: true,
-            telemetry: true,
             update_check: true,
         },
         ..SessionSettings::default()
@@ -379,7 +378,6 @@ fn an_unavailable_setting_says_so_and_refuses_to_cycle() {
             skills: true,
             mcp: true,
             images: true,
-            telemetry: true,
             update_check: true,
         },
         ..SessionSettings::default()
@@ -413,15 +411,13 @@ fn checkpoints_are_active_only_when_both_the_knob_and_the_host_agree() {
 #[test]
 fn json_round_trips_every_changed_value() {
     // Every knob settings.json owns. The per-user rows live elsewhere
-    // (telemetry.json, update.json, tips.json — docs/state/per-directory-state.md)
+    // (update.json, tips.json — docs/state/per-directory-state.md)
     // and their own tests pin that they never reach this file.
     let mut s = SessionSettings::default();
-    for key in SettingKey::ALL.iter().filter(|k| {
-        !matches!(
-            k,
-            SettingKey::Telemetry | SettingKey::UpdateCheck | SettingKey::Tips
-        )
-    }) {
+    for key in SettingKey::ALL
+        .iter()
+        .filter(|k| !matches!(k, SettingKey::UpdateCheck | SettingKey::Tips))
+    {
         s.cycle(*key);
     }
     let restored = SessionSettings::parse(&s.to_json());
@@ -508,7 +504,6 @@ fn availability_is_never_persisted() {
             skills: true,
             mcp: true,
             images: true,
-            telemetry: true,
             update_check: true,
         },
         ..SessionSettings::default()
@@ -535,7 +530,6 @@ fn skills_are_not_offered_with_tools_off() {
             skills: true,
             mcp: true,
             images: true,
-            telemetry: true,
             update_check: true,
         },
         ..SessionSettings::default()
@@ -683,70 +677,17 @@ fn settings_file_round_trips_and_an_empty_one_is_the_old_shape() {
     );
 }
 
-// ===== the Telemetry row (TELEMETRY.md) =====
-
 #[test]
-fn the_telemetry_row_is_last_cycles_and_needs_a_config_home() {
-    // Opt-out: on until turned off, and the last row so nothing above it
-    // moves. Without a config home there is nowhere to keep an install id, so
-    // the row reads unavailable like every knob the host can't serve.
-    let mut s = SessionSettings::default();
-    assert!(s.telemetry, "on by default");
-    assert!(s.telemetry_active());
-    assert_eq!(SettingKey::ALL.last(), Some(&SettingKey::Telemetry));
-    assert_eq!(s.value_text(SettingKey::Telemetry, MANUAL), "true");
-    assert!(s.cycle(SettingKey::Telemetry));
-    assert!(!s.telemetry && !s.telemetry_active());
-    assert_eq!(s.value_text(SettingKey::Telemetry, MANUAL), "false");
-    assert!(s.cycle(SettingKey::Telemetry));
-    assert!(s.telemetry, "a boolean: back on");
-    s.availability.telemetry = false;
-    assert!(!s.is_available(SettingKey::Telemetry, MANUAL));
-    assert!(!s.telemetry_active(), "a stored yes the host can't honour");
-    assert_eq!(
-        s.value_text(SettingKey::Telemetry, MANUAL),
-        format!("false{UNAVAILABLE_SUFFIX}"),
-        "the effective value, not the stored one"
-    );
-    assert!(!s.cycle(SettingKey::Telemetry), "unavailable rows refuse");
-    assert!(s.telemetry, "…and leave the value alone");
-}
-
-#[test]
-fn telemetry_never_reaches_settings_json() {
-    // It is a user preference, not a project's (docs/state/per-directory-state.md):
-    // it lives in telemetry.json beside the install id. So the blob never
-    // serializes it, a settings.json that names it is ignored, and
-    // `copy_value` never moves it — the PermissionMode pattern.
-    let off = SessionSettings {
-        telemetry: false,
-        ..SessionSettings::default()
-    };
-    assert_eq!(off.to_json().trim(), "{}", "not written");
-    assert!(
-        SessionSettings::parse(r#"{"telemetry": false}"#).telemetry,
-        "not read"
-    );
-    let mut file = SessionSettings::default();
-    file.copy_value(SettingKey::Telemetry, &off);
-    assert!(file.telemetry, "not this file's to record");
-    assert_eq!(file, SessionSettings::default());
-}
-
-// ===== the Update check row (docs/ops/update.md) =====
-
-#[test]
-fn the_update_check_row_sits_above_telemetry_cycles_and_needs_a_config_home() {
-    // Opt-out like telemetry, and its neighbour: the two per-user rows close
-    // the menu, Telemetry last so nothing above it moves. Without a config
-    // home there is nowhere to remember the day a check ran, so the row
-    // reads unavailable like every knob the host can't serve.
+fn the_update_check_row_sits_above_the_tips_row_cycles_and_needs_a_config_home() {
+    // Opt-out like the tips row above it. Without a config home there is
+    // nowhere to remember the day a check ran, so the row reads unavailable
+    // like every knob the host can't serve.
     let mut s = SessionSettings::default();
     assert!(s.update_check, "on by default");
     assert!(s.update_check_active());
     let all = SettingKey::ALL;
-    assert_eq!(all[all.len() - 2], SettingKey::UpdateCheck);
-    assert_eq!(all.last(), Some(&SettingKey::Telemetry));
+    assert_eq!(all[all.len() - 2], SettingKey::Tips);
+    assert_eq!(all.last(), Some(&SettingKey::UpdateCheck));
     assert_eq!(s.value_text(SettingKey::UpdateCheck, MANUAL), "true");
     assert!(s.cycle(SettingKey::UpdateCheck));
     assert!(!s.update_check && !s.update_check_active());
@@ -775,7 +716,7 @@ fn the_update_check_row_sits_above_telemetry_cycles_and_needs_a_config_home() {
 fn the_update_check_never_reaches_settings_json() {
     // A user preference, not a project's: it lives in update.json. So the
     // blob never serializes it, a settings.json that names it is ignored,
-    // and `copy_value` never moves it — the Telemetry pattern.
+    // and `copy_value` never moves it — the per-user pattern.
     let off = SessionSettings {
         update_check: false,
         ..SessionSettings::default()
@@ -817,16 +758,11 @@ fn the_show_tips_row_is_on_by_default_and_cycles_anywhere() {
 
 #[test]
 fn the_show_tips_row_joins_the_per_user_rows_at_the_foot_of_the_menu() {
-    // The rows that persist per user sit together, the two that were there
-    // first unmoved beneath it.
+    // The rows that persist per user sit together at the end of the menu.
     let all = SettingKey::ALL;
     assert_eq!(
-        &all[all.len() - 3..],
-        &[
-            SettingKey::Tips,
-            SettingKey::UpdateCheck,
-            SettingKey::Telemetry
-        ]
+        &all[all.len() - 2..],
+        &[SettingKey::Tips, SettingKey::UpdateCheck]
     );
 }
 
@@ -835,7 +771,7 @@ fn show_tips_never_reaches_settings_json() {
     // Whether you want tips is yours, not a project's: the switch lives in
     // tips.json beside the walk's position. So the blob never serializes
     // it, a settings.json that names it is ignored, and `copy_value` never
-    // moves it — the Telemetry pattern.
+    // moves it — the per-user pattern.
     let off = SessionSettings {
         tips: false,
         ..SessionSettings::default()

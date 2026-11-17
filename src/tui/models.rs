@@ -111,7 +111,7 @@ pub(crate) struct ModelSession {
     max_tool_calls: usize,
     /// The persona + environment system prompt every rebuild inherits.
     system_prompt: Option<String>,
-    /// Its runtime half alone — the environment and scratchpad blocks — for a
+    /// Its runtime half alone — the environment block — for a
     /// subagent definition whose body replaces the persona
     /// (`docs/agents/subagents.md`). Resolved once at startup beside it, so every
     /// rebuild inherits it by clone.
@@ -244,7 +244,6 @@ impl ModelSession {
     pub(crate) fn resolve(
         cwd: &Path,
         home: Option<&Path>,
-        scratchpad: Option<&Path>,
         registry: &BackgroundRegistry,
         agents: &AgentRegistry,
         steer: &zeroth::steer::SteerQueue,
@@ -348,7 +347,7 @@ impl ModelSession {
         let skills_enabled = settings.skills;
         let skills = skills.clone();
         let subagents = subagents.clone();
-        let system_prompt = config::system_prompt(cwd, scratchpad).map(|prompt| {
+        let system_prompt = config::system_prompt(cwd).map(|prompt| {
             // A headless run — the one session that carries a reply budget —
             // tells the model nobody is watching (docs/cli/headless.md).
             if round_budget.is_some() {
@@ -359,7 +358,7 @@ impl ModelSession {
         });
         // The runtime half alone, for an agent definition whose body replaces
         // the persona (docs/agents/subagents.md).
-        let prompt_context = config::prompt_context(cwd, scratchpad);
+        let prompt_context = config::prompt_context(cwd);
         // The provider the /model picker lists from and switches within: env,
         // else the saved selection, else the file's default.
         // Read as this build spells it: a shell still exporting the ChatGPT
@@ -503,9 +502,6 @@ impl ModelSession {
                     // makes the demo stream as slowly as a struggling model
                     // (docs/ui/slow-stream.md).
                     .with_chunk_delay(config::chunk_delay())
-                    // …and the session's scratchpad, where its scratchpad demo
-                    // writes (docs/ui/tool-groups.md *Scratchpad edits*).
-                    .with_scratchpad(scratchpad.map(Path::to_path_buf))
                     .with_agents(agents.clone())
                     // …and the mid-turn queue, so the offline demo takes a
                     // queued message once its tool round resolves, exactly as
@@ -1816,9 +1812,6 @@ pub(crate) struct HookSetup {
     /// background SessionStart, and the synthetic-turn mark — shared into
     /// every sink built, surviving each rebuild (`docs/tools/hooks.md`).
     pub(crate) handles: zeroth::llm::hooks::HookHandles,
-    /// The session's scratchpad, for the payloads' `scratchpad_dir` — `None`
-    /// when the session has none (`docs/tools/scratchpad.md`).
-    pub(crate) scratchpad_dir: Option<std::path::PathBuf>,
     /// The user's home, which a refused call's cell names its hook's
     /// `hooks.json` from — `~/.zeroth/hooks.json`, as the startup review
     /// names it (`docs/tools/hooks.md` *What the user sees*).
@@ -1852,10 +1845,7 @@ impl HookSetup {
             permission_mode: None,
             agent_id: None,
             agent_type: None,
-            scratchpad_dir: self
-                .scratchpad_dir
-                .as_ref()
-                .map(|dir| dir.display().to_string()),
+            scratchpad_dir: None,
         };
         zeroth::llm::hooks::CommandHooks::new(
             std::sync::Arc::clone(&self.file),

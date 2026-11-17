@@ -141,14 +141,6 @@ pub fn startup_paragraph_lines(text: &str, width: u16) -> Vec<Line<'static>> {
         .collect()
 }
 
-/// The one-time telemetry disclosure as a compact, themed card under the
-/// banner (`TELEMETRY.md`): [`notice_card_lines`] over
-/// `telemetry::notice()`.
-#[must_use]
-pub fn telemetry_notice_lines(width: u16) -> Vec<Line<'static>> {
-    notice_card_lines(TELEMETRY_CARD_TITLE, &crate::telemetry::notice(), width)
-}
-
 /// The update notice as the same card (`docs/ops/update.md`): [`notice_card_lines`]
 /// over `update::notice()` — a newer release `latest` is out, this is
 /// `current`, `repo` is where the release page and the installer live, and
@@ -174,8 +166,7 @@ pub fn update_notice_lines(
 /// accent. Prose and commands wrap without truncation; tiny panes drop the
 /// frame instead of spending their remaining columns on decoration. Like
 /// other startup notices, this is scrollback chrome and never enters
-/// history. One builder for every such card, so the telemetry disclosure
-/// and the update notice can never drift apart in dress.
+/// history. One builder for every such card.
 #[must_use]
 pub fn notice_card_lines(heading: &str, body: &str, width: u16) -> Vec<Line<'static>> {
     if width == 0 {
@@ -199,7 +190,7 @@ pub fn notice_card_lines(heading: &str, body: &str, width: u16) -> Vec<Line<'sta
     let title = Style::new()
         .fg(header_accent_color())
         .add_modifier(Modifier::BOLD);
-    let text = Style::new().fg(telemetry_text_color());
+    let text = Style::new().fg(notice_text_color());
     let mut lines = Vec::new();
     if framed {
         let title_text = format!(" {heading} ");

@@ -2,8 +2,11 @@
 
 日期：2026-11-12
 
-状态：**测量与盘点**，不是提案。这里没有任何东西被实现；“什么可以变”的那些
-小节是附带代价的选项，供在任何代码动起来之前做决定。
+状态：**测量与盘点**，不是提案。“什么可以变”的那些小节是附带代价的选项，供在
+任何代码动起来之前做决定。写完这页之后其中两条已经被采纳：回合末的 checkpoint 现
+在在自己的线程上快照（*选项 B*），urgent 帧路径也已落地
+（`input-latency.md`）。剩下的是什么、每一笔的实测代价是多少，
+见下面的 *渲染循环和输入共用一个线程*。
 
 两条轴上的原型结果 —— 一个进程里的 N 个 session，以及一个并行的 tool 批次 ——
 在 [`multithread-core.md`](multithread-core.md)。
@@ -27,8 +30,10 @@
 | 一次 MCP `call_tool` | 该调用的死线之下的 worker 线程 | 不 |
 | `@` 文件搜索、Ctrl+V 剪贴板、`/model` 抓取、`/login`、`/usage` | 每个任务一个 worker 线程（`tui/workers.rs`） | 不 |
 | 后台 shell、后台 agent | 自己的线程，报在自己的 channel 上 | 不 |
-| checkpoint 快照 | 循环自己的线程 | **是**（见下） |
+| checkpoint 快照 | 它自己的线程（`tui/turn.rs::start_checkpoint_snapshot`） | 不 |
+| checkpoint **restore**（回溯、`/resume`） | 循环自己的线程 | **是**（见下） |
 | session 文件追加（`recorder.sync`） | 循环自己的线程（事件循环底部） | **是**，但只追加、无 fsync |
+| Ctrl+O transcript warm（`transcript.warm`） | 循环自己的线程（事件循环底部） | **是**，每回合一个新项，`/resume` 后是整段重载 |
 | 帧调度、渲染、全部 `App` 状态 | 循环的线程（`current_thread` tokio runtime） | — |
 
 所以形状是：**按设计一次一个回合，但一个回合不止一个线程。** 单个回合已经扇出
@@ -71,23 +76,23 @@ subagent 组运行时，lead 什么别的都做不了。这是有意的
 transcript。拦路的是 `App`：一个 `history`、一个 `streaming`、一个 `queued`、
 一个 composer。
 
-### 4. checkpoint 快照跑在事件循环上
+### 4. checkpoint 快照离开了循环；它的 restore 没有
 
-`tui/turn.rs:402::checkpoint_turn_end` → `CheckpointStore::snapshot`
-（`checkpoint.rs:821`）在**循环的线程上同步跑三个 `git` 子进程**，每个回合末
-都跑：
-`add -A`、`commit`、`rev-parse HEAD`。默认开启（未设 `ZEROTH_CHECKPOINTS` 即
-开）。`docs/state/checkpoint.md` 记下了代价：*“在普通硬件上一次冷快照约一秒，在
-最慢的机器上要几秒”*。循环所拥有的一切 —— 输入、帧、spinner、Esc —— 就冻那么久，
-**每回合一次**。
+这正是*选项 B* 当初为之而写的那次冻结，它已经修好了：
+`tui/turn.rs::start_checkpoint_snapshot` 把快照 spawn 出去，循环继续绘制，结果
+从 `checkpoint_rx` 取（`tui/event_loop.rs` 第 13 个分支）。在一棵 两万文件
+的树上实测，快照本身 0.17 s —— 不再是谁的帧。
 
-三分预算（`20 000` 个文件 / `256 MiB` / `500 ms` 探测）约束的是*探测*，不是
-快照。
-`git add -A` 本身没有超时。
+它的**镜子**没有跟着搬。`restore_to`（`tui/resume.rs`）内联地跑 `snapshot` +
+`git reset --hard` + `git clean -fdq`，所以一次回溯或一次 `/resume` 仍然会冻住
+循环：在一棵脏的两万文件树上实测 1.5 s，而慢盘上的 `git clean` 没有任何上界。
+迟到快照本来就需要的那道 `checkpoint_epoch` 守卫，原样适用于迟到的 restore，
+这正是把它搬走算是剩余工作里便宜那一半的原因
+（*渲染循环和输入共用一个线程* 第 3 条）。
 
 ### 5. recorder 在循环的线程上追加，没有 fsync
 
-`recorder.sync` 跑在循环底部（`bootstrap.rs:1134`）与关闭时。它是只追加、带水位
+`recorder.sync` 跑在循环底部（`bootstrap.rs:1141`）与关闭时。它是只追加、带水位
 标记的，并且当历史没有变动时就跳过 —— 于是一个流式回合分文不付。但一个记录了历史
 条目的回合会在循环的线程上对该条目做 `write_all`。没有 `sync_all`，所以这是一次
 页缓存写入：通常几微秒，但一个写满的页缓存或一块慢盘会把它变成没人设过界的停顿。
@@ -125,7 +130,7 @@ transcript。拦路的是 `App`：一个 `history`、一个 `streaming`、一个
 价钱：高。收益：一个 3×20 秒的批次变成 20 秒。值得，但它是独立的一个项目，也是
 最有可能弄坏取消的那个改动。
 
-### 选项 B —— 把 checkpoint 快照移出循环
+### 选项 B —— 把 checkpoint 快照移出循环（已完成）
 
 触及：`checkpoint.rs`（让 `snapshot` 可 spawn）、`tui/turn.rs`（发出即忘，结果
 到达时记下 SHA）、`recorder`（接受在回合结束之后才落地的 checkpoint）、
@@ -162,16 +167,19 @@ transcript。拦路的是 `App`：一个 `history`、一个 `streaming`、一个
 
 ## 最值得先做的那一件事
 
-**选项 B。** 它小、它去掉一次被量出来的冻结、它不需要新的并发模型，而且它对其他
-每一条不变量都是透明的。这一页上别的东西都改变一个回合的结构；只有它只改变一个
-子进程*什么时候*运行。
+**选项 B —— 已完成。** 它确实小、确实去掉了一次被量出来的冻结、确实不需要新的
+并发模型，而且对其他每一条不变量都是透明的。同样的论证现在指向下面
+*渲染循环和输入共用一个线程* 末尾的三条：每条都是一个调用点，每条去掉一次实测出来
+的阻塞，而不是改变一个回合的结构。
 
 ## 选之前该量什么
 
-上面没有一条值得凭直觉决定。这份代码库缺的是看见它的仪表：
+上面没有一条值得凭直觉决定。下面第一条已经被采纳 —— `ZEROTH_TIMING=<path>`
+现在会写它（`tui/timing.rs`），也正是它给这次 checkpoint 迁移定了价。仍然缺的：
 
-- **每个回合末花在 `checkpoint_turn_end` 与 `recorder.sync` 上的时间** —— 各一行
-  日志、由环境变量门控，就能定下选项 B 是否值那 ~50 行。
+- **每个回合末花在 `recorder.sync` 上的时间** —— checkpoint 那一半已经量到了
+  （`checkpoint.snapshot`、`checkpoint.dispatch-wait`）；recorder 自己的
+  `write_all` 还没有一行。
 - **一个 3-call 批次和一个 4-agent 批次下的线程数与堆叠的 `ps -M`** —— 好知道
   “每请求一个传输线程 + 每 agent 一个线程 + 每 tool 一个线程”的形状是否有一个
   值得抬高的天花板。
@@ -179,7 +187,114 @@ transcript。拦路的是 `App`：一个 `history`、一个 `streaming`、一个
   自己的数字是覆盖整个场景的中位数；按轮的数字才是修复会推动的东西。
 
 帧耗时日志（`docs/architecture/input-latency.md`，第 5 项）能同时服务两份文档；
-同一个环境变量门控的写入者也能给一个回合末计时。
+同一个环境变量门控的写入者也能给一个回合末计时。下面的数字来自临时的 `examples/`
+探针，而这正是那个日志存在的理由。
+
+## 渲染循环和输入共用一个线程
+
+2026-11-17 补写。这一节回答的是：“UI 单线程渲染，而这个线程还管输入 —— 这不危险
+吗？”值得把那句话拆成两半，因为它们的答案不同：真正会咬人的风险，不是这个形状
+暗示的那些。
+
+### 成立的部分
+
+渲染和输入处理确实跑在同一个线程 —— `main.rs` 里的 `current_thread` tokio
+runtime。`draw_rx` 和 `events` 是同一个 `select!`（`tui/event_loop.rs`）的两个
+分支，所以一帧和一次按键按构造就永远不会**并发**。这不是疏忽：正是它让帧的决策
+简单。一个线程独占 `App`、viewport 的 diff（`prev`）、光标座位和 scrollback
+队列，所以它们都不需要锁，一帧也永远看不到半应用的状态变更。
+
+“这很危险”这个前提，通常夹带了两个在这里不成立的假设：
+
+- **跑一帧的时候输入不会丢。** crossterm 的 `EventStream` 有自己的读取线程
+  （`crossterm-0.29.0/src/event/stream.rs:44`），所以即使循环正忙，按键也会被从
+  pty 读走；而 pty 自己会缓冲还没被读的部分。两个方向都实测过：没人读的时候，
+  写进 1024 字节，读回 1024 字节 —— 一模一样 —— 再往后写入方只是阻塞，而不是被
+  丢弃。所以慢帧付的是**延迟**，不是按键。
+- **状态不共享。** 没有任何东西基于别的线程正在写的快照渲染，所以不存在要考虑
+  的撕裂帧。比任何锁都便宜。
+
+所以问题不是“这安不安全”—— 而是“这个线程的一次迭代能阻塞多久，用户在这期间
+在干什么”。本节剩下的就是那个数字。
+
+### 一次迭代要花多少（实测）
+
+release 构建、120 列帧、macOS，跑在本机 `~/.zeroth/sessions` 里自己的
+transcript 上（611–1309 项，每份 3.3–4.1 MB）—— 渲染器的最坏情况，而它是真实的。
+
+| 工作 | 在循环的线程上 | 实测 |
+| --- | --- | --- |
+| 一次流式帧，1 KB 回复 | 是 | 0.05 ms |
+| 一次流式帧，64 KB 回复 | 是 | 0.10 ms p50 |
+| 一次流式帧，1 MB 回复 | 是 | 1.2 ms p50，2.3 ms p95 |
+| 空闲帧，1066 项 history | 是 | **0.02 ms** |
+| 会话重建（resize） | 是 | 24–36 ms |
+| Ctrl+O transcript，新落地一个 tool 结果 | 是 | **1.4 ms** |
+| Ctrl+O transcript，`/resume` 换进来 | 是 | **1.07 s → 0.11 s**（高亮设上限之后） |
+| 回合末的 checkpoint 快照 | 不（自己的线程） | 两万文件的树上增量 0.17 s、冷跑 0.93 s |
+| backtrack/resume 的 restore（`git reset --hard` + `git clean -fdq`） | 不（自己的线程） | 两万文件脏树上 1.5 s |
+
+稳态不是问题，而这正是当初选这个形状的原因：流式帧便宜，因为 `StreamRender`
+把已完成的行一次性提交进 scrollback，而 strip 只预览一行 —— 一帧的代价跟着**最后
+一行**走，不跟回复走，所以 1 KB 和 64 KB 分不出来，1066 项的 history 一点都不花，
+因为它根本没被重渲染。`render_live` 重渲染整条回复（1 MB 时 36 ms）只是单元测试的
+兜底；循环永远传 `Some(preview)`。
+
+下面两处冻结都在 2026-11-17 关掉了；上面的数字是修好之后的，
+*该做什么，按顺序* 记下了每一处当初的代价。
+
+1. **`/resume` 之后的 `transcript.warm` —— 1.07 s → 0.11 s。** Ctrl+O 的缓存冻结
+   已渲染的前缀、每回合追加一项（1.4 ms —— 设计是对的），但 `/resume` 会 bump
+   `history_generation`，冻结的 key 对不上，于是整段载入的会话在一次调用里重渲染。
+   那一整秒全都是语法高亮：这个 session 的八个 markdown 文件单元格合计 986 ms 的
+   上色，最贵的单个 526 ms。按字节设界（`CODE_HIGHLIGHT_MAX_BYTES`）就是修法 ——
+   完整测量、以及为什么按时间的闸门不管用，见 `docs/ui/long-lines.md` §7b。warm
+   本身必然仍是全量历史：只缓存一部分会让 Ctrl+O 打开时缺项，而 overlay 本来也无法
+   在 warm 期间进入。
+2. **checkpoint restore —— 移出了循环。** 它的镜子 `restore_to` 内联跑 `snapshot` +
+   `git reset --hard` + `git clean -fdq`：脏的两万文件树上冻 1.5 s，spinner 和 Esc
+   一起。现在它像 `start_checkpoint_snapshot` 一样 spawn，结果报在 `restore_rx`
+   （`tui/event_loop.rs` 第 14 个分支），由 `on_restore_done` 弹 toast。token 校验
+   和 `checkpoint_epoch` 是同一个形状：晚于更新一次请求才落地的 restore 会被丢弃。
+   到那时调用方早已回退了历史，所以下游没有任何东西在等工作树先动。
+
+其他**本来可能**成为冻结的东西，都已经在线程外：回复后端、传输、`@` 搜索、剪贴板、
+模型列表、`/login`、`/usage`、MCP、link card、git diff，以及 checkpoint 快照
+（`tui/workers.rs`、`tui/diff.rs`、`tui/turn.rs`）。
+
+### 为什么加一个渲染线程不是解法
+
+显而易见的动作 —— 第二个线程持有 viewport、帧走 channel —— 在 1.07 s 的冻结里只
+买到 1.2 ms，代价是放弃上面两条性质：`App` 必须 `Send`（它按设计持有 `RefCell`
+渲染缓存，`app/drafts.rs`），而且一帧从此要和请求它的那次状态变更赛跑。这些冻结
+并不是那种意义上的**渲染**代价 —— 它们是一次 `O(history)` 的渲染加一次 `git`
+调用，都可以在源头避开。帧耗时日志（[`input-latency.md`](input-latency.md) 第 5
+条）是把这件事保持诚实的便宜办法。
+
+### 该做什么，按顺序
+
+三条都已完成（2026-11-17），而且都没有引入并发模型 —— 每条都是一个调用点，这才是
+对那句抱怨的真正回答：线程形状没问题，剩下的是几笔测出来的一次性代价，而单线程
+让它们容易找。
+
+1. **给高亮器设界 —— 已完成，`CODE_HIGHLIGHT_MAX_BYTES`（2 KB）。** 并不是这份
+   文档当初猜的「一个 `if`」：昂贵的行没法从文本预测，所以上限约束的是每个单元格的
+   **总**工作量，而常数是扫出来的（`docs/ui/long-lines.md` §7b）。986 ms 的上色 →
+   40 ms。
+2. **把 `/resume` 的 warm 挪到绘制之后 —— 放弃，附理由。** 它没法有效地分片：缓存
+   必须持有完整历史，否则 Ctrl+O 打开时会缺项，而 warm 在飞时 overlay 也进不去。
+   第 1 条已经把它本想遮住的那笔代价去掉了。
+3. **把 restore 挪到 worker 上 —— 已完成。** `restore_to` spawn，结果落在
+   `restore_rx` 上，token 守卫替代了原来的内联顺序。
+
+## 渲染循环与输入同线程 —— 怎么复现
+
+探针是临时的 `examples/` 文件，已删除；上面的数字就是记录。照同样的方式重建：对着
+真实 rollout 跑 `cargo run --release --example …`
+（`~/.zeroth/sessions/YYYY/MM/DD/rollout-*.jsonl`，用 `session::parse_session`
+解析成 items，用 `App::load_session` 载入）。帧的数字要用循环自己的形状 ——
+`StreamRender::preview` 先一次，然后 `render_live_with_preview` —— 而不是
+`render_live`，后者是单元测试的兜底。
 
 ## 复现这份盘点
 
@@ -187,7 +302,17 @@ transcript。拦路的是 `App`：一个 `history`、一个 `streaming`、一个
 - **subagent 轮询**：`llm/backend.rs:1586`（`run_agent_calls`）以及 `:1708` 处
   的 `AGENT_WAIT_POLL` sleep（30 毫秒，`:1484`）。
 - **一次一个回合**：`App::turn_active`；队列语义见 `docs/input/queue.md`。
-- **循环上的 checkpoint**：`tui/turn.rs:345` → `:402` → `checkpoint.rs:821`；
-  默认开在 `checkpoint.rs:536`。
-- **循环上的 recorder**：`tui/bootstrap.rs:1134` → `recorder.rs:268`。
+- **移出循环的 checkpoint**：`tui/turn.rs::start_checkpoint_snapshot` →
+  在 spawn 出来的线程上跑 `checkpoint.rs:897`，结果走 `checkpoint_rx`
+  （`tui/event_loop.rs` 第 13 个分支）。默认开在 `checkpoint.rs:536`。它的镜子
+  `restore` 仍然内联执行（`tui/resume.rs::restore_to`）。
+- **循环上的 recorder**：`tui/bootstrap.rs:1141` → `recorder.rs:279`。
+- **transcript warm**：`tui/bootstrap.rs:1295`（`self.transcript.warm`），
+  现在由 `ui::file_cell::HighlightBudget` 设界；
+  `ui/transcript.rs::ensure_frozen`；单项的单元格是
+  `ui/tool.rs::tool_full_lines` → `ui/file_cell.rs::numbered_body_lines`，高亮器是
+  `highlight::Highlighter::line`。
+- **输入的活性**：`crossterm` 的 `EventStream` 读取线程，
+  `crossterm-0.29.0/src/event/stream.rs:44`；帧地板见
+  `docs/architecture/input-latency.md`。
 - **每请求一个传输线程**：`llm/openai.rs:548`。

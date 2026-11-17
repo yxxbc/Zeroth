@@ -107,10 +107,10 @@ property the tool depends on, not a convenience.
   the vision flag, which describe the *session's* model and not this one.
   `inherit` (or an omitted key) changes nothing.
 - **system prompt** — the body replaces the persona, keeping the environment
-  and scratchpad blocks (`{body}` → environment → scratchpad → subagent note):
+  block (`{body}` → environment → subagent note):
   those are runtime facts about *this* session — the date, the os, the user,
-  the cwd, where temporary files go — and a subagent that doesn't know them
-  writes into `/tmp` and guesses the year. With no body the prompt is exactly
+  the cwd — and a subagent that doesn't know them
+  may write into `/tmp` and guess the year. With no body the prompt is exactly
   what it was before this feature: the session's own assembled prompt plus
   the note.
 

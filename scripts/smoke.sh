@@ -19,7 +19,7 @@
 #   scripts/smoke.sh --serial             # one at a time, in phase order
 #   scripts/smoke.sh 55 66 107b           # only these phases
 #   scripts/smoke.sh 50-60 permission     # a range, a name substring
-#   scripts/smoke.sh --skip 115           # everything but
+#   scripts/smoke.sh --skip 116           # everything but
 #   scripts/smoke.sh --failed             # re-run what failed last time
 #   scripts/smoke.sh --sweep-leaked       # list (then --yes: delete) rollouts old runs leaked into ~/.zeroth
 #   scripts/smoke.sh --list               # the phases, their tags, last timings

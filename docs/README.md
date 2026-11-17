@@ -8,6 +8,7 @@ says where each mechanism lives. A new feature gets a page here, listed below
 ## Start here
 
 - [`design.md`](design.md): Inline Conversation TUI — Design
+- [Agent reliability and evaluation proposal](research/agent-reliability.md): Recovery, evaluation, context evidence and execution contracts (Chinese; proposal)
 
 ## Architecture
 
@@ -60,6 +61,7 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/timestamps.md`](ui/timestamps.md): Timestamps in the Ctrl+O transcript — Design
 - [`ui/tips.md`](ui/tips.md): Spinner tips — a hint under the status line while a turn runs
 - [`ui/toast.md`](ui/toast.md): Transient toasts
+- [Search summaries and tool details](ui/search-details.md): Query previews, grouped results and readable expansion
 - [`ui/tool-groups.md`](ui/tool-groups.md): Collapsed read/search groups — the non-verbose tool view
 - [`ui/tool-pulse.md`](ui/tool-pulse.md): The running bullet's blink
 - [`ui/tool-streaming.md`](ui/tool-streaming.md): Live-streaming `bash` output — the running tail + collapsed peek
@@ -87,7 +89,7 @@ The composer and everything typed into it: textarea, history, pickers, queues, s
 
 ## Tools
 
-What the model can do: the tool loop, bash and its terminal engine, MCP, hooks, skills, tasks, background shells and the scratchpad.
+What the model can do: the tool loop, bash and its terminal engine, MCP, hooks, skills, tasks, background shells and internal temporary storage.
 
 - [`tools/ask.md`](tools/ask.md): The `AskUserQuestion` tool — asking the user mid-turn
 - [`tools/background.md`](tools/background.md): Background shells — `wait: 0`, a `wait` that passes, Ctrl+B, and the ↓ manager
@@ -97,7 +99,7 @@ What the model can do: the tool loop, bash and its terminal engine, MCP, hooks, 
 - [`tools/interactive-shell.md`](tools/interactive-shell.md): Interactive shells — the terminal engine behind the bash tools
 - [`tools/mcp.md`](tools/mcp.md): MCP servers — the `/mcp` manager and the `mcp__server__tool` tools
 - [`tools/parallel-tools.md`](tools/parallel-tools.md): Parallel tool calls — the visible batch + `⎿ Waiting…`
-- [`tools/scratchpad.md`](tools/scratchpad.md): The session scratchpad — Design
+- [`tools/scratchpad.md`](tools/scratchpad.md): Session temporary storage and retired agent scratchpad
 - [`tools/skills.md`](tools/skills.md): The `Skill` tool
 - [`tools/task-tools.md`](tools/task-tools.md): The task tools — a live checklist instead of tool cells
 - [`tools/tools.md`](tools/tools.md): LLM tool calling — `bash` and its companions / `read` / `write` / `edit`

@@ -37,7 +37,7 @@ hooks 的载荷一直带着一个没人分得清是否已废弃的字段。一�
 | `ALTER_ZERO_*` | `ZEROTH_*` | 全部 73 个覆盖变量、hook 载荷字段、文档、smoke 阶段 |
 | `alter-zero-{uid}` | `zeroth-{uid}` | `scratchpad::session_root`、`is_session_scratchpad`、prompt 与文档布局 |
 | `.alter-zero-paste-*` | `.zeroth-paste-*` | `clipboard.rs` 的中转文件前缀 |
-| `alter-zero/{version}` | `zeroth/{version}` | 遥测的 User-Agent（`TELEMETRY.md`） |
+| `alter-zero/{version}` | `zeroth/{version}` | 更新检查的 User-Agent（`update.rs`） |
 | `alter-zero`（命令、路径、临时目录） | `zeroth` | CLI 示例、smoke fixture、测试路径、文档 |
 | `Alter Zero`（作为应用名） | `Zeroth` | 横幅、help、回调与 banner 相关文档，以及 smoke 标记 |
 | `.alter-zero/`（作为当前的配置根） | `.zeroth/` | 描述*当前* home 的文档与 fixture |

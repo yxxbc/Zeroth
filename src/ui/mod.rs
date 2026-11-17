@@ -71,6 +71,7 @@ mod palette;
 mod permission_view;
 mod reasoning;
 mod resume_view;
+mod search;
 mod secrets_view;
 mod settings_view;
 mod skills_view;
@@ -121,7 +122,7 @@ pub use self::footer::{
 };
 pub use self::header::{
     MASCOT_ICON_PX, header_lines, notice_card_lines, startup_notice_lines, startup_paragraph_lines,
-    telemetry_notice_lines, update_notice_lines,
+    update_notice_lines,
 };
 pub use self::hook_cell::hook_report_lines;
 pub use self::hooks_view::{hooks_menu_height, hooks_view_lines, render_hooks_menu};

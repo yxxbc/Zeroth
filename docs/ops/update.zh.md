@@ -20,13 +20,10 @@
 然后 `zeroth update` 做安装：同一次检查，以及 —— 当有更新的发布存在时 —— 把
 一行的 `install.sh` 取到临时文件，并在运行中二进制所在的那个目录上跑它，钉在检查
 刚解析出的版本上。纯的那一半是 `src/update.rs`；边界是 `src/tui/update.rs`（那次
-检查、那张卡片、那个文件）和 `src/tui/update_cli.rs`（那个子命令）；设计是
-`tui::telemetry` 的，一条规则一条规则地照搬，所以两个碰网络的每日一次的功能读起
-来一个样子。
+检查、那张卡片、那个文件）和 `src/tui/update_cli.rs`（那个子命令）。
 
-面向用户的陈述 —— 这个请求携带什么、怎么关掉它 —— 是根目录 `TELEMETRY.md` 的
-*Update check* 一节，它承诺是离开一台机器的所有东西的完整清单，所以也必须点名这
-个请求。改一个，就重读另一个。
+面向用户的陈述 —— 这个请求携带什么、怎么关掉它 —— 就是本页下面的
+*发出去什么* 一节。改了代码，就重读它。
 
 ## 发出去什么
 
@@ -50,21 +47,19 @@ releases 页面时发的那个请求，少了页面。回来的是一个 `302` �
   里带着同一个字符串，而且不会那样被限流。它还保住了内存姿态：我们只从一个正文里
   读一个字段，就不留它的 `Value` 树（`docs/architecture/memory.md`）。
 - **不是一次 ping。** 没有任何东西标识这个安装，这个项目也不记录任何东西 ——
-  GitHub 看见这条连接，就像它看见一次页面加载，仅此而已。这也是 `DO_NOT_TRACK`
-  **不**覆盖它的原因：那个约定是关于分析的，而这个什么都没测量。它有自己的一套开
-  关（见下），因为一个用户没有输入的、发往 github.com 的请求，仍然是一个用户可能
+  GitHub 看见这条连接，就像它看见一次页面加载，仅此而已。它有自己的一套开关
+  （见下），因为一个用户没有输入的、发往 github.com 的请求，仍然是一个用户可能
   不想要的请求。
 - **不是一次下载。** 检查不取任何二进制；只有 `zeroth update` 会，而且只在被
   要求时。
 
 ## 什么时候，以及它花什么
 
-- **启动时，第一帧之后**（`Session::bootstrap` 在 `start_telemetry` 之后调用
-  `start_update_check`，两者都在 `paint_first_frame` 后面），在一个 detached 的
-  worker 上（`workers::spawn_update_check`）。应用从不等它。
-- **任何开启新 UTC 日的回合开始时**（`Session::update_day_check`，就在
-  `telemetry_day_check` 旁边）：一个跨过午夜还开着的 session 在新的一天也会检
-  查。
+- **启动时，第一帧之后**（`Session::bootstrap` 在 `paint_first_frame` 后面
+  调用 `start_update_check`），在一个 detached 的 worker 上
+  （`workers::spawn_update_check`）。应用从不等它。
+- **任何开启新 UTC 日的回合开始时**（`Session::update_day_check`）：一个跨过
+  午夜还开着的 session 在新的一天也会检查。
 - **每天一次，不管请求发生了什么。** 那次尝试的日子在*发起时*就记进
   `update.json`（`record_check(today, None)`），不是在答案到达时，所以一个死掉的
   网络、一个还没有发布的仓库、或者一个拒绝的代理，每个安装每天只花一个请求，而用
@@ -122,8 +117,8 @@ checkout）看不到卡片，因为 `is_newer` 是一次比较，不是一个差
 
 ## `update.json`
 
-`telemetry.json` 旁边的**按用户**文件（`docs/state/per-directory-state.md` —— 一
-个你在一个目录里关掉、另一个目录里没关的检查会是个意外，Telemetry 的规则）：
+`tips.json` 旁边的**按用户**文件（`docs/state/per-directory-state.md` —— 一个
+你在一个目录里关掉、另一个目录里没关的检查会是个意外）：
 
 ```json
 {
@@ -153,7 +148,7 @@ checkout）看不到卡片，因为 `is_newer` 是一次比较，不是一个差
 | **没有配置目录** | 什么都不跑 —— 没有地方记住那一天，而每次启动都检查一次就不是每天一次 |
 
 这个变量**撤掉 `/settings` 那一行**，而不是给它播种 —— `false (unavailable)`，拒
-绝循环切换 —— Telemetry 的规则（`config::update_check_forbidden_by_env` →
+绝循环切换（`config::update_check_forbidden_by_env` →
 `SettingAvailability::update_check`）：一个按键就能撤销的退出，不算退出。
 `ZEROTH_UPDATE_URL` 把这次检查（以及 `zeroth update`）指向另一个仓库根
  ——一个 fork，或者 smoke 套件的替身服务器 —— 而 `smoke.sh` 的基础环境设
@@ -210,14 +205,13 @@ zeroth v0.2.0 is out — this is v0.1.0. Installing it over /home/me/.local/bin.
 这个子命令忽略 `ZEROTH_UPDATE_CHECK`：那个变量让*自动*检查安静，而一条显式的
 命令是用户自己的请求。
 
-在新二进制上的下一次启动也会再发当天的遥测 ping，带着新版本 —— 那个 ping 每天一
-次规则的唯一例外（`TELEMETRY.md` *When it is sent*）—— 好让 dashboard 的
-Versions 面板当天就把这个安装移动过去，而不是等到 UTC 午夜。它是同一个安装 id，
-所以它算作新版本上的同一个用户，绝不算作一个新安装。
+在新二进制上的下一次启动会在同一天再跑一次检查，只要 `update.json` 里记的版本
+和正在跑的版本不同 —— 于是刚更新过的安装按同一条规则得知下一个发布，而不是
+干等到 UTC 午夜。
 
 ## `/settings` 那一行
 
-**Update check** 坐在 **Telemetry** 上面（`SettingKey::UpdateCheck`），第十六
+**Update check** 是最后一行（`SettingKey::UpdateCheck`），第十六
 行：`true`/`false`，按用户（`SessionSettings::update_check` 是
 `#[serde(skip)]`，`copy_value` 从不移动它，`apply_setting` 跳过 `settings.json`
 写入），在 bootstrap 时先由 `update.json` 然后由环境播种，没有配置目录或在那个变

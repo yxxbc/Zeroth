@@ -49,7 +49,10 @@ fn a_settled_group_is_one_dim_bullet_less_line_in_the_references_clause_order() 
     let lines = tool_group_lines(&items, 100, &PathDisplay::VERBATIM);
     assert_eq!(
         texts(&lines),
-        ["Searched for 1 pattern, read 1 file, listed 1 directory (ctrl+o to expand)"]
+        [
+            "Ran 1 search, read 1 file, listed 1 directory (ctrl+o to expand)",
+            "  Search \"add\" · ."
+        ]
     );
     assert!(
         lines[0]
@@ -351,7 +354,7 @@ fn a_command_hint_shows_every_line_of_the_command() {
     assert_eq!(
         texts(&lines),
         [
-            "● Searching for 1 pattern… (ctrl+o to expand)",
+            "● Running 1 search… (ctrl+o to expand)",
             "  ⎿  $ grep -rn  \"def add\"   src",
             "       grep -rn \"def sub\" src",
         ]

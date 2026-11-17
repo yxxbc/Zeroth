@@ -74,7 +74,7 @@ pub const TIPS: &[&str] = &[
 ];
 
 /// The file's name under the config home: `{config_home}/tips.json` — its
-/// own file, per **user**, like `telemetry.json` and `update.json`
+/// own file, per **user**, like `update.json`
 /// (`docs/state/per-directory-state.md`).
 pub const TIPS_FILE_NAME: &str = "tips.json";
 

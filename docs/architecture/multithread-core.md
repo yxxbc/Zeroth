@@ -240,7 +240,7 @@ and hands a `&Host` to every session:
   atomic — the Host is now the one place that runs them before sessions start);
 - the skill and subagent walks, with their parse errors, and this project's
   `skills.json` disabled set;
-- this directory's `/settings` entry plus the telemetry/update/tips files and
+- this directory's `/settings` entry plus the update/tips files and
   the `ZEROTH_*` overrides, and the tips cursor;
 - the secrets file, the user's `hooks.json` (path and parse), and the model
   resolver's inputs: the provider table, `.env`, and the saved selection

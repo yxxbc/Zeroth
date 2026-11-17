@@ -181,7 +181,7 @@ byte is still worth reading.
    `--resume` resolved (fail fast, exit 1), the prompt read and combined.
 2. **Bootstrap**, headless: the same assembly as the TUI's, minus the screen.
    No `EventStream`; the startup review is never opened (see *Trust*); no
-   telemetry ping, update check or herdr report; nothing joins the ↑ input
+   update check or herdr report; nothing joins the ↑ input
    history; a `--continue`/`--resume` load **does not restore the working
    tree** to the conversation's last checkpoint (see *Resume*). An error
    toast — a `SKILL.md` that would not parse, a provider file's problem —
@@ -222,7 +222,7 @@ byte is still worth reading.
 ### What the model is told
 
 The system prompt gains a fourth block, `prompts/headless.md`, appended by
-`backend::augment_with_headless` after the scratchpad's:
+`backend::augment_with_headless` after the environment block:
 
 ```
 ## Headless
@@ -239,7 +239,7 @@ the model cannot wait on an answer that will not come.
 ### Permissions: nothing is asked
 
 The gate is the same, and so is everything that answers before a prompt —
-the project's allowlist (`permissions.json`), the scratchpad exemption, the
+the project's allowlist (`permissions.json`), the
 read-only fast path, a `PermissionRequest` hook, auto mode's classifier. What
 changes is the last step: a headless gate is **unattended**
 (`PermissionGate::set_unattended`), and where `approve_call` would raise the
@@ -443,9 +443,9 @@ per-job output capture (`--out-dir`) and one JSON result line per job on stdout.
 
 ## Not in headless mode, on purpose
 
-- **No telemetry ping and no update check.** The ping's rule is that its
-  notice is shown before any send (`TELEMETRY.md`); a run with no screen
-  shows nothing, and CI machines are where a phone-home is least welcome.
+- **No update check.** CI machines are where an outbound request on someone
+  else's behalf is least welcome, and a pipeline neither wants a release card
+  nor can act on one.
 - **No input history.** An automated prompt is not something the user typed;
   ↑ in the TUI should not walk through a cron job's prompts.
 - **No `--output-schema`, `-o FILE`, `--ephemeral` or `--model`** yet:
@@ -467,7 +467,7 @@ per-job output capture (`--out-dir`) and one JSON result line per job on stdout.
   format; the toast rule; a denial in Claude Code's fields; a run that never
   started; the agent wait and the agents it stopped.
 - `permission` / `llm::approval`: an unattended gate refuses where it would
-  have asked — after the allowlist, the scratchpad, the read-only fast path,
+  have asked — after the allowlist, the read-only fast path,
   a hook and the classifier have had their say — sends no request, and
   records the refusal with the call as the model made it.
 - `stream` (the offline demo): an unattended gate refuses the demo's gated

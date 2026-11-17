@@ -65,6 +65,31 @@ pub(crate) struct CheckpointDone {
     pub(crate) commit: Option<String>,
 }
 
+/// A checkpoint **restore** that finished on its own thread — the code reset a
+/// backtrack or a `/resume` performs (`docs/state/checkpoint.md`). `token` is the
+/// restore's identity: a later rewind bumps [`Session::restore_token`], so a
+/// result that lands after another restore started is dropped rather than
+/// reporting a tree state it no longer describes.
+pub(crate) struct RestoreDone {
+    pub(crate) token: u64,
+    pub(crate) restored: bool,
+    /// The confirmation to toast on success — the caller's own wording
+    /// ("checkpoint restored" for a `/resume`, "code rewound" for a backtrack),
+    /// carried across the thread so the two paths keep their own copy.
+    pub(crate) notice: &'static str,
+}
+
+/// The restore in flight. New turns wait in the input queue until the worker
+/// finishes, so its reset cannot overwrite a later turn's edits.
+pub(crate) struct PendingRestore {
+    pub(crate) token: u64,
+    pub(crate) began: Instant,
+    /// The worker running `snapshot` + `git reset`/`clean`. Joined before the
+    /// next restore starts, so two git processes never hold the store's index at
+    /// once.
+    pub(crate) handle: std::thread::JoinHandle<()>,
+}
+
 /// The snapshot in flight, with the turn-end dispatch it deferred. A queued
 /// follow-up (or the automatic completion turn) must not start editing before
 /// the just-ended state is captured; it waits for this result instead of
@@ -162,14 +187,12 @@ impl Session<'_> {
         // Re-renders the listing this turn's context is about to carry.
         self.rescan_skills();
         self.rescan_agents();
-        // The daily ping's day rollover (`TELEMETRY.md`): a session left
-        // open across midnight counts on the new day too — this app idles in
-        // a terminal all day, so pinging only at bootstrap undercounts
-        // exactly its heaviest users. Here rather than on every event because
-        // a *turn* is what "used it today" means, and on the common path it
-        // is a date read and a string compare that touch no file.
-        self.telemetry_day_check();
-        // …and the update check's (docs/ops/update.md): the same once-a-day rule.
+        // The update check's day rollover (docs/ops/update.md): a session
+        // left open across midnight counts on the new day too — this app
+        // idles in a terminal all day, so checking only at bootstrap
+        // undercounts exactly its heaviest users. Here rather than on every
+        // event because a *turn* is what "used it today" means, and on the
+        // common path it is a date read and a string compare.
         self.update_day_check();
         // The whole conversation — the just-recorded user message included —
         // rides the request so a real model keeps its context across turns (the
@@ -374,6 +397,11 @@ impl Session<'_> {
     /// Esc-interrupt outcomes) *and* the idle completion arrival, so the paths
     /// can never drift.
     pub(crate) fn dispatch_after_turn(&mut self) {
+        // A background completion can reach the idle session during restore.
+        // Leave its notices on the board until the tree has stopped moving.
+        if self.restore_pending.is_some() {
+            return;
+        }
         let _timing = super::timing::TimingGuard::new("turn-end");
         // Every turn end closes the open read/search group where the turn
         // ended (docs/ui/tool-groups.md); this is the backstop, so a group no
@@ -420,7 +448,10 @@ impl Session<'_> {
     /// turn, else the automatic follow-up about a completion the model never
     /// heard. Shared by the synchronous and deferred paths so they cannot
     /// drift.
-    fn dispatch_after_checkpoint(&mut self, unheard: Vec<PendingNotice>) {
+    pub(crate) fn dispatch_after_checkpoint(&mut self, unheard: Vec<PendingNotice>) {
+        if self.checkpoint_pending() {
+            return;
+        }
         if !self.flush_next_queued() && unheard.iter().any(|note| note.from_model) {
             self.start_background_turn(&unheard);
         }
@@ -524,10 +555,10 @@ impl Session<'_> {
         self.checkpoint_epoch = self.checkpoint_epoch.wrapping_add(1);
     }
 
-    /// Whether a turn-end snapshot is still in flight — the headless idle
-    /// rule and the input queue's gate.
+    /// Whether a snapshot or restore still owns the work tree — the headless
+    /// idle rule and the input queue's gate.
     pub(crate) fn checkpoint_pending(&self) -> bool {
-        self.checkpoint_pending.is_some()
+        self.checkpoint_pending.is_some() || self.restore_pending.is_some()
     }
 
     /// Drain a snapshot still in flight before the session ends, recording it
@@ -628,6 +659,26 @@ mod tests {
             epoch,
             commit: Some("abc".to_string()),
         }
+    }
+
+    #[test]
+    fn a_restore_result_only_applies_to_the_newest_request() {
+        // `restore_to` bumps `restore_token` per request and joins the previous
+        // worker before starting, so at most one restore is ever in flight. The
+        // arrival check is what keeps a result that raced a *newer* request from
+        // reporting a tree state it no longer describes.
+        let applies = |pending_token: u64, done_token: u64, current: u64| {
+            pending_token == done_token && done_token == current
+        };
+        assert!(applies(3, 3, 3), "the newest restore reports");
+        assert!(
+            !applies(3, 2, 3),
+            "a result from the previous restore must not report"
+        );
+        assert!(
+            !applies(3, 4, 4),
+            "a result whose pending was already joined is stale"
+        );
     }
 
     #[test]

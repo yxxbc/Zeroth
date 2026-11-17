@@ -366,71 +366,7 @@ fn startup_paragraph_wraps_under_the_banner_indent() {
 }
 
 #[test]
-fn telemetry_card_keeps_every_disclosure_and_opt_out_character_at_all_widths() {
-    let compact = |text: &str| {
-        text.chars()
-            .filter(|c| !c.is_whitespace() && !"╭╮╰╯─│*`".contains(*c))
-            .collect::<String>()
-    };
-    let expected = compact(&format!("Telemetry{}", crate::telemetry::notice()));
-    assert!(telemetry_notice_lines(0).is_empty());
-    for width in 1..=160 {
-        let lines = telemetry_notice_lines(width);
-        let rendered: String = lines.iter().map(plain).collect();
-        assert_eq!(
-            compact(&rendered),
-            expected,
-            "lost content at width {width}"
-        );
-        for line in &lines {
-            assert!(
-                line.width() <= usize::from(width),
-                "overflow at {width}: {line:?}"
-            );
-        }
-    }
-    let wide = telemetry_notice_lines(120);
-    assert!(
-        wide.iter().all(|line| line.width() <= 78),
-        "bounded reading width"
-    );
-    assert_eq!(wide.len(), 7, "the card stays compact on a normal terminal");
-}
-
-#[test]
-fn telemetry_card_uses_the_active_theme_for_title_border_and_commands() {
-    use crate::ui::theme::{border_color, header_accent_color, telemetry_text_color};
-
-    for theme in crate::app::Theme::ALL {
-        with_theme(theme, || {
-            let lines = telemetry_notice_lines(80);
-            let span_for = |needle: &str| {
-                lines
-                    .iter()
-                    .flat_map(|line| &line.spans)
-                    .find(|span| span.content.contains(needle))
-                    .unwrap_or_else(|| panic!("missing {needle}"))
-            };
-            let title = span_for("Telemetry");
-            assert_eq!(title.style.fg, Some(header_accent_color()));
-            assert!(title.style.add_modifier.contains(Modifier::BOLD));
-            assert_eq!(span_for("╭").style.fg, Some(border_color()));
-            assert_eq!(span_for("Shares").style.fg, Some(telemetry_text_color()));
-            assert!(
-                span_for("Never")
-                    .style
-                    .add_modifier
-                    .contains(Modifier::BOLD)
-            );
-            for command in ["/settings", "ZEROTH_TELEMETRY=0"] {
-                assert_eq!(span_for(command).style.fg, Some(header_accent_color()));
-            }
-        });
-    }
-}
-
-#[test]
-fn update_card_keeps_every_character_at_all_widths_and_shares_the_telemetry_chrome() {
+fn update_card_keeps_every_character_at_all_widths() {
     use crate::update::{DEFAULT_REPO_URL, PackageManager, notice, update_command};
 
     let compact = |text: &str| {
@@ -476,21 +412,18 @@ fn update_card_keeps_every_character_at_all_widths_and_shares_the_telemetry_chro
         "bounded reading width"
     );
     assert_eq!(wide.len(), 7, "the card stays compact on a normal terminal");
-    // The same chrome as the telemetry card: one builder, two texts.
-    let telemetry = telemetry_notice_lines(120);
-    assert_eq!(
-        plain(&wide[0]).chars().next(),
-        plain(&telemetry[0]).chars().next()
-    );
-    assert_eq!(
-        plain(&wide[wide.len() - 1]),
-        plain(&telemetry[telemetry.len() - 1])
+    // The card is framed: the top row opens the box, the last closes it.
+    assert!(plain(&wide[0]).contains('╭'), "{:?}", plain(&wide[0]));
+    assert!(
+        plain(&wide[wide.len() - 1]).contains('╰'),
+        "{:?}",
+        plain(&wide[wide.len() - 1])
     );
 }
 
 #[test]
 fn update_card_uses_the_active_theme_for_title_border_and_commands() {
-    use crate::ui::theme::{border_color, header_accent_color, telemetry_text_color};
+    use crate::ui::theme::{border_color, header_accent_color, notice_text_color};
     use crate::update::DEFAULT_REPO_URL;
 
     for theme in crate::app::Theme::ALL {
@@ -513,7 +446,7 @@ fn update_card_uses_the_active_theme_for_title_border_and_commands() {
             assert_eq!(title.style.fg, Some(header_accent_color()));
             assert!(title.style.add_modifier.contains(Modifier::BOLD));
             assert_eq!(span_for("╭").style.fg, Some(border_color()));
-            assert_eq!(span_for("running").style.fg, Some(telemetry_text_color()));
+            assert_eq!(span_for("running").style.fg, Some(notice_text_color()));
             assert!(
                 span_for("v0.2.0")
                     .style

@@ -111,6 +111,19 @@ The timing is measurable without a debugger: `ZEROTH_TIMING=<path>` (or
 and `checkpoint.dispatch-wait` lines. The TUI writes to a file rather than
 stderr so a log line can never corrupt the inline viewport.
 
+### Restore waits before dispatching work
+
+A restore runs on a worker while the event loop continues taking input. User
+messages and shell turns submitted during it are queued and dispatched only
+after the restore result is applied. Background completion dispatch, automatic
+compaction and another history-changing action must not race that worker.
+Repeated resume, backtrack and clear actions wait until the current restore
+finishes. A stale result cannot consume the newer worker's pending state.
+
+The regression smoke phase delays the private store's reset, submits a new
+shell write during that delay, verifies the write has not run, and then checks
+that it runs after restoration and its result remains on disk.
+
 ## The two layers
 
 Split the repo's usual way — a **pure core** (unit-tested) and a **boundary**

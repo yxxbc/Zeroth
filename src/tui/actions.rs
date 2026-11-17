@@ -20,7 +20,7 @@
 
 use ratatui::crossterm::event::{Event, KeyEventKind, MouseButton, MouseEvent, MouseEventKind};
 
-use zeroth::app::{Action, CHECKPOINT_REWOUND_NOTICE, COPY_OK_NOTICE, ToastKind, View};
+use zeroth::app::{Action, COPY_OK_NOTICE, ToastKind, View};
 use zeroth::checkpoint;
 use zeroth::clipboard;
 use zeroth::ui;
@@ -93,6 +93,19 @@ impl Session<'_> {
     /// Perform the I/O an `Action` asks for. One arm per variant; the work lives
     /// in the module that owns the feature (see the module doc).
     fn on_action(&mut self, action: Action) -> std::io::Result<Flow> {
+        if self.restore_pending.is_some()
+            && matches!(
+                action,
+                Action::Clear
+                    | Action::ConfirmBacktrack
+                    | Action::ResumeSession(_)
+                    | Action::Compact
+                    | Action::Quit
+            )
+        {
+            self.toast("Wait for the file restore to finish", ToastKind::Info);
+            return Ok(Flow::Continue);
+        }
         match action {
             Action::None => {}
             Action::Quit => {
@@ -875,7 +888,9 @@ impl Session<'_> {
         // The history was rewound: a snapshot still in flight is about a
         // conversation that no longer exists.
         self.invalidate_checkpoints();
-        let restored = self.restore_checkpoint_at(self.app.history.len());
+        // The reset runs on a worker (docs/state/checkpoint.md); its outcome is
+        // toasted when it lands, so this path does not wait for `git`.
+        let _restoring = self.restore_checkpoint_at(self.app.history.len());
         // `App::confirm_backtrack` already rewound the checklist to the
         // snapshot at the cut; the shared registry follows
         // (docs/tools/task-tools.md).
@@ -893,9 +908,6 @@ impl Session<'_> {
         // conversation replaces the screen AND scrollback cleanly
         // (invariant 3).
         self.repaint_conversation()?;
-        if restored {
-            self.toast(CHECKPOINT_REWOUND_NOTICE, ToastKind::Info);
-        }
         Ok(())
     }
 

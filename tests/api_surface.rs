@@ -501,7 +501,6 @@ use zeroth::ui::{
     shortcuts_rows,
     startup_notice_lines,
     startup_paragraph_lines,
-    telemetry_notice_lines,
     update_notice_lines,
     status_line,
     status_line_with_verb,

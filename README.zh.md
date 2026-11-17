@@ -248,7 +248,7 @@ api_base = "https://api.groq.com/openai/v1"
   索。
 - **被管理的上下文。** `/context` 显示上下文窗口被什么占满、其中有多少是 prompt
   缓存伺候的，`/usage` 显示每个订阅的方案还剩多少。`/compact` 摘要长对话，窗口填
-  满时还会自动压缩。session 的 scratchpad 存放你项目之外的临时脚本与笔记。
+  满时还会自动压缩。
 
 ### 把终端变成你自己的
 

@@ -170,7 +170,6 @@ fn cycling_an_unavailable_setting_explains_itself_instead() {
         skills: true,
         mcp: true,
         images: true,
-        telemetry: true,
         update_check: true,
     });
     type_query(&mut app, "checkpoint");

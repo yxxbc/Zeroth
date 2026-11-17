@@ -290,11 +290,51 @@ pub(super) const TOOL_HEADER_MAX_ROWS: usize = 2;
 /// rows either way, hint included.
 pub(super) const TOOL_FOLD_ROWS: usize = 3;
 
+/// Search previews stay bounded; expansion keeps all retained results.
+pub(super) const SEARCH_PREVIEW_ENTRIES: usize = 3;
+pub(super) const SEARCH_PREVIEW_ROWS: usize = 2;
+pub(super) const SEARCH_INDENT: &str = "  ";
+pub(super) const SEARCH_LINE_SEPARATOR: &str = " │ ";
+pub(super) const SEARCH_LABEL: &str = "Search";
+pub(super) const SEARCH_FILES_LABEL: &str = "Files";
+pub(super) const SEARCH_NO_MATCHES: &str = "No matches";
+pub(super) const SEARCH_RETAINED_LABEL: &str = "retained results";
+pub(super) const SEARCH_OUTPUT_LABEL: &str = "Output";
+pub(super) const SEARCH_COMMAND_LABEL: &str = "Command";
+
 /// The size cap on the display-only JSON reshaping of an exec cell's output
 /// (`docs/ui/long-lines.md` *Pretty JSON*): an output longer than this many
 /// bytes is shown as it came — Claude Code's own 10 000-character guard,
 /// which bounds the `Value` tree the reshaping parses per render.
 pub(super) const TOOL_JSON_PRETTY_MAX_BYTES: usize = 10_000;
+
+/// The size cap on the syntax highlighting of **one** expanded file body — the
+/// Ctrl+O transcript's `read`/`write`/`edit` cell, which shows every line of the
+/// file (`docs/ui/long-lines.md` *Highlighting a big body*).
+///
+/// Past it the remaining rows render plain: **every line of text still shows**,
+/// only the syntax colour stops. Same shape as [`TOOL_JSON_PRETTY_MAX_BYTES`],
+/// and the same trade the highlighter's own per-line cap already makes
+/// (`highlight::MAX_LINE_BYTES`).
+///
+/// Chosen from measurement, not taste. Syntect's markdown grammar goes
+/// non-linear on ordinary prose — a real 4.8 KB skill doc cost 91 ms to colour
+/// while a 6.5 KB one cost 4 ms — so the cap bounds *total* colour work per
+/// cell. Across the eight markdown cells of a real session (measured on the
+/// expanded transcript path, warm grammar):
+///
+/// | cap | total | worst cell |
+/// | --- | --- | --- |
+/// | none | 986 ms | 526 ms |
+/// | 4 KB | 166 ms | 91 ms |
+/// | **2 KB** | **40 ms** | **25 ms** |
+/// | 1 KB | 31 ms | 25 ms |
+/// | 512 B | 29 ms | 25 ms |
+///
+/// 2 KB is where the curve flattens: the remaining cost is one grammar's
+/// one-time work per cell, not the rows. It is also enough colour for the head
+/// of any file a reader opens in the transcript — the part they read first.
+pub(super) const CODE_HIGHLIGHT_MAX_BYTES: usize = 2048;
 
 /// The parens framing a header's arguments — `● {name}({args})`. The opening
 /// one rides the name's row (so an argument too wide for what is left beside
@@ -1400,9 +1440,9 @@ pub(super) const LOGIN_MENU_MAX_ROWS: u16 = 8;
 pub(super) const SETTINGS_TITLE: &str = "Settings";
 
 /// The dim line under the title: what a change does. Every row takes effect
-/// at once and is saved — most per directory, the tips, the update check and
-/// telemetry per user (`docs/state/per-directory-state.md`) — so the line says
-/// what holds for all of them.
+/// at once and is saved — most per directory, the tips and the update check
+/// per user (`docs/state/per-directory-state.md`) — so the line says what
+/// holds for all of them.
 pub(super) const SETTINGS_SUBTITLE: &str =
     "Changes take effect at once and persist across sessions";
 
@@ -3108,17 +3148,16 @@ pub(super) fn header_meta_color() -> Color {
     footer_color()
 }
 
-/// Keep a startup notice card — the first-run telemetry disclosure, the
-/// update notice — readable on wide terminals, with room for a rounded
+/// Keep a startup notice card — the update notice — readable on wide
+/// terminals, with room for a rounded
 /// frame; very narrow panes use the same content without the box.
 pub(super) const NOTICE_CARD_MAX_WIDTH: usize = 76;
 pub(super) const NOTICE_CARD_MIN_WIDTH: usize = 24;
-pub(super) const TELEMETRY_CARD_TITLE: &str = "Telemetry";
 /// The update card's title (`docs/ops/update.md`).
 pub(super) const UPDATE_CARD_TITLE: &str = "Update available";
 
 /// Notice prose needs more contrast than the banner's cwd metadata.
-pub(super) fn telemetry_text_color() -> Color {
+pub(super) fn notice_text_color() -> Color {
     palette().text_muted
 }
 

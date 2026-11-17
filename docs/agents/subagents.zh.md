@@ -92,8 +92,7 @@ frontmatter 解析是**共享的** `crate::frontmatter` 模块 —— 同样的 
 - **model** —— `AgentModel::Named(id)` 为这次运行换掉 `ModelConfig::model`（同一
   个 provider、base、key 和 temperature）并清掉思考模式和视觉 flag，那些描述的是
   *这个 session 的*模型，不是这一个。`inherit`（或省略这个键）什么都不改。
-- **system prompt** —— 正文替换人格，保留环境块和 scratchpad 块（`{body}` → 环境
-  → scratchpad → subagent 注记）：那些是关于*这个* session 的运行时事实 —— 日
+- **system prompt** —— 正文替换人格，保留环境块（`{body}` → 环境 → subagent 注记）：那些是关于*这个* session 的运行时事实 —— 日
   期、os、用户、cwd、临时文件去哪 —— 而一个不知道它们的 subagent 会往 `/tmp` 里
   写、会猜年份。没有正文时 prompt 正是这个功能之前的样子：session 自己组装出来的
   prompt 加上那条注记。

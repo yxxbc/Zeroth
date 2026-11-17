@@ -88,9 +88,8 @@
 //!   with: the wrapper and its preamble over the sections the project doc,
 //!   the skills and the subagent types each render (pure; see
 //!   `docs/architecture/context.md`).
-//! - [`scratchpad`]  — the session's own temp layout: the agent's scratchpad
-//!   (the directory its system prompt sends every temporary file to) and the
-//!   background shells' `tasks` dir beside it (pure; see
+//! - [`scratchpad`]  — internal background output and image-cache paths, plus
+//!   display-only recognition of historical scratchpad records (pure; see
 //!   `docs/tools/scratchpad.md`).
 //! - [`session`]     — the `/resume` rollout-file format: serialize/parse the
 //!   JSONL session record, the picker preview + humanized age.
@@ -109,10 +108,6 @@
 //!   `taskget` / `tasklist` / `taskupdate` store, every result string, and
 //!   the shared registry the executor and the loop hold together (see
 //!   `docs/tools/task-tools.md`).
-//! - [`telemetry`]   — the anonymous daily usage ping's pure half: the
-//!   `telemetry.json` format and its install id, the five-field payload,
-//!   the once-a-day decision and the environment predicate — plus the one
-//!   boundary send the worker thread calls (see `TELEMETRY.md`).
 //! - [`subagents`]   — the `agents/*.md` subagent definitions behind the
 //!   `agent` tool's `subagent_type`: the frontmatter parse, the tool
 //!   allowlist, the model/system-prompt overrides, the budgeted listing and
@@ -151,6 +146,16 @@
 /// the ported reference's `User answered Claude's questions:` being exactly
 /// that bug.
 pub const APP_NAME: &str = "Zeroth";
+
+/// The `User-Agent` an outbound request speaks: `zeroth/{version}`.
+///
+/// Shared by the update check's two requests (`update::fetch_installer` and
+/// the release-metadata read), which is why it lives here rather than beside
+/// either of them.
+#[must_use]
+pub fn user_agent(version: &str) -> String {
+    format!("zeroth/{version}")
+}
 
 pub mod agents;
 pub mod app;
@@ -193,7 +198,6 @@ pub mod stream;
 pub mod subagents;
 pub mod subprocess;
 pub mod tasks;
-pub mod telemetry;
 pub mod term;
 pub mod textarea;
 pub mod tips;

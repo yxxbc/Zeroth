@@ -241,21 +241,16 @@ Two consequences at the boundary:
 - **`theme.json`** — the colours are the user's: a theme is matched to the
   terminal the user sits at, not to a project (`docs/ui/theme.md`).
 - **`permissions.json`**, **`skills.json`** — already per project; unchanged.
-- **`telemetry.json`** — the anonymous daily ping's switch and install id
-  (`TELEMETRY.md`). An opt-out that applied only to the directory you
-  happened to be in would be a surprise, so the `/settings` **Telemetry** row
-  is the one knob that persists per *user*: `SessionSettings::telemetry` is
-  `#[serde(skip)]`, `copy_value` never moves it, and the boundary seeds it
-  from — and writes it back to — `telemetry.json` alone.
 - **`update.json`** — the once-a-day update check's switch and record
-  (`docs/ops/update.md`): the same per-*user* rule for the same reason, with
-  `SessionSettings::update_check` `#[serde(skip)]` beside `telemetry`.
+  (`docs/ops/update.md`): a choice that applied only to the directory you
+  happened to be in would be a surprise, so the `/settings` **Update check**
+  row persists per *user*: `SessionSettings::update_check` is
+  `#[serde(skip)]` and `copy_value` never moves it.
 - **`tips.json`** — the spinner tip's **Show tips** switch and where the walk
   through the catalog left off (`docs/ui/tips.md`): per *user* too — a switch
   turned off in one directory and back on in the next would read as the
   setting not working, and the walk should carry on wherever the next
-  session starts — with `SessionSettings::tips` `#[serde(skip)]` beside the
-  other two.
+  session starts — with `SessionSettings::tips` `#[serde(skip)]` beside it.
 - The **project-level `.zeroth/`** layer (`docs/state/project-config.md`) is
   a different axis: files *inside* the project, behind the startup review
   (`docs/state/config-review.md`). Both files here live in the user's config home,

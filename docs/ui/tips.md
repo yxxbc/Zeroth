@@ -107,7 +107,7 @@ strip it always saw.
 ```
 
 `{config_home}/tips.json` holds the **Show tips** switch and the cursor.
-It is per *user*, beside `telemetry.json` and `update.json`
+It is per *user*, beside `update.json`
 (`docs/state/per-directory-state.md` *What is not per directory*): whether you want
 tips is yours, not a project's — a switch turned off in one directory and
 back on in the next would read as the setting not working — and the walk
@@ -129,12 +129,11 @@ of a catalog that shrank simply wraps.
 
 - **`/settings` → Show tips** — `true`/`false`, persisted to `tips.json`
   (never `settings.json`: `SessionSettings::tips` is `#[serde(skip)]` and
-  `copy_value` never moves it — the Telemetry row's pattern). Toggled
+  `copy_value` never moves it, the per-user pattern). Toggled
   mid-turn, the row goes (or comes) at the next frame.
 - **`ZEROTH_TIPS=0`** seeds the row off for a run, never saved — the
-  `ZEROTH_TOOLS` grammar. Not a privacy switch, so unlike
-  `ZEROTH_TELEMETRY` it does not withdraw the row: the user can still
-  turn tips back on for the session.
+  `ZEROTH_TOOLS` grammar. The user can still turn tips back on for the
+  session.
 - The smoke suite exports `ZEROTH_TIPS=0` in its base environment
   (`scripts/smoke/lib.sh`), so a phase that holds a turn past three seconds
   sees the strip it asserts on; the tips phase turns them back on.

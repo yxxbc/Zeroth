@@ -52,9 +52,8 @@ handler 以 **stdin 上的 JSON** 接收它的事件载荷，用 **stdout 上的
   事件起就有 id），在 `/clear` 时换掉，在 `/resume` 时变成被恢复文件的
   id；`transcript_path` 随它一起走。第一个对话的文件以 session 的启动 id
   命名，所以在一次 `/clear` 之前，这个 id 也是临时树的 id
-  （`docs/tools/scratchpad.md`）—— 但 `scratchpad_dir` 才是 handler 在
-  一次 `/clear` **之后**找到该 session 的 scratchpad 与任务输出的方式，
-  这也正是 Claude Code 为它准备的字段。（`session_id` 过去是进程的 id，
+  （`docs/tools/scratchpad.md`）。可选的 `scratchpad_dir` 字段仍属于兼容的载荷格式，
+  但当前会话不发送它，因为已移除 Agent scratchpad。（`session_id` 过去是进程的 id，
   `/clear` 从不移动它，`--resume` 也接不了它。）
 - **stdout（裁决）是 `camelCase`** —— `continue`、`stopReason`、
   `suppressOutput`、`systemMessage`、`decision`、`reason`、

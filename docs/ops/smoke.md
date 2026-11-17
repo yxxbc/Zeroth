@@ -20,7 +20,6 @@ scripts/smoke/phases/         one file per phase: NNN-slug.sh
   005-bottom.sh
   …
   107b-imagetransmit.sh
-  115-telemetry.sh
   116-update.sh
   117-fastmode.sh
   …
@@ -119,7 +118,7 @@ and `SMOKE_BIN` are the environment spellings of the knobs.
   own scratchpad — land inside it;
 - the sanitized environment (`smoke_sanitize_env`: every `*_API_KEY`, every
   `ZEROTH_*`, `OLLAMA_HOST`, `NO_COLOR`, the display variables unset;
-  telemetry, the update check, the spinner tips and the project's `AGENTS.md`
+  the update check, the spinner tips and the project's `AGENTS.md`
   exported off; the permission mode exported `manual`, since a session starts
   in auto, where the dummy's writes never ask, and the prompt phases are
   about the prompt — Phase 64 unsets it to cover the default; and

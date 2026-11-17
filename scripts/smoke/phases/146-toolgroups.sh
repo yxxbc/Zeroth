@@ -19,7 +19,7 @@ smoke_begin
 #     in the order the calls ran — the search, then the file, then the
 #     README — each held long enough to read, never jumping to the last;
 #   - once the script runs, ONE settled line above the script's own cell —
-#     `Searched for 1 pattern, read 2 files, listed 1 directory (ctrl+o to
+#     `Ran 1 search, read 2 files, listed 1 directory (ctrl+o to
 #     expand)` — no cell for any read, and no `Thought for` line for either
 #     thought the group held;
 #   - Ctrl+O still shows every call whole, and both thoughts' text;
@@ -32,7 +32,7 @@ smoke_begin
 #     the switch.
 S146="${S}_toolgroups"
 APP146="env ${CFG_ENV_NOHIST/ ZEROTH_VERBOSE=1/} ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
-GROUP146="Searched for 1 pattern, read 2 files, listed 1 directory (ctrl+o to expand)"
+GROUP146="Ran 1 search, read 2 files, listed 1 directory (ctrl+o to expand)"
 case "$APP146" in
 *ZEROTH_VERBOSE*) fail "the launch string still sets ZEROTH_VERBOSE: $APP146" ;;
 esac
@@ -54,7 +54,7 @@ expect_lacks "$live" -F "Thinking…" "a thinking block opened under the open gr
 expect_lacks "$live" -F "One script and a README." "the thought streamed into the strip while the group was open"
 
 # The reads join the group as they run: the parallel round grows its clauses.
-grown="$(wait_pane 15 "$S146" -F "Searching for 1 pattern, reading 2 files, listing 1 directory…")" ||
+grown="$(wait_pane 15 "$S146" -F "Running 1 search, reading 2 files, listing 1 directory…")" ||
 	fail "the parallel round's search and reads never joined the open group"
 dump "captured pane (the group after the parallel round)" "$grown"
 # …and its values take the row in turn, the first call's first — each held
@@ -73,7 +73,7 @@ wait_summaries 25 "$S146" 1 >/dev/null || fail "the explore demo never finished"
 settled="$(pane "$S146" -S -400)"
 dump "captured pane + scrollback (the group closed by the script run)" "$settled"
 expect_eq "$(grep -cF "$GROUP146" <<<"$settled")" "1" "the closed group is not exactly one settled line"
-for cell in "Bash(ls -la)" "Read(about.py)" "Bash(grep -rn 'card()' .)" "Bash(head -n 20 README.md)"; do
+for cell in "Bash(ls -la)" "Read(about.py)" '● Search "card()" · .' "Bash(head -n 20 README.md)"; do
 	expect_lacks "$settled" -F "$cell" "a read inside the group kept a cell of its own: $cell"
 done
 expect_lacks "$settled" -F "Listing 1 directory" "the open group's live cell was left behind in scrollback"
@@ -104,7 +104,7 @@ sleep 0.4
 bottom="$(pane "$S146")"
 dump "the transcript, top" "$top"
 dump "the transcript, bottom" "$bottom"
-for cell in "Bash(ls -la)" "Read(about.py)" "Bash(grep -rn 'card()' .)" "Bash(head -n 20 README.md)" "Bash(python3 about.py)"; do
+for cell in "Bash(ls -la)" "Read(about.py)" '● Search "card()" · .' "Bash(head -n 20 README.md)" "Bash(python3 about.py)"; do
 	expect_has "$top
 $bottom" -F "$cell" "Ctrl+O does not expand $cell"
 done
@@ -141,7 +141,7 @@ keys "$S146" Escape
 sleep 1.0
 verbose="$(pane "$S146" -S -400)"
 dump "captured pane + scrollback (Verbose output on)" "$verbose"
-for cell in "Bash(ls -la)" "Read(about.py)" "Bash(grep -rn 'card()' .)" "Bash(head -n 20 README.md)" "Bash(python3 about.py)"; do
+for cell in "Bash(ls -la)" "Read(about.py)" '● Search "card()" · .' "Bash(head -n 20 README.md)" "Bash(python3 about.py)"; do
 	expect_has "$verbose" -F "$cell" "Verbose output did not give $cell its own cell back"
 done
 expect_lacks "$verbose" -F "$GROUP146" "Verbose output left the collapsed line on screen"
@@ -149,7 +149,7 @@ expect_eq "$(grep -cE "^Thought for [0-9]+s" <<<"$verbose")" "2" \
 	"Verbose output lost a thought"
 # …each back in its place: the first between the listing and the search.
 first_thought="$(grep -nE "^Thought for [0-9]+s" <<<"$verbose" | head -1 | cut -d: -f1)"
-search_cell="$(grep -nF "Bash(grep -rn 'card()' .)" <<<"$verbose" | tail -1 | cut -d: -f1)"
+search_cell="$(grep -nF '● Search "card()" · .' <<<"$verbose" | tail -1 | cut -d: -f1)"
 if [ -z "$first_thought" ] || [ -z "$search_cell" ] || [ "$first_thought" -ge "$search_cell" ]; then
 	fail "Verbose output did not put the thought between the rounds back above the search (rows ${first_thought:-none}, ${search_cell:-none})"
 fi

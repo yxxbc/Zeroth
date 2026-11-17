@@ -21,7 +21,7 @@ SK_HOME="$(mktemp -d)"
 # No ZEROTH_SKILLS_DIR here — the override is what this phase must see
 # switched off. HOME is redirected instead so the walk's `~/.claude/skills` row
 # finds nothing and the run stays hermetic on a machine that has real skills.
-APP_SK="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 HOME=$SK_HOME ZEROTH_CONFIG_DIR=$SK_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+APP_SK="env ZEROTH_PROJECT_CONFIG=0 HOME=$SK_HOME ZEROTH_CONFIG_DIR=$SK_CFG ZEROTH_CHECKPOINTS=0 ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 tmux kill-session -t "$S102" 2>/dev/null
 tmux new-session -d -s "$S102" -x 100 -y 24 "$APP_SK"
 sleep 1.2
@@ -105,7 +105,7 @@ fi
 # and every other phase in this suite runs against one that must stay empty.
 SK_OVERRIDE="$(mktemp -d)"
 SK_CFG2="$(mktemp -d)"
-tmux new-session -d -s "$S102" -x 100 -y 24 "env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 HOME=$SK_HOME ZEROTH_CONFIG_DIR=$SK_CFG2 ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SK_OVERRIDE ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
+tmux new-session -d -s "$S102" -x 100 -y 24 "env ZEROTH_PROJECT_CONFIG=0 HOME=$SK_HOME ZEROTH_CONFIG_DIR=$SK_CFG2 ZEROTH_CHECKPOINTS=0 ZEROTH_SKILLS_DIR=$SK_OVERRIDE ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_HISTORY_FILE=/dev/null ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN"
 sleep 1.2
 submit "$S102" "/quit"
 sleep 0.6

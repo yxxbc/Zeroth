@@ -94,7 +94,6 @@ impl World {
             .env("ZEROTH_HISTORY_FILE", "/dev/null")
             .env("ZEROTH_PROJECT_CONFIG", "0")
             .env("ZEROTH_CHECKPOINTS", "0")
-            .env("ZEROTH_TELEMETRY", "0")
             .env("ZEROTH_UPDATE_CHECK", "0")
             .env("ZEROTH_STARTUP_DELAY_MS", "0")
             .env("ZEROTH_CHUNK_DELAY_MS", "0")
@@ -504,6 +503,82 @@ const STALL: &str = "HEADLESS_STALL";
 /// report usage on every reply of that conversation — what the rollout's
 /// `tool` and `usage` lines record (docs/state/rollout-records.md).
 const RECORD: &str = "HEADLESS_RECORD";
+const NO_SCRATCHPAD: &str = "HEADLESS_NO_SCRATCHPAD";
+
+#[test]
+fn sessions_do_not_create_or_advertise_an_agent_scratchpad() {
+    for kind in ["main", "subagent", "batch"] {
+        let world = World::new("no-scratchpad");
+        let provider = StandIn::start();
+        let retired = world.dir("retired-scratchpad");
+        let jobs = world.dir("jobs.jsonl");
+        std::fs::write(
+            &jobs,
+            format!("{{\"prompt\":\"{NO_SCRATCHPAD}\"}}\n{{\"prompt\":\"{NO_SCRATCHPAD}\"}}\n"),
+        )
+        .unwrap();
+        let args = if kind == "batch" {
+            vec![
+                "-p",
+                "--permission-mode",
+                "master",
+                "--jobs",
+                jobs.to_str().unwrap(),
+                "--concurrency",
+                "1",
+            ]
+        } else {
+            vec![
+                "-p",
+                "--permission-mode",
+                "master",
+                if kind == "subagent" {
+                    DELEGATE
+                } else {
+                    NO_SCRATCHPAD
+                },
+            ]
+        };
+        let mut command = world.command(&args);
+        provider.configure(&world, &mut command);
+        let out = command
+            .env("ZEROTH_SCRATCHPAD", "1")
+            .env("ZEROTH_SCRATCHPAD_DIR", &retired)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        assert!(
+            !retired.exists(),
+            "the retired directory must not be created"
+        );
+        let requests = provider.chat_requests();
+        for body in &requests {
+            let request: serde_json::Value = serde_json::from_str(body).unwrap();
+            for message in request["messages"].as_array().unwrap() {
+                if message["role"] == "system" {
+                    let system = message["content"].as_str().unwrap();
+                    assert!(!system.contains("## Scratchpad"), "{system}");
+                    assert!(!system.contains("ZEROTH_SCRATCHPAD"), "{system}");
+                    assert!(!system.contains(retired.to_str().unwrap()), "{system}");
+                }
+            }
+        }
+        if kind == "subagent" {
+            assert!(
+                world.work().join(MARKER).exists(),
+                "the subagent must actually execute its task"
+            );
+        }
+        if kind != "subagent" {
+            assert!(
+                requests
+                    .iter()
+                    .any(|body| body.contains("NO_SCRATCHPAD_ENV")),
+                "the shell must not inherit the removed scratchpad variables: {requests:?}"
+            );
+        }
+    }
+}
 
 /// The stand-in model's turn. After a tool result it answers `Done.`; to a
 /// user message it makes one call, chosen by what the message says:
@@ -562,6 +637,12 @@ fn chat_reply(body: &str) -> String {
                 "subagent_type": "general-purpose",
                 "run_in_background": true,
             }),
+        )
+    } else if said.contains(NO_SCRATCHPAD) {
+        call(
+            "bash",
+            serde_json::json!({"command":
+            "test -z \"${ZEROTH_SCRATCHPAD+x}\" && test -z \"${ZEROTH_SCRATCHPAD_DIR+x}\" && printf NO_SCRATCHPAD_ENV"}),
         )
     } else if said.contains(OUTLIVE) {
         call(

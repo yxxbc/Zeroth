@@ -157,7 +157,7 @@ socket 就不去管它，并在 stderr 上留一条说明。一旦它说了什�
 1. **在 runtime 之前**：`cli::parse`、`chdir`（`-C`）、`--continue`/`--resume`
    解析完成（快速失败，退出 1）、prompt 读取并合并。
 2. **Bootstrap**，headless：与 TUI 相同的组装，减去屏幕。没有 `EventStream`；
-   启动审查从不打开（见 *Trust*）；没有 telemetry ping、更新检查或 herdr 报告；
+   启动审查从不打开（见 *Trust*）；没有更新检查或 herdr 报告；
    没有任何东西进入 ↑ 输入历史；`--continue`/`--resume` 加载**不会把工作树恢复**
    到该对话的最后一个 checkpoint（见 *Resume*）。错误 toast —— 一个无法解析的
    `SKILL.md`、某个 provider 文件的问题 —— 写成 stderr 上的一行
@@ -191,7 +191,7 @@ socket 就不去管它，并在 stderr 上留一条说明。一旦它说了什�
 ### 模型被告知了什么
 
 system prompt 获得第四个块，`prompts/headless.md`，由
-`backend::augment_with_headless` 追加在 scratchpad 之后：
+`backend::augment_with_headless` 追加在环境块之后：
 
 ```
 ## Headless
@@ -208,7 +208,7 @@ Your final message is the run's output
 ### 权限：什么都不问
 
 gate 是同一个，在某个 prompt 之前应答的每一样东西也是 —— 项目的允许清单
-（`permissions.json`）、scratchpad 豁免、只读快速路径、`PermissionRequest`
+（`permissions.json`）、只读快速路径、`PermissionRequest`
 hook、auto 模式的分类器。变化的是最后一步：headless 的 gate 是**无人值守的**
 （`PermissionGate::set_unattended`），而 `approve_call` 本该抛出提示的地方改为
 拒绝 —— 没有请求、没有等待、没有 `Notification` hook，因为没有人被展示任何
@@ -386,9 +386,8 @@ headless 运行；批量层加上准入（`--concurrency`）、逐 job 的输出
 
 ## 有意不在 headless 模式里的东西
 
-- **没有 telemetry ping，也没有更新检查。** ping 的规则是它的 notice 在任何
-  发送之前就展示出来（`TELEMETRY.md`）；没有屏幕的运行什么都不展示，而 CI
-  机器正是回连最不受欢迎的地方。
+- **没有更新检查。** CI 机器正是替别人发出去一个出站请求最不受欢迎的地方，
+  而一条流水线既不要 release 卡片，也拿它做不了什么。
 - **没有输入历史。** 自动化的 prompt 不是用户键入的东西；TUI 里的 ↑ 不应走过
   一个 cron 任务的 prompt。
 - **目前没有 `--output-schema`、`-o FILE`、`--ephemeral` 或 `--model`**：
@@ -407,7 +406,7 @@ headless 运行；批量层加上准入（`--concurrency`）、逐 job 的输出
   `--verbose` 在每种格式下的日志；toast 规则；Claude Code 字段里的一次拒绝；
   一个从未启动的运行；agent 等待以及它停掉的那些 agent。
 - `permission` / `llm::approval`：无人值守的 gate 在本该发问的地方拒绝 ——
-  在允许清单、scratchpad、只读快速路径、一个 hook 和分类器都发过言之后 ——
+  在允许清单、只读快速路径、一个 hook 和分类器都发过言之后 ——
   不发请求，并以模型做出该调用时的样子记录这次拒绝。
 - `stream`（离线 demo）：无人值守的 gate 拒绝 demo 中受门控的调用，lead 的和
   它 subagent 的，都不抛起请求。

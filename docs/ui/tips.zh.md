@@ -92,7 +92,7 @@ CLI 形式，而单元测试把目录扣在读者所依赖的规则上：
 ```
 
 `{config_home}/tips.json` 装着 **Show tips** 开关和游标。它是按*用户*的，在
-`telemetry.json` 和 `update.json` 旁边（`docs/state/per-directory-state.md` 的
+`update.json` 旁边（`docs/state/per-directory-state.md` 的
 *What is not per directory*）：你要不要提示是你的事，不是项目的事——一个在一个
 目录里关掉、在下一个目录里又打开的开关会读起来像设置不生效——而这次行走应当跨
 session 和目录继续：下一个 session 从任何地方最后显示的那条之后开始，于是每条提示
@@ -109,9 +109,9 @@ session 和目录继续：下一个 session 从任何地方最后显示的那条
 
 - **`/settings` → Show tips** —— `true`/`false`，持久化到 `tips.json`（绝不是
   `settings.json`：`SessionSettings::tips` 是 `#[serde(skip)]`，`copy_value` 从不
-  搬动它——Telemetry 行的模式）。回合中途切换，这一行在下一帧就走（或来）。
+  搬动它，按用户的模式）。回合中途切换，这一行在下一帧就走（或来）。
 - **`ZEROTH_TIPS=0`** 为一次运行把这一行播种成关，从不保存——
-  `ZEROTH_TOOLS` 的语法。不是隐私开关，所以与 `ZEROTH_TELEMETRY` 不同，
+  `ZEROTH_TOOLS` 的语法。
   它不撤回这一行：用户仍可为这个 session 把提示重新打开。
 - smoke 套件在它的基础环境里导出 `ZEROTH_TIPS=0`
   （`scripts/smoke/lib.sh`），于是一个把回合按过三秒的 phase 看到的正是它所断言的

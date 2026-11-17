@@ -7,7 +7,7 @@ release shipped, so the app asks the repository itself — `HEAD
 https://github.com/yxxbc/zeroth/releases/latest`, once per UTC day,
 after the first frame — reads the tag off the redirect it lands on, and, when
 that tag is newer than `CARGO_PKG_VERSION`, says so **once a day** in the
-telemetry card's frame:
+notice card's frame:
 
 ```
   ╭─ Update available ───────────────────────────────────────────────────────╮
@@ -24,13 +24,11 @@ newer release exists — the one-line `install.sh` fetched to a temp file and
 run over the directory the running binary lives in, pinned to the version the
 check just resolved. The pure half is `src/update.rs`; the boundary is
 `src/tui/update.rs` (the check, the card, the file) and `src/tui/update_cli.rs`
-(the subcommand); the design is `tui::telemetry`'s, rule for rule, so the two
-once-a-day features that touch the network read the same way.
+(the subcommand).
 
 The user-facing statement — what the request carries, how to turn it off —
-is the *Update check* section of the root `TELEMETRY.md`, which promises to
-be the complete list of what leaves a machine and so must name this request
-too. Change one and re-read the other.
+is this page's *What leaves the machine* section below. Change the code and
+re-read it.
 
 ## What is sent
 
@@ -59,21 +57,18 @@ Three things this deliberately is not:
   a body we read one field from (`docs/architecture/memory.md`).
 - **Not a ping.** Nothing identifies the install, and nothing is recorded by
   this project — GitHub sees the connection the way it sees a page load, and
-  that is all. Which is also why `DO_NOT_TRACK` does **not** cover it: the
-  convention is about analytics, and this measures nothing. It has its own
-  switches instead (below), because a request to github.com the user did not
-  type is still a request the user may not want.
+  that is all. It has its own switch instead (below), because a request to
+  github.com the user did not type is still a request the user may not want.
 - **Not a download.** The check fetches no binary; only `zeroth update`
   does, and only when asked.
 
 ## When, and what it costs
 
 - **At launch, after the first frame** (`Session::bootstrap` calls
-  `start_update_check` after `start_telemetry`, both behind
-  `paint_first_frame`), on a detached worker (`workers::spawn_update_check`).
-  The app never waits for it.
-- **At any turn start that opens a new UTC day** (`Session::update_day_check`
-  beside `telemetry_day_check`): a session left open across midnight checks
+  `start_update_check` behind `paint_first_frame`), on a detached worker
+  (`workers::spawn_update_check`). The app never waits for it.
+- **At any turn start that opens a new UTC day**
+  (`Session::update_day_check`): a session left open across midnight checks
   on the new day too.
 - **Once per day, whatever happens to the request.** The attempt's day is
   recorded in `update.json` *at the spawn* (`record_check(today, None)`), not
@@ -92,7 +87,7 @@ Three things this deliberately is not:
 ## The card
 
 `ui::update_notice_lines(width, current, latest, repo, command)` renders
-`update::notice`'s text in the telemetry card's frame — both go through
+`update::notice`'s text in the notice card's frame — it goes through
 `ui::notice_card_lines(heading, body, width)`, the rounded `DEVICE_BOX_*`
 box titled in the header accent, the body wrapped to the box with the
 `**bold**` labels and the accent code spans `ui::inline` already gives a
@@ -122,9 +117,9 @@ Three rules decide *when* it shows:
   the agent-view rule). Before committing it re-reads the file and re-asks
   `notice_due`: the day may have rolled, or another launch may have shown the
   card since the result was queued.
-- **Chrome, never `history`.** The card rides `insert_before` like the banner
-  and the telemetry notice; a purge rebuild (a resize, `/clear`) does not
-  re-emit it. It is a notice, not a message.
+- **Chrome, never `history`.** The card rides `insert_before` like the
+  banner; a purge rebuild (a resize, `/clear`) does not re-emit it. It is a
+  notice, not a message.
 
 A launch that already knows of a newer release (the file's `latest` from
 yesterday's check) announces it from the file before spawning today's
@@ -146,9 +141,9 @@ numbers, build metadata ignored.
 
 ## `update.json`
 
-The per-**user** file beside `telemetry.json` (`docs/state/per-directory-state.md`
+The per-**user** file beside `tips.json` (`docs/state/per-directory-state.md`
 — a check you turned off in one directory and not another would be a
-surprise, the Telemetry rule):
+surprise):
 
 ```json
 {
@@ -178,7 +173,7 @@ again, and a newer release is announced again.
 | **no config home** | nothing runs — there is nowhere to remember the day, and a check per launch is not once a day |
 
 The variable **withdraws the `/settings` row** rather than seeding it —
-`false (unavailable)`, refusing to cycle — the Telemetry rule
+`false (unavailable)`, refusing to cycle
 (`config::update_check_forbidden_by_env` → `SettingAvailability::update_check`):
 an opt-out a keystroke could undo is not one. `ZEROTH_UPDATE_URL` points
 the check (and `zeroth update`) at another repository root — a fork, or
@@ -242,17 +237,14 @@ What it does, in order:
 The subcommand ignores `ZEROTH_UPDATE_CHECK`: that variable silences the
 *automatic* check, and an explicit command is the user's own request.
 
-The next launch on the new binary also sends the day's telemetry ping again,
-carrying the new version — the one exception to that ping's once-a-day rule
-(`TELEMETRY.md` *When it is sent*) — so the dashboard's Versions panel
-moves the install the same day rather than at midnight UTC. It is the same
-install id, so it counts as the same user on a new version, never as a new
-install.
+The next launch on the new binary runs its check again on the same day when
+the version in `update.json` differs from the running one, so an install
+that just updated learns about the next release on the same rule rather
+than waiting for midnight UTC.
 
 ## The `/settings` row
 
-**Update check** sits above **Telemetry** (`SettingKey::UpdateCheck`), the
-sixteenth row: `true`/`false`, per user (`SessionSettings::update_check` is
+**Update check** is the last row (`SettingKey::UpdateCheck`): `true`/`false`, per user (`SessionSettings::update_check` is
 `#[serde(skip)]`, `copy_value` never moves it, `apply_setting` skips the
 `settings.json` write), seeded at bootstrap from `update.json` then the
 environment, `false (unavailable)` without a config home or under the

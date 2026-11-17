@@ -16,8 +16,7 @@
 //! - process identity: [`process_uid`] (the background tasks root,
 //!   `docs/tools/background.md`, and the environment's `User` line) and
 //!   [`session_id`],
-//! - telemetry (`TELEMETRY.md`): [`utc_day`] (the once-a-day key) and
-//!   [`random_bytes`] (the install id's entropy).
+//! - the update check (`docs/ops/update.md`): [`utc_day`], the once-a-day key.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -103,9 +102,6 @@ impl Host {
         let mut settings =
             super::config::load_settings_file(super::config::settings_json_path().as_deref())
                 .settings_for(&project);
-        settings.telemetry =
-            super::config::load_telemetry_file(super::config::telemetry_json_path().as_deref())
-                .enabled;
         settings.update_check =
             super::config::load_update_file(super::config::update_json_path().as_deref()).enabled;
         let tips = super::config::load_tips_file(super::config::tips_json_path().as_deref());
@@ -251,31 +247,12 @@ pub(crate) fn session_id() -> String {
     format!("{nanos:x}-{:x}-{seq:x}", std::process::id())
 }
 
-/// Today's UTC date, `YYYY-MM-DD` — the key the daily telemetry ping is
-/// throttled on (`telemetry::should_ping`). UTC rather than local so the
-/// client's day and the collector's agree except around midnight, where a
-/// second ping is harmless (the collector dedups on the day too).
+/// Today's UTC date, `YYYY-MM-DD` — the key the daily update check is
+/// throttled on (`update::check_due`). UTC rather than local so the client's
+/// day and the release feed's agree except around midnight, where a second
+/// check is harmless.
 pub(crate) fn utc_day() -> String {
     chrono::Utc::now().format("%Y-%m-%d").to_string()
-}
-
-/// `N` bytes from the OS entropy source — the telemetry install id's
-/// material (`TelemetryFile::install_id_or_mint`). Falls back to the clock
-/// and pid when the source fails, which should never happen on a real
-/// system, so that a failure still yields an id unlikely to collide rather
-/// than a shared all-zero one.
-pub(crate) fn random_bytes<const N: usize>() -> [u8; N] {
-    let mut bytes = [0u8; N];
-    if getrandom::fill(&mut bytes).is_err() {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |elapsed| elapsed.as_nanos());
-        let seed = nanos ^ u128::from(std::process::id()).rotate_left(64);
-        for (slot, byte) in bytes.iter_mut().zip(seed.to_le_bytes().iter().cycle()) {
-            *slot = *byte;
-        }
-    }
-    bytes
 }
 
 /// Seconds since the Unix epoch — the `ts` stamped into each history line.

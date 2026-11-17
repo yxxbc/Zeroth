@@ -145,8 +145,7 @@ tick 后面；而 turn 活跃时，绘制分支会重新武装一个 32 ms 的�
   停；每一个词都会随每一次请求旅行。
 - **agent 自己的名字是一个常量**：`zeroth::APP_NAME`。移植来的句子保留它们源
   tool 的名字，除非你有意改掉。
-- **README 是前门，不是手册。** 机制写进 `docs/`，改动写进 `CHANGELOG.md`，隐私
-  声明写进 `TELEMETRY.md`。
+- **README 是前门，不是手册。** 机制写进 `docs/`，改动写进 `CHANGELOG.md`。
 - **工作方式：TDD。** 没看着一个测试先失败，就不写产品代码。`src/main.rs` +
   `src/tui/` 是例外 —— 用 app 和 smoke 来验证。对非平凡的功能：探索、发问、提出
   2–3 个设计、达成一致、写进 `docs/`，行为变化时更新 `docs/design.md`。

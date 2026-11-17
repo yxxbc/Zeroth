@@ -424,7 +424,7 @@ approve(bash/MCP call) ── gate.allows()? ── yes ────────
 一条**可证明只读**的 `bash` 命令 —— `ls -la`、`grep -rn foo src`、
 `cat README.md | head -20`、`git log --oneline -5`、`rg --files` —— 在自动
 模式下根本不会发出 classifier 请求，因而也没有 `Allowed by auto mode
-classifier` 那条 note（`llm::approval` 的 fast path，位于 scratchpad 检查
+classifier` 那条 note（`llm::approval` 的 fast path，位于 常设规则检查
 之前、`PreToolUse` 强制 ask 之下）。为了一个从不会有疑问的答案，每次调用都
 问一次模型 `ls` 是否安全，要付一次往返的代价；而 agent 在改动任何东西之前
 所做的探索，正是一连串这样的调用；Claude Code 对同一组命令也跳过它的审查器
@@ -702,29 +702,15 @@ Auto mode — the classifier reads this before each command or MCP call.
 页显示的就是它。它自己的裁决读自己的日志，处在与 lead 相同的 classifier
 system prompt 之下。
 
-## scratchpad 豁免
+## 已移除的 scratchpad 豁免
 
-还有一件事在 prompt 之前就解决了：一次位于**session 自己的 scratchpad
-目录内**的 `write`/`edit`（`docs/tools/scratchpad.md`）。system prompt 把
-每个临时文件都送到那里，而该目录在用户的项目之外，所以 `approve_call` 站在
-常设 allowlist 旁边询问 `PermissionGate::scratchpad_covers` —— 在
-`PermissionRequest` hook、classifier 和 prompt 之前，因为它回答的是与它们
-相同的问题。
-
-它很窄：只限那两个 file tool（一条点名 scratchpad 路径的 `bash` 命令仍然会
-问 —— 它接着会动什么，是它自己的事），路径必须严格在内且经过词法检查，而
-强制 ask 仍然会问。并且它是可见的，走的正是 classifier 裁决所用的那条通道：
-
-```
-● Write(/tmp/zeroth-1000/18ce…-5d77f/scratchpad/plan.md)
-  ⎿  Wrote 12 lines to …/scratchpad/plan.md
-  ⎿  Allowed in the session scratchpad
-```
+已移除 Agent 专属 scratchpad 及其自动写入豁免（`docs/tools/scratchpad.md`）。
+临时文件写入遵循普通权限策略。已保存会话继续保留历史批准说明，但历史记录不能授权新的调用。
 
 ## 工作区路径监狱
 
 `auto` 与 `edit` 模式的“文件改动别再问了”说的是**项目**，不是用户的家目录。
-一个 `write`/`edit` 的目标若落在 session 的工作区（启动时的 cwd）与 scratchpad
+一个 `write`/`edit` 的目标若落在 session 的工作区（启动时的 cwd）
 之外，即便在这两个模式下也不被常设规则覆盖：`PermissionGate::allows` 返回
 false，调用落到 prompt（或者，在 headless 运行里落到无人应答的拒绝）。`master`
 是明示的“什么都行”姿态，绕过这道监狱。
@@ -945,7 +931,7 @@ its content*），所以光标从不需要重新推导正文。尾部块收束�
 
 headless 运行（`zeroth -p`，`docs/cli/headless.md`）没有屏幕可放 prompt，
 所以它的 gate 是**无人值守**的（`PermissionGate::set_unattended`）。在 prompt
-之前作答的一切仍然作答 —— allowlist、scratchpad 豁免、只读 fast path、一个
+之前作答的一切仍然作答 —— allowlist、只读 fast path、一个
 `PermissionRequest` hook、classifier —— 只有最后一步变了：在 `approve_call`
 本会发出 `StreamEvent::Permission` 并等待的地方，它改为拒绝这次调用
 （`PermissionGate::refuses_unattended`）。没有请求存在，没有东西等待，也没有

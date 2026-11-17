@@ -260,6 +260,9 @@ pub fn command_in(tier: &DetachTier<'_>, shell: &Path, command: &str) -> Command
     // (`docs/architecture/herdr.md`) — the terminal path drops it the same way
     // (`pty::spawn::FOREIGN_TERMINAL_VARS`).
     cmd.env_remove(crate::herdr::PANE_ID_ENV);
+    // Retired launch switches must not become path aliases in child shells.
+    cmd.env_remove("ZEROTH_SCRATCHPAD")
+        .env_remove("ZEROTH_SCRATCHPAD_DIR");
     cmd
 }
 

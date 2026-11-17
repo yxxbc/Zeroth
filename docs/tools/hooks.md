@@ -54,10 +54,10 @@ references agree on the asymmetry, so we copy it exactly:
   first event), moves on at a `/clear`, and becomes the resumed file's at a
   `/resume`; `transcript_path` moves with it. The first conversation's file
   is named by the session's startup id, so until a `/clear` the id is also
-  the temp tree's (`docs/tools/scratchpad.md`) — but `scratchpad_dir` is how a
-  handler finds the session's scratchpad and task output *after* one, which
-  is Claude Code's field for it. (`session_id` used to be the process's id,
-  which a `/clear` never moved and `--resume` could not take.)
+  the temp tree's (`docs/tools/scratchpad.md`). The optional `scratchpad_dir`
+  field remains part of the compatible wire schema, but current sessions omit
+  it because the agent scratchpad has been removed. (`session_id` used to be
+  the process's id, which a `/clear` never moved and `--resume` could not take.)
 - **stdout (the verdict) is `camelCase`** — `continue`, `stopReason`,
   `suppressOutput`, `systemMessage`, `decision`, `reason`,
   `hookSpecificOutput.{hookEventName,permissionDecision,

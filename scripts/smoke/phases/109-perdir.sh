@@ -46,7 +46,7 @@ cat >"$PD_CFG/hooks.json" <<'HOOKS'
 HOOKS
 # No ZEROTH_CHECKPOINTS here, deliberately: the default is under test, and
 # the cwds are throwaway temp dirs a snapshot could not hurt.
-APP_PD="env ZEROTH_TELEMETRY=0 ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$PD_CFG ZEROTH_SESSIONS_DIR=$PD_CFG/sessions ZEROTH_HISTORY_FILE=/dev/null ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_PROVIDERS_FILE=$PD_CFG/providers.toml ZEROTH_API_KEY=not-a-real-key ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
+APP_PD="env ZEROTH_PROJECT_CONFIG=0 ZEROTH_CONFIG_DIR=$PD_CFG ZEROTH_SESSIONS_DIR=$PD_CFG/sessions ZEROTH_HISTORY_FILE=/dev/null ZEROTH_SKILLS_DIR=$SMOKE_SKILLS ZEROTH_AGENTS_DIR=$SMOKE_AGENTS ZEROTH_PROVIDERS_FILE=$PD_CFG/providers.toml ZEROTH_API_KEY=not-a-real-key ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS"
 # Poll a pane (visible screen) for a needle, up to ~5s; prints the last capture.
 pd_wait() {
 	local pane=""

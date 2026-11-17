@@ -15,7 +15,7 @@ use super::*;
 /// One colour per state, on every frame: a running bullet's animation is the
 /// **blink** ([`bullet_span`]), never a second colour, so this is all the
 /// colour a cell ever wears. See `docs/ui/tool-pulse.md`.
-fn tool_status_color(status: ToolStatus) -> Color {
+pub(super) fn tool_status_color(status: ToolStatus) -> Color {
     match status {
         ToolStatus::Waiting => tool_waiting_color(),
         ToolStatus::Running => tool_running_color(),
@@ -478,7 +478,7 @@ fn split_display_lines(text: &str) -> Vec<String> {
 /// what Ctrl+D shows), and the bullet is what says a call failed. Only fires
 /// when the frame is present, so non-`bash` tools and old rollouts are
 /// untouched.
-fn command_display_output(output: &str) -> &str {
+pub(super) fn command_display_output(output: &str) -> &str {
     // A session still alive (`docs/tools/interactive-shell.md`): its frame line is
     // the model's; the cell shows the body, and says where the session stands
     // on its own dim row ([`session_state_row`]).
@@ -1305,6 +1305,9 @@ fn tool_cell_body(
     pulse: Option<Duration>,
     paths: &PathDisplay,
 ) -> Vec<Line<'static>> {
+    if let Some(lines) = super::search::search_lines(tool, width, paths, false, pulse) {
+        return lines;
+    }
     // The resolved ask cell replaces the whole header with its outcome
     // headline (`docs/tools/ask.md`).
     if let Some(lines) = ask_cell_lines(tool, width, pulse, /*cap=*/ true) {
@@ -1609,6 +1612,9 @@ pub(super) fn tool_full_lines(
 /// [`tool_full_lines`] minus the trailing provenance note (the
 /// [`tool_cell_body`] split).
 fn tool_full_body(tool: &ToolCall, width: u16, paths: &PathDisplay) -> Vec<Line<'static>> {
+    if let Some(lines) = super::search::search_lines(tool, width, paths, true, None) {
+        return lines;
+    }
     // At rest: the transcript is a pager over a cached, incrementally-built
     // row list (`docs/ui/tool-view-performance.md`) whose refresh short-circuits
     // on a signature that has no clock in it. Animating here would either not

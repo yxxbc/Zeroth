@@ -1,26 +1,8 @@
-//! The session's own temp layout — the agent's **scratchpad** and the
-//! background shells' **tasks** dir (see `docs/tools/scratchpad.md`).
+//! Per-session background output and image cache paths, plus display-only
+//! recognition of historical scratchpad edits (see `docs/tools/scratchpad.md`).
 //!
-//! Everything a session writes outside the user's project lives under one
-//! per-user, per-session root:
-//!
-//! ```text
-//! {tmp}/zeroth-{uid}/{session}/
-//! ├── scratchpad/            the agent's temp files
-//! └── tasks/                 {id}.output — background shells' interim output
-//! ```
-//!
-//! The per-user root is Claude Code's `claude-{uid}` pattern; the session
-//! segment keeps concurrent instances off each other's files. The two leaves
-//! are what the *model* sees: it is told the scratchpad path in its system
-//! prompt (`prompts/scratchpad.md`) and reads a task's `{id}.output` path back
-//! out of every background launch text, so the layout stays as short as
-//! uniqueness allows — the session id already separates projects, making a
-//! dashed-cwd segment pure length.
-//!
-//! Pure: the boundary injects the temp dir, uid and session id (the
-//! `set_session_info` pattern), creates the directories, and gates the feature
-//! (`tui::config`'s `session_tmp_root`/`prepare_scratchpad`).
+//! New sessions do not create or advertise an agent scratchpad. Historical
+//! layout helpers remain pure so saved conversations keep their rendering.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -37,8 +19,8 @@ pub fn session_root(temp: &Path, uid: u32, session: &str) -> PathBuf {
     temp.join(format!("zeroth-{uid}")).join(session)
 }
 
-/// The agent's scratchpad — `{root}/scratchpad`, the directory the system
-/// prompt points every temporary file at instead of `/tmp`.
+/// Historical scratchpad path — `{root}/scratchpad`. New sessions do not
+/// provision it; saved-record rendering retains the layout helper.
 #[must_use]
 pub fn scratchpad_dir(root: &Path) -> PathBuf {
     root.join(SCRATCHPAD_LEAF)
@@ -65,10 +47,9 @@ pub fn images_dir(root: &Path) -> PathBuf {
 
 /// Is `path` a file **strictly inside** `root`?
 ///
-/// The predicate behind the permission gate's scratchpad exemption
-/// (`docs/tools/scratchpad.md`): a `write`/`edit` under the session's own scratchpad
-/// needs no approval, so this must never say yes to anything else. It is
-/// deliberately strict and lexical — no filesystem is consulted:
+/// Display-only containment for historical scratchpad paths
+/// (`docs/tools/scratchpad.md`). This is strict and lexical, grants no
+/// permission, and consults no filesystem:
 ///
 /// - both paths must be **absolute** (a relative target resolves against the
 ///   cwd, which is the user's project, never this root),
@@ -77,8 +58,7 @@ pub fn images_dir(root: &Path) -> PathBuf {
 /// - the match is **component-wise**, so `{root}-elsewhere` is not inside
 ///   `{root}`, and the root itself is not "inside" itself.
 ///
-/// A symlink *within* the scratchpad could still point outside it; creating
-/// one takes a `bash` call, which asks (see `docs/tools/scratchpad.md`).
+/// Lexical only: this display predicate grants no filesystem permission.
 #[must_use]
 pub fn contains(root: &Path, path: &Path) -> bool {
     let normalize = |p: &Path| -> Option<PathBuf> {
@@ -106,9 +86,8 @@ pub fn contains(root: &Path, path: &Path) -> bool {
 /// [`scratchpad_dir`] build — whichever session wrote it?
 ///
 /// Display only (`docs/ui/tool-groups.md` *Scratchpad edits*): a conversation
-/// resumed in a new process has a scratchpad of its own, and the files its
-/// earlier session wrote are still scratchpad files. The permission gate's
-/// exemption asks [`contains`] about this session's own scratchpad alone.
+/// resumed in a new process may still contain paths from an earlier session.
+/// This predicate grants no permission and creates no directory.
 /// Lexical like `contains`: absolute, and a `..` anywhere refuses.
 #[must_use]
 pub fn is_session_scratchpad(path: &Path) -> bool {

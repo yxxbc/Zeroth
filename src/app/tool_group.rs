@@ -15,10 +15,7 @@ use std::collections::{HashSet, VecDeque};
 use std::ops::Range;
 use std::time::Duration;
 
-use super::{
-    App, ERROR_TOOL_OUTPUT, HistoryItem, INTERRUPT_TOOL_OUTPUT, PathDisplay, ToolCall, ToolDraft,
-    ToolStatus,
-};
+use super::{App, HistoryItem, PathDisplay, ToolCall, ToolDraft, ToolStatus};
 use crate::read_only::ReadKind;
 
 /// How long each call's value holds the open group's `⎿` row before the next
@@ -160,13 +157,10 @@ fn backgrounds(tool: &ToolCall) -> bool {
         .is_some_and(|args| args.explicit_background())
 }
 
-/// Whether a **resolved** record belongs in a group: a call of a group kind
-/// that ran — whether it succeeded or failed in the running (a search that
-/// found nothing exits 1, a missing file fails the read; the model reads the
-/// error either way, and Ctrl+O keeps it) — rather than one that never ran
-/// or never finished: refused at the prompt or by the classifier, blocked by
-/// a hook, cut by Esc or a backend error, refused by the tool-call limit, or
-/// moved to the background. Each of those keeps a cell of its own.
+/// Whether a **resolved** record belongs in a group: a successful call of
+/// a group kind, or a recognised grep/rg no-match exit. Actual execution
+/// errors keep their own visible cell, as do calls that never ran or never
+/// finished: refused, blocked, interrupted, or moved to the background.
 ///
 /// A scratchpad edit joins only once it **succeeded**: one that failed or was
 /// refused did not happen, so it keeps its red cell and the line's "made N
@@ -181,14 +175,22 @@ pub fn is_group_member(tool: &ToolCall, paths: &PathDisplay) -> bool {
     match tool.status {
         ToolStatus::Ok => true,
         ToolStatus::Failed => {
-            // A refusal carries the longer text the model read beside it.
-            tool.context_output.is_none()
-                && !matches!(
-                    tool.output.as_str(),
-                    INTERRUPT_TOOL_OUTPUT
-                        | ERROR_TOOL_OUTPUT
-                        | crate::llm::agent::TOOL_LIMIT_OUTPUT
+            // A recognised grep/rg no-match exit is an ordinary search
+            // result. Actual execution errors keep their own visible cell.
+            let empty = tool.output.is_empty()
+                || tool
+                    .output
+                    .strip_prefix("Exit code: 1")
+                    .is_some_and(|body| body.trim().is_empty());
+            tool.name == "Bash"
+                && tool.context_output.is_none()
+                && tool.run.exit_code == Some(1)
+                && matches!(
+                    tool.run.error_kind,
+                    None | Some(crate::stream::ToolErrorKind::ToolError)
                 )
+                && empty
+                && crate::read_only::search_words(&tool.args).is_some()
         }
         ToolStatus::Waiting | ToolStatus::Running | ToolStatus::Backgrounded => false,
     }
@@ -249,7 +251,7 @@ fn trailing_group_start(history: &[HistoryItem], paths: &PathDisplay) -> Option<
 /// scratchpad edits it holds.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GroupCounts {
-    /// Search commands — each one counts, the reference's "patterns".
+    /// Search calls, not the number of expressions each command contains.
     pub searches: usize,
     /// Files read — each `Read` path once however often it was read, plus
     /// every reading command (whose files the words do not name).
