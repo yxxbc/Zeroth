@@ -98,6 +98,17 @@ value = rows[int(sys.argv[2]) - 1].get(sys.argv[3])
 print("null" if value is None else value)
 PY
 }
+# Check every recorded event before each scenario clears its event log.
+hs_no_scratchpad() {
+	if ! python3 - "$HS_LOG" <<'PY_CHECK'
+import json, sys
+rows = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
+sys.exit(0 if rows and all("scratchpad_dir" not in row for row in rows) else 1)
+PY_CHECK
+	then
+		fail "a lifecycle-hook payload still carries the retired scratchpad_dir"
+	fi
+}
 hs_has() { hs_events | grep -q "^$1"; }
 # hs_at_least EVENT N — N or more EVENTs logged; a function, so a poll counts
 # afresh each try (an inline "$(…)" would be expanded once, before it).
@@ -124,7 +135,8 @@ trust_hooks "$S133"
 poll 8 hs_has "SessionStart:startup" || fail "SessionStart never fired once the hooks were trusted (no prompt was sent)"
 hs_startup="$(hs_events | sed -n 1p)"
 hs_first_id="${hs_startup##*:}"
-expect_ne "$(hs_field 1 scratchpad_dir)" "null" "the payload carries no scratchpad_dir"
+# Retired agent scratchpads must not be advertised to lifecycle hooks.
+hs_no_scratchpad
 submit "$S133" "smoke133 hello"
 wait_pane 20 "$S133" -F "smoke133 refused" >/dev/null || fail "the refused turn never showed its error"
 poll 10 hs_has "StopFailure" || fail "the failed turn fired no StopFailure"
@@ -171,6 +183,7 @@ expect_eq "$(hs_events | wc -l | tr -d ' ')" "8" "events in the real-backend ses
 # A bare --resume boots into its picker, and the pick is the conversation that
 # begins — so nothing fires while the picker is up. Dismissed, the fresh
 # conversation it lands in begins then.
+hs_no_scratchpad
 rm -f "$HS_LOG"
 S133P="${S}_hooksession_picker"
 launch -w "R E S U M E" "$S133P" 100 30 "$HS_REAL --resume"
@@ -188,6 +201,7 @@ expect_eq "$(hs_events | tr '\n' ' ')" "SessionStart:startup:$hs_fresh_id Sessio
 
 # Picked, the resumed conversation begins under the id `--resume` takes, and
 # the fresh one the boot held never started, so no SessionEnd announces it.
+hs_no_scratchpad
 rm -f "$HS_LOG"
 S133R="${S}_hooksession_pick"
 launch -w "R E S U M E" "$S133R" 100 30 "$HS_REAL --resume"
@@ -208,6 +222,7 @@ expect_eq "$(hs_events | tr '\n' ' ')" "SessionStart:resume:$hs_picked_id Sessio
 
 # The offline demo runs no hooks, so neither session event fires — an end
 # without its start was the old bug.
+hs_no_scratchpad
 rm -f "$HS_LOG"
 S133D="${S}_hooksession_dummy"
 launch "$S133D" 100 30 "env $HS_ENV $BIN_ABS"
