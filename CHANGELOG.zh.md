@@ -15,6 +15,8 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-18
+
 ### 新增
 
 - **llama.cpp** 已加入 `/login` → **Sign in with a local model**。
@@ -2162,7 +2164,8 @@ Zeroth 的开发基线。第一个打上标签的发布将决定它从哪个版�
   （Intel、Apple silicon）归档并附 SHA-256 校验和，发布一个 GitHub release，其
   说明来自本文件 —— 全程由 `scripts/release.sh` 驱动，它还能在本地排演一次发布。
 
-[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/yxxbc/zeroth/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/yxxbc/zeroth/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/yxxbc/zeroth/releases/tag/v0.19.0
 [0.0.0]: https://github.com/yxxbc/zeroth

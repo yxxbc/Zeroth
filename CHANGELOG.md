@@ -16,6 +16,8 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-18
+
 ### Added
 
 - **llama.cpp** is available under `/login` → **Sign in with a local model**.
@@ -2715,7 +2717,8 @@ version it starts from; everything below this entry is Alter Zero's history.
   release whose notes come from this file — driven end to end by
   `scripts/release.sh`, which also rehearses a release locally.
 
-[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/yxxbc/zeroth/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/yxxbc/zeroth/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/yxxbc/zeroth/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/yxxbc/zeroth/releases/tag/v0.19.0
 [0.0.0]: https://github.com/yxxbc/zeroth
