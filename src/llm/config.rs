@@ -1753,6 +1753,30 @@ api_base = "http://127.0.0.1:11434"
     }
 
     #[test]
+    fn the_builtin_file_ships_llama_cpp_as_a_local_server() {
+        let file = ProvidersFile::builtin();
+        let llama = file.get("llamacpp").expect("shipped");
+        assert_eq!(llama.name, "llama.cpp");
+        assert_eq!(llama.auth, AuthScheme::OptionalKey);
+        assert_eq!(llama.wire_api, WireApi::Chat);
+        assert_eq!(llama.key_env("llamacpp"), "LLAMA_API_KEY");
+        assert_eq!(llama.api_base_env.as_deref(), Some("LLAMACPP_HOST"));
+        assert!(!llama.configured_by_definition());
+        assert_eq!(llama.models_base(), "http://127.0.0.1:8080/v1");
+
+        let remote = file
+            .model_config(&Selection {
+                provider_id: "llamacpp".into(),
+                model: "local-gguf".into(),
+                api_base: Some("gpu-box:9931".into()),
+                ..Selection::default()
+            })
+            .expect("resolves without a key");
+        assert_eq!(remote.api_base, "http://gpu-box:9931/v1");
+        assert_eq!(remote.api_model_base, remote.api_base);
+    }
+
+    #[test]
     fn a_relative_listing_base_follows_the_chat_base_wherever_it_points() {
         let file = ProvidersFile::builtin();
         let at = |host: Option<&str>| {

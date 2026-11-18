@@ -375,7 +375,8 @@ README 横幅保留午夜蓝湖面和发光的零环，用幼兽替换兜帽人�
   列表），再粘贴它的 key（掩码显示，标题是 `Enter your … API key`）—— 或一个
   **本地模型**服务器，它的地址在保存之前会被**测试**：那一页按 `/model` 将来
   的方式列出服务器的模型，失败用红色留在页面上，而返回 401 的服务器会要求它的
-  token（`docs/providers/local-models.md`）。保存时 key、token 或地址写进
+  token（`docs/providers/local-models.md`）。内置的 llama.cpp 入口复用本地连接
+  流程，走它的 OpenAI 兼容 API。保存时 key、token 或地址写进
   `~/.zeroth/.env`（`llm::keystore::EnvFile`，一个纯 `.env` 读写器），所以它
   **跨运行持久** —— key 解析先查真实进程环境，再查这个文件。因为
   `std::env::set_var` 是 `unsafe`（这里禁止），加载进来的 key 存在内存映射里，
@@ -1229,7 +1230,7 @@ NNN-slug.sh`，每个是一个自包含场景，source `scripts/smoke/lib.sh`）
 应用，所以一个单独跑的阶段与套件跑的一样封闭）：
 
 - **变量。** 脚本在首次启动之前 unset 掉每一个 `*_API_KEY`、每一个
-  `ZEROTH_*` 旋钮、`OLLAMA_HOST`、`LMSTUDIO_HOST` 与 `LM_API_TOKEN`、
+  `ZEROTH_*` 旋钮、`OLLAMA_HOST`、`LMSTUDIO_HOST`、`LLAMACPP_HOST` 与 `LM_API_TOKEN`、
   `NO_COLOR`、`DISPLAY`/`WAYLAND_DISPLAY`/`XAUTHORITY`，以及 herdr 的四个
   `HERDR_*` 窗格变量（从 herdr 窗格里跑的话，每个阶段都会把它的回合报告给开
   发者真实的多路复用器 —— `docs/architecture/herdr.md`），然后逐次启动点明它

@@ -15,6 +15,11 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
 
 ## [Unreleased]
 
+### 新增
+
+- **llama.cpp** 已加入 `/login` → **Sign in with a local model**。
+  连接正在运行的 `llama-server` 后，可用 `/model` 选择模型。
+
 ## [0.20.0] - 2026-11-17
 
 ### 移除

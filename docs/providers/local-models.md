@@ -2,7 +2,7 @@
 
 `/login` has three ways in. **Sign in with an account** signs in to an account,
 **Sign in with an API key** pastes a provider's key, and **Sign in with a local model**
-connects a model server the user runs: Ollama, LM Studio, or a keyless server
+connects a model server the user runs: Ollama, LM Studio, llama.cpp, or a keyless server
 described in their own `providers.toml`. A local server needs no key. What it
 needs is an **address**, and the page asking for it **tests the connection
 before it saves anything**.
@@ -40,13 +40,13 @@ service reached with a pasted key.
 ## The list
 
 The same list page the other two use: a `❯` filter, rows in the injected
-order (alphabetical by id, so `LM Studio` before `Ollama`), the `(n/total)`
+order (alphabetical by id: llama.cpp, LM Studio, Ollama), the `(n/total)`
 counter, `↑↓ navigate  enter connect  esc back`. Each row says `✔
 configured` or `◯ unconfigured`.
 
 **Configured means pointed at** (`tui::config::is_configured`, the rule
 `docs/providers/ollama.md` set out for Ollama): the provider's address variable
-resolves (`OLLAMA_HOST`, `LMSTUDIO_HOST`), or a key resolves, or
+resolves (`OLLAMA_HOST`, `LMSTUDIO_HOST`, `LLAMACPP_HOST`), or a key resolves, or
 `ZEROTH_PROVIDER` names it. A server a user's own block fixes in place,
 with no address variable, is configured by that block alone
 (`Provider::configured_by_definition`, `docs/providers/user-providers.md`). Configured
@@ -155,6 +155,7 @@ and only once the test passed:
 | --- | --- | --- |
 | Ollama | `OLLAMA_HOST` (Ollama's own variable, in its own grammar) | `OLLAMA_HOST_API_KEY` |
 | LM Studio | `LMSTUDIO_HOST` | `LM_API_TOKEN` (LM Studio's own name for it) |
+| llama.cpp | `LLAMACPP_HOST` | `LLAMA_API_KEY` |
 | a server the user's block fixes | *(nothing: its address is the file's)* | its `api_key_env` |
 
 The address is saved **as typed**, as the old host field saved it; the
@@ -179,6 +180,24 @@ There is deliberately no "save anyway" for an address that fails its test.
 `/login` saves what it has seen work. A server that is down right now is
 pointed at by setting its variable by hand (`export LMSTUDIO_HOST=…`, or a
 line in `~/.zeroth/.env`).
+
+## llama.cpp as a provider
+
+Start [llama-server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md#quick-start)
+with your chat model:
+
+```sh
+llama-server -m /path/to/model.gguf --port 8080
+```
+
+Choose **llama.cpp** in the local model list and press Enter to test
+`http://127.0.0.1:8080`. If your server uses a different port (for example
+`9931` on newer builds), type that address instead. The connection tests
+`/v1/models`; after it passes, use `/model` to select the model for chat.
+No key is needed by default. If the server requires one, use the token
+prompt. Some older builds leave the model listing public even with
+authentication enabled; if the connection passes without a prompt, set
+`LLAMA_API_KEY` for Zeroth before chatting.
 
 ## LM Studio as a provider
 

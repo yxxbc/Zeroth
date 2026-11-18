@@ -103,7 +103,8 @@ runner 在每阶段结束时打印一行 —— `ok`/`FAIL`、计数器、id、s
 - **`$TMPDIR` 指进树里**，所以一个裸的 `mktemp -d` —— 以及 app 自己的
   scratchpad —— 都落在里面；
 - 净化过的环境（`smoke_sanitize_env`：每个 `*_API_KEY`、每个 `ZEROTH_*`、
-  `OLLAMA_HOST`、`NO_COLOR`、各个显示变量一律 unset；更新检查、
+  `OLLAMA_HOST`、`LMSTUDIO_HOST`、`LLAMACPP_HOST`、`LM_API_TOKEN`、
+  `NO_COLOR`、各个显示变量一律 unset；更新检查、
   spinner tip 和项目的 `AGENTS.md` 导出为关；权限模式导出为 `manual`，因为一个
   session 从 auto 开始，而那里 dummy 的写入从不发问，可权限那些阶段讲的正是
   prompt —— Phase 64 把它 unset 以覆盖默认值；还有**Verbose output** 导出为开，

@@ -3,8 +3,8 @@
 The providers the app ships with live in the repository's `providers.toml`,
 embedded in the binary. Anything else that speaks an OpenAI-compatible API —
 a hosted service like Groq, DeepSeek, Mistral or Together, a company proxy,
-or a model server on your own machine like llama.cpp or vLLM — is
-added in a file of the user's own (Ollama and LM Studio ship built in,
+or a model server on your own machine like vLLM — is
+added in a file of the user's own (Ollama, LM Studio and llama.cpp ship built in,
 `docs/providers/local-models.md`): `~/.zeroth/providers.toml`
 (`{config_home}/providers.toml`, so `ZEROTH_CONFIG_DIR` moves it with the
 rest of the state). The block shape is the shipped file's, and the file is
@@ -142,8 +142,8 @@ is for.
 ## Servers that take no key
 
 `auth = "optional_key"`: a stored key rides as a bearer, and none is fine. Such
-a provider is a **local server**, listed under `/login` → **Use a local
-model** beside the shipped Ollama and LM Studio rather than under API keys,
+a provider is a **local server**, listed under `/login` → **Sign in with a local
+model** beside the built-in local servers rather than under API keys,
 and its page tests the connection before saving anything
 (`docs/providers/local-models.md`). A key-optional provider that names **no host
 variable** is configured by its block alone — the file pointing at it is the
@@ -151,12 +151,12 @@ configuration, so `/model` lists it without a trip through `/login`
 (`Provider::configured_by_definition`), and its page only tests it:
 
 ```toml
-[providers.llamacpp]
-name = "llama.cpp"
+[providers.vllm]
+name = "vLLM"
 auth = "optional_key"
 
-[providers.llamacpp.kwargs]
-api_base = "http://localhost:8080/v1"
+[providers.vllm.kwargs]
+api_base = "http://localhost:8000/v1"
 ```
 
 | server | `kwargs.api_base` |
@@ -165,21 +165,23 @@ api_base = "http://localhost:8080/v1"
 | vLLM | `http://localhost:8000/v1` |
 
 To have `/login` ask for the address instead, name a variable for it —
-`api_base_env = "LLAMACPP_HOST"`. The page then offers an address field over
-the block's own server, tests what is typed (a bare `gpu-box:8080` is
+`api_base_env = "VLLM_HOST"`. The page then offers an address field over
+the block's own server, tests what is typed (a bare `gpu-box:8000` is
 completed to the block's `/v1`), saves it to that variable once the test
 passes, and the provider counts as configured once the variable resolves:
 Ollama's rule (`docs/providers/ollama.md`). No shipped provider is configured by its
-block alone — a test pins it — because the shipped `ollama` and `lmstudio`
+block alone — a test pins it — because the shipped local providers
 are for the users who run those servers, and every `/model` open would
 otherwise fetch from one most users don't. A server of the user's own that
-isn't running costs `/model` a `· llama.cpp unavailable` beside its counter,
+isn't running costs `/model` a `· vLLM unavailable` beside its counter,
 nothing more.
 
 LM Studio itself no longer needs a block: it ships, with its native listing
 and its `LM_API_TOKEN` (`docs/providers/local-models.md`). A `[providers.lmstudio]`
 block written from this page's earlier example now **patches** the shipped
 one — connect it once under Sign in with a local model, or delete the block.
+The same applies to an earlier `[providers.llamacpp]` example: it patches
+the built-in llama.cpp entry, keeping the provider id used in saved selections.
 
 ## Fields a strict server refuses
 

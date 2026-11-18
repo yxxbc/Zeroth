@@ -38,7 +38,7 @@ Zeroth 是一个用 Rust 写的开源 AI 编码 agent，灵感来自 Claude Code
 | --- | --- |
 | **看得懂的工作过程** | 实时的命令输出、可读的 diff 和一份任务清单，让进展一眼可查。 |
 | **对执行的掌控** | 选一个权限模式、复核提议的改动，并在 agent 干活时给它掌舵。 |
-| **模型由你挑** | 用某个支持的订阅或 API key 接入，用 Ollama 或 LM Studio 跑本地模型，或者添加一个 OpenAI 兼容的供应商。 |
+| **模型由你挑** | 用某个支持的订阅或 API key 接入，用 Ollama、LM Studio 或 llama.cpp 跑本地模型，或者添加一个 OpenAI 兼容的供应商。 |
 | **可扩展的余地** | 加入专职的 subagent、可复用的 skill、生命周期 hook 与 MCP 服务器，贴合你的工作方式。 |
 | **原生的终端体验** | 一个内存占用很小的 Rust 二进制，带持久 session、内联图片与键盘操作。 |
 
@@ -154,6 +154,7 @@ zeroth
 | **OpenRouter** | API key。 | 用一个账号访问多家供应商的模型。 |
 | **Ollama** | 本地模型：填你服务器的地址，保存前会先测一遍；不需要 key。 | 用本地托管的模型在自己的机器上跑推理。 |
 | **LM Studio** | 本地模型：填你服务器的地址，测法相同；只有服务器要 token 时才需要 token。 | 跑你在 [LM Studio](https://lmstudio.ai/download) 里下好的模型；先把它自己的服务器启起来。 |
+| **llama.cpp** | 本地模型：连接正在运行的服务器；默认不需要 key。 | 用 [llama.cpp](docs/providers/local-models.md) 跑 GGUF 模型。 |
 | **Ollama Cloud** | API key。 | 用 Ollama 托管的开源模型。 |
 
 页脚显示当前生效的模型、思考模式、速度档与上下文用量。**Ctrl+T** 轮转模型支持的
@@ -164,7 +165,7 @@ zeroth
 <details>
 <summary><strong>添加你自己的供应商</strong></summary>
 
-任何提供 OpenAI 兼容 API 的服务，或者 llama.cpp、vLLM 这样的本地服务器，都可以写
+其他提供 OpenAI 兼容 API 的服务（包括 vLLM 这样的本地服务器），都可以写
 进 `~/.zeroth/providers.toml`。这个文件是往上加，而不是替换掉上面那些供应商：
 
 ```toml

@@ -2,7 +2,7 @@
 
 `/login` 有三个入口。**Sign in with an account** 登录一个账号，**Sign in with
 an API key** 粘贴某个 provider 的 key，而 **Sign in with a local model** 连接一
-个用户自己跑的模型服务器：Ollama、LM Studio，或者用户在自己的 `providers.toml`
+个用户自己跑的模型服务器：Ollama、LM Studio、llama.cpp，或者用户在自己的 `providers.toml`
 里描述的无 key 服务器。本地服务器不需要 key。它需要的是一个**地址**，而要地址
 的那一页会在**保存任何东西之前先测一遍连接**。
 
@@ -37,13 +37,13 @@ bearer 骑上去」（`docs/providers/ollama.md`）。本地服务器正好是�
 ## 列表
 
 和另外两张用的是同一个列表页：一个 `❯` 过滤器，行按注入顺序排列（按 id 字母
-序，所以 `LM Studio` 在 `Ollama` 之前），一个 `(n/total)` 计数器，
+序：llama.cpp、LM Studio、Ollama），一个 `(n/total)` 计数器，
 `↑↓ navigate  enter connect  esc back`。每一行写着 `✔
 configured` 或 `◯ unconfigured`。
 
 **Configured 的意思是「已经指向它」**（`tui::config::is_configured`，
 `docs/providers/ollama.md` 为 Ollama 立下的那条规矩）：provider 的地址变量解析
-得出（`OLLAMA_HOST`、`LMSTUDIO_HOST`），或者 key 解析得出，或者
+得出（`OLLAMA_HOST`、`LMSTUDIO_HOST`、`LLAMACPP_HOST`），或者 key 解析得出，或者
 `ZEROTH_PROVIDER` 点了它的名。一个由用户自己的配置块就地固定、没有地址变量的
 服务器，仅凭那个块就算 configured（`Provider::configured_by_definition`、
 `docs/providers/user-providers.md`）。configured 同时也是 `/model` 会去哪些
@@ -146,6 +146,7 @@ token 存在它的 `api_key_env` 之下。已经存下的 token（比如导出�
 | --- | --- | --- |
 | Ollama | `OLLAMA_HOST`（Ollama 自己的变量，按它自己的语法） | `OLLAMA_HOST_API_KEY` |
 | LM Studio | `LMSTUDIO_HOST` | `LM_API_TOKEN`（LM Studio 自己对它的叫法） |
+| llama.cpp | `LLAMACPP_HOST` | `LLAMA_API_KEY` |
 | 用户配置块固定的服务器 | *（不存：它的地址就是文件里的）* | 它的 `api_key_env` |
 
 地址**按敲进来的样子**保存，和旧 host 输入框一样；补全由配置来做。运行中的
@@ -166,6 +167,22 @@ session 里没有任何东西被重建。下一次构建 backend（选一次 `/m
 对一个测试不过的地址，这里刻意**没有**「照样保存」。`/login` 只保存它亲眼见过
 能用的东西。一个此刻正躺着的服务器，靠手工设置它的变量来指向
 （`export LMSTUDIO_HOST=…`，或者 `~/.zeroth/.env` 里的一行）。
+
+## 作为 provider 的 llama.cpp
+
+用 [llama-server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md#quick-start)
+启动你的聊天模型：
+
+```sh
+llama-server -m /path/to/model.gguf --port 8080
+```
+
+在本地模型列表选择 **llama.cpp**，按 Enter 测试 `http://127.0.0.1:8080`。
+如果服务器用了其他端口（例如新版的 `9931`），就输入实际地址。
+连接测试访问 `/v1/models`；成功后用 `/model` 选择模型开始聊天。
+默认不需要 key；如果服务器要求认证，可在提示时输入 token。有些旧版即使启用了
+认证，也会公开模型列表；如果连接成功但未提示输入 token，请在聊天前为 Zeroth
+设置 `LLAMA_API_KEY`。
 
 ## 作为 provider 的 LM Studio
 

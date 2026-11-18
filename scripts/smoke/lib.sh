@@ -98,10 +98,10 @@ smoke_sanitize_env() {
 		unset "$v"
 	done
 	# The local servers are configured by being *pointed at*
-	# (docs/providers/local-models.md): a developer's own Ollama or LM Studio host — or
+	# (docs/providers/local-models.md): a developer's own local server host — or
 	# LM Studio's token, whose name does not end in API_KEY — would make the
 	# /model phases fetch from a server the suite doesn't run.
-	unset OLLAMA_HOST LMSTUDIO_HOST LM_API_TOKEN
+	unset OLLAMA_HOST LMSTUDIO_HOST LLAMACPP_HOST LM_API_TOKEN
 	# A developer's own Google Antigravity sign-in (docs/providers/antigravity.md) —
 	# a refresh token whose name ends in no API_KEY, and the project it
 	# bills — would mark that subscription configured and send /model and

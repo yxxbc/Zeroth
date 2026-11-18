@@ -2,8 +2,8 @@
 
 应用自带的那些 provider 住在仓库的 `providers.toml` 里，被嵌进二进制。其他任何
 讲 OpenAI 兼容 API 的东西 —— 一个托管服务像 Groq、DeepSeek、Mistral 或
-Together，一个公司代理，或者你自己机器上的一个模型服务器像 llama.cpp 或 vLLM
-—— 都在用户自己的一个文件里添加（Ollama 和 LM Studio 是内置的，
+Together，一个公司代理，或者你自己机器上的一个模型服务器像 vLLM
+—— 都在用户自己的一个文件里添加（Ollama、LM Studio 与 llama.cpp 是内置的，
 `docs/providers/local-models.md`）：`~/.zeroth/providers.toml`
 （`{config_home}/providers.toml`，所以 `ZEROTH_CONFIG_DIR` 会让它随其余状态
 一起搬走）。块的形状就是那个自带文件的，而这个文件是**铺在**内置 provider 之上
@@ -127,20 +127,20 @@ api_base = "https://llm-proxy.example.com/openrouter/v1"
 ## 不要 key 的服务器
 
 `auth = "optional_key"`：存下来的 key 作为 bearer 随行，没有也行。这样的
-provider 是一个**本地服务器**，列在 `/login` → **Use a local model** 之下，
-与自带的 Ollama 和 LM Studio 并列，而不是在 API key 之下，而它的页面在保存任何
+provider 是一个**本地服务器**，列在 `/login` → **Sign in with a local model** 之下，
+与内置的本地服务器并列，而不是在 API key 之下，而它的页面在保存任何
 东西之前先测连接（`docs/providers/local-models.md`）。一个 key 可选、且**不**
 点名任何主机变量的 provider 仅由它的块配置 —— 指向它的文件就是配置，所以
 `/model` 不用走一趟 `/login` 就列出它（`Provider::configured_by_definition`），
 而它的页面只是测它：
 
 ```toml
-[providers.llamacpp]
-name = "llama.cpp"
+[providers.vllm]
+name = "vLLM"
 auth = "optional_key"
 
-[providers.llamacpp.kwargs]
-api_base = "http://localhost:8080/v1"
+[providers.vllm.kwargs]
+api_base = "http://localhost:8000/v1"
 ```
 
 | 服务器 | `kwargs.api_base` |
@@ -149,19 +149,21 @@ api_base = "http://localhost:8080/v1"
 | vLLM | `http://localhost:8000/v1` |
 
 要让 `/login` 改为询问地址，就为它点名一个变量 ——
-`api_base_env = "LLAMACPP_HOST"`。页面随后在块自己的服务器之上提供一个地址
-字段，测试所输入的内容（一个裸的 `gpu-box:8080` 会被补全成块里的 `/v1`），
+`api_base_env = "VLLM_HOST"`。页面随后在块自己的服务器之上提供一个地址
+字段，测试所输入的内容（一个裸的 `gpu-box:8000` 会被补全成块里的 `/v1`），
 测试通过后存进那个变量，而一旦变量解析成功，这个 provider 就算已配置：Ollama
 的规则（`docs/providers/ollama.md`）。没有任何自带的 provider 是仅由它的块配置
-的 —— 有一个测试钉住它 —— 因为自带的 `ollama` 和 `lmstudio` 是给运行那些服务器的
+的 —— 有一个测试钉住它 —— 因为自带的本地 provider 是给运行那些服务器的
 用户的，否则每一次 `/model` 打开都会从大多数用户没有的那一个去抓取。一个用户
 自己、但没在跑的服务器，至多让 `/model` 在它的计数器旁边显示
-`· llama.cpp unavailable`。
+`· vLLM unavailable`。
 
 LM Studio 本身不再需要块：它是内置的，带着它的原生列表和它的 `LM_API_TOKEN`
 （`docs/providers/local-models.md`）。一个按本页早先的例子写下的
 `[providers.lmstudio]` 块现在会**给自带的那个打补丁** —— 在 Sign in with a
 local model 之下连它一次，或者删掉那个块。
+旧示例中的 `[providers.llamacpp]` 也一样：现在会给内置的 llama.cpp 打补丁，
+并保留已保存的模型选择所使用的 provider id。
 
 ## 严格服务器拒绝的字段
 

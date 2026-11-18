@@ -485,7 +485,8 @@ hatchling replacing the hooded figure. See `docs/ui/mascot.md`,
   key` title) — or a **local model** server, whose address is **tested before
   it is saved**: the page lists the server's models the way `/model` will, a
   failure stays on the page in red, and a server answering 401 asks for its
-  token (`docs/providers/local-models.md`). On save the key, token or address is written
+  token (`docs/providers/local-models.md`). The built-in llama.cpp entry uses
+  the same local flow and its OpenAI-compatible API. On save the key, token or address is written
   to `~/.zeroth/.env` (`llm::keystore::EnvFile`, a pure `.env`
   reader/writer) so it **persists across runs** — key resolution consults the
   real process env first, then this file. Because `std::env::set_var` is
@@ -1544,7 +1545,8 @@ two places that have to agree (both now applied by every phase for itself, so
 a phase run on its own is as hermetic as one run by the suite):
 
 - **The variables.** The script unsets every `*_API_KEY`, every `ZEROTH_*`
-  knob, `OLLAMA_HOST`, `LMSTUDIO_HOST` and `LM_API_TOKEN`, `NO_COLOR`, `DISPLAY`/`WAYLAND_DISPLAY`/`XAUTHORITY`, and
+  knob, `OLLAMA_HOST`, `LMSTUDIO_HOST`, `LLAMACPP_HOST` and `LM_API_TOKEN`,
+  `NO_COLOR`, `DISPLAY`/`WAYLAND_DISPLAY`/`XAUTHORITY`, and
   herdr's four `HERDR_*` pane variables (run from a herdr pane, every phase
   would report its turns to the developer's real multiplexer —
   `docs/architecture/herdr.md`) before its first launch, then spells out per launch the ones

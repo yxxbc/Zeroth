@@ -16,6 +16,11 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **llama.cpp** is available under `/login` → **Sign in with a local model**.
+  Connect to a running `llama-server`, then choose its model with `/model`.
+
 ## [0.20.0] - 2026-11-17
 
 ### Removed

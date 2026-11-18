@@ -37,6 +37,7 @@ smoke_begin
 #   (j) a prompt longer than the context LM Studio loaded the model with —
 #       reported as a bare string frame inside the stream — ends the turn on
 #       advice to raise it, not on an empty reply.
+#   (k) llama.cpp saves LLAMACPP_HOST and lists its model through /v1/models.
 S141="${S}_local"
 L_LOG="$SMOKE_TMP/local.log"
 l_port() {
@@ -47,6 +48,7 @@ L_TOKEN="$(l_port)"
 L_OLLAMA="$(l_port)"
 L_OLD="$(l_port)"
 L_OVERFLOW="$(l_port)"
+L_LLAMA="$(l_port)"
 # Bound and released: nothing listens here, so a connect is refused at once.
 L_DEAD="$(l_port)"
 
@@ -96,6 +98,9 @@ class Stub(BaseHTTPRequestHandler):
         if mode == "lmstudio-old" and self.path == "/v1/models":
             return self.reply(200, {"object": "list", "data": [
                 {"id": "qwen2.5-7b-instruct", "object": "model", "owned_by": "organization_owner"}]})
+        if mode == "llama.cpp" and self.path == "/v1/models":
+            return self.reply(200, {"object": "list", "data": [
+                {"id": "local-gguf", "object": "model", "owned_by": "llamacpp"}]})
         if mode.startswith("lmstudio") and mode != "lmstudio-old" and self.path == "/api/v1/models":
             return self.reply(200, LMSTUDIO)
         if mode == "ollama" and self.path == "/api/tags":
@@ -136,7 +141,8 @@ l_stub lmstudio-token "$L_TOKEN"
 l_stub ollama "$L_OLLAMA"
 l_stub lmstudio-old "$L_OLD"
 l_stub lmstudio-overflow "$L_OVERFLOW"
-for port in "$L_OPEN" "$L_TOKEN" "$L_OLLAMA" "$L_OLD" "$L_OVERFLOW"; do # wait for each to listen
+l_stub llama.cpp "$L_LLAMA"
+for port in "$L_OPEN" "$L_TOKEN" "$L_OLLAMA" "$L_OLD" "$L_OVERFLOW" "$L_LLAMA"; do # wait for each to listen
 	for _ in $(seq 1 30); do
 		if python3 -c "import socket, sys; s = socket.socket(); s.settimeout(0.2); sys.exit(0 if s.connect_ex(('127.0.0.1', $port)) == 0 else 1)" 2>/dev/null; then
 			break
@@ -188,6 +194,7 @@ dump "the API-key list" "$key_list"
 expect_has "$key_list" -F "Ollama Cloud" "Ollama Cloud, a pasted key, left the API-key list"
 expect_lacks "$key_list" -F "Ollama · " "the local Ollama is still offered a key field"
 expect_lacks "$key_list" -F "LM Studio" "LM Studio is offered a key field"
+expect_lacks "$key_list" -F "llama.cpp" "llama.cpp is offered a key field"
 keys "$S141" Escape
 sleep 0.3
 keys "$S141" Home Down Down
@@ -196,10 +203,13 @@ keys "$S141" Enter
 local_list="$(wait_pane 5 "$S141" -F "enter connect")" || fail "Sign in with a local model did not open the server list"
 dump "the local server list" "$local_list"
 expect_has "$local_list" -F "LM Studio · ◯ unconfigured" "LM Studio is not an unconfigured row"
+expect_has "$local_list" -F "llama.cpp · ◯ unconfigured" "llama.cpp is not an unconfigured row"
 expect_has "$local_list" -F "Ollama · ◯ unconfigured" "the local Ollama is not an unconfigured row"
 expect_lacks "$local_list" -F "Ollama Cloud" "a pasted-key provider is offered as a local server"
 
 # ---- (b) an address nothing answers at is refused, and saved nowhere ----
+keys "$S141" Down
+sleep 0.2
 keys "$S141" Enter
 page="$(wait_pane 5 "$S141" -F "Enter your LM Studio server URL")" || fail "LM Studio's page did not open"
 dump "LM Studio's page" "$page"
@@ -241,7 +251,7 @@ keys "$S141" Escape
 sleep 0.3
 
 # ---- (d) a server that wants a token asks for one, then saves both ----
-page="$(l_server "$S141" "LM Studio" 0)" || fail "LM Studio's page did not reopen"
+page="$(l_server "$S141" "LM Studio" 1)" || fail "LM Studio's page did not reopen"
 dump "LM Studio's page, pointed at" "$page"
 expect_has "$page" -F "❯ $open" "the field does not offer the saved address"
 guarded="127.0.0.1:$L_TOKEN"
@@ -273,7 +283,7 @@ grep -qF "lmstudio-token GET /api/v1/models Bearer sk-lm-smoke" "$L_LOG" ||
 	fail "the token never rode the test's request as a bearer"
 
 # ---- (e) Ollama: the same page, its own variable ----
-page="$(l_server "$S141" "Ollama" 1)" || fail "Ollama's page did not open"
+page="$(l_server "$S141" "Ollama" 2)" || fail "Ollama's page did not open"
 dump "Ollama's page" "$page"
 expect_has "$page" -F "❯ http://127.0.0.1:11434" "the field does not offer Ollama's own address"
 ollama="127.0.0.1:$L_OLLAMA"
@@ -285,7 +295,7 @@ l_saved OLLAMA_HOST "$ollama" || fail "OLLAMA_HOST=$ollama was not saved"
 grep -qF "ollama POST /api/show" "$L_LOG" || fail "the Ollama test did not read the model's show record"
 
 # ---- (f) an LM Studio before 0.4: its native listing is an error on a 200 ----
-page="$(l_server "$S141" "LM Studio" 0)" || fail "LM Studio's page did not reopen"
+page="$(l_server "$S141" "LM Studio" 1)" || fail "LM Studio's page did not reopen"
 old="127.0.0.1:$L_OLD"
 type_text "$S141" "$old"
 sleep 0.2
@@ -301,7 +311,7 @@ dump "an LM Studio before 0.4" "$older"
 expect_lacks "$older" -F "no models to chat with" "the older LM Studio was confirmed as having no models"
 
 # ---- (g) LM Studio's port typed in as Ollama's is not an Ollama ----
-page="$(l_server "$S141" "Ollama" 1)" || fail "Ollama's page did not reopen"
+page="$(l_server "$S141" "Ollama" 2)" || fail "Ollama's page did not reopen"
 type_text "$S141" "$open"
 sleep 0.2
 keys "$S141" Enter
@@ -330,7 +340,7 @@ expect_has "$stopped" -F "Nothing is answering at $dead" "the advice does not na
 expect_lacks "$stopped" -F "Waiting for internet" "a stopped local server was waited out as an outage"
 
 # ---- (i) an exported variable overrides the save, and the toast says so ----
-page="$(l_server "$S141F" "LM Studio" 0)" || fail "LM Studio's page did not open over the exported host"
+page="$(l_server "$S141F" "LM Studio" 1)" || fail "LM Studio's page did not open over the exported host"
 dump "LM Studio's page, the host exported" "$page"
 expect_has "$page" -F "❯ $dead" "the field does not offer the exported address in force"
 type_text "$S141F" "$open"
@@ -356,4 +366,21 @@ dump "a prompt longer than LM Studio's loaded context" "$overflow"
 expect_has "$overflow" -F "context-length 32768" "the advice does not say how to load the model larger"
 grep -qF "lmstudio-overflow POST /v1/chat/completions" "$L_LOG" || fail "the turn never reached the stub"
 tmux kill-session -t "$S141J" 2>/dev/null
-note "Sign in with a local model tests each address, reads an older LM Studio, refuses a server that is not the one named, reports a stopped server, names an exported override, and explains a prompt too long for the loaded context"
+
+# ---- (k) llama.cpp uses the same local login flow and OpenAI-compatible listing ----
+S141K="${S}_local_llama"
+launch "$S141K" 100 32 "env LMSTUDIO_HOST=127.0.0.1:$L_OPEN $L_APP"
+page="$(l_server "$S141K" "llama.cpp" 0)" || fail "llama.cpp's page did not open"
+expect_has "$page" -F "❯ http://127.0.0.1:8080" "the field does not offer llama.cpp's own address"
+llama="127.0.0.1:$L_LLAMA"
+type_text "$S141K" "$llama"
+sleep 0.2
+keys "$S141K" Enter
+wait_for 15 "$S141K" -F "Connected to llama.cpp — 1 model" || fail "the llama.cpp stub did not pass"
+l_saved LLAMACPP_HOST "$llama" || fail "LLAMACPP_HOST=$llama was not saved to .env"
+grep -qF "llama.cpp GET /v1/models" "$L_LOG" || fail "the test did not read llama.cpp's listing"
+submit "$S141K" "/model"
+picker="$(wait_pane 10 "$S141K" -F "local-gguf")" || fail "/model did not list llama.cpp's model"
+expect_has "$picker" -E "local-gguf +\[llamacpp\]" "the model is not tagged with llama.cpp"
+tmux kill-session -t "$S141K" 2>/dev/null
+note "Sign in with a local model tests and saves LM Studio, Ollama and llama.cpp addresses, and explains refusals, overrides and context overflow"

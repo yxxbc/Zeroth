@@ -2,7 +2,7 @@
 #
 # These are the providers the app ships with; this file is embedded in the
 # binary. To add one of your own — any OpenAI-compatible API, or a local
-# server such as llama.cpp or vLLM — don't copy this file: write the
+# server such as vLLM — don't copy this file: write the
 # block in ~/.zeroth/providers.toml, which is laid over these
 # (docs/providers/user-providers.md). A block there with a new id adds a provider, and
 # one naming a provider here changes only the keys it sets.
@@ -186,6 +186,19 @@ api_model_base = "../api/v1"
 
 [providers.lmstudio.kwargs]
 api_base = "http://127.0.0.1:1234/v1"
+
+# llama.cpp serves chat and model discovery through its OpenAI-compatible /v1.
+# Keep the id and host variable from the earlier user-provider example.
+[providers.llamacpp]
+name = "llama.cpp"
+description = "Run GGUF chat models on your own machine. Start llama serve or llama-server, then connect to its address."
+api_key_url = "https://github.com/ggml-org/llama.cpp/releases"
+auth = "optional_key"
+api_key_env = "LLAMA_API_KEY"
+api_base_env = "LLAMACPP_HOST"
+
+[providers.llamacpp.kwargs]
+api_base = "http://127.0.0.1:8080/v1"
 
 # Ollama's hosted models (ollama.com), reached directly with an API key from
 # ollama.com/settings/keys — the same wire, an ordinary pasted key. It keeps

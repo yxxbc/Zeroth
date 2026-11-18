@@ -117,7 +117,8 @@ and `SMOKE_BIN` are the environment spellings of the knobs.
 - **`$TMPDIR` pointed into the tree**, so a bare `mktemp -d` — and the app's
   own scratchpad — land inside it;
 - the sanitized environment (`smoke_sanitize_env`: every `*_API_KEY`, every
-  `ZEROTH_*`, `OLLAMA_HOST`, `NO_COLOR`, the display variables unset;
+  `ZEROTH_*`, `OLLAMA_HOST`, `LMSTUDIO_HOST`, `LLAMACPP_HOST`, `LM_API_TOKEN`,
+  `NO_COLOR`, the display variables unset;
   the update check, the spinner tips and the project's `AGENTS.md`
   exported off; the permission mode exported `manual`, since a session starts
   in auto, where the dummy's writes never ask, and the prompt phases are
