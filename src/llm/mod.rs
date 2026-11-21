@@ -36,8 +36,8 @@ pub mod hooks;
 pub mod keystore;
 pub mod local;
 mod loopback;
-pub mod mcp;
 pub mod models;
+mod oauth;
 pub mod ollama;
 pub mod openai;
 pub mod reasoning;
@@ -425,21 +425,6 @@ pub(crate) fn http_client(op_timeout: Duration) -> Result<reqwest::blocking::Cli
     cached_client(op_timeout)
 }
 
-/// [`http_client`] for **MCP servers**: a redirect is followed only while
-/// every hop stays on the origin the request went to (ten hops at most).
-/// What an MCP request carries — the config's own headers, an API key among
-/// them, and the bearer — rides every hop, and reqwest strips only
-/// `Authorization` and cookies when a redirect changes host, so a server
-/// that bounced the request elsewhere would hand the rest away. A stopped
-/// redirect comes back as its own `3xx` response, which the transport
-/// reports.
-///
-/// # Errors
-/// Returns [`LlmError::Http`] if the client can't be built.
-pub(crate) fn mcp_http_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
-    cached_client(op_timeout)
-}
-
 fn cached_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
@@ -456,8 +441,8 @@ fn cached_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
         .pool_idle_timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(10))
         .timeout(op_timeout)
-        // A redirect may only stay on the first request's origin: provider and
-        // MCP requests carry custom headers (`x-api-key`, config headers) that
+        // A redirect may only stay on the first request's origin: provider
+        // requests carry custom headers (`x-api-key`, config headers) that
         // reqwest does not strip across an origin change.
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             let same_origin = attempt

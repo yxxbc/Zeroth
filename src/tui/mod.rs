@@ -100,8 +100,6 @@ pub(crate) mod host;
 pub(crate) mod link_cards;
 pub(crate) mod login;
 pub(crate) mod mascot;
-pub(crate) mod mcp;
-pub(crate) mod mcp_cli;
 pub(crate) mod models;
 pub(crate) mod permission;
 pub(crate) mod recorder;
@@ -337,10 +335,6 @@ pub(crate) struct Session<'t> {
     /// (`docs/agents/agent-tool.md`) — never swapped, because both outlive turns.
     bg_rx: tokio::sync::mpsc::UnboundedReceiver<BgEvent>,
     agent_rx: tokio::sync::mpsc::UnboundedReceiver<AgentEvent>,
-    /// MCP server state changes (`docs/tools/mcp.md`) — never swapped either;
-    /// connections outlive turns like background shells.
-    mcp_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::llm::mcp::McpEvent>,
-
     /// The update check worker's report (`docs/ops/update.md`): the newest
     /// release it found, which the **loop** then records in `update.json`
     /// and announces.
@@ -406,16 +400,10 @@ pub(crate) struct Session<'t> {
     /// redacts with. The same handle the shell registry carries to the
     /// executor, the `!` runner and every backend build.
     secrets: zeroth::secrets::SecretRegistry,
-    /// The MCP servers (`docs/tools/mcp.md`): every declared server's live
-    /// connection state, the tool specs the backend folds in, and the OAuth
-    /// flows. Built at every bootstrap, whatever the `/settings` **MCP** row
-    /// (seeded by `ZEROTH_MCP`) says — it switches the manager on and off
-    /// for the session, so there is always one to switch.
-    mcp: zeroth::llm::mcp::McpManager,
     /// What the startup review decides over (`docs/state/config-review.md`):
     /// `trust.json`, the user's hooks file and the project's `.zeroth`
-    /// layer, read once at bootstrap — every review answer and `/hooks` or
-    /// `/mcp` toggle records through it, and the hooks the session runs are
+    /// layer, read once at bootstrap — every review answer and `/hooks`
+    /// toggle records through it, and the hooks the session runs are
     /// its trusted share.
     trust: trust::TrustState,
     /// A `[PROMPT]` from the command line, held while the startup review
@@ -491,7 +479,7 @@ pub(crate) struct Session<'t> {
     /// (invariant 3).
     overlay_resized: bool,
     /// The signature of the framed-view rows currently **flowed** into
-    /// scrollback — a screen-tall `/mcp`/`/hooks` page's top,
+    /// scrollback — a screen-tall `/hooks` page's top,
     /// committed above the live region so the terminal's own scrolling reads
     /// the whole page (`ui::view_flow`, `docs/ui/view-flow.md`). `None` when
     /// nothing is flowed. The draw tick compares it against the current

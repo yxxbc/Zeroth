@@ -36,6 +36,11 @@ Ctrl+O transcript 里，不在 Ctrl+D 上下文里，不在 rollout 里，不在
 `expose()` 只被展开和文件写入者调用。值能到达的唯一一块屏幕是 composer —— 在用
 户敲它的时候：击键显示到 Enter，Enter 把它们换掉。
 
+`read` tool 还会拒绝读取配置目录下的 Zeroth 凭据文件（`.env`、`secrets.json`
+和遗留的 `mcp-auth.json`），以及 `ZEROTH_ENV_FILE` 指定的文件，包括符号链接别名。
+本地 MCP 移除后，遗留文件仍受保护；这些存储不能进入模型上下文，包括其中没有在
+密钥脱敏器中登记的凭据。
+
 ## 占位符
 
 `<secret:NAME>`，`NAME` 是 `[A-Z_][A-Z0-9_]*` —— 环境变量的形状，最长 64 个字
@@ -66,8 +71,7 @@ Not run: <secret:DEPLOY_TOKN> is not a stored secret. Stored:
 ## 展开：只在 tool 行动的地方
 
 `secrets::expands_placeholders` 逐 tool 决定。会**行动**的 tool —— `bash`、
-`bashsend`（以及遗留的 `bash_session`）、`read`、`write`、`edit`，以及每一个
-`mcp__server__tool` —— 参数会被展开
+`bashsend`（以及遗留的 `bash_session`）、`read`、`write` 和 `edit` —— 参数会被展开
 （`secrets::expand_arguments`：走过每一个 JSON **字符串**，键不动，文档重新序
 列化，所以一个含 `"` 或 `\` 的值会被正确转义）。那些参数要展示给人看、或者要
 交给另一个模型的 tool 永远不展开：`agent`（subagent 拿到占位符和它自己的清
@@ -122,8 +126,7 @@ execute 闭包都会调它 —— 主回合的和 subagent 的 —— 并且在 
 一个在每个字节处切分流进行验证的测试钉住。被扣住的尾巴随 live 行一起显示，如果
 它是一段足够长的值就掩码。
 
-**截断。** 三个 tool 在末尾切掉输出 —— `read`、MCP，以及 `!` shell 的上限 ——
-并把它们标记为 `truncated`。一刀切在一个值中间会留下它的前半段，所以被截断的输
+**截断。** `read` 与 `!` shell 的上限在末尾切掉输出，并标记为 `truncated`。一刀切在一个值中间会留下它的前半段，所以被截断的输
 出用 `redact_cut_tail` 脱敏：一个以某个值开头、长度四个字符以上的尾部片段，被掩
 码成那个值的占位符。`HeadTail`，bash 工具们从中间切的做法，保留整行，什么都不
 需要。

@@ -9,7 +9,7 @@
 //! command.
 //!
 //! This module owns the parse (`argv` → [`Cli`], with usage errors as
-//! `Err(message)`), the two `--help` pages ([`help`], rendered plain or in
+//! `Err(message)`), the `--help` page ([`help`], rendered plain or in
 //! the app's colour by [`HelpStyle`]), the usage-error trailer
 //! ([`usage_error`]), the colour rule ([`colour_enabled`]) and the exit
 //! hint's exact shape. Everything impure — reading `std::env::args`,
@@ -19,26 +19,16 @@
 //! detached-exec hook (invariant 1: a helper re-exec never parses TUI
 //! flags).
 //!
-//! A first argument of `mcp` routes to the subcommand family instead
-//! (`docs/cli/mcp-cli.md`): `mcp add`/`add-json`/`remove`/`get`/`list` manage
-//! the **user** MCP config file (`docs/tools/mcp.md`) from a script, answered at
-//! the same pre-TUI boundary as the session flags. The grammar and its
-//! mapping onto [`McpServerConfig`] live here; the file I/O is the
-//! boundary's (`tui::mcp_cli`).
-
-use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use unicode_width::UnicodeWidthStr;
 
 use crate::headless::OutputFormat;
-use crate::mcp::{self, McpServerConfig};
 use crate::permission::PermissionMode;
 
 /// One parsed invocation: a TUI run ([`Cli::Session`] — the flagless
-/// default included), one of the two print-and-exit flags, or the `mcp`
-/// subcommand family.
+/// default included), one of the two print-and-exit flags, or the update subcommand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cli {
     /// Run the TUI: how the session starts, plus the optional `[PROMPT]`
@@ -48,9 +38,6 @@ pub enum Cli {
     Help,
     /// `--version` / `-V`: print the version line and exit.
     Version,
-    /// `mcp …` as the first argument: manage the user MCP config file
-    /// (`docs/cli/mcp-cli.md`).
-    Mcp(McpCli),
     /// `update` as the first argument: install the newest release over this
     /// binary when one is out (`docs/ops/update.md`). Takes nothing.
     Update,
@@ -122,33 +109,6 @@ pub enum SessionStart {
     Resume(Option<String>),
 }
 
-/// One parsed `mcp` subcommand (`docs/cli/mcp-cli.md`). `add` and `add-json`
-/// both resolve to [`McpCli::Add`] here — the JSON path routes through the
-/// config module's own entry parser, so there is no second schema to drift.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum McpCli {
-    /// `mcp add <name> --url …` / `mcp add <name> [--] <command> …` /
-    /// `mcp add-json <name> <json>`: the validated name and the entry to
-    /// record.
-    Add {
-        name: String,
-        config: McpServerConfig,
-        /// `--client-secret`: read the entry's OAuth client secret (from
-        /// `MCP_CLIENT_SECRET`, a prompt, or stdin) and keep it with the
-        /// tokens — never in the file.
-        client_secret: bool,
-    },
-    /// `mcp remove <name>`.
-    Remove { name: String },
-    /// `mcp get <name>`.
-    Get { name: String },
-    /// `mcp list`.
-    List,
-    /// `-h`/`--help` anywhere in the `mcp` arguments (outside a `--`
-    /// command): print the [`HelpPage::Mcp`] page and exit 0.
-    Help,
-}
-
 // ===== the --help pages (docs/cli/cli.md) =====
 
 /// The `--help` page's description: what running the command *does*, in
@@ -163,23 +123,19 @@ pub enum McpCli {
 pub const DESCRIPTION: &str = "\
 Starts an interactive session by default; with -p, answers once and exits.";
 
-/// Which `--help` page: the binary's own, or the `mcp` subcommand's
-/// (`docs/cli/mcp-cli.md`). Both render through the one [`help`] renderer, so
-/// they share a look.
+/// The binary's `--help` page, rendered through [`help`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HelpPage {
     /// `zeroth --help`.
     Main,
-    /// `zeroth mcp --help`.
-    Mcp,
 }
 
 /// How a page is dressed. `Plain` emits no escape sequence at all — what a
 /// pipe, a log file and the tests receive; `Ansi` colours the title and the
 /// section headings **bold cyan** (the app's accent hue in the terminal's
 /// own palette — the banner's cyan, the pickers' selection colour), bolds
-/// the literals (`zeroth`, `mcp`, the flags) and leaves the
-/// placeholders (`[PROMPT]`, `<COMMAND>`, `[ID]`) bare, the way clap and
+/// the literals (`zeroth`, `update`, the flags) and leaves the
+/// placeholders (`[PROMPT]`, `[ID]`) bare, the way clap and
 /// cargo dress theirs. The two renderings differ by escapes alone; the
 /// boundary picks one per stream with [`colour_enabled`] and `IsTerminal`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,9 +181,8 @@ const USAGE_CONTINUATION: &str = "       ";
 
 /// One help page's content — rendered by [`help`], never printed as-is.
 struct HelpDoc {
-    /// The first line, in the heading style: the product's name on the
-    /// main page (`Zeroth`, [`crate::APP_NAME`]), the command on the
-    /// subcommand's (`zeroth mcp`).
+    /// The first line, in the heading style: the product's name
+    /// (`Zeroth`, [`crate::APP_NAME`]).
     title: &'static str,
     /// The paragraph under it, plain and pre-wrapped.
     description: &'static str,
@@ -247,7 +202,7 @@ struct Section {
 /// One `  {literal}{placeholder}   {description}` row. The description's
 /// further lines continue at the description column.
 struct Row {
-    /// The bold part (`-r, --resume`, `mcp`) — empty for a bare positional.
+    /// The bold part (`-r, --resume`, `update`) — empty for a bare positional.
     literal: &'static str,
     /// The bare part beside it (` [ID]`, `[PROMPT]`), leading space included.
     placeholder: &'static str,
@@ -260,26 +215,17 @@ const MAIN_DOC: HelpDoc = HelpDoc {
     usage: &[
         ("zeroth", " [OPTIONS] [PROMPT]"),
         ("zeroth -p", " [OPTIONS] [PROMPT]"),
-        ("zeroth mcp", " <COMMAND>"),
         ("zeroth update", ""),
     ],
     sections: &[
         Section {
             heading: "Commands:",
-            rows: &[
-                Row {
-                    literal: "mcp",
-                    placeholder: "",
-                    description: "Manage MCP servers in the user config file —\n\
-                                  see zeroth mcp --help",
-                },
-                Row {
-                    literal: "update",
-                    placeholder: "",
-                    description: "Install the newest release over this binary,\n\
+            rows: &[Row {
+                literal: "update",
+                placeholder: "",
+                description: "Install the newest release over this binary,\n\
                                   if one is out (the checksum-verified installer)",
-                },
-            ],
+            }],
         },
         Section {
             heading: "Arguments:",
@@ -383,76 +329,10 @@ const MAIN_DOC: HelpDoc = HelpDoc {
     ],
 };
 
-const MCP_DOC: HelpDoc = HelpDoc {
-    title: "zeroth mcp",
-    description: "\
-Manage MCP servers in the user config file (ZEROTH_MCP_FILE, else
-~/.zeroth/mcp.json) from a script — inside the app, /mcp manages them live.",
-    usage: &[
-        (
-            "zeroth mcp add",
-            " <name> --url <URL> [--transport http|sse] [-H \"Name: Value\"]...",
-        ),
-        (
-            "zeroth mcp add",
-            " <name> [-e KEY=VALUE]... [--] <command> [args...]",
-        ),
-        ("zeroth mcp add-json", " <name> <json>"),
-        ("zeroth mcp remove", " <name>"),
-        ("zeroth mcp get", " <name>"),
-        ("zeroth mcp list", ""),
-    ],
-    sections: &[Section {
-        heading: "Options:",
-        rows: &[
-            Row {
-                literal: "-t, --transport",
-                placeholder: " <T>",
-                description: "Pin the transport — http or sse with --url, stdio with\n\
-                              a command; a bare --url tries streamable HTTP first and\n\
-                              falls back to legacy SSE",
-            },
-            Row {
-                literal: "-e, --env",
-                placeholder: " KEY=VALUE",
-                description: "Environment variable for a stdio server (repeatable)",
-            },
-            Row {
-                literal: "-H, --header",
-                placeholder: " <H>",
-                description: "\"Name: Value\" header for a remote server (repeatable)",
-            },
-            Row {
-                literal: "--client-id",
-                placeholder: " <ID>",
-                description: "Pre-registered OAuth client, for a server whose\n\
-                              login provider registers none",
-            },
-            Row {
-                literal: "--client-secret",
-                placeholder: "",
-                description: "Ask for its secret (or read MCP_CLIENT_SECRET) and\n\
-                              keep it with the tokens, never in the file",
-            },
-            Row {
-                literal: "--callback-port",
-                placeholder: " <N>",
-                description: "The port the client's redirect URI names",
-            },
-            Row {
-                literal: "-h, --help",
-                placeholder: "",
-                description: "Print help",
-            },
-        ],
-    }],
-};
-
 impl HelpPage {
     const fn doc(self) -> &'static HelpDoc {
         match self {
             Self::Main => &MAIN_DOC,
-            Self::Mcp => &MCP_DOC,
         }
     }
 }
@@ -473,7 +353,7 @@ pub fn help(page: HelpPage, style: HelpStyle) -> String {
     out.push_str("\n\n");
     out.push_str(&usage_block(doc, style));
     // One description column for the whole page — the widest cell of ANY
-    // section — so `mcp`, `[PROMPT]` and the options read as one table.
+    // section — so `update`, `[PROMPT]` and the options read as one table.
     let column = HELP_INDENT
         + HELP_GAP
         + doc
@@ -578,15 +458,8 @@ where
     let mut cwd: Option<PathBuf> = None;
     let mut fullscreen: Option<()> = None;
     let mut args = args.into_iter().peekable();
-    // `mcp` routes as the FIRST argument only (docs/cli/mcp-cli.md) — anywhere
-    // else it is a prompt like any other word, so the session grammar is
-    // untouched.
-    if args.peek().is_some_and(|first| first == "mcp") {
-        args.next();
-        return parse_mcp(args).map(Cli::Mcp);
-    }
-    // `update` routes the same way (docs/ops/update.md), and takes nothing: a
-    // flag or a word after it is a mistake to report, not a prompt to run.
+    // `update` routes as the first argument only (docs/ops/update.md) and
+    // takes nothing: a flag or word after it is a mistake, not a prompt.
     if args.peek().is_some_and(|first| first == "update") {
         args.next();
         return match args.next() {
@@ -837,207 +710,7 @@ fn take_prompt(slot: &mut Option<String>, arg: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Parse the arguments after a leading `mcp` (`docs/cli/mcp-cli.md`). Usage
-/// errors come back as `Err(message)` exactly like [`parse`]'s; the boundary
-/// prints [`usage_error`]'s trailer for the [`HelpPage::Mcp`] page to stderr
-/// and exits 2.
-fn parse_mcp<I>(mut args: std::iter::Peekable<I>) -> Result<McpCli, String>
-where
-    I: Iterator<Item = String>,
-{
-    let Some(sub) = args.next() else {
-        return Err("mcp needs a subcommand: add, add-json, remove, get, list".to_string());
-    };
-    match sub.as_str() {
-        "--help" | "-h" => Ok(McpCli::Help),
-        "add" => parse_mcp_add(args),
-        "add-json" => {
-            let mut client_secret = false;
-            let args = args.filter(|arg| {
-                let switch = arg == "--client-secret";
-                client_secret |= switch;
-                !switch
-            });
-            let Some(mut positionals) = plain_arguments(args)? else {
-                return Ok(McpCli::Help);
-            };
-            if let Some(extra) = positionals.get(2) {
-                return Err(format!("unrecognized argument: {extra}"));
-            }
-            let (Some(name), Some(json)) = (
-                (!positionals.is_empty()).then(|| positionals.remove(0)),
-                (!positionals.is_empty()).then(|| positionals.remove(0)),
-            ) else {
-                return Err("mcp add-json needs a server name and its JSON entry".to_string());
-            };
-            mcp::validate_server_name(&name)?;
-            let config =
-                mcp::parse_server_entry(&json).map_err(|e| format!("invalid server JSON: {e}"))?;
-            if client_secret
-                && config
-                    .oauth()
-                    .and_then(|oauth| oauth.client_id.as_ref())
-                    .is_none()
-            {
-                return Err(
-                    "--client-secret needs the entry's oauth.clientId to keep a secret for"
-                        .to_string(),
-                );
-            }
-            Ok(McpCli::Add {
-                name,
-                config,
-                client_secret,
-            })
-        }
-        "remove" | "get" => {
-            let Some(positionals) = plain_arguments(args)? else {
-                return Ok(McpCli::Help);
-            };
-            if let Some(extra) = positionals.get(1) {
-                return Err(format!("unrecognized argument: {extra}"));
-            }
-            let Some(name) = positionals.into_iter().next() else {
-                return Err(format!("mcp {sub} needs a server name"));
-            };
-            Ok(if sub == "remove" {
-                McpCli::Remove { name }
-            } else {
-                McpCli::Get { name }
-            })
-        }
-        "list" => {
-            let Some(positionals) = plain_arguments(args)? else {
-                return Ok(McpCli::Help);
-            };
-            if let Some(extra) = positionals.first() {
-                return Err(format!("unrecognized argument: {extra}"));
-            }
-            Ok(McpCli::List)
-        }
-        other => Err(format!(
-            "unrecognized mcp command: {other} (use add, add-json, remove, get or list)"
-        )),
-    }
-}
-
-/// `mcp add`'s own grammar (`docs/cli/mcp-cli.md`): flags parse until the first
-/// non-flag argument after the name — or a `--` — and from there everything
-/// belongs to the command **verbatim** (codex's trailing capture), so a
-/// child's own `-y`/`--port` flags survive with no separator needed.
-fn parse_mcp_add<I>(mut args: std::iter::Peekable<I>) -> Result<McpCli, String>
-where
-    I: Iterator<Item = String>,
-{
-    let mut name: Option<String> = None;
-    let mut url: Option<String> = None;
-    let mut transport: Option<String> = None;
-    let mut env: BTreeMap<String, String> = BTreeMap::new();
-    let mut headers: BTreeMap<String, String> = BTreeMap::new();
-    let mut command: Vec<String> = Vec::new();
-    let mut client_id: Option<String> = None;
-    let mut callback_port: Option<u16> = None;
-    let mut client_secret = false;
-    while let Some(arg) = args.next() {
-        if arg == "--" {
-            command.extend(args.by_ref());
-            break;
-        }
-        if arg.starts_with('-') && arg.len() > 1 {
-            let (flag, value) = match arg.split_once('=') {
-                Some((flag, value)) => (flag.to_string(), Some(value.to_string())),
-                None => (arg.clone(), None),
-            };
-            match flag.as_str() {
-                "--help" | "-h" => return Ok(McpCli::Help),
-                "--url" => url = Some(flag_value(&flag, value, &mut args)?),
-                "--transport" | "-t" => {
-                    let kind = flag_value(&flag, value, &mut args)?;
-                    if !matches!(kind.as_str(), "stdio" | "http" | "sse") {
-                        return Err(format!(
-                            "invalid transport \"{kind}\" (use stdio, http or sse)"
-                        ));
-                    }
-                    transport = Some(kind);
-                }
-                "--env" | "-e" => {
-                    let (key, val) = parse_env_pair(&flag_value(&flag, value, &mut args)?)?;
-                    env.insert(key, val);
-                }
-                "--header" | "-H" => {
-                    let (key, val) = parse_header_pair(&flag_value(&flag, value, &mut args)?)?;
-                    headers.insert(key, val);
-                }
-                "--client-id" => client_id = Some(flag_value(&flag, value, &mut args)?),
-                "--callback-port" => {
-                    let port = flag_value(&flag, value, &mut args)?;
-                    callback_port = Some(
-                        port.parse::<u16>()
-                            .ok()
-                            .filter(|port| *port != 0)
-                            .ok_or_else(|| {
-                                format!("--callback-port needs a port number, not \"{port}\"")
-                            })?,
-                    );
-                }
-                "--client-secret" => {
-                    if value.is_some() {
-                        return Err("--client-secret takes no value: a secret on the command \
-                                    line is never safe — it is read from MCP_CLIENT_SECRET, \
-                                    or asked for"
-                            .to_string());
-                    }
-                    client_secret = true;
-                }
-                _ => return Err(format!("unrecognized mcp add flag: {arg}")),
-            }
-            continue;
-        }
-        // A positional: the name first; the next one starts the raw command.
-        if name.is_none() {
-            name = Some(arg);
-        } else {
-            command.push(arg);
-            command.extend(args.by_ref());
-            break;
-        }
-    }
-    let Some(name) = name else {
-        return Err("mcp add needs a server name".to_string());
-    };
-    mcp::validate_server_name(&name)?;
-    let mut config = build_add_config(url, transport.as_deref(), env, headers, command)?;
-    if client_secret && client_id.is_none() {
-        return Err("--client-secret needs --client-id, the client it belongs to".to_string());
-    }
-    if client_id.is_some() || callback_port.is_some() {
-        let oauth = Some(mcp::OAuthClientConfig {
-            client_id,
-            client_secret: None,
-            callback_port,
-            scopes: None,
-        });
-        match &mut config {
-            McpServerConfig::Http { oauth: slot, .. }
-            | McpServerConfig::Sse { oauth: slot, .. } => {
-                *slot = oauth;
-            }
-            McpServerConfig::Stdio { .. } => {
-                return Err(
-                    "--client-id and --callback-port are for a remote (http/sse) server"
-                        .to_string(),
-                );
-            }
-        }
-    }
-    Ok(McpCli::Add {
-        name,
-        config,
-        client_secret,
-    })
-}
-
-/// A value-taking `mcp add` flag's value: the `=`-attached one, else the
+/// A value-taking flag's value: the `=`-attached one, else the
 /// next argument — unless that argument leads with `-`. Empty is missing
 /// (`--url=` must not go hunting for the next token).
 fn flag_value<I>(
@@ -1058,109 +731,6 @@ where
         return Err(format!("{flag} needs a value"));
     }
     Ok(value)
-}
-
-/// `-e KEY=VALUE`: split on the **first** `=` (`A=b=c` keeps `b=c`), the
-/// key non-empty, the value free to be empty. One value per flag — the
-/// variadic form is the trap that broke Claude Code's own help example.
-fn parse_env_pair(raw: &str) -> Result<(String, String), String> {
-    match raw.split_once('=') {
-        Some((key, value)) if !key.is_empty() => Ok((key.to_string(), value.to_string())),
-        _ => Err(format!("invalid --env value \"{raw}\": expected KEY=VALUE")),
-    }
-}
-
-/// `-H "Name: Value"`: split on the **first** `:` (a bearer token keeps its
-/// own colons), both sides trimmed, the name non-empty.
-fn parse_header_pair(raw: &str) -> Result<(String, String), String> {
-    let err = || format!("invalid --header value \"{raw}\": expected \"Name: Value\"");
-    let (name, value) = raw.split_once(':').ok_or_else(err)?;
-    let (name, value) = (name.trim(), value.trim());
-    if name.is_empty() {
-        return Err(err());
-    }
-    Ok((name.to_string(), value.to_string()))
-}
-
-/// Map the collected `mcp add` pieces onto the config entry — the transport
-/// comes from the **form** (`--url` vs a command), `--transport` only
-/// refines it, and a bare `--url` arms the http→sse fallback (the type-less
-/// `{"url": …}` entry, `docs/tools/mcp.md`).
-fn build_add_config(
-    url: Option<String>,
-    transport: Option<&str>,
-    env: BTreeMap<String, String>,
-    headers: BTreeMap<String, String>,
-    command: Vec<String>,
-) -> Result<McpServerConfig, String> {
-    match (url, command.is_empty()) {
-        (Some(_), false) => Err("pass a --url or a command, not both".to_string()),
-        (None, true) => Err("mcp add needs a --url or a command".to_string()),
-        (Some(url), true) => {
-            if !env.is_empty() {
-                return Err("--env only applies to stdio servers".to_string());
-            }
-            match transport {
-                None => Ok(McpServerConfig::Http {
-                    url,
-                    headers,
-                    sse_fallback: true,
-                    oauth: None,
-                }),
-                Some("http") => Ok(McpServerConfig::Http {
-                    url,
-                    headers,
-                    sse_fallback: false,
-                    oauth: None,
-                }),
-                Some("sse") => Ok(McpServerConfig::Sse {
-                    url,
-                    headers,
-                    oauth: None,
-                }),
-                Some(other) => Err(format!("--transport {other} takes a command, not --url")),
-            }
-        }
-        (None, false) => {
-            if !headers.is_empty() {
-                return Err("--header only applies to remote (http/sse) servers".to_string());
-            }
-            match transport {
-                None | Some("stdio") => {
-                    let mut parts = command.into_iter();
-                    let command = parts.next().expect("non-empty checked above");
-                    if command.trim().is_empty() {
-                        return Err("the command cannot be empty".to_string());
-                    }
-                    Ok(McpServerConfig::Stdio {
-                        command,
-                        args: parts.collect(),
-                        env,
-                    })
-                }
-                Some(other) => Err(format!("--transport {other} takes --url, not a command")),
-            }
-        }
-    }
-}
-
-/// Collect a plain subcommand's positional arguments (`remove`/`get`/
-/// `list`/`add-json` take no flags). `Ok(None)` means help was asked.
-fn plain_arguments<I>(args: I) -> Result<Option<Vec<String>>, String>
-where
-    I: Iterator<Item = String>,
-{
-    let mut positionals = Vec::new();
-    for arg in args {
-        match arg.as_str() {
-            "--help" | "-h" => return Ok(None),
-            _ if arg.starts_with('-') && arg.len() > 1 => {
-                return Err(format!("unrecognized argument: {arg}"));
-            }
-            _ => positionals.push(arg),
-        }
-    }
-    Ok(Some(positionals))
 }
 
 /// The exit hint printed below the restored terminal after a quit that
@@ -1312,6 +882,27 @@ mod tests {
             parsed(&["/init please"]),
             session(SessionStart::Fresh, Some("/init please"))
         );
+    }
+
+    #[test]
+    fn mcp_is_an_ordinary_positional_prompt_not_a_subcommand() {
+        for args in [&["mcp"][..], &["--", "mcp"]] {
+            assert_eq!(parsed(args), session(SessionStart::Fresh, Some("mcp")));
+        }
+        assert_eq!(
+            parsed(&["--continue", "mcp"]),
+            session(SessionStart::Continue, Some("mcp"))
+        );
+        assert_eq!(parsed(&["mcp", "--help"]), Ok(Cli::Help));
+        for command in ["add", "add-json", "remove", "get", "list"] {
+            assert_eq!(
+                parsed(&["mcp", command]),
+                Err(format!(
+                    "unexpected argument: {command} (quote the prompt so the shell passes it as one argument)"
+                ))
+            );
+        }
+        assert!(!help(HelpPage::Main, HelpStyle::Plain).contains("mcp"));
     }
 
     #[test]
@@ -1786,12 +1377,9 @@ Starts an interactive session by default; with -p, answers once and exits.
 
 Usage: zeroth [OPTIONS] [PROMPT]
        zeroth -p [OPTIONS] [PROMPT]
-       zeroth mcp <COMMAND>
        zeroth update
 
 Commands:
-  mcp                            Manage MCP servers in the user config file —
-                                 see zeroth mcp --help
   update                         Install the newest release over this binary,
                                  if one is out (the checksum-verified installer)
 
@@ -1862,12 +1450,10 @@ Print mode:
 
     #[test]
     fn ansi_help_strips_back_to_the_plain_page() {
-        for page in [HelpPage::Main, HelpPage::Mcp] {
-            let styled = help(page, HelpStyle::Ansi);
-            let plain = help(page, HelpStyle::Plain);
-            assert_ne!(styled, plain, "{page:?} is dressed");
-            assert_eq!(strip_ansi(&styled), plain, "{page:?}");
-        }
+        let styled = help(HelpPage::Main, HelpStyle::Ansi);
+        let plain = help(HelpPage::Main, HelpStyle::Plain);
+        assert_ne!(styled, plain, "the main page is dressed");
+        assert_eq!(strip_ansi(&styled), plain);
     }
 
     #[test]
@@ -1888,10 +1474,7 @@ Print mode:
             styled.contains("\x1b[1mzeroth\x1b[0m [OPTIONS] [PROMPT]"),
             "{styled}"
         );
-        assert!(
-            styled.contains("\x1b[1mzeroth mcp\x1b[0m <COMMAND>"),
-            "{styled}"
-        );
+        assert!(styled.contains("\x1b[1mzeroth update\x1b[0m"), "{styled}");
         assert!(
             styled.contains("\x1b[1m-r, --resume\x1b[0m [ID]              Resume"),
             "{styled}"
@@ -1917,37 +1500,6 @@ Print mode:
     }
 
     #[test]
-    fn the_mcp_page_is_titled_by_its_command_over_the_six_usage_lines() {
-        let page = help(HelpPage::Mcp, HelpStyle::Plain);
-        assert_eq!(page.lines().next(), Some("zeroth mcp"));
-        assert!(
-            page.contains("\nUsage: zeroth mcp add <name> --url <URL> [--transport http|sse]"),
-            "{page}"
-        );
-        assert_eq!(page.matches("\n       zeroth mcp ").count(), 5, "{page}");
-        assert!(page.contains("\n       zeroth mcp list\n"), "{page}");
-        // The options column is the widest cell plus the gap.
-        assert!(
-            page.contains("\nOptions:\n  -t, --transport <T>   Pin the transport"),
-            "{page}"
-        );
-        assert!(
-            page.contains("\n  -e, --env KEY=VALUE   Environment"),
-            "{page}"
-        );
-        assert!(page.contains("ZEROTH_MCP_FILE"), "{page}");
-        let styled = help(HelpPage::Mcp, HelpStyle::Ansi);
-        assert!(
-            styled.starts_with("\x1b[1;36mzeroth mcp\x1b[0m\n"),
-            "{styled}"
-        );
-        assert!(
-            styled.contains("\x1b[1mzeroth mcp add-json\x1b[0m <name>"),
-            "{styled}"
-        );
-    }
-
-    #[test]
     fn a_usage_error_is_the_error_line_the_usage_block_and_the_help_pointer() {
         let text = usage_error(
             HelpPage::Main,
@@ -1958,7 +1510,7 @@ Print mode:
             text,
             "error: unrecognized argument: --frob\n\n\
              Usage: zeroth [OPTIONS] [PROMPT]\n       zeroth -p [OPTIONS] [PROMPT]\n       \
-             zeroth mcp <COMMAND>\n       zeroth update\n\n\
+             zeroth update\n\n\
              For more information, try '--help'."
         );
         let styled = usage_error(HelpPage::Main, "x", HelpStyle::Ansi);
@@ -1969,19 +1521,6 @@ Print mode:
         assert_eq!(
             strip_ansi(&styled),
             usage_error(HelpPage::Main, "x", HelpStyle::Plain)
-        );
-        let mcp = usage_error(
-            HelpPage::Mcp,
-            "mcp add needs a server name",
-            HelpStyle::Plain,
-        );
-        assert!(
-            mcp.starts_with("error: mcp add needs a server name\n\nUsage: zeroth mcp add "),
-            "{mcp}"
-        );
-        assert!(
-            mcp.ends_with("       zeroth mcp list\n\nFor more information, try '--help'."),
-            "{mcp}"
         );
     }
 
@@ -2009,403 +1548,5 @@ Print mode:
             parsed(&["-c", "update"]),
             Ok(Cli::Session(SessionArgs { prompt: Some(p), .. })) if p == "update"
         ));
-    }
-
-    // ===== the mcp subcommand (docs/cli/mcp-cli.md) =====
-
-    use crate::mcp::McpServerConfig;
-    use std::collections::BTreeMap;
-
-    /// `parse` expecting the `mcp` route.
-    fn parsed_mcp(args: &[&str]) -> Result<McpCli, String> {
-        match parsed(args) {
-            Ok(Cli::Mcp(cmd)) => Ok(cmd),
-            Ok(other) => panic!("expected an mcp command, got {other:?}"),
-            Err(err) => Err(err),
-        }
-    }
-
-    /// `mcp add` takes a pre-registered OAuth client the way other MCP
-    /// clients' CLIs do — `--client-id`, `--callback-port`, and
-    /// `--client-secret` as a switch, since a secret on the command line
-    /// lands in the shell history and the process list (`docs/cli/mcp-cli.md`).
-    #[test]
-    fn mcp_add_takes_a_preregistered_oauth_client() {
-        let Ok(McpCli::Add {
-            name,
-            config,
-            client_secret,
-        }) = parsed_mcp(&[
-            "mcp",
-            "add",
-            "calendar",
-            "--url",
-            "https://calendarmcp.googleapis.com/mcp/v1",
-            "--client-id",
-            "123.apps.googleusercontent.com",
-            "--callback-port",
-            "8976",
-            "--client-secret",
-        ])
-        else {
-            panic!("an add");
-        };
-        assert_eq!(name, "calendar");
-        assert!(client_secret);
-        let oauth = config.oauth().expect("the client");
-        assert_eq!(
-            oauth.client_id.as_deref(),
-            Some("123.apps.googleusercontent.com")
-        );
-        assert_eq!(oauth.callback_port, Some(8976));
-        assert_eq!(oauth.client_secret, None, "never written to the file");
-        for (args, needle) in [
-            (
-                &[
-                    "mcp",
-                    "add",
-                    "x",
-                    "--url",
-                    "https://x/mcp",
-                    "--client-secret=s",
-                ][..],
-                "never",
-            ),
-            (
-                &[
-                    "mcp",
-                    "add",
-                    "x",
-                    "--url",
-                    "https://x/mcp",
-                    "--callback-port",
-                    "0",
-                ],
-                "--callback-port",
-            ),
-            (
-                &[
-                    "mcp",
-                    "add",
-                    "x",
-                    "--url",
-                    "https://x/mcp",
-                    "--client-secret",
-                ],
-                "--client-id",
-            ),
-            (
-                &["mcp", "add", "x", "--client-id", "c", "--", "srv"],
-                "remote",
-            ),
-        ] {
-            let error = parsed_mcp(args).expect_err("refused");
-            assert!(error.contains(needle), "{args:?}: {error}");
-        }
-        // `add-json` names its client in the entry, and takes the switch.
-        let Ok(McpCli::Add { client_secret, .. }) = parsed_mcp(&[
-            "mcp",
-            "add-json",
-            "cal",
-            r#"{"url":"https://x/mcp","oauth":{"clientId":"c"}}"#,
-            "--client-secret",
-        ]) else {
-            panic!("an add");
-        };
-        assert!(client_secret);
-        let error = parsed_mcp(&[
-            "mcp",
-            "add-json",
-            "cal",
-            r#"{"url":"https://x/mcp"}"#,
-            "--client-secret",
-        ])
-        .expect_err("no client to keep a secret for");
-        assert!(error.contains("clientId"), "{error}");
-    }
-
-    fn pairs(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
-        entries
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect()
-    }
-
-    #[test]
-    fn mcp_add_with_a_bare_url_is_http_with_the_sse_fallback() {
-        // The default remote add writes the type-less `{"url": …}` shape —
-        // try streamable HTTP, retry as legacy SSE (docs/tools/mcp.md).
-        let want = Ok(McpCli::Add {
-            name: "vercel".to_string(),
-            config: McpServerConfig::Http {
-                url: "https://mcp.vercel.com".to_string(),
-                headers: BTreeMap::new(),
-                sse_fallback: true,
-                oauth: None,
-            },
-            client_secret: false,
-        });
-        assert_eq!(
-            parsed_mcp(&["mcp", "add", "vercel", "--url", "https://mcp.vercel.com"]),
-            want
-        );
-        // Attached value and flags-before-name both parse.
-        assert_eq!(
-            parsed_mcp(&["mcp", "add", "vercel", "--url=https://mcp.vercel.com"]),
-            want
-        );
-        assert_eq!(
-            parsed_mcp(&["mcp", "add", "--url", "https://mcp.vercel.com", "vercel"]),
-            want
-        );
-    }
-
-    #[test]
-    fn mcp_add_transport_pins_the_remote_kind() {
-        let http = parsed_mcp(&[
-            "mcp",
-            "add",
-            "vercel",
-            "--transport",
-            "http",
-            "--url",
-            "https://x",
-        ]);
-        assert_eq!(
-            http,
-            Ok(McpCli::Add {
-                name: "vercel".to_string(),
-                config: McpServerConfig::Http {
-                    url: "https://x".to_string(),
-                    headers: BTreeMap::new(),
-                    sse_fallback: false,
-                    oauth: None,
-                },
-                client_secret: false,
-            })
-        );
-        let sse = parsed_mcp(&["mcp", "add", "old", "-t", "sse", "--url", "https://x/sse"]);
-        assert_eq!(
-            sse,
-            Ok(McpCli::Add {
-                name: "old".to_string(),
-                config: McpServerConfig::Sse {
-                    url: "https://x/sse".to_string(),
-                    headers: BTreeMap::new(),
-                    oauth: None,
-                },
-                client_secret: false,
-            })
-        );
-        // `--transport stdio` is the explicit spelling of the command form.
-        let stdio = parsed_mcp(&["mcp", "add", "docs", "--transport", "stdio", "--", "server"]);
-        assert_eq!(
-            stdio,
-            Ok(McpCli::Add {
-                name: "docs".to_string(),
-                config: McpServerConfig::Stdio {
-                    command: "server".to_string(),
-                    args: Vec::new(),
-                    env: BTreeMap::new(),
-                },
-                client_secret: false,
-            })
-        );
-        let err = parsed_mcp(&["mcp", "add", "x", "-t", "ws", "--url", "https://x"])
-            .expect_err("bad transport");
-        assert!(
-            err.contains("ws") && err.contains("stdio, http or sse"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn mcp_add_captures_the_command_raw_from_its_first_token() {
-        // The child's own flags survive with no `--` needed (codex's
-        // trailing capture; Claude Code errors with `unknown option` here).
-        let got = parsed_mcp(&["mcp", "add", "docs", "npx", "-y", "pkg", "--port", "4000"]);
-        assert_eq!(
-            got,
-            Ok(McpCli::Add {
-                name: "docs".to_string(),
-                config: McpServerConfig::Stdio {
-                    command: "npx".to_string(),
-                    args: ["-y", "pkg", "--port", "4000"]
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect(),
-                    env: BTreeMap::new(),
-                },
-                client_secret: false,
-            })
-        );
-        // `--` starts the command outright — needed when its first word
-        // leads with a dash, and `--help` after it belongs to the child.
-        let dashed = parsed_mcp(&["mcp", "add", "x", "--", "-weird", "--help"]);
-        assert_eq!(
-            dashed,
-            Ok(McpCli::Add {
-                name: "x".to_string(),
-                config: McpServerConfig::Stdio {
-                    command: "-weird".to_string(),
-                    args: vec!["--help".to_string()],
-                    env: BTreeMap::new(),
-                },
-                client_secret: false,
-            })
-        );
-    }
-
-    #[test]
-    fn mcp_add_env_and_headers_parse_and_repeat() {
-        let got = parsed_mcp(&[
-            "mcp", "add", "srv", "-e", "A=1", "--env", "B=x=y", "--env", "C=", "--", "cmd",
-        ]);
-        assert_eq!(
-            got,
-            Ok(McpCli::Add {
-                name: "srv".to_string(),
-                config: McpServerConfig::Stdio {
-                    command: "cmd".to_string(),
-                    args: Vec::new(),
-                    // First `=` splits; empty values are legal.
-                    env: pairs(&[("A", "1"), ("B", "x=y"), ("C", "")]),
-                },
-                client_secret: false,
-            })
-        );
-        let got = parsed_mcp(&[
-            "mcp",
-            "add",
-            "api",
-            "--url",
-            "https://x",
-            "-H",
-            "Authorization: Bearer a:b",
-            "--header",
-            " X-Custom :v ",
-        ]);
-        assert_eq!(
-            got,
-            Ok(McpCli::Add {
-                name: "api".to_string(),
-                config: McpServerConfig::Http {
-                    url: "https://x".to_string(),
-                    // First `:` splits, both sides trimmed.
-                    headers: pairs(&[("Authorization", "Bearer a:b"), ("X-Custom", "v")]),
-                    sse_fallback: true,
-                    oauth: None,
-                },
-                client_secret: false,
-            })
-        );
-        let err = parsed_mcp(&["mcp", "add", "x", "-e", "NOEQ", "--", "c"]).expect_err("bad env");
-        assert!(err.contains("NOEQ") && err.contains("KEY=VALUE"), "{err}");
-        let err = parsed_mcp(&["mcp", "add", "x", "--url", "u", "-H", "nocolon"])
-            .expect_err("bad header");
-        assert!(
-            err.contains("nocolon") && err.contains("Name: Value"),
-            "{err}"
-        );
-        let err =
-            parsed_mcp(&["mcp", "add", "x", "--url", "u", "-H", ": v"]).expect_err("empty name");
-        assert!(err.contains(": v"), "{err}");
-    }
-
-    #[test]
-    fn mcp_add_rejects_conflicting_forms() {
-        let err =
-            parsed_mcp(&["mcp", "add", "x", "--url", "https://u", "--", "cmd"]).expect_err("both");
-        assert!(err.contains("not both"), "{err}");
-        let err = parsed_mcp(&["mcp", "add", "x"]).expect_err("neither");
-        assert!(err.contains("--url") && err.contains("command"), "{err}");
-        let err = parsed_mcp(&["mcp", "add", "x", "--url", "u", "-e", "A=1"]).expect_err("env+url");
-        assert!(err.contains("--env") && err.contains("stdio"), "{err}");
-        let err =
-            parsed_mcp(&["mcp", "add", "x", "-H", "A: b", "--", "cmd"]).expect_err("header+cmd");
-        assert!(err.contains("--header") && err.contains("remote"), "{err}");
-        let err = parsed_mcp(&["mcp", "add", "x", "-t", "stdio", "--url", "u"])
-            .expect_err("stdio with url");
-        assert!(err.contains("--transport stdio"), "{err}");
-        let err =
-            parsed_mcp(&["mcp", "add", "x", "-t", "http", "--", "cmd"]).expect_err("http with cmd");
-        assert!(err.contains("--transport http"), "{err}");
-        let err = parsed_mcp(&["mcp", "add", "--url", "u"]).expect_err("no name");
-        assert!(err.contains("server name"), "{err}");
-        let err = parsed_mcp(&["mcp", "add", "my server", "--url", "u"]).expect_err("bad name");
-        assert!(err.contains("my server"), "{err}");
-        let err = parsed_mcp(&["mcp", "add", "x", "--frob", "--url", "u"]).expect_err("bad flag");
-        assert!(err.contains("--frob"), "{err}");
-    }
-
-    #[test]
-    fn mcp_add_json_routes_through_the_one_entry_schema() {
-        let got = parsed_mcp(&[
-            "mcp",
-            "add-json",
-            "wiki",
-            r#"{"type": "http", "url": "https://x/mcp"}"#,
-        ]);
-        assert_eq!(
-            got,
-            Ok(McpCli::Add {
-                name: "wiki".to_string(),
-                config: McpServerConfig::Http {
-                    url: "https://x/mcp".to_string(),
-                    headers: BTreeMap::new(),
-                    sse_fallback: false,
-                    oauth: None,
-                },
-                client_secret: false,
-            })
-        );
-        let err = parsed_mcp(&["mcp", "add-json", "wiki", "{not json"]).expect_err("bad json");
-        assert!(err.contains("not valid JSON"), "{err}");
-        let err = parsed_mcp(&["mcp", "add-json", "wiki"]).expect_err("missing json");
-        assert!(err.contains("JSON"), "{err}");
-    }
-
-    #[test]
-    fn mcp_remove_get_and_list_parse() {
-        assert_eq!(
-            parsed_mcp(&["mcp", "remove", "wiki"]),
-            Ok(McpCli::Remove {
-                name: "wiki".to_string()
-            })
-        );
-        assert_eq!(
-            parsed_mcp(&["mcp", "get", "wiki"]),
-            Ok(McpCli::Get {
-                name: "wiki".to_string()
-            })
-        );
-        assert_eq!(parsed_mcp(&["mcp", "list"]), Ok(McpCli::List));
-        let err = parsed_mcp(&["mcp", "remove"]).expect_err("missing name");
-        assert!(err.contains("server name"), "{err}");
-        let err = parsed_mcp(&["mcp", "list", "extra"]).expect_err("stray");
-        assert!(err.contains("extra"), "{err}");
-        let err = parsed_mcp(&["mcp", "get", "a", "b"]).expect_err("stray");
-        assert!(err.contains("b"), "{err}");
-    }
-
-    #[test]
-    fn mcp_help_and_subcommand_errors() {
-        assert_eq!(parsed_mcp(&["mcp", "--help"]), Ok(McpCli::Help));
-        assert_eq!(parsed_mcp(&["mcp", "-h"]), Ok(McpCli::Help));
-        assert_eq!(parsed_mcp(&["mcp", "add", "--help"]), Ok(McpCli::Help));
-        assert_eq!(parsed_mcp(&["mcp", "list", "-h"]), Ok(McpCli::Help));
-        let err = parsed_mcp(&["mcp"]).expect_err("bare mcp");
-        assert!(err.contains("add") && err.contains("list"), "{err}");
-        let err = parsed_mcp(&["mcp", "frobnicate"]).expect_err("unknown sub");
-        assert!(err.contains("frobnicate"), "{err}");
-    }
-
-    #[test]
-    fn mcp_is_a_first_argument_only() {
-        // Anywhere else it is a word of the prompt like any other.
-        assert_eq!(
-            parsed(&["--continue", "mcp"]),
-            session(SessionStart::Continue, Some("mcp"))
-        );
     }
 }

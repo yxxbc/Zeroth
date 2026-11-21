@@ -2,65 +2,27 @@
 //! scrollback, and the signature the boundary tracks (`docs/ui/view-flow.md`).
 
 use super::*;
-use crate::app::McpPage;
-use crate::mcp::{McpServerConfig, McpServerSnapshot, McpServerStatus, McpToolInfo};
+use crate::hooks::{HooksFile, HooksOverview};
 use crate::permission::{PermissionKind, PermissionRequest};
-use crate::ui::{mcp_view_lines, view_flow, view_flow_signature};
+use crate::ui::{hooks_view_lines, view_flow, view_flow_signature};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 const NO_CAP: usize = usize::MAX;
 
-/// An `/mcp` manager open on a tool page whose description wraps far past any
-/// terminal used here.
-fn tall_mcp_app() -> App {
-    let mut app = App::new();
-    app.open_mcp_menu(vec![McpServerSnapshot {
-        name: "deepwiki".to_string(),
-        scope: crate::mcp::McpScope::User,
-        config_path: "~/.zeroth/mcp.json".to_string(),
-        config: McpServerConfig::Http {
-            url: "https://deepwiki.test/mcp".to_string(),
-            headers: Default::default(),
-            sse_fallback: false,
-            oauth: None,
-        },
-        status: McpServerStatus::Connected,
-        auth: None,
-        identity: None,
-        excluded: Vec::new(),
-        tools: vec![McpToolInfo {
-            name: "ask_question".to_string(),
-            description: "describe ".repeat(300),
-            input_schema: serde_json::json!({"type": "object"}),
-        }],
-    }]);
-    app.mcp_menu.as_mut().unwrap().page = McpPage::Tool { tool: 0 };
-    app
+/// A hook detail page whose command wraps far past the terminal.
+fn tall_hooks_app() -> App {
+    tall_hooks_command_app("--flag-0")
 }
 
-/// An `/mcp` server page whose `Command:` wraps far past a short terminal,
-/// so the command's first rows sit well inside the flowed top while the
-/// action rows — what ↑/↓ restyle — sit in the painted tail.
-fn tall_mcp_server_app(first_arg: &str) -> App {
+fn tall_hooks_command_app(first_arg: &str) -> App {
+    let command = format!("{first_arg} {}", "describe ".repeat(300));
+    let json = serde_json::json!({"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":command}]}]}});
+    let file = HooksFile::parse(&json.to_string()).expect("fixture parses");
     let mut app = App::new();
-    let mut args: Vec<String> = (0..60).map(|i| format!("--flag-{i}")).collect();
-    args[0] = first_arg.to_string();
-    app.open_mcp_menu(vec![McpServerSnapshot {
-        name: "fixture".to_string(),
-        scope: crate::mcp::McpScope::User,
-        config_path: "~/.zeroth/mcp.json".to_string(),
-        config: McpServerConfig::Stdio {
-            command: "npx".to_string(),
-            args,
-            env: Default::default(),
-        },
-        status: McpServerStatus::Connected,
-        auth: None,
-        identity: None,
-        excluded: Vec::new(),
-        tools: Vec::new(),
-    }]);
-    app.mcp_menu.as_mut().unwrap().page = McpPage::Server;
+    app.open_hooks_menu(HooksOverview::from_file(&file), None, true);
+    for _ in 0..3 {
+        app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    }
     app
 }
 
@@ -72,8 +34,8 @@ fn no_flow_without_a_framed_view_or_when_the_page_fits() {
 
     // A short page fits the terminal whole — nothing flows.
     let mut app = App::new();
-    app.open_mcp_menu(Vec::new());
-    let lines = mcp_view_lines(&app, 80).len();
+    app.open_hooks_menu(HooksOverview::from_file(&HooksFile::default()), None, true);
+    let lines = hooks_view_lines(&app, 80).len();
     assert!(lines < 40, "the empty list page is short: {lines}");
     assert!(view_flow(&app, 80, 40, NO_CAP).is_none());
 }
@@ -83,9 +45,9 @@ fn a_page_taller_than_the_terminal_flows_its_top() {
     // The rows the bottom anchor skips are exactly the rows that flow: the
     // page's top, in order, ending where the painted tail begins — so
     // scrollback + screen read as one contiguous page.
-    let app = tall_mcp_app();
+    let app = tall_hooks_app();
     let (width, height) = (60u16, 20u16);
-    let lines = mcp_view_lines(&app, width);
+    let lines = hooks_view_lines(&app, width);
     assert!(lines.len() > usize::from(height));
     let flow = view_flow(&app, width, height, NO_CAP).expect("the page overflows");
     let flowed: Vec<String> = flow.lines.iter().map(plain).collect();
@@ -108,7 +70,7 @@ fn a_covering_modal_suppresses_the_flow() {
     // covers it. The prompt is flow-eligible itself now (docs/ui/view-flow.md),
     // but this short bash prompt fits the terminal whole — so the flow the
     // menu had established must simply clean up, with nothing in its place.
-    let mut app = tall_mcp_app();
+    let mut app = tall_hooks_app();
     assert!(view_flow(&app, 60, 20, NO_CAP).is_some());
     app.open_permission(PermissionRequest {
         call_id: None,
@@ -128,21 +90,19 @@ fn a_covering_modal_suppresses_the_flow() {
 
 #[test]
 fn the_signature_tracks_the_flowed_rows_only() {
-    // Stepping the selection restyles rows near the page's END — inside the
-    // painted tail, not the flowed top — so the signature holds and the
-    // boundary never purge-rebuilds for a ↑/↓ (the in-place diff repaint
-    // handles it). Changing the content that actually flowed re-signs.
-    let mut app = tall_mcp_server_app("--flag-0");
+    // An ignored navigation key on the detail page leaves its signature alone.
+    // Changing the command content that actually flowed re-signs.
+    let mut app = tall_hooks_command_app("--flag-0");
     let (width, height) = (60u16, 20u16);
-    assert!(mcp_view_lines(&app, width).len() > usize::from(height));
+    assert!(hooks_view_lines(&app, width).len() > usize::from(height));
     let before = view_flow_signature(&app, width, height, NO_CAP).expect("overflows");
     app.on_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     let after = view_flow_signature(&app, width, height, NO_CAP).expect("still overflows");
-    assert_eq!(before, after, "a selection step keeps the flowed top");
+    assert_eq!(before, after, "an ignored key keeps the flowed top");
 
     // A different page top — the command's first argument, a row that
     // flowed — is a different flow.
-    let other = tall_mcp_server_app("--other-0");
+    let other = tall_hooks_command_app("--other-0");
     let changed = view_flow_signature(&other, width, height, NO_CAP).expect("overflows");
     assert_ne!(before, changed, "changed flowed content re-signs");
 
@@ -156,9 +116,9 @@ fn the_flow_keeps_its_newest_rows_under_the_cap() {
     // A pathological page can't turn one navigation into an unbounded write:
     // the flow keeps the rows nearest the painted tail (the newest — the
     // rebuild-cap rule), dropping the extreme top.
-    let app = tall_mcp_app();
+    let app = tall_hooks_app();
     let (width, height) = (60u16, 20u16);
-    let lines = mcp_view_lines(&app, width);
+    let lines = hooks_view_lines(&app, width);
     let full = lines.len() - usize::from(height);
     let cap = 5usize;
     assert!(full > cap);
@@ -175,7 +135,7 @@ fn a_picker_sheds_rows_where_a_menu_flows() {
     // a terminal shorter than their compact page gets a smaller rung, down
     // to the search line alone, so their pages never flow. Their spot in the
     // precedence chain still sits ahead of the browsing menus: a /settings
-    // menu open over an /mcp one is the painted view, so the /mcp page that
+    // menu open over an /hooks one is the painted view, so the /hooks page that
     // flows on its own flows nothing then.
     let width = 78u16;
     let mut app = App::new();
@@ -187,14 +147,14 @@ fn a_picker_sheds_rows_where_a_menu_flows() {
         );
     }
     let height = 3;
-    let mut mcp = App::new();
-    mcp.open_mcp_menu(Vec::new());
+    let mut hooks = App::new();
+    hooks.open_hooks_menu(HooksOverview::from_file(&HooksFile::default()), None, true);
     assert!(
-        view_flow(&mcp, width, height, NO_CAP).is_some(),
-        "the /mcp page flows on its own"
+        view_flow(&hooks, width, height, NO_CAP).is_some(),
+        "the /hooks page flows on its own"
     );
     let mut both = App::new();
-    both.open_mcp_menu(Vec::new());
+    both.open_hooks_menu(HooksOverview::from_file(&HooksFile::default()), None, true);
     both.open_settings();
     assert!(
         view_flow(&both, width, height, NO_CAP).is_none(),
@@ -236,7 +196,7 @@ fn a_screen_tall_permission_prompt_flows_its_top() {
     let before = view_flow_signature(&app, width, height, NO_CAP).expect("overflows");
     app.on_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     let after = view_flow_signature(&app, width, height, NO_CAP).expect("still overflows");
-    assert_eq!(before, after, "a selection step keeps the flowed top");
+    assert_eq!(before, after, "an ignored key keeps the flowed top");
 
     // A prompt that fits keeps the ordinary modal geometry — no flow.
     let mut small = App::new();

@@ -334,16 +334,18 @@ fn a_new_tool_set_recounts_and_the_same_one_does_not() {
         app.context_usage.as_ref().expect("open").breakdown,
         sentinel
     );
-    // An MCP server connected.
+    // A new built-in tool becomes available.
     app.set_tool_definitions(Arc::from(vec![
         tool("bash", 4_000),
         tool("read", 2_000),
-        tool("mcp__deepwiki__ask_question", 600),
+        tool("web_search", 600),
     ]));
     app.refresh_context_usage();
     assert_eq!(
-        tokens(&app, Category::McpTools),
-        count_tokens(&"x".repeat(600))
+        tokens(&app, Category::SystemTools),
+        count_tokens(&"x".repeat(4_000))
+            + count_tokens(&"x".repeat(2_000))
+            + count_tokens(&"x".repeat(600))
     );
 }
 

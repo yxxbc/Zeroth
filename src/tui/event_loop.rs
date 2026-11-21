@@ -1,10 +1,10 @@
 //! The async event loop: a `select!` over every source that can wake the app.
 //!
-//! Twelve sources fan onto one thread — terminal input, the streamed reply,
+//! Event sources fan onto one thread — terminal input, the streamed reply,
 //! coalesced draw ticks, `@` file-search results, finished Ctrl+V clipboard
 //! reads, the `/login` sign-in worker, `/model` list fetches, the startup
-//! capability probe, background-shell events, subagent events, MCP server
-//! events and the turn-end checkpoint's result.
+//! capability probe, background-shell events, subagent events and the
+//! turn-end checkpoint's result.
 //! `select!` polls its branches in
 //! randomized order, so input and draws can't starve each other — the
 //! round-robin fairness codex builds explicitly.
@@ -122,10 +122,6 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             // 9. A subagent event — its own stream, its settle, or the lead's
             //    stop or resume of it (docs/agents/agent-tools.md).
             Some(event) = session.agent_rx.recv() => session.on_agent_message(event),
-
-            // 10. An MCP server's state changed (a connect resolved, an auth
-            //     flow progressed) — docs/tools/mcp.md.
-            Some(event) = session.mcp_rx.recv() => session.on_mcp_event(event),
 
             // 12. The update check answered: record what it found and, if
             //     newer, announce it once the session is idle (docs/ops/update.md).

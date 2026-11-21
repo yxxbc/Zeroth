@@ -48,7 +48,7 @@ impl Session<'_> {
     /// scrollback) right now (invariant 4 — see the module doc). Under an
     /// alternate-screen overlay the queued lines merely wait for the return's
     /// flush; an open agent session view defers to a history rebuild, and so
-    /// does an active **view flow** — a screen-tall `/mcp`/`/hooks`
+    /// does an active **view flow** — a screen-tall `/hooks`
     /// page whose top sits in scrollback directly above the region: a commit
     /// flushed now would land *between* the flowed page and its painted tail,
     /// tearing it, so it waits in history for the flow-exit rebuild
@@ -87,10 +87,7 @@ impl Session<'_> {
     /// the group first, so the group's one line lands above the call's cell.
     /// What the call itself writes comes from [`ui::tool_commit_lines`],
     /// which reads the same history the resize repaint does: usually the
-    /// resolved call's collapsed cell, but a call inside a **parallel MCP
-    /// batch** holds its line until the run ends and then commits it as one
-    /// aggregated `Called deepwiki 2 times` line (`docs/tools/mcp.md`). Returns
-    /// whether anything was due.
+    /// resolved call's collapsed cell. Returns whether anything was due.
     ///
     /// The viewport is reseated first, like `StreamDone` does: a `!` shell
     /// turn's strip collapses the moment the call leaves the queue, and a
@@ -259,8 +256,8 @@ impl Session<'_> {
             self.term.insert_before(vec![Line::default()]);
         }
         // Every call the death resolved — the running one and each `⎿
-        // Waiting…` sibling behind it, plus any MCP cells a run was holding —
-        // in the batch's order (`docs/input/interrupt.md`, `docs/tools/mcp.md`). Read
+        // Waiting…` sibling behind it — in the batch's order
+        // (`docs/input/interrupt.md`). Read
         // back off the history by count: the notice is already recorded
         // behind them, so the history no longer ends at a cell. The viewport
         // was reseated just above.

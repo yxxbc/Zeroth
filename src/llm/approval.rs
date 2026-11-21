@@ -39,15 +39,9 @@ const CANCELLED_DISPLAY: &str = "Interrupted by user";
 /// would default it to `'static`, refusing the backend's stack closures.)
 pub type ClassifyCommand<'a> = dyn Fn(&PermissionRequest) -> Result<ClassifierVerdict, String> + 'a;
 
-/// The lookup a prompt's dim description row needs: an MCP wire name → the
-/// server's own one-line description of that tool
-/// ([`crate::llm::mcp::McpManager::tool_description`], `docs/tools/mcp.md`), and a
-/// `bash_session` call's session id → the command that session runs
-/// (`docs/tools/interactive-shell.md` — which its allowlist rule then covers). The
-/// two key spaces never meet: a wire name starts `mcp__`, a session id is
-/// letters and digits. `None` for an MCP tool leaves the row out; for a
-/// session it means nothing answers to that id, so there is nothing to type
-/// into and nothing to approve.
+/// The command a running shell session executes, for the prompt's dim
+/// description row (`docs/tools/interactive-shell.md`). `None` means no
+/// session answers to that id, so there is nothing to type into or approve.
 pub type DescribeTool<'a> = dyn Fn(&str) -> Option<String> + 'a;
 
 /// What the user is being asked to approve for `call`, or `None` when the tool
@@ -146,24 +140,6 @@ pub fn permission_request(
             request.call_id = Some(call.id.clone());
             Some(request)
         }
-        // An MCP call asks too (`docs/tools/mcp.md`): the wire name is the target
-        // (the rule key option 2 remembers), the arguments the one-line
-        // `key: "value"` form the resulting cell header shows — so the prompt
-        // and the cell name the call identically — and the detail the
-        // server's own description of the tool.
-        name if crate::mcp::is_mcp_tool(name) => Some(PermissionRequest {
-            id: String::new(),
-            call_id: Some(call.id.clone()),
-            kind: PermissionKind::Mcp,
-            target: name.to_string(),
-            body: crate::mcp::pretty_args(&call.arguments),
-            detail: describe
-                .and_then(|describe| describe(name))
-                .map(|text| text.trim().to_string())
-                .filter(|text| !text.is_empty()),
-            agent,
-            agent_id: None,
-        }),
         _ => None,
     }
 }
@@ -203,8 +179,8 @@ fn session_request(
 /// rules, and when they don't already cover the call, raise the prompt and
 /// **block this thread** until the user answers (or the turn is cancelled).
 ///
-/// In [`PermissionMode::Auto`] a `bash` command — or an MCP tool call
-/// (`docs/tools/mcp.md`) — the rules don't cover goes to the **classifier** instead
+/// In [`PermissionMode::Auto`] a shell command or session input the rules
+/// don't cover goes to the **classifier** instead
 /// of the user (`docs/state/permissions.md`): an allowed verdict runs the call with
 /// the [`CLASSIFIER_ALLOWED_NOTE`] on its cell, a denial rejects it with the
 /// classifier's reason on both texts, and a classifier *failure* falls
@@ -301,10 +277,7 @@ pub fn approve_call(
     let mut check_failed = false;
     if !force_ask
         && gate.mode() == PermissionMode::Auto
-        && matches!(
-            request.kind,
-            PermissionKind::Bash | PermissionKind::Mcp | PermissionKind::Session
-        )
+        && matches!(request.kind, PermissionKind::Bash | PermissionKind::Session)
         && let Some(classify) = classify
     {
         match classify(&request) {
@@ -1853,270 +1826,6 @@ mod tests {
             "a reaped wait never allows the call"
         );
     }
-    // ===== the auto mode classifier on MCP calls (docs/tools/mcp.md) =====
-
-    #[test]
-    fn auto_mode_classifies_an_mcp_call_and_runs_it_with_the_note() {
-        // Auto mode's machine reviewer answers for a server tool exactly as it
-        // does for a command: the user is never prompted, and the classifier
-        // reads the whole request — the wire name, the arguments, and the
-        // server's own description of the tool.
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let gate = gate_in(crate::permission::PermissionMode::Auto);
-        let describe = |wire: &str| {
-            (wire == "mcp__deepwiki__ask_question").then(|| "Ask about a repo.".to_string())
-        };
-        let classify = |request: &PermissionRequest| {
-            assert_eq!(request.kind, PermissionKind::Mcp);
-            assert_eq!(request.target, "mcp__deepwiki__ask_question");
-            assert_eq!(request.body, r#"repoName: "a/b", question: "What?""#);
-            assert_eq!(request.detail.as_deref(), Some("Ask about a repo."));
-            Ok(ClassifierVerdict {
-                allow: true,
-                reason: "read-only query".to_string(),
-            })
-        };
-        let cancel = CancelToken::new();
-        let waiter = {
-            let (gate, tx, cancel) = (gate.clone(), tx.clone(), cancel.clone());
-            std::thread::spawn(move || {
-                approve_call(
-                    Some(&gate),
-                    Some(&classify),
-                    Some(&describe),
-                    &NoHooks,
-                    false,
-                    &tx,
-                    &cancel,
-                    None,
-                    &call(
-                        "mcp__deepwiki__ask_question",
-                        r#"{"repoName":"a/b","question":"What?"}"#,
-                    ),
-                    None,
-                )
-            })
-        };
-        // Bounded: a raised prompt (the red state) fails the test instead of
-        // hanging it on a question nobody answers.
-        let approval = wait_bounded(waiter, &gate, &mut rx);
-        assert_eq!(
-            approval,
-            Approval::AllowNoted {
-                note: CLASSIFIER_ALLOWED_NOTE.to_string(),
-            }
-        );
-        assert!(rx.try_recv().is_err(), "the user was never asked");
-    }
-
-    /// Join `waiter` while watching `rx` for a permission prompt: a prompt is
-    /// resolved (to unblock the thread) and failed loudly — auto mode's whole
-    /// point is that the user is not asked — and a waiter panic propagates.
-    fn wait_bounded(
-        waiter: std::thread::JoinHandle<Approval>,
-        gate: &PermissionGate,
-        rx: &mut tokio::sync::mpsc::UnboundedReceiver<StreamEvent>,
-    ) -> Approval {
-        for _ in 0..400 {
-            if waiter.is_finished() {
-                return waiter.join().unwrap();
-            }
-            if let Ok(StreamEvent::Permission(request)) = rx.try_recv() {
-                gate.resolve(&request.id, PermissionDecision::Deny(None));
-                let _ = waiter.join();
-                panic!("the user was asked — auto mode must classify this call instead");
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        panic!("approve_call neither finished nor asked within the window");
-    }
-
-    #[test]
-    fn auto_mode_rejects_a_classifier_denied_mcp_call_with_the_reason() {
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let gate = gate_in(crate::permission::PermissionMode::Auto);
-        let classify = |_: &PermissionRequest| {
-            Ok(ClassifierVerdict {
-                allow: false,
-                reason: "sends data to an external service".to_string(),
-            })
-        };
-        let cancel = CancelToken::new();
-        let waiter = {
-            let (gate, tx, cancel) = (gate.clone(), tx.clone(), cancel.clone());
-            std::thread::spawn(move || {
-                approve_call(
-                    Some(&gate),
-                    Some(&classify),
-                    None,
-                    &NoHooks,
-                    false,
-                    &tx,
-                    &cancel,
-                    None,
-                    &call("mcp__mail__send_email", r#"{"to":"x@y.z"}"#),
-                    None,
-                )
-            })
-        };
-        let approval = wait_bounded(waiter, &gate, &mut rx);
-        let Approval::Reject {
-            display,
-            result,
-            kind,
-        } = approval
-        else {
-            panic!("a denied MCP call must not run: {approval:?}");
-        };
-        assert_eq!(kind, crate::stream::ToolErrorKind::ClassifierDenied);
-        assert_eq!(
-            display,
-            "Denied by auto mode classifier\nReason: sends data to an external service"
-        );
-        assert!(
-            result.contains("sends data to an external service")
-                && result.contains("was not executed"),
-            "the model reads the reason and the outcome: {result}"
-        );
-        assert!(rx.try_recv().is_err(), "the user was never asked");
-    }
-
-    #[test]
-    fn an_mcp_classifier_failure_falls_back_to_the_prompt() {
-        // Same degradation as a command's: network down or an unparseable
-        // verdict asks the user — never a silent allow, never a wedged thread.
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let gate = gate_in(crate::permission::PermissionMode::Auto);
-        let cancel = CancelToken::new();
-        let classify = |_: &PermissionRequest| Err("boom".to_string());
-        let waiter = {
-            let (gate, tx, cancel) = (gate.clone(), tx.clone(), cancel.clone());
-            std::thread::spawn(move || {
-                approve_call(
-                    Some(&gate),
-                    Some(&classify),
-                    None,
-                    &NoHooks,
-                    false,
-                    &tx,
-                    &cancel,
-                    None,
-                    &call("mcp__s__t", "{}"),
-                    None,
-                )
-            })
-        };
-        let request = loop {
-            if let Ok(StreamEvent::Permission(request)) = rx.try_recv() {
-                break request;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        };
-        assert_eq!(request.kind, PermissionKind::Mcp);
-        gate.resolve(&request.id, PermissionDecision::Approve);
-        assert_eq!(waiter.join().unwrap(), Approval::Allow);
-    }
-
-    #[test]
-    fn an_allow_listed_mcp_call_never_reaches_the_classifier() {
-        // Option 2's exact wire-name rule short-circuits before the
-        // classifier in auto mode, exactly as a command's allowlist does.
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let gate = gate_in(crate::permission::PermissionMode::Auto);
-        let classify = |_: &PermissionRequest| -> Result<ClassifierVerdict, String> {
-            panic!("the classifier must not be consulted for an allow-listed tool")
-        };
-        let listed = call("mcp__deepwiki__ask_question", r#"{"q":"?"}"#);
-        gate.remember(&permission_request(&listed, None, None).unwrap());
-        assert_eq!(
-            approve_call(
-                Some(&gate),
-                Some(&classify),
-                None,
-                &NoHooks,
-                false,
-                &tx,
-                &CancelToken::new(),
-                None,
-                &listed,
-                None,
-            ),
-            Approval::Allow
-        );
-        assert!(rx.try_recv().is_err(), "no request was raised");
-    }
-
-    #[test]
-    fn manual_and_edit_modes_still_prompt_for_mcp_calls() {
-        // The classifier belongs to auto mode alone — in every other asking
-        // mode a server tool goes to the user exactly as before.
-        for mode in [
-            crate::permission::PermissionMode::Manual,
-            crate::permission::PermissionMode::Edit,
-        ] {
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-            let gate = gate_in(mode);
-            let cancel = CancelToken::new();
-            let classify = move |_: &PermissionRequest| -> Result<ClassifierVerdict, String> {
-                panic!("the classifier must not be consulted in {mode:?}")
-            };
-            let waiter = {
-                let (gate, tx, cancel) = (gate.clone(), tx.clone(), cancel.clone());
-                std::thread::spawn(move || {
-                    approve_call(
-                        Some(&gate),
-                        Some(&classify),
-                        None,
-                        &NoHooks,
-                        false,
-                        &tx,
-                        &cancel,
-                        None,
-                        &call("mcp__s__t", "{}"),
-                        None,
-                    )
-                })
-            };
-            let request = loop {
-                if let Ok(StreamEvent::Permission(request)) = rx.try_recv() {
-                    break request;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(5));
-            };
-            gate.resolve(&request.id, PermissionDecision::Approve);
-            assert_eq!(waiter.join().unwrap(), Approval::Allow);
-        }
-    }
-
-    #[test]
-    fn an_mcp_call_raises_a_request_with_the_wire_name_args_and_description() {
-        let describe = |wire: &str| {
-            (wire == "mcp__deepwiki__ask_question").then(|| "  Ask about a repo.  ".to_string())
-        };
-        let request = permission_request(
-            &call(
-                "mcp__deepwiki__ask_question",
-                r#"{"repoName":"a/b","question":"What?"}"#,
-            ),
-            None,
-            Some(&describe),
-        )
-        .expect("MCP calls ask");
-        assert_eq!(request.kind, PermissionKind::Mcp);
-        assert_eq!(request.target, "mcp__deepwiki__ask_question");
-        // The body is what the cell header will show — the model's own key
-        // order, the one-line `key: "value"` form (`docs/tools/mcp.md`).
-        assert_eq!(request.body, r#"repoName: "a/b", question: "What?""#);
-        // …and the detail is the server's own description, trimmed.
-        assert_eq!(request.detail.as_deref(), Some("Ask about a repo."));
-        // An argument-less call has no body, and an unknown tool no detail.
-        let bare = permission_request(&call("mcp__s__t", "{}"), None, Some(&describe)).unwrap();
-        assert!(bare.body.is_empty());
-        assert_eq!(bare.detail, None);
-        // A non-MCP unknown tool still never asks.
-        assert!(permission_request(&call("mystery", "{}"), None, None).is_none());
-    }
-
     // ===== secrets (docs/state/secrets.md) =====
 
     fn secrets() -> crate::secrets::SecretRegistry {

@@ -37,7 +37,6 @@ pub(in crate::stream) fn unattended_refusal(
         PermissionKind::Write => ("write", serde_json::json!({ "path": request.target })),
         PermissionKind::Edit => ("edit", serde_json::json!({ "path": request.target })),
         PermissionKind::Bash => ("bash", serde_json::json!({ "command": request.target })),
-        PermissionKind::Mcp => (request.target.as_str(), serde_json::json!({})),
         PermissionKind::Session => (
             "bashsend",
             serde_json::json!({ "session_id": request.target }),

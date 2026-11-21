@@ -354,21 +354,6 @@ pub enum Action {
     /// `conversation-YYYY-MM-DD-HHMMSS.txt` in the cwd — then raises the
     /// toast. See `docs/ui/export.md`.
     Export(ExportTarget),
-    /// `/mcp`: open the inline MCP manager. Like `/hooks` it works mid-turn —
-    /// it only replaces the composer. The *loop* snapshots the live
-    /// [`crate::llm::mcp::McpManager`] and hands it to
-    /// [`App::open_mcp_menu`] (the same injection seam), so the rows can
-    /// never disagree with the connections. See `docs/tools/mcp.md`.
-    OpenMcpMenu,
-    /// The `/mcp` manager was dismissed (Esc from the list, or Ctrl+C):
-    /// [`App::mcp_menu`] is already cleared; the loop just repaints the
-    /// collapsed region.
-    CloseMcpMenu,
-    /// One `/mcp` operation to apply against the live manager
-    /// (`tui::mcp::Session::apply_mcp_op`) — connection work runs on worker
-    /// threads, completions re-inject the snapshot via the MCP event
-    /// channel. See `docs/tools/mcp.md`.
-    McpOp(McpOp),
     /// `/login` from an idle composer: open the inline API-key onboarding flow.
     /// The *loop* builds the provider choices (which need boundary key
     /// resolution to mark the already-configured ones) and hands them to
@@ -501,29 +486,4 @@ pub enum Action {
     },
     /// The user asked to quit.
     Quit,
-}
-
-/// One `/mcp` operation ([`Action::McpOp`]) — the typed vocabulary the menu
-/// dispatches and `tui::mcp::Session::apply_mcp_op` carries out against the
-/// live manager. See `docs/tools/mcp.md`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum McpOp {
-    /// Re-connect one server (the detail page's `Reconnect`, and `Enable`'s
-    /// follow-up).
-    Reconnect { server: String },
-    /// Enable/disable one server for this project — persisted in the user
-    /// file's per-project set.
-    SetDisabled { server: String, disabled: bool },
-    /// Start the OAuth flow (the auth page is already up; the authorize URL
-    /// and the outcome arrive on the MCP event channel).
-    Authenticate { server: String },
-    /// Delete the server's stored OAuth tokens.
-    ClearAuth { server: String },
-    /// Abandon the running OAuth flow (Esc on the auth page).
-    CancelAuth,
-    /// `c` on the auth page: copy the authorize URL to the clipboard.
-    CopyAuthUrl { url: String },
-    /// Enter on the auth page's `URL >` field: hand the pasted redirect URL
-    /// to the waiting flow.
-    SubmitAuthUrl { text: String },
 }

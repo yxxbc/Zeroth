@@ -28,6 +28,24 @@ fn every_setting_has_a_label_and_a_description() {
 }
 
 #[test]
+fn mcp_is_not_a_setting_and_legacy_values_are_discarded() {
+    assert!(
+        SettingKey::ALL
+            .iter()
+            .all(|key| !key.label().eq_ignore_ascii_case("mcp"))
+    );
+    let settings = SessionSettings::parse(r#"{"mcp":false,"hooks":false}"#);
+    assert!(!settings.hooks, "unrelated preferences survive");
+    assert!(!settings.to_json().contains("mcp"));
+    let file = SettingsFile::parse(r#"{"projects":{"/a":{"mcp":false,"hooks":false}}}"#);
+    assert!(
+        !file.settings_for("/a").hooks,
+        "directory preferences survive"
+    );
+    assert!(!file.to_json().contains("mcp"));
+}
+
+#[test]
 fn the_labels_are_unique() {
     // Type-to-search matches on the label, so two rows sharing one would be
     // indistinguishable in the filtered list.
@@ -71,84 +89,6 @@ fn hooks_are_on_until_a_directory_turns_them_off() {
     let json = off.to_json();
     assert!(json.contains("\"hooks\": false"), "{json}");
     assert_eq!(SessionSettings::parse(&json), off);
-}
-
-#[test]
-fn mcp_is_on_until_a_directory_turns_it_off() {
-    // The Hooks posture (docs/tools/mcp.md): every enabled server connects by
-    // default, and turning MCP off is exactly what the directory's entry
-    // records — the default stays off the wire.
-    let s = SessionSettings::default();
-    assert!(s.mcp, "MCP is on by default");
-    assert!(s.mcp_active());
-    assert_eq!(s.value_text(SettingKey::Mcp, MANUAL), "true");
-    assert_eq!(s.to_json().trim(), "{}");
-    let mut off = s;
-    assert!(off.cycle(SettingKey::Mcp));
-    assert!(!off.mcp_active());
-    assert_eq!(off.value_text(SettingKey::Mcp, MANUAL), "false");
-    let json = off.to_json();
-    assert!(json.contains("\"mcp\": false"), "{json}");
-    assert_eq!(SessionSettings::parse(&json), off);
-    assert!(off.cycle(SettingKey::Mcp));
-    assert!(off.mcp, "a boolean: back on");
-}
-
-#[test]
-fn the_mcp_row_follows_hooks_and_skills() {
-    // The three rows that switch the session's extensions on or off, read
-    // together — each a session-wide switch over a set the user manages
-    // somewhere else (`/hooks`, `/skills`, `/mcp`).
-    let at = |key| SettingKey::ALL.iter().position(|k| *k == key).unwrap();
-    assert_eq!(at(SettingKey::Skills), at(SettingKey::Hooks) + 1);
-    assert_eq!(at(SettingKey::Mcp), at(SettingKey::Skills) + 1);
-    assert_eq!(SettingKey::Mcp.label(), "MCP");
-    let description = SettingKey::Mcp.description();
-    assert!(description.contains("MCP servers"), "{description}");
-    assert!(
-        description.contains("/mcp"),
-        "it says each server keeps its own switch: {description}"
-    );
-}
-
-#[test]
-fn an_mcp_row_with_no_servers_is_unavailable_and_keeps_its_preference() {
-    // No server declared anywhere: nothing to connect, so the row says so
-    // rather than offering a toggle that can never do anything — the Hooks
-    // and Skills rule. The stored preference survives for a session that
-    // has servers.
-    let mut s = SessionSettings::default();
-    s.availability.mcp = false;
-    assert!(!s.is_available(SettingKey::Mcp, MANUAL));
-    assert!(!s.mcp_active(), "the host's verdict wins");
-    assert_eq!(
-        s.value_text(SettingKey::Mcp, MANUAL),
-        format!("false{UNAVAILABLE_SUFFIX}")
-    );
-    assert!(!s.cycle(SettingKey::Mcp), "unavailable rows refuse");
-    assert!(s.mcp, "…and leave the value alone");
-}
-
-#[test]
-fn a_cycled_mcp_row_is_what_the_directory_records_and_its_override_never_sticks() {
-    // `ZEROTH_MCP=0` rides the live blob for one run: cycling another row
-    // must not write it, cycling this one does — in this directory only.
-    let live = SessionSettings {
-        mcp: false,
-        error_retry: 10,
-        ..SessionSettings::default()
-    };
-    let mut file = SettingsFile::default();
-    file.record_value("/a", SettingKey::ErrorRetry, &live);
-    assert!(file.settings_for("/a").mcp, "the override did not stick");
-    file.record_value("/a", SettingKey::Mcp, &live);
-    assert!(!file.settings_for("/a").mcp, "the cycled key is saved");
-    assert!(
-        file.settings_for("/b").mcp,
-        "another directory keeps the default"
-    );
-    let back = SettingsFile::parse(&file.to_json());
-    assert!(!back.settings_for("/a").mcp);
 }
 
 #[test]
@@ -218,7 +158,6 @@ fn booleans_cycle_between_true_and_false() {
         SettingKey::Checkpoints,
         SettingKey::AutoCompact,
         SettingKey::ProjectDocs,
-        SettingKey::Mcp,
     ] {
         let seen = cycle_values(SessionSettings::default(), key, 2);
         assert_eq!(seen[0], seen[2], "{key:?} returns to where it started");
@@ -353,7 +292,6 @@ fn an_unavailable_checkpoint_row_shows_its_effective_value_not_the_stored_one() 
             checkpoints: false,
             hooks: true,
             skills: true,
-            mcp: true,
             images: true,
             update_check: true,
         },
@@ -376,7 +314,6 @@ fn an_unavailable_setting_says_so_and_refuses_to_cycle() {
             checkpoints: false,
             hooks: true,
             skills: true,
-            mcp: true,
             images: true,
             update_check: true,
         },
@@ -502,7 +439,6 @@ fn availability_is_never_persisted() {
             checkpoints: false,
             hooks: true,
             skills: true,
-            mcp: true,
             images: true,
             update_check: true,
         },
@@ -528,7 +464,6 @@ fn skills_are_not_offered_with_tools_off() {
             checkpoints: true,
             hooks: true,
             skills: true,
-            mcp: true,
             images: true,
             update_check: true,
         },

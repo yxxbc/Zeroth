@@ -35,7 +35,6 @@ mod layout;
 mod live;
 mod login_view;
 mod mascot_view;
-mod mcp_view;
 mod menu;
 mod message;
 mod model_view;

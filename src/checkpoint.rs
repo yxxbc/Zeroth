@@ -898,10 +898,12 @@ impl CheckpointStore {
         if !self.enabled {
             return None;
         }
-        // Stage everything, honouring the work tree's own .gitignore and our
-        // info/exclude. A nonzero status here (e.g. a transient lock) is not
-        // fatal — the commit captures whatever is staged.
-        let _ = self.git().args(["add", "-A"]).status();
+        // A commit of a stale or partially staged index is not a snapshot of
+        // the current tree, especially when it is the safety backup before a
+        // destructive restore. Refuse it if any part of staging failed.
+        if !self.git().args(["add", "-A"]).status().ok()?.success() {
+            return None;
+        }
         let committed = self
             .git()
             .args([

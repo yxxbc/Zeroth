@@ -36,7 +36,7 @@ Zeroth is an open-source AI coding agent written in Rust, inspired by Claude Cod
 | **Work you can follow** | Live command output, readable diffs, and a task checklist make progress easy to inspect. |
 | **Control over execution** | Choose a permission mode, review proposed changes, and steer the agent while it works. |
 | **Your choice of model** | Connect with a supported subscription or API key, run local models with Ollama, LM Studio or llama.cpp, or add an OpenAI-compatible provider. |
-| **Room to extend** | Add specialist subagents, reusable skills, lifecycle hooks, and MCP servers to fit your workflow. |
+| **Room to extend** | Add specialist subagents, reusable skills, and lifecycle hooks to fit your workflow. |
 | **A native terminal experience** | A single Rust binary designed with a small memory footprint, persistent sessions, inline images, and keyboard-driven controls. |
 
 ## Quick start
@@ -179,7 +179,7 @@ Save its key with `/login` (this one is read from `GROQ_API_KEY`), then choose a
 - **Four permission modes.** `manual` asks before file changes and commands; `edit` allows file changes; `auto`, the default, adds a reviewer for routine commands; `master` runs unattended. Cycle modes with **Shift+Tab** and keep rules per project.
 - **Run it without a screen.** `zeroth -p "…"` answers one prompt for a script, a cron job or a CI step: the answer on stdout, or JSON with `--output-format`, and an exit status to branch on. Nothing waits for a reply; `--permission-mode` decides what runs unasked. See [headless mode](docs/cli/headless.md).
 - **Checkpoints and rewind.** Enable checkpoints per directory to snapshot your working files in a separate store. **Esc Esc** returns to an earlier message and, when a checkpoint is available, restores the files with it.
-- **Nothing runs on its own unseen.** When the app starts, it lists any new or changed hook, yours or a project's, and any new project MCP server, showing exactly what each runs. A hook runs only once you trust it, a server only once you enable it, and `/hooks` and `/mcp` change either later.
+- **Nothing runs on its own unseen.** When the app starts, it lists any new or changed hook, yours or a project's, showing exactly what each runs. A hook runs only once you trust it, and `/hooks` lets you change that trust later.
 - **Credentials by placeholder.** Store a credential with `/secrets` and the agent can use its placeholder without seeing the value. See [how secrets are stored and used](docs/state/secrets.md).
 
 ### Give the agent the right tools
@@ -189,7 +189,6 @@ Save its key with `/login` (this one is read from `GROQ_API_KEY`), then choose a
 
 - **Web search and page reading.** `web_search` and `web_fetch` are native tools, not a skill: no key, no Python, and no setup. Search tries Parallel, AnySearch, Tavily and Bing in order, skips a source that reports a spent quota and comes back to it later, and `web_fetch` reads one URL as text a page at a time. Private, loopback and metadata addresses are refused unless a proxy or a rule says otherwise.
 - **Public tunnels.** The built-in `flaredantic` skill guides you through exposing a local service via Cloudflare, Microsoft Dev Tunnels, or Serveo using the separately installed `flare` CLI. A tunnel makes the service publicly reachable; review what you expose.
-- **MCP servers.** Connect tools over stdio, HTTP, or SSE, including remote servers with OAuth. Manage connections with `/mcp` or `zeroth mcp`.
 - **Hooks and project instructions.** Use `hooks.json` to approve, reject, or adjust tool calls and supply context. `AGENTS.md` files carry your project's conventions; `/init` helps create one.
 
 ### Pick up where you left off
@@ -234,7 +233,6 @@ The essentials are always one keystroke away: `/` opens commands, and `?` in an 
 | `/spinner` | Choose the status spinner style |
 | `/hooks` | Browse hooks and trust or stop trusting each one |
 | `/skills` | Browse skills and enable or disable each one |
-| `/mcp` | Manage MCP servers |
 | `/secrets` | Store credentials the agent uses by placeholder, `<secret:NAME>`, without ever seeing the value |
 | `/quit` | Exit the app |
 
@@ -275,7 +273,6 @@ The essentials are always one keystroke away: `/` opens commands, and `?` in an 
 ```text
 Usage: zeroth [OPTIONS] [PROMPT]
        zeroth -p [OPTIONS] [PROMPT]
-       zeroth mcp <COMMAND>
        zeroth update
 
 Arguments:
@@ -312,7 +309,7 @@ git diff origin/main | zeroth -p --output-format json "Review this diff"
 
 [Headless mode](docs/cli/headless.md) covers the output formats, exit codes and permission modes.
 
-Run `zeroth mcp --help` for MCP server management commands, and `zeroth update` to install the newest release over the binary you are running.
+Run `zeroth update` to install the newest release over the binary you are running.
 
 </details>
 
@@ -331,11 +328,11 @@ Environment overrides are `ZEROTH_*`; scripts still setting the fork's old prefi
 | --- | --- |
 | `~/.zeroth/.env` | Keys and tokens saved through `/login` |
 | `~/.zeroth/agents/` and `~/.zeroth/skills/` | Your shared agent definitions and skills |
-| `~/.zeroth/hooks.json` and `~/.zeroth/mcp.json` | Your shared hooks and MCP servers |
-| `.zeroth/` in a project | Project-specific `agents/`, `skills/`, `hooks.json`, and `mcp.json` |
+| `~/.zeroth/hooks.json` | Your shared hooks |
+| `.zeroth/` in a project | Project-specific `agents/`, `skills/`, and `hooks.json` |
 | `AGENTS.md` | Project instructions read by the agent |
 
-Claude Code-style `.claude/skills/` and `.mcp.json` files are also supported. Hooks, yours and a project's, and a project's MCP servers run only after you approve them when the app starts.
+Claude Code-style `.claude/skills/` folders are also supported. Hooks, yours and a project's, run only after you approve them when the app starts.
 
 </details>
 

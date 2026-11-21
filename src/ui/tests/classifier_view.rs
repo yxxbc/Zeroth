@@ -437,7 +437,7 @@ fn the_real_prompt_abridges_to_its_four_sections() {
         texts[0].starts_with("You are the safety classifier"),
         "{texts:?}"
     );
-    for heading in ["## Shell commands", "## MCP tool calls", "## Output Format"] {
+    for heading in ["## Shell commands", "## Output Format"] {
         assert!(texts.iter().any(|t| t == heading), "{heading}: {texts:?}");
     }
     assert!(

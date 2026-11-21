@@ -527,6 +527,22 @@ source table bound.
   `WebFetch(https://…)`; a URL is shortened from the middle).
 - The `⎿` row: `N results from <source>`, then the numbered hits. On failure
   the ordinary red row with the reason.
+- **A `web_fetch` cell names the visit in one line** (`src/ui/web_fetch.rs`):
+
+  ```text
+  ● https://example.com
+    ⎿  Read 41 rows, 3,201 chars (ctrl+o to expand)
+  ```
+
+  The header is the bare URL, not `WebFetch(…)`, and the `⎿` row is the page's
+  size — rows counted at the width Ctrl+O expands into, characters beside
+  them (a body that fits one row states characters alone, since "1 row" would
+  hide that it wraps). The boundary paragraph that opens every fetch result is
+  a message to the model, so it stays in Ctrl+O, where the transcript shows
+  the generic `● WebFetch({url})` header over the boundary and every page row.
+  Rendering that paragraph in the collapsed cell spent the cell's rows on text
+  the transcript repeats on every fetch. A failed call has no page to fold: its
+  reason is shown whole, for the same reason the boundary is not.
 - Both belong to the collapsed **search** group
   (`docs/ui/tool-groups.md`): `Searched for 1 pattern, read 2 files` already
   counts `read_only::ReadKind::Search`, and a `web_search` is the same kind of

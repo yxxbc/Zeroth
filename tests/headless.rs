@@ -499,6 +499,7 @@ fn serve(mut stream: TcpStream, log: &Mutex<Vec<String>>) {
 const DELEGATE: &str = "HEADLESS_DELEGATE";
 const OUTLIVE: &str = "HEADLESS_OUTLIVE";
 const STALL: &str = "HEADLESS_STALL";
+const SIGNAL_TOOL: &str = "HEADLESS_SIGNAL_TOOL";
 /// What a prompt says to make the stand-in run a command that fails, and
 /// report usage on every reply of that conversation — what the rollout's
 /// `tool` and `usage` lines record (docs/state/rollout-records.md).
@@ -648,6 +649,11 @@ fn chat_reply(body: &str) -> String {
         call(
             "bash",
             serde_json::json!({"command": "sleep 300", "wait": 0}),
+        )
+    } else if said.contains(SIGNAL_TOOL) {
+        call(
+            "bash",
+            serde_json::json!({"command": "sleep 30; touch headless-after-signal"}),
         )
     } else if said.contains(RECORD) {
         call(
@@ -942,6 +948,84 @@ fn a_command_still_running_at_the_end_is_stopped_and_named() {
 }
 
 #[test]
+fn a_signal_settles_and_records_an_open_tool_call() {
+    use std::io::{BufRead, BufReader};
+
+    let world = World::new("signal-tool");
+    let provider = StandIn::start();
+    let mut command = world.command(&[
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--permission-mode",
+        "master",
+        SIGNAL_TOOL,
+    ]);
+    provider.configure(&world, &mut command);
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the binary runs");
+
+    let stdout = child.stdout.take().expect("stdout is piped");
+    let mut reader = BufReader::new(stdout);
+    let mut captured = String::new();
+    let mut started_id = None;
+    loop {
+        let mut line = String::new();
+        let read = reader.read_line(&mut line).expect("event line reads");
+        if read == 0 {
+            break;
+        }
+        if let Ok(event) = serde_json::from_str::<serde_json::Value>(&line)
+            && event["type"] == "item.started"
+        {
+            started_id = event["item"]["id"].as_str().map(str::to_string);
+            captured.push_str(&line);
+            break;
+        }
+        captured.push_str(&line);
+    }
+    let id = started_id.expect("the tool call started before the signal");
+    let sent = Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status()
+        .expect("kill runs");
+    assert!(sent.success());
+    let mut rest = String::new();
+    reader
+        .read_to_string(&mut rest)
+        .expect("remaining events read");
+    captured.push_str(&rest);
+    let status = child.wait().expect("the run ends");
+    let events: Vec<_> = captured
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("a JSON event"))
+        .collect();
+    let completed = events
+        .iter()
+        .find(|event| event["type"] == "item.completed" && event["item"]["id"] == id)
+        .expect("the started tool gets a persisted completion");
+    assert_eq!(completed["item"]["status"], "failed", "{completed}");
+    assert!(
+        completed["item"]["output"]
+            .as_str()
+            .is_some_and(|output| output.contains("Interrupted")),
+        "{completed}"
+    );
+    assert_eq!(status.code(), Some(143));
+
+    let recorded = rollout(&world);
+    let tool = recorded
+        .iter()
+        .find(|line| line["type"] == "tool")
+        .expect("the interrupted tool is present in the rollout");
+    assert_eq!(tool["payload"]["ok"], false, "{tool}");
+}
+
+#[test]
 fn a_signal_stops_the_run_and_still_reports() {
     let world = World::new("signal");
     let child = world
@@ -968,6 +1052,13 @@ fn a_signal_stops_the_run_and_still_reports() {
     assert_eq!(result["type"], "result");
     assert_eq!(result["subtype"], "error_interrupted");
     assert_eq!(result["error"], "interrupted by SIGTERM");
+    let recorded = rollout(&world);
+    assert!(
+        recorded.iter().any(|line| line["type"] == "message"
+            && line["payload"]["role"] == "user"
+            && line["payload"]["text"] == "hello there"),
+        "headless shutdown must retain the prompt, not put it in an invisible composer: {recorded:?}"
+    );
 }
 
 // ===== what the rollout records (docs/state/rollout-records.md) =====

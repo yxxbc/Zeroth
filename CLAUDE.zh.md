@@ -161,11 +161,11 @@ tick 后面；而 turn 活跃时，绘制分支会重新武装一个 32 ms 的�
   shell 命令、backtrack、打断。
 - `docs/ui/` —— 主题、布局、图片、tool cell/流式/分组、视图流、各个 picker、
   overlay、页脚/横幅/状态。
-- `docs/tools/` —— tool、bash/交互式 shell、后台、hook、MCP、ask、task、skill、
+- `docs/tools/` —— tool、bash/交互式 shell、后台、hook、原生网页工具、ask、task、skill、
   scratchpad、tty detach。
 - `docs/providers/` —— 每一种 wire、登录、缓存、离线、用量、推理、fast 模式、
   本地模型。
 - `docs/state/` —— resume、rollout、checkpoint、权限、设置、按目录状态、
   信任/配置审查。
 - `docs/ops/` —— 发布、smoke、更新、二进制体积、构建时间。
-- `docs/agents/`、`docs/cli/` —— subagent/agent tool，以及 CLI/headless/MCP。
+- `docs/agents/`、`docs/cli/` —— subagent/agent tool，以及 CLI/headless/update。

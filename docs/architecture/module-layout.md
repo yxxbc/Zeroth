@@ -143,7 +143,7 @@ opening the viewport, running the loop — and everything else lives here:
 | `login.rs` | The `/login` flow's boundary half: opening it, running a subscription's sign-in — a device code or a browser PKCE flow, per provider — and persisting what it mints (`docs/providers/copilot.md`, `docs/providers/chatgpt.md`). |
 | `config.rs` | Reading the environment: providers, keys, the per-directory `/model` selections and `/settings` knobs (`docs/state/per-directory-state.md`), permission rules, the per-user `update.json` (`docs/ops/update.md`) and `tips.json` (`docs/ui/tips.md`), paths. |
 | `bootstrap.rs` | `Session::bootstrap` / `shutdown` / `after_iteration` — assembly, teardown, loop-bottom work. |
-| `startup.rs` | The `--continue`/`--resume`/`[PROMPT]` argument resolution, `-C`'s `chdir`, the styled `--help` / usage-error printing, and the `mcp` / `update` subcommand dispatch (`docs/cli/cli.md`). |
+| `startup.rs` | The `--continue`/`--resume`/`[PROMPT]` argument resolution, `-C`'s `chdir`, the styled `--help` / usage-error printing, and the `update` subcommand dispatch (`docs/cli/cli.md`). |
 | `headless.rs` | `zeroth -p`: the prompt read from the argument and stdin before the runtime, the loop that runs the same `Session` with no screen, the signals, the streams, the exit status (`docs/cli/headless.md`). |
 | `recorder.rs` | `SessionRecorder`: mirroring history to a rollout file (`docs/state/resume.md`). |
 | `resume.rs` | Finding recorded sessions on disk, and the `/resume` + backtrack arms. |

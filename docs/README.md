@@ -89,7 +89,7 @@ The composer and everything typed into it: textarea, history, pickers, queues, s
 
 ## Tools
 
-What the model can do: the tool loop, bash and its terminal engine, MCP, hooks, skills, tasks, background shells and internal temporary storage.
+What the model can do: the tool loop, bash and its terminal engine, hooks, skills, tasks, background shells and internal temporary storage.
 
 - [`tools/ask.md`](tools/ask.md): The `AskUserQuestion` tool — asking the user mid-turn
 - [`tools/background.md`](tools/background.md): Background shells — `wait: 0`, a `wait` that passes, Ctrl+B, and the ↓ manager
@@ -97,7 +97,6 @@ What the model can do: the tool loop, bash and its terminal engine, MCP, hooks, 
 - [`tools/hooks-menu.md`](tools/hooks-menu.md): The `/hooks` menu — the hooks browser
 - [`tools/hooks.md`](tools/hooks.md): Lifecycle hooks
 - [`tools/interactive-shell.md`](tools/interactive-shell.md): Interactive shells — the terminal engine behind the bash tools
-- [`tools/mcp.md`](tools/mcp.md): MCP servers — the `/mcp` manager and the `mcp__server__tool` tools
 - [`tools/parallel-tools.md`](tools/parallel-tools.md): Parallel tool calls — the visible batch + `⎿ Waiting…`
 - [`tools/scratchpad.md`](tools/scratchpad.md): Session temporary storage and retired agent scratchpad
 - [`tools/skills.md`](tools/skills.md): The `Skill` tool
@@ -143,11 +142,11 @@ Signing in, the wire formats, model catalogs, prompt caching, reasoning and subs
 What persists and what is trusted: permissions, settings, checkpoints, rollouts, sessions, credentials and project config.
 
 - [`state/checkpoint.md`](state/checkpoint.md): Checkpoints — reset the code, not just the transcript
-- [`state/config-review.md`](state/config-review.md): Reviewing hooks and project MCP servers before they run
+- [`state/config-review.md`](state/config-review.md): Reviewing hooks before they run
 - [`state/init.md`](state/init.md): `/init` — generate an AGENTS.md contributor guide (codex's `/init`)
 - [`state/per-directory-state.md`](state/per-directory-state.md): Per-directory state — `/model`, `/settings`, `/mascot` and `/spinner` remember the directory
 - [`state/permissions.md`](state/permissions.md): Tool permission requests
-- [`state/project-config.md`](state/project-config.md): Project-level `.zeroth` config — hooks, MCP servers, skills, agents
+- [`state/project-config.md`](state/project-config.md): Project-level `.zeroth` config — hooks, skills, agents
 - [`state/project-doc.md`](state/project-doc.md): AGENTS.md in the context window — codex's project doc (Design)
 - [`state/resume.md`](state/resume.md): /resume — pick up a saved session (rollout files + session picker)
 - [`state/rollout-records.md`](state/rollout-records.md): What the rollout records about each call and request
@@ -157,12 +156,11 @@ What persists and what is trusted: permissions, settings, checkpoints, rollouts,
 
 ## CLI
 
-The pre-TUI command surface: flags, the `[PROMPT]` shortcut, headless mode and the `mcp` subcommand family.
+The pre-TUI command surface: flags, the `[PROMPT]` shortcut, headless mode and the `update` subcommand.
 
 - [`cli/cli.md`](cli/cli.md): CLI — `--help`, the `[PROMPT]` shortcut, `--continue`, `--resume [id]`, and the exit hint
 - [`cli/headless.md`](cli/headless.md): Headless mode — `zeroth -p`
 - [`cli/batch.md`](cli/batch.md): Batch mode — several headless sessions in one process
-- [`cli/mcp-cli.md`](cli/mcp-cli.md): CLI MCP install — `zeroth mcp add/remove/list/get/add-json`
 
 ## Operations
 

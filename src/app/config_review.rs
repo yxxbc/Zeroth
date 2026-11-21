@@ -1,11 +1,9 @@
-//! The startup review: the dialog that asks about hooks and project MCP
-//! servers before they run (`docs/state/config-review.md`).
+//! The startup review: the dialog that asks about hooks before they run (`docs/state/config-review.md`).
 //!
 //! A composer-replacing inline page in the `/hooks` family — no text entry,
 //! the cursor hidden on its `❯`, every key owned while open — over pages the
 //! boundary builds from what it loaded (the `open_hooks_menu` injection
-//! seam): the hooks waiting for trust first, then the project's servers
-//! waiting for a decision. Each page is a checkbox list grouped by the file
+//! seam): the hooks waiting for trust. Each page is a checkbox list grouped by the file
 //! its items came from, over two action rows. Answering a page returns
 //! [`Action::ReviewAnswered`] and moves on to the next; what an answer means
 //! — what is recorded, what starts running — is the boundary's to apply.
@@ -19,8 +17,6 @@ use crate::trust::HookIdentity;
 pub enum ReviewKind {
     /// Hooks waiting for trust — the user's own and the project's.
     Hooks,
-    /// The project's MCP servers waiting for a decision.
-    McpServers,
 }
 
 /// Which thing an item is, so the boundary can record its answer.
@@ -32,19 +28,15 @@ pub enum ReviewKey {
         source: String,
         identity: HookIdentity,
     },
-    /// A project server: the absolute path of the file declaring it, and
-    /// its name.
-    Server { source: String, name: String },
 }
 
 /// One thing to decide on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewItem {
     pub key: ReviewKey,
-    /// The item's title: `PreToolUse · bash`, `github · http`.
+    /// The item's title: `PreToolUse · bash`.
     pub title: String,
-    /// What runs, verbatim, one entry per line: a hook's command; a
-    /// server's command line or URL, then its `env`.
+    /// What runs, verbatim: the hook's command.
     pub detail: Vec<String>,
     /// How a **changed** item changed. `None` for a new one.
     pub change: Option<ItemChange>,
@@ -57,11 +49,6 @@ pub struct ReviewItem {
 pub enum ItemChange {
     /// A hook's edit: the command it ran before — its `was:` line.
     Was(String),
-    /// A server entry's edit: what changed, each part in words
-    /// ([`crate::trust::ServerChange::describe`]) — its `changed:` line, or
-    /// only the badge when nothing can be named. The entry itself is never
-    /// kept, so this is all there is to say.
-    Parts(Vec<String>),
 }
 
 /// The items one file contributes, under its heading.
@@ -78,9 +65,9 @@ pub struct ReviewSection {
 /// The two action rows under every page's items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReviewChoice {
-    /// `Trust selected and continue` / `Enable selected`.
+    /// `Trust selected and continue`.
     Confirm,
-    /// `Continue without trusting` / `Disable all`.
+    /// `Continue without trusting`.
     Decline,
 }
 
@@ -262,8 +249,8 @@ impl App {
     /// item, Enter confirms the selection from an item or the first action
     /// row and declines from the second, Esc declines. Ctrl+C on the startup
     /// review quits without answering anything — the way out of a review the
-    /// user did not mean to face, where a decline would record every server
-    /// disabled: nothing it asked about runs, and the next launch asks again.
+    /// user did not mean to face: nothing it asked about runs, and the next
+    /// launch asks again.
     /// On a review the user asked for it closes the review unanswered, the
     /// pickers' Ctrl+C.
     ///

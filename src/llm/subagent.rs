@@ -462,7 +462,7 @@ mod tests {
             !explore.tools.allows("write") && !explore.tools.allows("edit"),
             "explore is read-only"
         );
-        assert!(explore.tools.allows("skill") && explore.tools.allows("mcp__deepwiki__ask"));
+        assert!(explore.tools.allows("skill"));
         assert!(
             explore.system_prompt.is_some(),
             "explore's body is its own system prompt"

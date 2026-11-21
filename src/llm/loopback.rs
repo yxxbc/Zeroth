@@ -1,7 +1,7 @@
-//! The loopback callback every browser sign-in comes back through — an MCP
-//! server's OAuth flow (`docs/tools/mcp.md`), ChatGPT's (`docs/providers/chatgpt.md`), the
+//! The loopback callback every browser sign-in comes back through —
+//! ChatGPT's (`docs/providers/chatgpt.md`), the
 //! Anthropic Console's (`docs/providers/claude.md`) and Google Antigravity's
-//! (`docs/providers/antigravity.md`). One implementation, because the first three
+//! (`docs/providers/antigravity.md`). One implementation, because the providers
 //! used to share one hand-rolled loop and its weaknesses: a
 //! browser preconnect that never sends a byte froze the wait (and Esc with
 //! it), a macOS socket inheriting the listener's non-blocking mode read a
@@ -58,7 +58,7 @@ pub(crate) struct AuthResponse {
 /// Parse an authorization response out of a redirect URL, a request path or
 /// a bare query: `None` unless it carries a code or an error.
 pub(crate) fn parse_auth_response(text: &str) -> Option<AuthResponse> {
-    let param = |key: &str| crate::llm::mcp::redirect_param(text, key);
+    let param = |key: &str| crate::llm::oauth::redirect_param(text, key);
     let response = AuthResponse {
         code: param("code"),
         state: param("state"),
@@ -151,7 +151,7 @@ pub(crate) fn check_auth_response(
         }
         Some(_) => {}
     }
-    crate::llm::mcp::validate_issuer(
+    crate::llm::oauth::validate_issuer(
         response.iss.as_deref(),
         expected.issuer,
         expected.iss_required,
@@ -190,7 +190,7 @@ pub(crate) struct Pages {
     /// The headline once the code is in hand — "Signed in to ChatGPT",
     /// "Authorization received".
     pub(crate) received: &'static str,
-    /// Where a sign-in starts again — "/login", "/mcp".
+    /// Where a sign-in starts again — "/login".
     pub(crate) restart: &'static str,
 }
 
@@ -566,7 +566,7 @@ mod tests {
 
     const PAGES: Pages = Pages {
         received: "Authorization received",
-        restart: "/mcp",
+        restart: "/login",
     };
 
     fn expected(issuer: Option<&'static str>, iss_required: bool) -> Expected<'static> {
@@ -738,7 +738,7 @@ mod tests {
         assert!(
             foreign.contains(&format!(
                 "The response belongs to another sign-in attempt. To sign in, start again \
-                 from <code>/mcp</code> in {}.",
+                 from <code>/login</code> in {}.",
                 crate::APP_NAME
             )),
             "{foreign}"
@@ -762,7 +762,7 @@ mod tests {
         let over = stray_page(Stray::Over, &PAGES);
         assert!(over.starts_with("HTTP/1.1 410"), "{over}");
         assert!(over.contains("<h1>This sign-in has ended</h1>"), "{over}");
-        assert!(over.contains("<code>/mcp</code>"), "{over}");
+        assert!(over.contains("<code>/login</code>"), "{over}");
         for page in [&elsewhere, &no_answer, &over] {
             assert!(page.contains(r#"<main class="notice">"#), "{page}");
         }

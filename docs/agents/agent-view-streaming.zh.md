@@ -192,8 +192,8 @@ result"）把 `write`/`edit` 挪到了**两段文本拆分**上 ——
 而这个视图已经落后主视图一次（§1）。`Session::commit_agent_tail` 改为以
 **`AgentRun::apply` 追加到 transcript 上的东西**为键：边界在折叠之前快照
 `run.history.len()`，之后提交它之后记录的每一个条目 —— 一个 `Tool` 经由
-`ui::tool_commit_lines` 作用于到它为止的历史（它仍然持有一个 MCP 运行的成员，
-直到该运行结束），一个 `Summary` 经由 `ui::summary_lines`。那就是一次重建所
+`ui::tool_commit_lines` 作用于到它为止的历史，一个 `Summary` 经由
+`ui::summary_lines`。那就是一次重建所
 回答的同一个问题，这正是两者现在一致的原因；未来一个解决事件完全不需要在这里
 做任何改动。是*每一个*条目，不是最新的一个：一次落定会同时解决一整批并行调用
 —— 运行中的调用，以及每一个仍 `⎿ Waiting…` 的兄弟

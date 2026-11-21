@@ -225,15 +225,6 @@ pub(super) const HOOK_CELL_HOOK: &str = " hook";
 pub(super) const HOOK_CELL_HOOKS: &str = " hooks";
 pub(super) const HOOK_CELL_CONFIG: &str = "Config: ";
 
-/// The collapsed MCP cell's vocabulary (`docs/tools/mcp.md`): a running call's
-/// `● Calling {server}… (ctrl+o to expand)` header and the resolved
-/// bullet-less dim `Called {server} (ctrl+o to expand)` line (the settled
-/// thinking line's shape — `reasoning_label_color()`). The full
-/// `{server} - {tool} (MCP)({args})` story lives in Ctrl+O.
-pub(super) const MCP_CALLING_PREFIX: &str = "Calling ";
-pub(super) const MCP_CALLING_SUFFIX: &str = "…";
-pub(super) const MCP_CALLED_PREFIX: &str = "Called ";
-
 /// The collapsed read/search group's glyphs (`docs/ui/tool-groups.md`): the `…`
 /// that closes an open group's `● Reading 2 files…` line, and the `$ ` its
 /// `⎿` hint row puts in front of a command (a read's hint is its path).
@@ -301,6 +292,13 @@ pub(super) const SEARCH_NO_MATCHES: &str = "No matches";
 pub(super) const SEARCH_RETAINED_LABEL: &str = "retained results";
 pub(super) const SEARCH_OUTPUT_LABEL: &str = "Output";
 pub(super) const SEARCH_COMMAND_LABEL: &str = "Command";
+
+/// The `web_fetch` cell's opening words (`docs/tools/web-search.md`
+/// *Rendering*): the fetched page under `● {url}`, and — in Ctrl+O, where the
+/// boundary paragraph really shows — the cell's one-line summary.
+pub(super) const WEB_FETCH_SUMMARY: &str = "Read ";
+pub(super) const WEB_FETCH_ROWS_UNIT: &str = " rows";
+pub(super) const WEB_FETCH_CHARS_UNIT: &str = " chars";
 
 /// The size cap on the display-only JSON reshaping of an exec cell's output
 /// (`docs/ui/long-lines.md` *Pretty JSON*): an output longer than this many
@@ -980,7 +978,7 @@ pub(super) const CLASSIFIER_VIEW_EMPTY: &str =
 /// The dim note above the block in **auto** mode: the log is live, and this
 /// is what the next verdict reads.
 pub(super) const CLASSIFIER_VIEW_NOTE_AUTO: &str =
-    "Auto mode — the classifier reads this before each command or MCP call.";
+    "Auto mode — the classifier reads this before each command.";
 
 /// The same note in every other mode. The log is recorded in all of them (the
 /// boundary feeds it per call, not per verdict), so a view that stayed silent
@@ -1022,7 +1020,7 @@ pub(super) const CLASSIFIER_CONTEXT_META: &str = "task context";
 /// the page's `user:` message: the request's real shape ends on the one
 /// action being judged, which is only known when a verdict is asked.
 pub(super) const CLASSIFIER_ACTION_PLACEHOLDER: &str =
-    "(the command or MCP call being judged — filled in when a verdict is asked)";
+    "(the command being judged — filled in when a verdict is asked)";
 
 /// The label of an attachment row under a user entry's text.
 pub(super) const CONTEXT_IMAGE_LABEL: &str = "image: ";
@@ -1983,12 +1981,10 @@ pub(super) fn context_usage_color(category: crate::context_usage::Category) -> C
     match category {
         Category::SystemPrompt => context_system_color(),
         Category::SystemTools => context_tool_color(),
-        Category::McpTools => category_blend(palette().warning, palette().error),
         Category::ProjectDocs => palette().link,
         Category::Skills => palette().success,
         Category::AgentTypes => category_blend(palette().purple, palette().error),
         Category::Secrets => palette().error,
-        Category::McpInstructions => category_blend(palette().success, palette().link),
         Category::Messages => palette().accent,
     }
 }
@@ -2232,29 +2228,18 @@ pub(super) const HOOKS_FIELD_COL: usize = 10;
 /// The explanation under each page's title.
 pub(super) const REVIEW_HOOKS_INFO: &str = "Hooks run shell commands on their own whenever their \
 event fires, outside the permission prompt. Only hooks you trust will run.";
-pub(super) const REVIEW_MCP_INFO: &str = "An enabled server runs its command, or connects to its \
-URL, whenever a session starts here. Its tool calls still follow your permission mode.";
-
-/// The servers page's question, under its title on every rung that keeps
-/// the title.
-pub(super) const REVIEW_MCP_QUESTION: &str = "Select any you wish to enable.";
-
 /// The two action rows on each page — what Enter on them answers.
 pub(super) const REVIEW_TRUST_LABEL: &str = "Trust selected and continue";
 pub(super) const REVIEW_SKIP_LABEL: &str = "Continue without trusting";
-pub(super) const REVIEW_ENABLE_LABEL: &str = "Enable selected";
-pub(super) const REVIEW_DISABLE_LABEL: &str = "Disable all";
 
 /// The key hints, saying what Esc means on each page.
 pub(super) const REVIEW_HOOKS_HINT: &str =
     "Space to select · Enter to confirm · Esc to continue without trusting";
-pub(super) const REVIEW_MCP_HINT: &str = "Space to select · Enter to confirm · Esc to disable all";
 
 /// A changed item's amber badge, and the line saying what it was: a hook's
 /// old command, or what changed in a server's entry.
 pub(super) const REVIEW_CHANGED_BADGE: &str = "changed";
 pub(super) const REVIEW_WAS_PREFIX: &str = "was: ";
-pub(super) const REVIEW_CHANGED_PREFIX: &str = "changed: ";
 
 /// The gap before a badge (and a folded item's first detail row), and
 /// before the title's `1/2` page counter.
@@ -2271,81 +2256,6 @@ pub(super) const REVIEW_FROM_PREFIX: &str = "from ";
 /// How many detail rows the highlighted item keeps on the rung that first
 /// cuts it.
 pub(super) const REVIEW_CAPPED_DETAIL_ROWS: usize = 3;
-
-/// The `/mcp` manager (`docs/tools/mcp.md`) — the hooks menu's twin, so it borrows
-/// the whole `HOOKS_*` frame (marker, overflow arrows, window size, hints)
-/// and adds only its own vocabulary.
-///
-/// The list page's title + hint.
-pub(super) const MCP_TITLE: &str = "Manage MCP servers";
-pub(super) const MCP_LIST_HINT: &str = "↑/↓ to navigate · Enter to confirm · Esc to cancel";
-pub(super) const MCP_SERVER_HINT: &str = "↑/↓ to navigate · Enter to select · Esc to back";
-/// The empty list names both config files — "why isn't my server here?" is
-/// its only question (the skills empty-state posture).
-pub(super) const MCP_NONE_FOUND: &str = "No MCP servers configured. Add one at:";
-/// The note under the list's count when MCP is off for the whole session
-/// (the `/settings` **MCP** row): the rows still browse and toggle, but no
-/// server connects until that row is back on — the `/hooks` and `/skills`
-/// menus' disabled-note rule, red like the hooks one.
-pub(super) const MCP_SESSION_OFF: &str = "MCP is off for this session — turn it on in /settings";
-/// The detail page's field column (`Config location:  ` is the widest).
-pub(super) const MCP_FIELD_COL: usize = 18;
-
-/// The separator between a server row's name, status and tool count. It is
-/// **chrome, not status**, so it stays [`model_meta_color`] dim at every
-/// state — only the glyph carries the status colour. Painting it with the
-/// glyph made a connected row's first `·` green while its second stayed dim.
-pub(super) const MCP_ROW_SEPARATOR: &str = " · ";
-
-/// Both detail pages' two-tone: **every field label is bright** (`Status:`,
-/// `Tool name:`, `Description:`, `Parameters:`, a parameter's `● name`), and
-/// the values they introduce are quiet by default — an address, a path, a
-/// protocol revision, a count. The label is the column the eye runs down;
-/// the value is what it stops on once it has found the row.
-pub(super) fn mcp_detail_label_color() -> Color {
-    ai_color()
-}
-pub(super) fn mcp_detail_value_color() -> Color {
-    model_meta_color()
-}
-
-/// The exception: a value that is itself the answer to "is this server
-/// working, and what can it do?" — the `Status:`/`Auth:` words and the
-/// capability list — keeps the light the addresses around it give up.
-pub(super) fn mcp_detail_state_color() -> Color {
-    ai_color()
-}
-
-/// The tool's own description — **half white**: a step down from the label
-/// announcing it, a clear step up from the schema prose below it. It is the
-/// one paragraph on the page written *for* a reader rather than derived from
-/// a schema, so it must not read as boilerplate; full white made it shout
-/// over the labels that organise the page.
-pub(super) fn mcp_description_color() -> Color {
-    model_id_color()
-}
-
-/// The tool page's compact field spacing: one space after the label, not the
-/// server page's [`MCP_FIELD_COL`] pad. Its two labels (`Tool name:`,
-/// `Full name:`) are the same width, so they line up on their own and the
-/// value sits where the eye already is instead of across a gulf.
-pub(super) const MCP_TOOL_FIELD_GAP: &str = " ";
-
-/// The `Parameters:` listing's bullet and its continuation-row indent (the
-/// same width, so a wrapped parameter hangs under its own name).
-pub(super) const MCP_PARAM_BULLET: &str = "  ● ";
-pub(super) const MCP_PARAM_INDENT: &str = "    ";
-/// The auth page's fixed lines.
-pub(super) const MCP_AUTH_BROWSER_NOTE: &str = "*  A browser window will open for authentication";
-pub(super) const MCP_AUTH_COPY_NOTE: &str =
-    "If your browser doesn't open automatically, copy this URL manually (c to copy)";
-pub(super) const MCP_AUTH_PASTE_NOTE: &str =
-    "If the redirect page shows a connection error, paste the URL from your browser's address bar:";
-pub(super) const MCP_AUTH_PROMPT: &str = "URL > ";
-pub(super) const MCP_AUTH_RETURN_NOTE: &str =
-    "Return here after authenticating in your browser. Press Esc to go back.";
-pub(super) const MCP_AUTH_WAITING: &str = "Preparing the authorization request…";
-pub(super) const MCP_AUTH_SUBMITTED: &str = "Checking the pasted URL…";
 
 /// The closing direction on the detail page.
 pub(super) const HOOKS_MODIFY_NOTE: &str =

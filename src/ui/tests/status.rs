@@ -964,7 +964,7 @@ fn conversation_lines_renders_a_committed_turn_summary() {
 #[test]
 fn settled_one_liners_start_at_the_edge_like_the_turn_summary() {
     // What a step leaves once it is done — a finished thought, a read/search
-    // group, a resolved MCP call — is one dim, bullet-less line, and it starts
+    // group — is one dim, bullet-less line, and it starts
     // at the edge in the turn summary's column. Only a cell's `●` opens a row
     // two columns in; none of these is a cell any more, so none keeps the
     // bullet's width as an inset.
@@ -986,12 +986,6 @@ fn settled_one_liners_start_at_the_edge_like_the_turn_summary() {
             cached: 9_000,
             cache_write: 0,
         }),
-        HistoryItem::Tool(tool(
-            "brave-devtools - take_snapshot (MCP)",
-            "{}",
-            ToolStatus::Ok,
-            "snapshot",
-        )),
     ];
     let rows: Vec<String> = conversation_lines(&history, 80, &PathDisplay::VERBATIM, false)
         .iter()
@@ -1004,7 +998,6 @@ fn settled_one_liners_start_at_the_edge_like_the_turn_summary() {
             "Thought for 0s · 16 tokens (ctrl+o to expand)",
             "Listed 1 directory (ctrl+o to expand)",
             "Conjured for 4s · ≈11k tokens (9k cached)",
-            "Called Brave-devtools (ctrl+o to expand)",
         ]
     );
 }

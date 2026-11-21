@@ -34,7 +34,7 @@ use std::time::{Duration, Instant, SystemTime};
 use serde::{Deserialize, Serialize};
 
 use crate::agents::AgentRun;
-use crate::app::{App, PathDisplay, ReviewKey, ReviewKind, ReviewPage};
+use crate::app::{App, PathDisplay, ReviewPage};
 use crate::ask::AskQuestion;
 use crate::permission::{self, PermissionKind, PermissionRequest};
 
@@ -207,21 +207,10 @@ fn waiting_message(app: &App) -> Option<String> {
     Some(one_line(&review_message(page)))
 }
 
-/// A review page in a line: what it asks to trust or to enable — each hook
-/// by its event and matcher, each server by its name.
+/// A review page in a line: each hook by its event and matcher.
 fn review_message(page: &ReviewPage) -> String {
-    let names: Vec<&str> = page
-        .items()
-        .map(|item| match &item.key {
-            ReviewKey::Server { name, .. } => name.as_str(),
-            ReviewKey::Hook { .. } => item.title.as_str(),
-        })
-        .collect();
-    let ask = match page.kind {
-        ReviewKind::Hooks => "Trust hooks",
-        ReviewKind::McpServers => "Enable MCP servers",
-    };
-    format!("{ask}: {}", names.join(", "))
+    let names: Vec<&str> = page.items().map(|item| item.title.as_str()).collect();
+    format!("Trust hooks: {}", names.join(", "))
 }
 
 /// Is this subagent still at work? Announced or running — or settled with
@@ -235,13 +224,11 @@ pub fn agent_busy(run: &AgentRun) -> bool {
 }
 
 /// A permission prompt in a line: its title over what it names — the file
-/// as the screen shows it (`paths`), the command, the server's tool, the
-/// program a session runs.
+/// as the screen shows it (`paths`), the command, the program a session runs.
 fn permission_message(request: &PermissionRequest, paths: &PathDisplay) -> String {
     let subject = match request.kind {
         PermissionKind::Write | PermissionKind::Edit => paths.display(&request.target),
         PermissionKind::Bash => request.target.clone(),
-        PermissionKind::Mcp => permission::mcp_display_label(&request.target),
         PermissionKind::Session => request
             .detail
             .clone()
@@ -1129,19 +1116,6 @@ mod tests {
     }
 
     #[test]
-    fn an_mcp_prompt_names_the_server_and_tool() {
-        let mut app = App::new();
-        app.open_permission(permission(
-            PermissionKind::Mcp,
-            "mcp__deepwiki__ask_question",
-        ));
-        assert_eq!(
-            waiting(&app).as_deref(),
-            Some("Tool use: Deepwiki - ask_question")
-        );
-    }
-
-    #[test]
     fn a_session_prompt_names_the_program_it_types_into() {
         let mut app = App::new();
         let mut request = permission(PermissionKind::Session, "s1");
@@ -1172,7 +1146,7 @@ mod tests {
     fn the_startup_review_is_what_the_session_waits_on() {
         // Nothing it asks about runs until the user answers
         // (`docs/state/config-review.md`), so the pane is blocked — naming what it
-        // asks to trust, then what to enable.
+        // asks to trust.
         use crate::app::{ReviewItem, ReviewKey, ReviewKind, ReviewPage, ReviewSection};
         use crate::trust::HookIdentity;
         use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -1181,6 +1155,7 @@ mod tests {
                 event: event.to_string(),
                 matcher: matcher.to_string(),
                 command: "./x.sh".to_string(),
+                timeout_secs: crate::hooks::CommandHook::DEFAULT_TIMEOUT_SECS,
             };
             ReviewItem {
                 title: identity.label(),
@@ -1193,42 +1168,21 @@ mod tests {
                 },
             }
         };
-        let server = |name: &str| ReviewItem {
-            title: format!("{name} · stdio"),
-            detail: vec!["npx srv".to_string()],
-            change: None,
-            checked: true,
-            key: ReviewKey::Server {
-                source: "/r/.mcp.json".to_string(),
-                name: name.to_string(),
-            },
-        };
         let section = |items| ReviewSection {
             scope: None,
             path: "~/x".to_string(),
             items,
         };
         let mut app = App::new();
-        app.open_config_review(vec![
-            ReviewPage::new(
-                ReviewKind::Hooks,
-                vec![section(vec![hook("Stop", ""), hook("PreToolUse", "bash")])],
-            ),
-            ReviewPage::new(
-                ReviewKind::McpServers,
-                vec![section(vec![server("brave-devtools"), server("github")])],
-            ),
-        ]);
+        app.open_config_review(vec![ReviewPage::new(
+            ReviewKind::Hooks,
+            vec![section(vec![hook("Stop", ""), hook("PreToolUse", "bash")])],
+        )]);
         assert_eq!(
             waiting(&app).as_deref(),
             Some("Trust hooks: Stop, PreToolUse · bash")
         );
         let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
-        app.on_key(enter);
-        assert_eq!(
-            waiting(&app).as_deref(),
-            Some("Enable MCP servers: brave-devtools, github")
-        );
         app.on_key(enter);
         assert_eq!(waiting(&app), None);
     }

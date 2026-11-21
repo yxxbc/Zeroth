@@ -113,7 +113,7 @@ impl PermissionStore {
                 PermissionKind::Write | PermissionKind::Edit => self.save_mode(gate.mode()),
                 // A rule saves the allowlist alone, never the live mode,
                 // which may be the run's seed.
-                PermissionKind::Bash | PermissionKind::Mcp => config::save_permission_commands(
+                PermissionKind::Bash => config::save_permission_commands(
                     self.path.as_deref(),
                     &self.project,
                     &gate.rules(),
@@ -213,7 +213,7 @@ impl Session<'_> {
             // footer segment, and confirms with a toast.
             self.permissions.remember(request);
             let toast = match request.kind {
-                PermissionKind::Bash | PermissionKind::Mcp => format!(
+                PermissionKind::Bash => format!(
                     "Won't ask again for {} in this project",
                     ui::permission_remember_label(request)
                 ),
@@ -251,7 +251,7 @@ impl Session<'_> {
                     "Mode: edit — file edits run without asking, commands still ask"
                 }
                 PermissionMode::Auto => {
-                    "Mode: auto — file edits run; a classifier reviews commands and MCP tools"
+                    "Mode: auto — file edits run; a classifier reviews commands"
                 }
                 PermissionMode::Master => "Mode: master — everything runs without asking",
                 PermissionMode::Manual => "Mode: manual — asking before edits and commands",

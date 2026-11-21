@@ -6,7 +6,7 @@ smoke_begin
 
 # The `/context` page (docs/architecture/context-usage.md): a read-only, composer-replacing
 # page that breaks the context window down by what fills it — the system
-# prompt, the built-in tools' schemas, an MCP server's tools, the project's
+# prompt, the built-in tools' schemas, the project's
 # AGENTS.md, the skills and agent-type listings, the conversation — over the
 # free space and the auto-compact reserve, with the provider's own usage
 # (tokens in/out and the cache-hit share) under it.
@@ -14,14 +14,12 @@ smoke_begin
 # Against the real backend over a local OpenAI-compatible stub (one model,
 # a 200k window; each reply carries a usage frame — no cache reads on the
 # first request, 86% of the prompt read from cache after it), with a skill,
-# an AGENTS.md and a scripted stdio MCP server planted so every category
-# has something in it:
+# a project guide and the built-in agent types so every category has
+# something in it:
 #   (a) the palette lists /context, and it opens before any turn: every
 #       category row, the free space and the reserve, the largest slice
 #       selected with its parts beside it, and no usage reported yet;
-#   (b) the page is live — the MCP server's tools appear once its startup
-#       connect lands, without reopening — and ↓ walks the rows, each
-#       selection's parts naming what costs what;
+#   (b) ↓ walks the rows, each selection's parts naming what costs what;
 #   (c) Ctrl+D opens the raw context over the page and Esc comes back to
 #       it; Esc closes the page back to the composer and its footer;
 #   (d) after two turns the usage rows report the last request's tokens in
@@ -102,11 +100,8 @@ api_base = "http://127.0.0.1:$C_PORT/v1"
 TOML
 
 # Something in every category: a skill in the suite's (otherwise empty)
-# skills root, an AGENTS.md in the working directory — the suite turns
-# project docs off, so this launch turns them back on — and a stdio MCP
-# server in the config home, the /mcp phase's scripted modern server — held
-# five seconds before it answers, so the page is open before its tools are
-# there to count.
+# skills root and an AGENTS.md in the working directory. The suite turns
+# project docs off, so this launch turns them back on.
 mkdir -p "$SMOKE_SKILLS/haiku-writer"
 cat >"$SMOKE_SKILLS/haiku-writer/SKILL.md" <<'SKILL'
 ---
@@ -117,18 +112,6 @@ Write three lines of five, seven and five syllables.
 SKILL
 C_DIR="$(work_dir ctx)"
 printf '# Contributor guide\n\nRun the tests before every commit.\n' >"$C_DIR/AGENTS.md"
-cat >"$SMOKE_TMP/server.sh" <<'MCPSRV'
-#!/bin/sh
-cat > /dev/null &
-sleep 5
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28"],"capabilities":{"tools":{}},"ttlMs":60000,"cacheScope":"public","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"fixture","version":"1.0"}}}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"resultType":"complete","tools":[{"name":"echo_text","description":"Echo the text back.","inputSchema":{"type":"object","properties":{"text":{"type":"string","description":"What to echo."}},"required":["text"]}}],"ttlMs":60000,"cacheScope":"public"}}'
-sleep 60
-MCPSRV
-cat >"$SMOKE_CFG/mcp.json" <<MCPJSON
-{"mcpServers": {"fixture": {"type": "stdio", "command": "sh", "args": ["$SMOKE_TMP/server.sh"]}}}
-MCPJSON
-
 C_APP="env NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_PROJECT_DOC_MAX_BYTES=32768 ZEROTH_PROVIDERS_FILE=$C_PROVIDERS ZEROTH_PROVIDER=stub ZEROTH_MODEL=stub-model STUB_API_KEY=smoke-144 $BIN_ABS"
 
 # c_select SESSION LABEL — press ↓ until LABEL's row is the selected one
@@ -207,19 +190,8 @@ expect_has "$first" -E "bash +[0-9.]+k?" "the tool detail does not list bash's s
 expect_has "$first" -F "Last request" "the usage rows are missing"
 expect_has "$first" -F "no usage reported yet" "the usage rows claim a request before any was made"
 expect_lacks "$first" -F "stub-model · ~/ctx" "the footer is still showing under the page"
-expect_lacks "$first" -F "MCP tools" "the MCP server's tools were counted before it answered"
 
-# ---- (b) live: the MCP server's tools land on the open page; ↓ walks it ----
-mcp="$(wait_pane 15 "$S144" -E "■ MCP tools +[0-9.]+k?")" ||
-	fail "the MCP server's tools never reached the open page"
-dump "the page once the MCP server connected" "$mcp"
-if picked="$(c_select "$S144" "MCP tools")"; then
-	expect_has "$picked" -F "MCP tools · 1 tool" "the MCP detail does not count the server's one tool"
-	expect_has "$picked" -E "fixture · 1 tool +[0-9]+" "the MCP detail does not name the server"
-else
-	dump "↓ never reached MCP tools" "$picked"
-	fail "↓ never selected the MCP tools row"
-fi
+# ---- (b) ↓ walks the rows, with each selection's parts beside it ----
 if picked="$(c_select "$S144" "Project docs")"; then
 	expect_has "$picked" -F "Project docs · 1 file" "the project-docs detail does not count AGENTS.md"
 	expect_has "$picked" -E "AGENTS\.md +[0-9]+" "the project-docs detail does not name AGENTS.md"
@@ -321,7 +293,6 @@ wait_for 5 "$S144" -F "stub-model · ~/ctx" || fail "Esc did not close the page 
 tmux kill-session -t "$S144" 2>/dev/null
 
 # ---- (e) the dummy, mid-turn: the status line above, the page live ----
-rm -f "$SMOKE_CFG/mcp.json"
 S144D="${S}_contextdummy"
 launch -c "$C_DIR" "$S144D" 100 40 "env $CFG_ENV_NOHIST ZEROTH_STARTUP_DELAY_MS=2500 $BIN_ABS"
 submit "$S144D" "$USER_MSG"

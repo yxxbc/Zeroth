@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 
 use super::loopback::{self, CallbackServer, Expected, Pages};
-use super::mcp::{form_encode, pkce_and_state};
+use super::oauth::{form_encode, pkce_and_state};
 use super::{LlmError, Result};
 use crate::stream::CancelToken;
 
@@ -235,7 +235,7 @@ pub fn parse_claims(jwt: &str) -> Result<Claims> {
 }
 
 /// Decode base64url (RFC 4648 §5), padded or not — the inverse of the
-/// `mcp::b64url` encoder. `None` on any character outside the alphabet.
+/// `oauth::b64url` encoder. `None` on any character outside the alphabet.
 #[must_use]
 fn b64url_decode(text: &str) -> Option<Vec<u8>> {
     let value = |c: u8| -> Option<u32> {
@@ -1406,7 +1406,7 @@ mod tests {
     /// A JWT whose payload is `claims` — header and signature are never read,
     /// so any non-empty pair will do.
     fn jwt(claims: serde_json::Value) -> String {
-        let payload = crate::llm::mcp::b64url(claims.to_string().as_bytes());
+        let payload = crate::llm::oauth::b64url(claims.to_string().as_bytes());
         format!("eyJhbGciOiJub25lIn0.{payload}.sig")
     }
 
@@ -1470,7 +1470,7 @@ mod tests {
     #[test]
     fn b64url_decode_round_trips_the_encoder() {
         for sample in [b"" as &[u8], b"f", b"fo", b"foo", b"foob", &[0xfb, 0xff]] {
-            let encoded = crate::llm::mcp::b64url(sample);
+            let encoded = crate::llm::oauth::b64url(sample);
             assert_eq!(
                 b64url_decode(&encoded).as_deref(),
                 Some(sample),

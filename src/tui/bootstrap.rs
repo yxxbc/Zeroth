@@ -358,7 +358,7 @@ impl<'t> Session<'t> {
         // user's lifecycle hooks (`~/.zeroth/hooks.json`, or
         // `ZEROTH_HOOKS_FILE`), the project's `.zeroth` layer
         // (docs/state/project-config.md) and trust.json — each read once, here,
-        // BEFORE the MCP manager and the hooks setup, both of which run only
+        // BEFORE the hooks setup, which runs only
         // what the user trusts. A malformed hooks.json is deliberately loud —
         // the startup toast below rather than a silent "no hooks", which is
         // how a user comes to trust a guard that isn't there.
@@ -400,23 +400,6 @@ impl<'t> Session<'t> {
             }
         };
         app.seed_tips(tips_next);
-
-        // The MCP servers (docs/tools/mcp.md): the config files parsed and merged
-        // (a project's servers held until the review enables them) and the
-        // manager built over them — always, so the `/settings` **MCP** row
-        // can turn it on mid-session. Then every enabled server's connect is
-        // kicked off on worker threads, never blocking the first frame — or,
-        // with the row off in this directory (or `ZEROTH_MCP` falsy for
-        // the run), nothing connects at all. The event channel is a select!
-        // source like the background shells'.
-        let (mcp_tx, mcp_rx) = tokio::sync::mpsc::unbounded_channel();
-        let mcp_manager =
-            zeroth::llm::mcp::McpManager::new(mcp_tx, super::mcp::load_mcp_sources(&cwd, &trust));
-        if settings.mcp {
-            mcp_manager.start_connections();
-        } else {
-            mcp_manager.set_active(false);
-        }
 
         // The rollout path is created lazily on the first recorded item, so
         // the payloads' `transcript_path` rides a shared cell the recorder
@@ -485,7 +468,6 @@ impl<'t> Session<'t> {
             web_search.as_ref(),
             &skill_registry,
             &subagents,
-            Some(&mcp_manager),
             &settings,
             hook_setup,
             round_budget.as_ref(),
@@ -653,7 +635,6 @@ impl<'t> Session<'t> {
             probe_rx,
             bg_rx,
             agent_rx,
-            mcp_rx,
             update_tx,
             update_rx,
             update_attempted: None,
@@ -669,7 +650,6 @@ impl<'t> Session<'t> {
             skill_registry,
             subagents,
             secrets,
-            mcp: mcp_manager,
             trust,
             held_prompt: None,
             // Seeded with the startup walk's failures, so the first turn's
@@ -716,7 +696,6 @@ impl<'t> Session<'t> {
             session.toast(issue, ToastKind::Error);
         }
         session.report_agent_errors(&agent_errors);
-        session.report_mcp_errors();
         session.report_trust_state(trust_error);
         session.report_secrets_error(secrets_error);
         // Last of the config reports, so it is the one left showing: a
@@ -1152,10 +1131,6 @@ impl<'t> Session<'t> {
         } else {
             "prompt_input_exit"
         });
-        // Tear down the MCP connections (docs/tools/mcp.md): drops every transport
-        // — killing the stdio children synchronously — and cancels a running
-        // auth flow, so quitting can't orphan a server process.
-        self.mcp.shutdown();
         // Hand the herdr pane back (docs/architecture/herdr.md) — last, once nothing of
         // the session is left running: the release replaces any report not
         // yet written, and the wait for it is bounded, so a wedged socket
@@ -1189,8 +1164,8 @@ impl<'t> Session<'t> {
         // compares when the history did not move (every streamed chunk), and
         // an estimate of only what joined when it did. Before the auto-compact
         // check, which reads it. The tool set first: every request carries its
-        // schemas, and a set that changed (an MCP server connecting, the
-        // Tools knob) re-reads the gauge — a pointer compare when it did not.
+        // schemas, and a set that changed (the Tools knob or a skills rescan)
+        // re-reads the gauge — a pointer compare when it did not.
         self.app
             .set_tool_definitions(self.models.backend().tool_definitions());
         self.app.sync_context_used();

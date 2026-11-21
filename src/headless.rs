@@ -401,11 +401,11 @@ pub struct Denial {
     pub tool_input: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
-    /// What the closing warning calls it: `write`, `edit`, `bash`, `mcp` or
+    /// What the closing warning calls it: `write`, `edit`, `bash` or
     /// `session`.
     #[serde(skip)]
     pub kind: &'static str,
-    /// The file, the command, the MCP tool, the session.
+    /// The file, the command, the session.
     #[serde(skip)]
     pub target: String,
 }
@@ -425,7 +425,6 @@ impl From<&crate::permission::UnattendedRefusal> for Denial {
                 PermissionKind::Write => "write",
                 PermissionKind::Edit => "edit",
                 PermissionKind::Bash => "bash",
-                PermissionKind::Mcp => "mcp",
                 PermissionKind::Session => "session",
             },
             target: request.target.clone(),
@@ -1354,7 +1353,7 @@ enum ItemBody<'a> {
         text: &'a str,
     },
     ToolCall {
-        /// The tool as the model called it (`bash`, `mcp__github__create_issue`)
+        /// The tool as the model called it (`bash`, `web_search`)
         /// — never the screen's label.
         name: std::borrow::Cow<'a, str>,
         summary: &'a str,
@@ -2141,11 +2140,10 @@ mod tests {
         assert_eq!(json(&started[0])["item"]["name"], "bash");
         let settled = stdout(&reporter.settled(&[tool(&label("bash"), ToolStatus::Ok, "ok")]));
         assert_eq!(json(&settled[0])["item"]["name"], "bash");
-        // An MCP tool's label turns back into the name it was called by,
-        // its case kept.
-        let wire = "mcp__GitHub__create_issue";
-        let mcp = stdout(&reporter.settled(&[tool(&label(wire), ToolStatus::Ok, "{}")]));
-        assert_eq!(json(&mcp[0])["item"]["name"], wire);
+        // Display labels for underscored wire names round-trip too.
+        let wire = "web_search";
+        let search = stdout(&reporter.settled(&[tool(&label(wire), ToolStatus::Ok, "{}")]));
+        assert_eq!(json(&search[0])["item"]["name"], wire);
         // A run stopped under an open call names it the same way.
         reporter.tool_started(&label("write"), "a.txt", None);
         let outcome = RunOutcome::Interrupted(15);
@@ -2666,7 +2664,6 @@ mod tests {
             (PermissionKind::Write, "write"),
             (PermissionKind::Edit, "edit"),
             (PermissionKind::Bash, "bash"),
-            (PermissionKind::Mcp, "mcp"),
             (PermissionKind::Session, "session"),
         ];
         for (kind, label) in kinds {

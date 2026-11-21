@@ -16,7 +16,31 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
-## [0.21.0] - 2026-11-18
+## [0.21.0] - 2026-11-21
+
+### Fixed
+
+- Checkpoint restoration stops if its safety backup fails, including failed
+  staging. File writes and edits publish complete replacements atomically.
+- Headless signal shutdown records interrupted tool calls and retains the
+  submitted prompt, so resumed sessions keep their execution history.
+- Changing a trusted hook's timeout requires review again. The `read` tool
+  refuses Zeroth credential stores and their symlink aliases.
+- A terminal setup failure after command launch stops and reaps that command
+  instead of executing it again through the pipe fallback.
+
+### Removed
+
+- **Local MCP integration is removed.** The `/mcp` manager, `zeroth mcp`
+  commands, user/project server configuration, server lifecycle management and
+  dynamically exposed `mcp__server__tool` calls are gone. Provider sign-in via
+  `/login` and the native `web_search` and `web_fetch` tools remain, including
+  their third-party MCP-over-HTTP sources (`docs/tools/web-search.md`).
+
+### Changed
+
+- **Web fetch cells are easier to scan.** The collapsed cell shows the URL and
+  a compact page-size summary; the full retrieved text stays in the transcript.
 
 ### Added
 

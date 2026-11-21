@@ -85,10 +85,6 @@ pub enum SettingKey {
     Hooks,
     /// Offer the `skill` tool and inject the skill listing (`docs/tools/skills.md`).
     Skills,
-    /// Connect the MCP servers and offer their tools (`docs/tools/mcp.md`) — the
-    /// session-wide switch over the servers `/mcp` turns on and off one by
-    /// one, each of which keeps its own state while this is off.
-    Mcp,
     /// The sampling temperature every request carries.
     Temperature,
     /// How many rounds of tool calls one turn may run (`0` = no limit).
@@ -121,7 +117,6 @@ impl SettingKey {
         Self::ProjectDocs,
         Self::Hooks,
         Self::Skills,
-        Self::Mcp,
         Self::Temperature,
         Self::MaxToolCalls,
         Self::AskTimeout,
@@ -146,7 +141,6 @@ impl SettingKey {
             Self::ProjectDocs => "Project docs",
             Self::Hooks => "Hooks",
             Self::Skills => "Skills",
-            Self::Mcp => "MCP",
             Self::Temperature => "Temperature",
             Self::MaxToolCalls => "Max tool calls",
             Self::AskTimeout => "Ask timeout",
@@ -192,9 +186,6 @@ impl SettingKey {
             Self::Skills => {
                 "Offer the model the SKILL.md skills found in .claude/skills and ~/.zeroth/skills"
             }
-            Self::Mcp => {
-                "Connect the MCP servers and let the model call them — each server keeps its /mcp on/off"
-            }
             Self::Temperature => "The sampling temperature sent with every request",
             Self::MaxToolCalls => {
                 "How many rounds of tool calls one turn may run before it gives up — 0 is no limit"
@@ -231,10 +222,6 @@ pub struct SettingAvailability {
     /// reports `false (unavailable)` rather than offering a toggle over an
     /// empty set.
     pub skills: bool,
-    /// Whether **any** MCP server was declared — the user's `mcp.json` or a
-    /// project's (`docs/tools/mcp.md`). With none there is nothing to connect, so
-    /// the row reports `false (unavailable)`, the **Skills** rule.
-    pub mcp: bool,
     /// Whether this terminal can draw a picture at all (`docs/ui/images.md`) —
     /// the boundary's `ImageStore`. Without one the display rows report
     /// `false (unavailable)`; **Auto-resize images** stays available either
@@ -254,7 +241,6 @@ impl Default for SettingAvailability {
             checkpoints: true,
             hooks: true,
             skills: true,
-            mcp: true,
             images: true,
             update_check: true,
         }
@@ -327,12 +313,6 @@ pub struct SessionSettings {
     /// itself unavailable there).
     #[serde(skip_serializing_if = "is_true")]
     pub skills: bool,
-    /// Connect the MCP servers and offer their tools (default `true` — the
-    /// **Hooks** posture: on until a directory turns it off, which is what
-    /// its entry records, `docs/tools/mcp.md`). Off disconnects every server and
-    /// leaves each one's own `/mcp` switch as it was.
-    #[serde(skip_serializing_if = "is_true")]
-    pub mcp: bool,
     /// The sampling temperature, or `None` for the provider's default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -377,7 +357,6 @@ impl Default for SessionSettings {
             project_docs: true,
             hooks: true,
             skills: true,
-            mcp: true,
             temperature: None,
             max_tool_calls: 0,
             ask_timeout_secs: crate::ask::DEFAULT_ASK_TIMEOUT.as_secs(),
@@ -427,14 +406,6 @@ impl SessionSettings {
         self.skills && self.availability.skills
     }
 
-    /// Whether MCP actually runs: the knob **and** at least one declared
-    /// server to connect ([`hooks_active`](Self::hooks_active)'s twin,
-    /// `docs/tools/mcp.md`).
-    #[must_use]
-    pub const fn mcp_active(&self) -> bool {
-        self.mcp && self.availability.mcp
-    }
-
     /// Whether the daily update check actually runs: the knob **and** a
     /// config home to remember the day in (`docs/ops/update.md`).
     #[must_use]
@@ -477,7 +448,6 @@ impl SessionSettings {
             SettingKey::Checkpoints => self.availability.checkpoints,
             SettingKey::Hooks => self.availability.hooks,
             SettingKey::Skills => self.availability.skills,
-            SettingKey::Mcp => self.availability.mcp,
             // The two display rows need a terminal that can draw; the payload
             // row does not (`docs/ui/images.md`).
             SettingKey::ShowImages | SettingKey::ImageWidth => self.availability.images,
@@ -513,7 +483,6 @@ impl SessionSettings {
             SettingKey::ProjectDocs => bool_text(self.project_docs),
             SettingKey::Hooks => bool_text(self.hooks_active()),
             SettingKey::Skills => bool_text(self.skills_active()),
-            SettingKey::Mcp => bool_text(self.mcp_active()),
             SettingKey::Temperature => temperature_text(self.temperature),
             SettingKey::MaxToolCalls => self.max_tool_calls.to_string(),
             SettingKey::AskTimeout => ask_timeout_text(self.ask_timeout_secs),
@@ -551,7 +520,6 @@ impl SessionSettings {
             SettingKey::ProjectDocs => self.project_docs = !self.project_docs,
             SettingKey::Hooks => self.hooks = !self.hooks,
             SettingKey::Skills => self.skills = !self.skills,
-            SettingKey::Mcp => self.mcp = !self.mcp,
             SettingKey::Temperature => {
                 self.temperature = next_temperature(self.temperature);
             }
@@ -590,7 +558,6 @@ impl SessionSettings {
             SettingKey::ProjectDocs => self.project_docs = live.project_docs,
             SettingKey::Hooks => self.hooks = live.hooks,
             SettingKey::Skills => self.skills = live.skills,
-            SettingKey::Mcp => self.mcp = live.mcp,
             SettingKey::Temperature => self.temperature = live.temperature,
             SettingKey::MaxToolCalls => self.max_tool_calls = live.max_tool_calls,
             SettingKey::AskTimeout => self.ask_timeout_secs = live.ask_timeout_secs,

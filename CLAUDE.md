@@ -178,11 +178,11 @@ streamed, undoes the submission. Every turn end dispatches **one** queued entry.
   paste, file search, shell commands, backtrack, interrupt.
 - `docs/ui/` — theme, layout, images, tool cells/streaming/groups, view flow,
   the pickers, overlays, footer/header/status.
-- `docs/tools/` — tools, bash/interactive shell, background, hooks, MCP, ask,
+- `docs/tools/` — tools, bash/interactive shell, background, hooks, native web tools, ask,
   tasks, skills, scratchpad, tty detach.
 - `docs/providers/` — every wire, sign-in, caching, offline, usage, reasoning,
   fast mode, local models.
 - `docs/state/` — resume, rollouts, checkpoints, permissions, settings,
   per-directory state, trust/config review.
 - `docs/ops/` — release, smoke, update, binary size, build time.
-- `docs/agents/`, `docs/cli/` — subagents/agent tools, and CLI/headless/MCP.
+- `docs/agents/`, `docs/cli/` — subagents/agent tools, and CLI/headless/update.

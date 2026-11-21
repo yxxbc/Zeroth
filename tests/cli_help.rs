@@ -60,19 +60,20 @@ fn the_help_page_opens_on_the_product_name_and_names_the_prompt() {
     assert_eq!(text.lines().next(), Some(zeroth::APP_NAME));
     assert!(text.contains("Usage: zeroth [OPTIONS] [PROMPT]"), "{text}");
     assert!(text.contains("\nArguments:\n  [PROMPT]"), "{text}");
-    assert!(text.contains("\nCommands:\n  mcp"), "{text}");
+    assert!(text.contains("\nCommands:\n  update"), "{text}");
+    assert!(!text.contains("mcp"), "{text}");
     assert!(text.contains("\nOptions:\n  -c, --continue"), "{text}");
 }
 
 #[test]
-fn piped_mcp_help_is_the_plain_mcp_page() {
+fn mcp_before_help_is_a_prompt_not_a_subcommand() {
     let out = run(&["mcp", "--help"]);
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out),
-        format!("{}\n", cli::help(HelpPage::Mcp, HelpStyle::Plain))
+        format!("{}\n", cli::help(HelpPage::Main, HelpStyle::Plain))
     );
-    assert_eq!(stdout(&out).lines().next(), Some("zeroth mcp"));
+    assert_eq!(stdout(&out).lines().next(), Some(zeroth::APP_NAME));
 }
 
 #[test]
@@ -154,7 +155,7 @@ fn a_blank_prompt_is_refused() {
 }
 
 #[test]
-fn an_mcp_grammar_error_carries_the_mcp_usage_block() {
+fn former_mcp_commands_follow_the_regular_positional_prompt_grammar() {
     let out = run(&["mcp", "add"]);
     assert_eq!(out.status.code(), Some(2));
     assert_eq!(
@@ -162,8 +163,8 @@ fn an_mcp_grammar_error_carries_the_mcp_usage_block() {
         format!(
             "{}\n",
             cli::usage_error(
-                HelpPage::Mcp,
-                "mcp add needs a server name",
+                HelpPage::Main,
+                "unexpected argument: add (quote the prompt so the shell passes it as one argument)",
                 HelpStyle::Plain
             )
         )

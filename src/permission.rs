@@ -36,9 +36,9 @@ pub enum PermissionMode {
     /// `bash` commands still ask until allow-listed.
     Edit,
     /// Claude Code's auto mode, and **the default**: `write`/`edit` run
-    /// unasked like [`Edit`], and a `bash` command — or an MCP tool call
-    /// (`docs/tools/mcp.md`) — is reviewed by the **auto mode classifier** — a
-    /// silent LLM safety check — instead of the user. An allowed call runs
+    /// unasked like [`Edit`], and a `bash` command is reviewed by the
+    /// **auto mode classifier** — a silent LLM safety check — instead of
+    /// the user. An allowed call runs
     /// (its cell noting [`CLASSIFIER_ALLOWED_NOTE`]); a denied one is
     /// rejected with the classifier's reason; a classifier *failure* falls
     /// back to the ordinary prompt. See `docs/state/permissions.md`.
@@ -115,12 +115,6 @@ pub enum PermissionKind {
     /// A `bash` command: no framed body — the command and its description sit
     /// indented under the title.
     Bash,
-    /// An `mcp__server__tool` call (`docs/tools/mcp.md`): the target is the wire
-    /// name (the rule key), the body its arguments as the one-line
-    /// `key: "value"` form the cell header shows, and the detail the server's
-    /// own description of the tool — the `Bash` shape, because it answers the
-    /// same question (*what exactly is about to run?*).
-    Mcp,
     /// Input typed into an interactive session a `tty` command left running
     /// (`bash_session`, `docs/tools/interactive-shell.md`): the target is the
     /// session id (what "don't ask again for this session" remembers — never
@@ -145,18 +139,16 @@ pub struct PermissionRequest {
     /// made — a scripted turn, a resumed prompt, a session hand-off.
     pub call_id: Option<String>,
     pub kind: PermissionKind,
-    /// The file path (`Write`/`Edit`), the whole command (`Bash`), the
-    /// `mcp__server__tool` wire name (`Mcp` — the rule key), or the session
-    /// id (`Session`).
+    /// The file path (`Write`/`Edit`), the whole command (`Bash`), or the
+    /// session id (`Session`).
     pub target: String,
     /// The framed body: the numbered contents / diff for a file change, the
-    /// `key: "value"` arguments for an MCP call, the input on one line for a
-    /// session, empty for a command (whose `target` *is* the body).
+    /// input on one line for a session, empty for a command (whose `target`
+    /// *is* the body).
     pub body: String,
     /// The one-line description shown dim under the target: the model's own
-    /// `description` argument for a `bash` call, the server's own description
-    /// of the tool for an MCP one, the command a session runs. `None` for a
-    /// file change (and for any of those when none is known).
+    /// `description` argument for a `bash` call, the command a session runs.
+    /// `None` for a file change (and for either when none is known).
     pub detail: Option<String>,
     /// The subagent type that asked (`general-purpose`), so the title can say
     /// `· from the general-purpose agent`. `None` for the main agent.
@@ -180,8 +172,7 @@ pub struct PermissionRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnattendedRefusal {
     pub request: PermissionRequest,
-    /// The tool's wire name — what the model called (`bash`, `write`,
-    /// `mcp__github__create_issue`).
+    /// The tool's wire name — what the model called (`bash`, `write`).
     pub tool_name: String,
     /// The call's id on the wire.
     pub tool_use_id: String,
@@ -239,9 +230,6 @@ pub const fn title(kind: PermissionKind) -> &'static str {
         PermissionKind::Write => "Create file",
         PermissionKind::Edit => "Edit file",
         PermissionKind::Bash => "Bash command",
-        // Claude Code's own title for a server tool: the user is approving a
-        // *use*, and the body names the tool and server (`docs/tools/mcp.md`).
-        PermissionKind::Mcp => "Tool use",
         PermissionKind::Session => "Session input",
     }
 }
@@ -264,38 +252,9 @@ pub fn question(request: &PermissionRequest) -> String {
             "Do you want to make this edit to {}?",
             file_name(&request.target)
         ),
-        // The body above already names the tool, the server and the arguments,
-        // so the question asks the one thing left (`docs/tools/mcp.md`) — the `bash`
-        // prompt's wording, for the same reason.
-        PermissionKind::Bash | PermissionKind::Mcp => "Do you want to proceed?".to_string(),
+        PermissionKind::Bash => "Do you want to proceed?".to_string(),
         PermissionKind::Session => "Do you want to send this input?".to_string(),
     }
-}
-
-/// The `{Server} - {tool} (MCP)` display form for an MCP request's wire-name
-/// `target` — what the rejected cell names, the server capitalized like
-/// every other rendered surface (`docs/tools/mcp.md`).
-fn mcp_display(wire: &str) -> String {
-    crate::mcp::display_from_wire(wire)
-        .map_or_else(|| wire.to_string(), |d| crate::mcp::capitalize_display(&d))
-}
-
-/// The `{server} - {tool}` label — the display name without its ` (MCP)`
-/// suffix — for an MCP request's wire-name `target`, verbatim. What the auto
-/// mode classifier's model-facing prompt names; the *rendered* prompt rows
-/// read [`mcp_display_label`] instead, so a display-only capitalization can
-/// never rewrite what the classifier is asked about.
-#[must_use]
-pub fn mcp_label(wire: &str) -> String {
-    crate::mcp::label_from_wire(wire).unwrap_or_else(|| wire.to_string())
-}
-
-/// [`mcp_label`] with its server half capitalized — the prompt body's
-/// headline and the "don't ask again" row's spelling (the rule still stores
-/// the exact wire name, `docs/tools/mcp.md`).
-#[must_use]
-pub fn mcp_display_label(wire: &str) -> String {
-    crate::mcp::capitalize_display(&mcp_label(wire))
 }
 
 /// How many options every prompt offers (Yes / remember / No) — the length of
@@ -312,28 +271,13 @@ pub const OPTION_COUNT: usize = 3;
 /// and is picked with `2` or ↑/↓ + Enter, like Claude Code. The file-change
 /// remember row carries its shortcut: **Shift+Tab**, the permission-mode toggle,
 /// because choosing it *is* the switch to [`PermissionMode::Edit`].
-///
-/// An MCP row names the tool the way the user knows it (`Deepwiki -
-/// read_wiki_structure`, not the `mcp__…` wire name it stores) **and the
-/// project the rule is remembered for** — `project`, the directory the
-/// footer names, since the allowlist is per project (`docs/tools/mcp.md`). `None`
-/// (no session info injected yet) simply leaves that clause off.
 #[must_use]
-pub fn options(request: &PermissionRequest, project: Option<&str>) -> [String; OPTION_COUNT] {
+pub fn options(request: &PermissionRequest, _project: Option<&str>) -> [String; OPTION_COUNT] {
     let remember = match request.kind {
         PermissionKind::Bash => format!(
             "Yes, and don't ask again for: {}",
             command_scope(&request.target).display()
         ),
-        // An MCP rule remembers the exact wire name (`docs/tools/mcp.md`); the row
-        // shows the display label, which is the same tool said out loud.
-        PermissionKind::Mcp => {
-            let label = mcp_display_label(&request.target);
-            match project {
-                Some(dir) => format!("Yes, and don't ask again for {label} commands in {dir}"),
-                None => format!("Yes, and don't ask again for {label} commands"),
-            }
-        }
         // The session is the scope: its id is remembered in memory for as
         // long as it runs, never as a rule (docs/tools/interactive-shell.md).
         PermissionKind::Session => "Yes, and don't ask again for this session".to_string(),
@@ -369,7 +313,6 @@ pub fn denied_display(request: &PermissionRequest, feedback: Option<&str>) -> St
         PermissionKind::Write => format!("User rejected write to {}", file_name(&request.target)),
         PermissionKind::Edit => format!("User rejected edit to {}", file_name(&request.target)),
         PermissionKind::Bash => "User rejected command".to_string(),
-        PermissionKind::Mcp => format!("User rejected {}", mcp_display(&request.target)),
         PermissionKind::Session => "User rejected input".to_string(),
     };
     match feedback.map(str::trim).filter(|f| !f.is_empty()) {
@@ -455,8 +398,8 @@ pub fn explain_display() -> String {
     "User asked for an explanation first".to_string()
 }
 
-/// The **auto mode classifier**'s verdict on one `bash` command or MCP tool
-/// call (`docs/state/permissions.md`, `docs/tools/mcp.md`): whether it may run unasked,
+/// The **auto mode classifier**'s verdict on one `bash` command
+/// (`docs/state/permissions.md`): whether it may run unasked,
 /// and — for a denial — the reason both the red cell and the model read.
 /// Produced by the real LLM classifier (`crate::llm::classifier`) or the
 /// dummy's offline heuristic ([`auto_verdict`]).
@@ -490,8 +433,7 @@ pub fn classifier_denied_display(reason: Option<&str>) -> String {
 /// Claude Code's auto-mode rejection message: the call did not run, other
 /// work may continue, a safer approach is fine, but the intent behind the
 /// denial must not be bypassed; if the capability is essential, stop and ask
-/// the user. Kind-neutral wording, since the classifier reviews `bash`
-/// commands and MCP tool calls alike (`docs/tools/mcp.md`).
+/// the user.
 #[must_use]
 pub fn classifier_denial_result(reason: Option<&str>) -> String {
     let reason = match reason.map(str::trim).filter(|r| !r.is_empty()) {
@@ -935,7 +877,7 @@ pub struct PermissionRules {
 
 impl PermissionRules {
     /// Does a standing approval already cover this request? File changes are
-    /// covered by every mode above manual; a command or an MCP call only by
+    /// covered by every mode above manual; a command only by
     /// [`PermissionMode::Master`] or the allowlist — auto mode's classifier
     /// is a per-call consult in the approve seam, never a standing rule, so
     /// `allows` still says no for the calls it reviews.
@@ -950,12 +892,6 @@ impl PermissionRules {
                 PermissionMode::Edit | PermissionMode::Auto | PermissionMode::Master
             ),
             PermissionKind::Bash => self.allows_command(&request.target),
-            // An MCP call is covered only by its exact wire-name rule (or
-            // master, above): `edit` mode is about file changes, and `auto`'s
-            // classifier is the approve seam's per-call consult — never a
-            // standing rule — so an uncovered tool still classifies (or, in
-            // the asking modes, asks) every time (`docs/tools/mcp.md`).
-            PermissionKind::Mcp => self.exact.contains(&request.target),
             // Input into a session is covered by the rule its command runs
             // under — `python3 *` trusts python3 with any arguments, the REPL
             // included — and by nothing else here: the per-session "don't
@@ -991,13 +927,6 @@ impl PermissionRules {
                     self.exact.insert(command);
                 }
             },
-            // The exact wire name — it persists in `permissions.json` like
-            // any exact rule, and can never collide with a real command
-            // (nothing the scope parser produces starts with `mcp__` and
-            // carries no space).
-            PermissionKind::Mcp => {
-                self.exact.insert(request.target.clone());
-            }
             // Not a rule: a session's approval ends with the session, so the
             // gate keeps it in memory ([`PermissionGate::remember`]) and
             // nothing reaches `permissions.json`.
@@ -2535,56 +2464,6 @@ mod tests {
             assert_eq!(entry.saved_mode(), PermissionMode::Manual, "{label:?}");
         }
     }
-    #[test]
-    fn an_mcp_request_asks_with_the_display_form_and_exact_rule() {
-        let req = request(PermissionKind::Mcp, "mcp__deepwiki__ask_question");
-        assert_eq!(title(PermissionKind::Mcp), "Tool use");
-        // The body names the tool, the server and the arguments, so the
-        // question asks the one thing left (`docs/tools/mcp.md`).
-        assert_eq!(question(&req), "Do you want to proceed?");
-        // The rule names the tool the way the user knows it, scoped to the
-        // project it is remembered for; the stored key stays the wire name.
-        let opts = options(&req, Some("~/Codes/tests"));
-        assert_eq!(
-            opts[1],
-            "Yes, and don't ask again for Deepwiki - ask_question commands in ~/Codes/tests"
-        );
-        assert_eq!(
-            options(&req, None)[1],
-            "Yes, and don't ask again for Deepwiki - ask_question commands",
-            "no session info yet: the clause simply drops"
-        );
-        assert_eq!(
-            denied_display(&req, None),
-            "User rejected Deepwiki - ask_question (MCP)"
-        );
-        // No Ctrl+E hint — explain is a command affordance.
-        assert!(!hints(&req).iter().any(|(k, _)| *k == "ctrl+e"));
-    }
-
-    #[test]
-    fn mcp_rules_are_exact_and_survive_every_mode_below_master() {
-        let mut rules = PermissionRules::default();
-        let req = request(PermissionKind::Mcp, "mcp__deepwiki__ask_question");
-        assert!(!rules.allows(&req));
-        // Edit mode still asks — a remote tool is not a file edit — and auto
-        // mode's `allows` still says no: its classifier is the approve seam's
-        // per-call consult, never a standing rule, so an uncovered tool
-        // classifies every time exactly like a command (docs/tools/mcp.md).
-        rules.mode = PermissionMode::Edit;
-        assert!(!rules.allows(&req));
-        rules.mode = PermissionMode::Auto;
-        assert!(!rules.allows(&req));
-        rules.mode = PermissionMode::Master;
-        assert!(rules.allows(&req));
-        rules.mode = PermissionMode::Manual;
-        rules.remember(&req);
-        assert!(rules.allows(&req));
-        assert!(rules.exact.contains("mcp__deepwiki__ask_question"));
-        // The rule is exact: a sibling tool still asks.
-        assert!(!rules.allows(&request(PermissionKind::Mcp, "mcp__deepwiki__read_wiki")));
-    }
-
     // --- interactive-session input (docs/tools/interactive-shell.md) ---
 
     /// Input typed into session `id`, which runs `command`.

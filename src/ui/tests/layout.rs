@@ -9,8 +9,8 @@ const LOGIN_KEY_ROWS: u16 = 7;
 use crate::hooks::{HooksFile, HooksOverview};
 use crate::ui::layout::live_layout;
 use crate::ui::theme::{
-    GAP_ROWS, HOOKS_DETAIL_HINT, INPUT_CHROME_ROWS, LIVE_MIN_HEIGHT, MCP_LIST_HINT,
-    MCP_SERVER_HINT, MENU_MAX_ROWS, MODEL_INDENT, STATUS_GAP_ROWS, STATUS_ROWS,
+    GAP_ROWS, HOOKS_DETAIL_HINT, HOOKS_HINT, INPUT_CHROME_ROWS, LIVE_MIN_HEIGHT, MENU_MAX_ROWS,
+    MODEL_INDENT, STATUS_GAP_ROWS, STATUS_ROWS,
 };
 use crate::ui::wrap::cols;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -961,40 +961,27 @@ fn size_sweep_apps() -> Vec<(&'static str, App)> {
     ]
 }
 
-/// An `/mcp` server page whose `Command:` wraps over far more rows than the
-/// terminals used here, so its action rows — and the `❯` the hidden cursor
-/// seats on — sit at the bottom-anchored page's end.
-fn tall_mcp_server_app() -> App {
+/// A hooks event list highlighted near its bottom, over a short region.
+fn overflowing_hooks_app() -> App {
     let mut app = App::new();
-    app.open_mcp_menu(vec![crate::mcp::McpServerSnapshot {
-        name: "fixture".to_string(),
-        scope: crate::mcp::McpScope::User,
-        config_path: "~/.zeroth/mcp.json".to_string(),
-        config: crate::mcp::McpServerConfig::Stdio {
-            command: "npx".to_string(),
-            args: (0..60).map(|i| format!("--flag-{i}")).collect(),
-            env: Default::default(),
-        },
-        status: crate::mcp::McpServerStatus::Connected,
-        auth: None,
-        identity: None,
-        excluded: Vec::new(),
-        tools: Vec::new(),
-    }]);
-    app.mcp_menu.as_mut().unwrap().page = crate::app::McpPage::Server;
+    app.open_hooks_menu(HooksOverview::from_file(&HooksFile::default()), None, true);
+    let menu = app.hooks_menu.as_mut().expect("open");
+    menu.level = crate::app::HooksLevel::Events {
+        selected: menu.overview.events.len() - 1,
+    };
     app
 }
 
 #[test]
 fn the_menu_cursor_seat_follows_a_bottom_anchored_body() {
-    // An `/mcp` server page taller than the region bottom-anchors
+    // A hooks list taller than the region bottom-anchors
     // (docs/ui/view-flow.md): the actions — and the `❯` the hidden cursor seats
     // on — sit near the page's end, inside the painted tail. The seat must
     // subtract the same skipped rows the paint does, instead of falling back
     // to the far corner because the marker's *page* row is past the region.
-    let app = tall_mcp_server_app();
-    let (width, height) = (60u16, 20u16);
-    let lines = crate::ui::mcp_view_lines(&app, width);
+    let app = overflowing_hooks_app();
+    let (width, height) = (60u16, 8u16);
+    let lines = crate::ui::hooks_view_lines(&app, width);
     let skip = lines.len() - usize::from(height);
     assert!(skip > 0, "the review overflows the region");
     let marker_at = lines
@@ -1017,39 +1004,7 @@ fn the_menu_cursor_seat_follows_a_bottom_anchored_body() {
 
 #[test]
 fn a_marker_less_menu_page_seats_the_cursor_after_its_closing_hint() {
-    // `/mcp` with nothing configured lists no rows, so there is no `❯` for
-    // the hidden cursor to seat on — and the fallback used to be the far
-    // corner: the last cell of the bottom rule, where a kitty cursor
-    // animation flew to nowhere on every open (the reported bug). The
-    // overlays' rule applies instead (`overlay_cursor_seat` — Ctrl+O,
-    // Ctrl+D, `/resume`): the cell just past the page's last **text**, the
-    // closing hint, never the framing rule under it.
     let width = 76u16;
-    let mut app = App::new();
-    app.open_mcp_menu(vec![]);
-    let height = crate::ui::mcp_menu_height(&app, width, 60).unwrap();
-    let mut buf = buffer(width, height);
-    render_mcp_menu(buf.area, &mut buf, &app);
-    assert!(
-        (0..height).all(|y| !row(&buf, y, width).trim_start().starts_with('❯')),
-        "the empty list wears no marker"
-    );
-    let hint_row = (0..height)
-        .find(|&y| row(&buf, y, width).contains(MCP_LIST_HINT))
-        .expect("the closing hint row");
-    assert!(
-        row(&buf, height - 1, width).starts_with('─'),
-        "the bottom rule closes the page"
-    );
-    let after_hint = (cols(MODEL_INDENT) + cols(MCP_LIST_HINT)) as u16;
-    assert_eq!(
-        cursor_position(buf.area, &app),
-        (after_hint, hint_row),
-        "the seat is the cell just past the hint, not the rule's corner"
-    );
-
-    // A `/hooks` event with nothing configured is the same marker-less
-    // shape — its empty-state page closes on the bare Esc hint — same seat.
     let mut app = App::new();
     app.open_hooks_menu(HooksOverview::from_file(&HooksFile::default()), None, true);
     app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)); // the first event
@@ -1073,9 +1028,9 @@ fn a_menu_whose_marker_scrolled_off_seats_on_the_painted_hint_before_the_corner(
     // while the closing hint still paints: the seat then takes the hint —
     // the marker-less rule, one fallback for both cases — and only a region
     // too short to paint even the hint keeps the far corner.
-    let app = tall_mcp_server_app();
+    let app = overflowing_hooks_app();
     let width = 60u16;
-    let lines = crate::ui::mcp_view_lines(&app, width);
+    let lines = crate::ui::hooks_view_lines(&app, width);
     let marker_at = lines
         .iter()
         .position(|l| {
@@ -1086,14 +1041,14 @@ fn a_menu_whose_marker_scrolled_off_seats_on_the_painted_hint_before_the_corner(
         .expect("an action row carries the ❯");
     let hint_at = lines
         .iter()
-        .rposition(|l| plain(l).contains(MCP_SERVER_HINT))
+        .rposition(|l| plain(l).contains(HOOKS_HINT))
         .expect("the closing hint row");
     assert!(marker_at < hint_at, "the actions sit above the hint");
     // A region holding exactly the hint and what follows it: the `❯` is in
     // the flowed top, the hint is the painted body's first row.
     let height = u16::try_from(lines.len() - hint_at).unwrap();
     let area = Rect::new(0, 0, width, height);
-    let after_hint = (cols(MODEL_INDENT) + cols(MCP_SERVER_HINT)) as u16;
+    let after_hint = (cols(MODEL_INDENT) + cols(HOOKS_HINT)) as u16;
     assert_eq!(
         cursor_position(area, &app),
         (after_hint, 0),

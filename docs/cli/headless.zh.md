@@ -65,7 +65,7 @@ headless 运行的是 **TUI 所运行的那个同一个 `Session`** —— 同�
 hooks、记录器、压缩与 subagent —— 只是跑在一个什么都不绘制的 viewport 上
 （`InlineViewport::headless`，一个固定尺寸的 sink，其提交在入队时即被丢弃），
 并且**完全没有 `EventStream`**。它替换掉的是循环里属于终端的那一半：
-`tui::headless` 在回复、后台、subagent 与 MCP 通道外加进程信号上做 select，
+`tui::headless` 在回复、后台与 subagent 通道外加进程信号上做 select，
 并把 session 记录下来的东西变成输出。
 
 另一种做法 —— 一个直接调用 `App` 和 backend 的精简 runner —— 会重新实现 TUI
@@ -167,15 +167,12 @@ socket 就不去管它，并在 stderr 上留一条说明。一旦它说了什�
    `ZEROTH_PROVIDER`/`ZEROTH_MODEL` 变量）—— 一个 CI 任务在罐头 demo
    答复上"成功"，是配置错误所能造成的最严重的失败。`ZEROTH_DUMMY=1` 仍然
    强制使用 demo，测试正是这样离线运行的。
-4. **MCP 服务器先安定下来**：TUI 在后台连接服务器，一个 turn 就直接在没有连上
-   的那些的情况下运行；headless 运行几秒就结束，所以它会等到没有服务器处于
-   `Pending`（每个都受其自身启动超时的约束）才发出第一个请求。
-5. **prompt 被提交**，走与 `[PROMPT]` 快捷方式相同的路径 —— 先对 secrets 做
+4. **prompt 被提交**，走与 `[PROMPT]` 快捷方式相同的路径 —— 先对 secrets 做
    脱敏，然后 `start_turn`。一个 `--continue` 续上的、已超出其窗口的对话会先
    压缩：即 TUI 的空闲边界自动压缩（`docs/architecture/compact.md`），在 prompt
    之前运行一次，之后只在运行等待其 subagent 时才运行 —— 绝不在最后一个答复
    之后，那里只会白花一个请求。
-6. **循环运行到 session 空闲**：没有 turn 在进行、没有排队的东西、没有 subagent
+5. **循环运行到 session 空闲**：没有 turn 在进行、没有排队的东西、没有 subagent
    在跑。一个后台 agent 的完成会开启 TUI 会开启的那个后续 turn，所以"启动
    critic agent，写一份报告"确实会作报告。这个等待是有界的：一旦只剩后台 agent，
    运行最多等待 `ZEROTH_HEADLESS_AGENT_WAIT_SECS`（默认 600，`0` 表示不等），
@@ -184,8 +181,8 @@ socket 就不去管它，并在 stderr 上留一条说明。一旦它说了什�
    截断：它的后续 turn 就要来了。后台 **shell** 不等 —— 用 `&` 启动的 dev
    server 永不退出 —— 所以那时仍在运行的会被停掉并在 stderr 上点名；system
    prompt 会把这一点告诉模型（见下）。
-7. **关闭**是 TUI 的那一套：backend 被取消，shell 和 agent 被杀掉，`SessionEnd`
-   被触发（原因 `other`），MCP 子进程被回收，rollout 被冲刷。然后打印结果并
+6. **关闭**是 TUI 的那一套：backend 被取消，shell 和 agent 被杀掉，`SessionEnd`
+   被触发（原因 `other`），rollout 被冲刷。然后打印结果并
    退出进程。
 
 ### 模型被告知了什么
@@ -241,7 +238,7 @@ hook、auto 模式的分类器。变化的是最后一步：headless 的 gate �
 ### Trust
 
 启动审查（`docs/state/config-review.md`）是一个屏幕，所以它从不打开：一个没有
-人信任过的 hook 或项目 MCP 服务器**保持关闭**，与审查被拒绝之后完全一样，而
+人信任过的 hook **保持关闭**，与审查被拒绝之后完全一样，而
 stderr 会说明有什么在等待、以及在该目录里交互式地运行 `zeroth` 会询问它。
 headless 运行从不自行信任任何东西。
 
@@ -267,7 +264,7 @@ checkpoint：在流水线里，树是流水线把它弄成的样子（一次 `gi
 什么也不写。它总会说的：一次运行为什么失败（`zeroth: HTTP 401: …`、
 `interrupted by SIGTERM`、`--max-turns` 上限）、没人能批准的调用、它停掉的后台
 工作、它等待过或放着不管的 stdin、它正在等过去的一次故障、为审查而暂扣的
-hooks 和 MCP 服务器、一条错误 toast。**`--verbose`** 在每一种格式下都追加下面
+hooks、一条错误 toast。**`--verbose`** 在每一种格式下都追加下面
 这份运行的步骤日志：头部、每个 tool call 及其结果、叙述、一次重试、一条信息
 toast、结尾的页脚。
 
@@ -342,11 +339,11 @@ codex 的条目流，由结果收尾：
 
 - **条目**是运行记录下来的历史，按其顺序，id 为 `item_N`、按进程计数：
   `user_message`、`agent_message`、`reasoning`（仅当 thinking 显示开启时）、
-  `tool_call`（每一个 tool —— `bash`、`write`、`mcp__…`、task 类的 tool ——
+  `tool_call`（每一个 tool —— `bash`、`write`、`web_search`、task 类的 tool ——
   带模型自己的 `arguments`、头部的 `summary`、**模型**读到的 `output`，以及
   一个批准 `note`；`status` 是 `completed`、`failed`、`declined`（它从未运行）
   或 `background`；它的 `name` 是模型所调用的那个 —— `bash`、
-  `mcp__github__create_issue` —— 绝不是屏幕上的 `Bash` 标签）、`subagents`
+  `web_fetch` —— 绝不是屏幕上的 `Bash` 标签）、`subagents`
   （一个已启动的组：每个 agent 的 id、类型、状态与结果）、`background_notice`
   （其 `shell_id`）、`agent_notice`（其 `agent_id`）、`compaction`、`hook` 和
   `notice`。没有条目自带一个名为 `id` 的字段：信封的 `id` 被扁平化地放在条目
@@ -370,10 +367,11 @@ codex 的条目流，由结果收尾：
 | `130` / `143` | Interrupted by `SIGINT` / `SIGTERM`. |
 
 信号是被处理的，而不只是被忍受：它取消 turn 并执行上面的关闭 —— shell 活在
-自己的 session 里（`setsid`），MCP 服务器是子进程，所以在默认动作上死去会把
-它们变成孤儿 —— 然后打印结果（`error_interrupted`，一个仍未关闭的 tool call
-在其之前以 `failed` 完成）并以 `128 + signal` 退出。这些 handler 在 bootstrap
-启动任何服务器之前就已装上，而关闭是有界的（`SessionEnd` 有它的两秒），所以
+自己的 session 里（`setsid`），所以在默认动作上死去会把它们变成孤儿 —— 然后打印结果（`error_interrupted`，一个仍未关闭的 tool call
+在其之前以 `failed` 完成）并以 `128 + signal` 退出。中断的工具调用会在输出结果
+前写入 history 和 rollout，而不只是输出一个完成事件。即使尚未收到回复，已提交
+的 prompt 也保留在记录中：无头关闭没有可恢复撤销输入的 composer。这些 handler 在 bootstrap
+启动任何后台工作之前就已装上，而关闭是有界的（`SessionEnd` 有它的两秒），所以
 没有东西会活得比运行更久。
 
 ## 一次跑多个 job

@@ -27,7 +27,6 @@ prints one line per required tool (the pinned toolchain, rustfmt/clippy, `mbx`,
 | `src/cli.rs`, `--help`, arg parsing | `cargo test --lib cli::` + `cargo test --test cli_help` |
 | `src/headless.rs`, `src/tui/headless.rs`, anything `-p` | `cargo test --lib headless::` + `cargo test --test headless` + `scripts/smoke.sh 153` |
 | `src/pty/`, `src/subprocess.rs` | `cargo test --lib pty::` or `subprocess::` + `cargo test --test detached_exec` (Mac: `cargo build` first) |
-| `src/mcp/`, `src/llm/mcp/`, the `mcp` CLI | `cargo test --lib mcp::` + `cargo test --test mcp_cli` |
 | a memory-sensitive path | the matching `tests/*_memory.rs` |
 | `providers.toml`, `src/llm/config.rs` | `cargo test --lib llm::config` |
 | `scripts/smoke/lib.sh`, `scripts/smoke.sh` | `bash scripts/smoke/selftest.sh` |
@@ -76,9 +75,8 @@ tests and smoke readers on macOS. Linux is the reference; both should be green.
   not, so run `cargo build` first — otherwise ~46 terminal tests fail with
   "no way to give the command a terminal of its own here". Rebuild after
   changing the helper.
-- **38 tests are Linux-only** (`cfg(target_os = "linux")`): `llm/exec` 18,
-  `pty/probe` 8, `clipboard` 4, `subprocess` 4, `background` 2, `pty/spawn` 1,
-  `llm/mcp/transport` 1. A green macOS run says nothing about the `/proc`
+- **37 tests are Linux-only** (`cfg(target_os = "linux")`): `llm/exec` 18,
+  `pty/probe` 8, `clipboard` 4, `subprocess` 4, `background` 2, `pty/spawn` 1. A green macOS run says nothing about the `/proc`
   probe, the streamed clipboard, `setsid` detaching or the Linux executor.
   Say in the commit which platform you ran.
 - **BSD tools:** `pkill` has no `-s` (and its `-t` matches nothing), `ps` has

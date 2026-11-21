@@ -106,7 +106,7 @@
 
 ## 工具
 
-模型能做什么：工具循环、bash 及其终端引擎、MCP、hooks、skills、tasks、后台 shell 与内部临时存储。
+模型能做什么：工具循环、bash 及其终端引擎、hooks、skills、tasks、后台 shell 与内部临时存储。
 
 - [`tools/ask.md`](tools/ask.md)：`AskUserQuestion` 工具 —— 在回合中途向用户提问
 - [`tools/background.md`](tools/background.md)：后台 shell —— `wait: 0`、一次会超时的 `wait`、Ctrl+B 与 ↓ 管理器
@@ -114,7 +114,6 @@
 - [`tools/hooks-menu.md`](tools/hooks-menu.md)：`/hooks` 菜单 —— hooks 浏览器
 - [`tools/hooks.md`](tools/hooks.md)：生命周期 hooks
 - [`tools/interactive-shell.md`](tools/interactive-shell.md)：交互式 shell —— bash 工具背后的终端引擎
-- [`tools/mcp.md`](tools/mcp.md)：MCP 服务器 —— `/mcp` 管理器与 `mcp__server__tool` 工具
 - [`tools/parallel-tools.md`](tools/parallel-tools.md)：并行工具调用 —— 可见批处理 + `⎿ Waiting…`
 - [`tools/scratchpad.md`](tools/scratchpad.md)：会话临时存储与已移除的 Agent scratchpad
 - [`tools/skills.md`](tools/skills.md)：`Skill` 工具
@@ -160,11 +159,11 @@
 什么会持久化、什么是受信的：权限、设置、checkpoint、rollout、会话、凭据与项目配置。
 
 - [`state/checkpoint.md`](state/checkpoint.md)：Checkpoint —— 重置的是代码，不只是 transcript
-- [`state/config-review.md`](state/config-review.md)：hooks 与项目 MCP 服务器运行前的审查
+- [`state/config-review.md`](state/config-review.md)：hooks 运行前的审查
 - [`state/init.md`](state/init.md)：`/init` —— 生成 AGENTS.md 贡献指南（codex 的 `/init`）
 - [`state/per-directory-state.md`](state/per-directory-state.md)：按目录记的状态 —— `/model`、`/settings`、`/mascot`、`/spinner` 记住目录
 - [`state/permissions.md`](state/permissions.md)：工具权限请求
-- [`state/project-config.md`](state/project-config.md)：项目级 `.zeroth` 配置 —— hooks、MCP 服务器、skills、agents
+- [`state/project-config.md`](state/project-config.md)：项目级 `.zeroth` 配置 —— hooks、skills、agents
 - [`state/project-doc.md`](state/project-doc.md)：上下文窗口里的 AGENTS.md —— codex 的项目文档（设计）
 - [`state/resume.md`](state/resume.md)：`/resume` —— 接上一个已保存的会话（rollout 文件 + 会话选择器）
 - [`state/rollout-records.md`](state/rollout-records.md)：rollout 对每次调用与请求记录了些什么
@@ -174,12 +173,11 @@
 
 ## CLI
 
-TUI 之前的命令行界面：参数、`[PROMPT]` 快捷形式、headless 模式与 `mcp` 子命令族。
+TUI 之前的命令行界面：参数、`[PROMPT]` 快捷形式、headless 模式与 `update` 子命令。
 
 - [`cli/cli.md`](cli/cli.md)：CLI —— `--help`、`[PROMPT]` 快捷形式、`--continue`、`--resume [id]` 与退出提示
 - [`cli/headless.md`](cli/headless.md)：Headless 模式 —— `zeroth -p`
 - [`cli/batch.md`](cli/batch.md)：批处理模式 —— 一个进程里跑多个 headless 会话
-- [`cli/mcp-cli.md`](cli/mcp-cli.md)：CLI 安装 MCP —— `zeroth mcp add/remove/list/get/add-json`
 
 ## Operations
 

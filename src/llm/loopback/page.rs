@@ -1,6 +1,6 @@
 //! The page a browser sign-in lands on (`docs/providers/callback-page.md`): every
-//! browser sign-in's, since they share one callback (`super`) — an MCP
-//! server's, ChatGPT's, the Anthropic Console's and Google Antigravity's.
+//! browser sign-in's, since they share one callback (`super`) — ChatGPT's,
+//! the Anthropic Console's and Google Antigravity's.
 //!
 //! The project's mascot in pixels over a serif headline and one quiet
 //! sentence: what happened, and what to do now. The mascot is read off the
@@ -63,7 +63,7 @@ pub(super) struct Page<'a> {
     pub(super) title: &'a str,
     /// The sentence under the headline.
     pub(super) lead: &'a str,
-    /// The command that starts a sign-in again (`/mcp`, `/login`), named in
+    /// The command that starts a sign-in again (`/login`), named in
     /// a closing sentence after the lead.
     pub(super) restart: Option<&'a str>,
     /// The authorization server's own words, set apart under the lead.
@@ -771,13 +771,13 @@ mod tests {
     fn a_restart_command_closes_the_lead() {
         let html = document(&Page {
             lead: "The response belongs to another sign-in attempt.",
-            restart: Some("/mcp"),
+            restart: Some("/login"),
             ..page(Tone::Notice)
         });
         assert!(
             html.contains(
                 "The response belongs to another sign-in attempt. To sign in, start again \
-                 from <code>/mcp</code> in Zeroth.</p>"
+                 from <code>/login</code> in Zeroth.</p>"
             ),
             "{html}"
         );

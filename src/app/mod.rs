@@ -45,7 +45,6 @@ mod keys;
 mod login;
 mod look;
 mod mascot;
-mod mcp_menu;
 mod model_picker;
 mod permission;
 mod queue;
@@ -67,7 +66,7 @@ mod types;
 mod usage;
 mod views;
 
-pub use self::action::{Action, McpOp};
+pub use self::action::Action;
 pub use self::agent::{
     AGENT_STOPPED_OUTPUT, AgentGroup, AgentGroupEntry, AgentGroupLive, AgentNotice, AgentStop,
 };
@@ -98,7 +97,6 @@ pub use self::login::{
 };
 pub use self::look::{Look, LookFile, MascotFile, SpinnerFile};
 pub use self::mascot::{Mascot, MascotPicker, MascotRow};
-pub use self::mcp_menu::{McpAuthView, McpMenu, McpPage, McpServerAction, server_actions};
 pub use self::model_picker::{ModelFetchError, ModelListRow, ModelLoad, ModelPicker};
 pub use self::permission::PermissionPrompt;
 pub use self::queue::QueuedTurn;
@@ -561,11 +559,6 @@ pub struct App {
     /// twin — same frame, same grammar, rows being the discovered skills
     /// instead of the session's knobs. See `docs/tools/skills.md`.
     pub skills_menu: Option<SkillsMenu>,
-    /// The open `/mcp` manager; `None` when closed. The sixth
-    /// composer-replacing picker, the [`hooks_menu`](Self::hooks_menu)'s twin
-    /// (page walk, no search) over the boundary-injected server snapshot.
-    /// See `docs/tools/mcp.md`.
-    pub mcp_menu: Option<McpMenu>,
     /// The open startup review; `None` when closed. The composer-replacing
     /// page that asks about hooks and project MCP servers before they run,
     /// the [`hooks_menu`](Self::hooks_menu)'s sibling (no text entry) over

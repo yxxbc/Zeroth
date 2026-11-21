@@ -20,19 +20,18 @@ pub(super) fn is_shell_header(item: &HistoryItem) -> bool {
 /// except what the commit path is still holding while the live strip speaks
 /// for it — the **open collapsed group** from `group_start` on
 /// ([`App::tool_group_range`](crate::app::App::tool_group_range),
-/// `docs/ui/tool-groups.md`), else the trailing cells of a **parallel MCP run
-/// still in flight** ([`held_run_len`], `docs/tools/mcp.md`). Every rebuild renders
-/// *this*, so a repaint landing mid-group or mid-run can't paint a line the
+/// `docs/ui/tool-groups.md`). Every rebuild renders this, so a repaint
+/// landing mid-group cannot paint a line the
 /// commit is about to write.
 #[must_use]
 pub fn committed_history<'a>(
     history: &'a [HistoryItem],
-    queue: &VecDeque<ToolCall>,
+    _queue: &VecDeque<ToolCall>,
     group_start: Option<usize>,
 ) -> &'a [HistoryItem] {
     match group_start {
         Some(start) => &history[..start.min(history.len())],
-        None => &history[..history.len() - super::tool::held_run_len(history, queue)],
+        None => history,
     }
 }
 
@@ -57,7 +56,7 @@ pub fn conversation_lines(
 /// [`conversation_lines`] with a per-item report: after an item's own rows are
 /// appended (its image block included, its trailing spacer not), `built` gets
 /// its history index and `[start, start + count)` in the returned lines. A
-/// collapsed group or MCP run is one report-less block — it holds tool cells,
+/// collapsed group is one report-less block — it holds tool cells,
 /// not the messages a caller tracks. The full-screen mode uses this to know
 /// where each user message's pinned header starts (`docs/ui/full-screen.md`).
 #[must_use]
@@ -108,16 +107,6 @@ pub fn conversation_lines_carded(
     while index < history.len() {
         if !verbose && let Some(len) = crate::app::group_run(&history[index..], paths) {
             lines.extend(tool_group_lines(&history[index..index + len], width, paths));
-            lines.push(Line::default());
-            index += len;
-            continue;
-        }
-        // A **parallel MCP run** — consecutive cells of one announced batch,
-        // all resolved ok — is one act, so it collapses to the single
-        // `Called deepwiki 2 times (ctrl+o to expand)` line the commit path
-        // writes ([`tool_commit_lines`], `docs/tools/mcp.md`), spacer included.
-        if let Some((len, servers)) = super::tool::mcp_run(&history[index..]) {
-            lines.push(super::tool::mcp_called_line(&servers));
             lines.push(Line::default());
             index += len;
             continue;

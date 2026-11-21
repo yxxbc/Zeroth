@@ -52,7 +52,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 
-use super::mcp::form_encode;
+use super::oauth::form_encode;
 use super::{LlmError, Result};
 use crate::stream::CancelToken;
 

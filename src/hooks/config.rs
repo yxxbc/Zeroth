@@ -282,6 +282,12 @@ impl HookHandler {
         self.resolve().ok().map(|hook| hook.command)
     }
 
+    /// The effective timeout of a handler the runner would execute.
+    #[must_use]
+    pub fn runnable_timeout_secs(&self) -> Option<u64> {
+        self.resolve().ok().map(|hook| hook.timeout_secs)
+    }
+
     /// The runnable form, or why this handler is being skipped.
     fn resolve(&self) -> Result<CommandHook, String> {
         if let HandlerKind::Other(kind) = &self.kind {

@@ -522,8 +522,7 @@ impl Session<'_> {
             .filter_map(|index| match &run.history[index] {
                 // A resolved call — its collapsed cell, through the same
                 // history-derived builder the rebuild uses (the history up to
-                // it), which also holds an MCP run's members until the run
-                // ends (`docs/tools/mcp.md`).
+                // it), preserving the batch's announced order.
                 HistoryItem::Tool(_) => {
                     ui::tool_commit_lines(&run.history[..=index], &run.tool_queue, width, paths)
                 }

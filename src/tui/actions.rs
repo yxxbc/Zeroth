@@ -346,12 +346,6 @@ impl Session<'_> {
                 // Esc/Ctrl+C dismissed the browser: nothing to reap; the
                 // region collapses back to the composer on the next draw.
             }
-            Action::OpenMcpMenu => self.open_mcp_menu(),
-            Action::CloseMcpMenu => {
-                // Esc/Ctrl+C dismissed the manager: nothing to reap; the
-                // region collapses back to the composer on the next draw.
-            }
-            Action::McpOp(op) => self.apply_mcp_op(op),
             Action::ReviewAnswered(answer) => self.apply_review_answer(answer),
             Action::SetHookTrust {
                 source,
@@ -856,12 +850,6 @@ impl Session<'_> {
             // composer draft underneath (docs/state/secrets.md).
             View::Conversation if self.app.secrets_page.is_some() => {
                 self.app.on_paste(pasted);
-            }
-            // The `/mcp` manager: the auth page's `URL >` field takes pastes
-            // (the redirect URL is always pasted — that is the field's whole
-            // point); every other page swallows them (docs/tools/mcp.md).
-            View::Conversation if self.app.mcp_menu.is_some() => {
-                let _ = self.app.paste_into_mcp_auth(pasted);
             }
             View::Conversation => {
                 self.app.on_paste(pasted);

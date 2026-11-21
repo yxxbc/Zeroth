@@ -263,12 +263,6 @@ fn flow_page(app: &App, width: u16, term_height: u16) -> Option<FlowPage> {
             term_height,
         ));
     }
-    if app.mcp_menu.is_some() {
-        return Some(FlowPage::framed(
-            super::mcp_view::mcp_view_lines(app, width),
-            term_height,
-        ));
-    }
     if let Some(view) = &app.background_view {
         // The ↓ manager band, last in the render precedence. Its **details**
         // page live-tails: the runtime advances, the output box fills and the

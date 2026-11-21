@@ -40,7 +40,7 @@ provider 都实现的那一种形状 —— 加上四个模仿 Claude Code 工�
 | `bashwait` | `session_id`（必填）、`wait`（可选，秒 —— 默认 120） | 等新输出、退出或一个提问；`wait: 0` 只做检查 |
 | `bashkill` | `session_id`（必填） | 停掉一条命令以及它启动的一切 —— `SIGINT`、`SIGTERM`，然后 `SIGKILL` |
 | `bashlist` | — | 正在运行的 session：id、命令、运行时长、每个是否在等输入 |
-| `read` | `path`（必填 —— 绝对路径，和另外两个一样）、`offset`（可选，1 起的行号）、`limit`（可选，默认 2000 行） | 读文件：文本返回带行号的行（动态宽度的行号槽）；**图片**（png/jpg/jpeg/gif/webp）以视觉方式附上，好让模型看见它（`offset`/`limit` 被忽略 —— 见下文“图片读取”） |
+| `read` | `path`（必填 —— 绝对路径，和另外两个一样）、`offset`（可选，1 起的行号）、`limit`（可选，默认 2000 行） | 读文件：文本返回带行号的行（动态宽度的行号槽）；**图片**（png/jpg/jpeg/gif/webp）以视觉方式附上，好让模型看见它（`offset`/`limit` 被忽略 —— 见下文“图片读取”）。配置目录中的 Zeroth 凭据文件（`.env`、`secrets.json` 和遗留的 `mcp-auth.json`，以及 `ZEROTH_ENV_FILE` 指定的文件）会被拒绝读取，包括符号链接别名 |
 | `write` | `path`（必填 —— schema 要求**绝对**路径）、`content`（必填） | 创建父目录、写文件；新文件在带编号的内容之上**显示** `Wrote {N} lines to {path}`，覆盖已有文件则显示相对旧内容的带编号 diff 片段 —— 头部的路径按 cwd 相对显示（`tools::display_path`，`../` 爬出 cwd 之外），`● Write({path})` 头部则按 TUI 自己的规则（下文“路径显示”）—— 而*模型*读到的是一行确认 |
 | `edit` | `path`（必填 —— 绝对路径，同 `write`）、`old_string`（必填）、`new_string`（必填）、`replace_all`（可选） | 精确字符串替换；`old_string` 不存在，或没有 `replace_all` 而不唯一时报错；在带编号的 diff 片段之上**显示** `Updated {path} (+A -D)`，路径像 `write` 那样按 cwd 相对显示 —— 模型同样只读到一行确认 |
 
@@ -200,6 +200,12 @@ run_agent(tx, cancel, max_iterations, round, execute, pending_notices):
   `{n:>W} {sign}{text}` —— 上下文/新增行按*新*文件编号，删除行按*旧*文件编号，即
   codex 的 `diff_render` 编号法）。两个正文都以 `DIFF_MAX_LINES` 封顶，并留一条
   `… N more lines` 尾巴 —— 而且同样只在单元格上。
+
+两个文件工具都通过原子替换发布完整内容（`replace_atomically`）：在目标所在目录
+写一个临时文件，保留已有文件的权限位（包括可执行模式），同步它，再 rename 覆盖
+目标。准备或发布替换文件时失败，旧文件保持完整，不会被截断；临时文件也会被清理。
+新文件使用普通创建权限（Unix 上为经 umask 过滤的 `0666`）。Unix 上 rename 后还会
+同步父目录；若最后这次同步失败，会报告错误，但完整的替换文件已经安装到位。
 
 ### 模型读到的结果只有一行
 
@@ -460,8 +466,8 @@ Now:
 auto 模式 classifier 的 `Name(args)` 动作列表 —— 自己把摘要压平
 （`tools::flatten_one_line`）。`(` 骑在**名字**那一行上，而不是第一个参数词上，
 于是一个在名字旁边剩余宽度里放不下的参数**整个**溢出到续行 ——
-`● Deepwiki - ask_question (MCP)(` 压在 `repoName: "…"` 之上 —— 而不是被硬断成两
-半（`(repoName` / `: "…"`，四十列终端从前会呈现的形状；`docs/tools/mcp.md`）。
+例如窄终端上 `● Bash(` 压在 `./scripts/test.sh` 之上 —— 而不是把首个参数硬断在
+两行之间。
 
 **极长的头部按 Claude Code 的方式就地切**（`ui::tool::header_cut`，移植自它的
 `renderToolUseMessage`）：命令的前 `TOOL_HEADER_MAX_LINES`（2）行，且至多
@@ -497,7 +503,7 @@ Now:
 这个上限作用在折后的行上，所以它保留的行正是整条命令折出来的那些，而最后一行以
 `…)` 结尾 —— 在最满到边缘时，它让出标记所需的那两列，这可能切断一个词（上文
 `titles=World%2` → `titles=World…)`）。它数的是**参数**的行：一个溢出头部那种只
-有名字的第一行（四十列下的 `● Deepwiki - ask_question (MCP)(`）不算在那两行里，
+有名字的第一行（首词溢出时的 `● Bash(`）不算在那两行里，
 所以溢出仍然不会赔掉它为容纳参数而付出的代价。九十列以下，决定切口落在哪里的是宽
 度，而不是文本预算。这代价很小：每次 resize 都会从历史重折这些单元格，所以屏幕永
 远与它自己的宽度相符，而整条命令离一个 Ctrl+O 只差一下（在权限 prompt 上则只要有
@@ -655,8 +661,7 @@ context 重放都保留命令逐字节不变。
   里，头部之下那行说执行器是怎么到达它的。
 - **只有文件 tool 的摘要是路径。** `tools::is_file_tool`（`Read`/`Write`/
   `Edit`，按显示名）把着这道门：一条 `Bash` 命令内嵌的是 shell 将要解析的路径，
-  `Agent` 的摘要是散文，MCP call 的摘要是 JSON，而 `!` shell 单元格根本没有头
-  部 —— 那些都逐字回显记录。
+  `Agent` 的摘要是散文，而 `!` shell 单元格根本没有头部 —— 那些都逐字回显记录。
 - **而显示出来的路径是到该文件的链接。** 头部的路径带着一个 OSC 8 超链接，其目标
   是文件的绝对 `file://` URI（`PathDisplay::file_url` → `links::file_url`：相对
   参数先对 cwd 解析，`.`/`..` 折叠，百分号编码），无论那一行画的是哪种短形式，所

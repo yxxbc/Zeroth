@@ -63,10 +63,6 @@
 //!   [`llm::hooks`] — see `docs/tools/hooks.md`).
 //! - [`markdown`]    — the pure block parser for assistant replies: split prose
 //!   from fenced code blocks and detect ATX headings (see `docs/ui/markdown.md`).
-//! - [`mcp`]         — MCP servers' pure model: the `mcp.json` config format,
-//!   the `mcp__server__tool` naming contract, the JSON-RPC/SSE protocol
-//!   shapes, and the `/mcp` manager's snapshot vocabulary (the I/O client is
-//!   [`llm::mcp`]; see `docs/tools/mcp.md`).
 //! - [`paste`]       — paste-burst detection and the large-paste/image
 //!   placeholder helpers.
 //! - [`permission`]  — tool permission requests: the pure prompt vocabulary
@@ -127,7 +123,7 @@
 //!   behind `app::count_tokens`, and the `ContextMeter` the context gauge
 //!   reads (pure; see `docs/architecture/token-estimate.md`).
 //! - [`trust`]       — what the user trusted to run: the hooks of their own
-//!   and their projects' `hooks.json` and each project's MCP servers — the
+//!   and their projects' `hooks.json` — the
 //!   `trust.json` format, a hook's identity, new-or-changed classification,
 //!   and the record cores the startup review writes through (pure; see
 //!   `docs/state/config-review.md`).
@@ -181,7 +177,6 @@ pub mod link_card;
 pub mod links;
 pub mod llm;
 pub mod markdown;
-pub mod mcp;
 pub mod paste;
 pub mod permission;
 pub mod project_doc;

@@ -4,8 +4,8 @@
 //! turn starts, the same stream folding, notice settling and follow-up turns
 //! — over a viewport that paints nowhere ([`InlineViewport::headless`]) and
 //! with no key reader at all. What this module replaces is the terminal half
-//! of the event loop: [`run`] selects over the reply, background, subagent
-//! and MCP channels plus the process signals, and hands what the session
+//! of the event loop: [`run`] selects over the reply, background and subagent
+//! channels plus the process signals, and hands what the session
 //! settles to the library's [`Reporter`], which decides every line written.
 //!
 //! Three things happen here that the TUI never needs:
@@ -18,7 +18,7 @@
 //!   no subagent still working — then whatever background command still runs
 //!   is stopped, and the process exits with the status the run earned.
 //! - **Signals are handled**, not suffered: shells live in sessions of their
-//!   own and MCP servers are children, so dying on SIGINT's default action
+//!   own, so dying on SIGINT's default action
 //!   would orphan them. The run shuts down the TUI's way and reports.
 
 use std::io::{IsTerminal, Write};
@@ -30,7 +30,6 @@ use zeroth::headless::{
     self as core, Denial, Emit, Reporter, RunEnd, RunOutcome, RunStart, RunUsage, StdinKind,
     StdinRead,
 };
-use zeroth::mcp::McpServerStatus;
 use zeroth::stream::StreamEvent;
 use zeroth::term::InlineViewport;
 
@@ -44,11 +43,6 @@ use super::{Session, config};
 const NO_MODEL: &str = "no model is configured: sign in and pick one with /login and /model in \
      an interactive session, or set ZEROTH_PROVIDER, ZEROTH_MODEL and the provider's key \
      (ZEROTH_DUMMY=1 runs the offline demo)";
-
-/// How long past each MCP server's own connect budget the run waits for the
-/// servers to settle before its first request — a bound on a server the
-/// manager somehow never resolves.
-const MCP_SETTLE_GRACE: Duration = Duration::from_secs(5);
 
 /// SIGINT and SIGTERM — POSIX's numbers on every platform this builds for.
 const SIGINT: i32 = 2;
@@ -311,8 +305,8 @@ fn duration_ms(duration: Duration) -> u64 {
 }
 
 /// Run one headless session to its end and return the process's exit status
-/// (`docs/cli/headless.md`): bootstrap, wait for the MCP servers, submit the
-/// prompt, fold every event until the session is idle with nothing left
+/// (`docs/cli/headless.md`): bootstrap, submit the prompt, fold every event
+/// until the session is idle with nothing left
 /// running that owes it a turn, then shut down and report.
 pub(crate) async fn run(startup: Startup) -> i32 {
     run_job(startup, None).await.exit_code
@@ -326,12 +320,10 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
     let began = Instant::now();
     let options = startup.print.clone().unwrap_or_default();
     let format = options.output_format;
-    // The headless loop submits the prompt itself, once the MCP servers have
-    // settled — bootstrap never sees it.
+    // The headless loop submits the prompt itself — bootstrap never sees it.
     let prompt = startup.prompt.take().unwrap_or_default();
     let resumed = matches!(startup.session, Some(StartupSession::Load(_)));
-    // Before bootstrap, which starts the MCP servers: a Ctrl+C from here on
-    // takes them down with the run rather than orphaning them.
+    // Install before bootstrap so signals shut the session down cleanly.
     let mut signals = Signals::install();
     let mut term = InlineViewport::headless();
     let mut session = match Session::bootstrap(&mut term, startup, host) {
@@ -349,8 +341,7 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
     }
     session.report_held_for_review();
     let mut reporter = Reporter::new(format, options.verbose);
-    let mut interrupted = session.settle_mcp(&mut signals).await;
-    session.report_mcp_unavailable();
+    let mut interrupted = None;
     let run_start = session.app.history.len();
     let mut emitted = run_start;
     let start = session.run_start_info(resumed);
@@ -406,7 +397,6 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
             }
             Some(event) = session.bg_rx.recv() => session.on_bg_event(event),
             Some(event) = session.agent_rx.recv() => session.on_headless_agent_message(event),
-            Some(event) = session.mcp_rx.recv() => session.on_mcp_event(event),
             Some((provider, result)) = session.probe_rx.recv(),
                 if session.models.probe_pending() =>
             {
@@ -426,6 +416,12 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
         // subagents — the idle boundary a follow-up turn will come out of.
         let waiting = session.waiting_on_agents();
         session.after_headless_iteration(waiting);
+    }
+    // Settle a tool whose worker was cancelled by the signal before recording
+    // the rollout. Otherwise the reporter can synthesize a failed item while
+    // the resumed conversation has no corresponding tool result.
+    if interrupted.is_some() {
+        session.settle_interrupted_run(run_start, &mut reporter, &mut emitted);
     }
     // An interrupted run may still have a turn-end snapshot on its worker;
     // record it before shutting the store down, but never start a turn.
@@ -468,6 +464,37 @@ impl StartInfo {
 }
 
 impl Session<'_> {
+    /// Cancel the live turn and persist its interrupted tool calls before the
+    /// headless reporter finishes the session. No queued follow-up is started.
+    fn settle_interrupted_run(
+        &mut self,
+        run_start: usize,
+        reporter: &mut Reporter,
+        emitted: &mut usize,
+    ) {
+        let elapsed = self
+            .clocks
+            .turn_start
+            .map(|start| start.elapsed().as_secs())
+            .unwrap_or_default();
+        self.app
+            .set_command_elapsed(self.clocks.command_start.map(|start| start.elapsed()));
+        if let Some((cancel, _)) = self.inflight.as_ref() {
+            cancel.cancel();
+        }
+        if let Some(zeroth::app::InterruptedTurn::Kept { agents, .. }) =
+            self.app.interrupt_for_shutdown(elapsed)
+            && let Some(group) = agents
+        {
+            for entry in group.agents {
+                let _ = self.agent_registry.kill(&entry.id);
+            }
+        }
+        self.abandon_inflight();
+        self.clocks.command_start = None;
+        self.emit_settled(reporter, run_start, emitted);
+    }
+
     /// What a headless run announces as it starts.
     fn run_start_info(&self, resumed: bool) -> StartInfo {
         StartInfo {
@@ -485,27 +512,17 @@ impl Session<'_> {
     /// declined review, and an interactive run in this directory asks.
     fn report_held_for_review(&mut self) {
         let mut hooks = 0;
-        let mut servers = 0;
-        for page in self.review_pages(true, true) {
+        for page in self.review_pages(true) {
             let items: usize = page
                 .sections
                 .iter()
                 .map(|section| section.items.len())
                 .sum();
-            match page.kind {
-                zeroth::app::ReviewKind::Hooks => hooks += items,
-                zeroth::app::ReviewKind::McpServers => servers += items,
-            }
+            hooks += items;
         }
         let mut waiting = Vec::new();
         if hooks > 0 {
             waiting.push(format!("{hooks} hook{}", if hooks == 1 { "" } else { "s" }));
-        }
-        if servers > 0 {
-            waiting.push(format!(
-                "{servers} MCP server{}",
-                if servers == 1 { "" } else { "s" }
-            ));
         }
         if !waiting.is_empty() {
             write(&[core::warning(&format!(
@@ -514,63 +531,6 @@ impl Session<'_> {
                 waiting.join(" and ")
             ))]);
         }
-    }
-
-    /// Wait until no MCP server is still connecting — each is bounded by its
-    /// own startup budget — so the first request carries every server's
-    /// tools: a TUI turn simply runs without the ones still connecting, but
-    /// a headless run is over in seconds. A signal meanwhile ends the wait
-    /// and the run.
-    async fn settle_mcp(&mut self, signals: &mut Signals) -> Option<i32> {
-        let deadline = Instant::now() + config::mcp_startup_timeout() + MCP_SETTLE_GRACE;
-        while self.mcp_connecting() {
-            let left = deadline.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                break;
-            }
-            tokio::select! {
-                Some(event) = self.mcp_rx.recv() => self.on_mcp_event(event),
-                Some(()) = self.draw_rx.recv() => {}
-                () = tokio::time::sleep(left) => break,
-                signal = signals.recv() => return Some(signal),
-            }
-        }
-        None
-    }
-
-    fn mcp_connecting(&self) -> bool {
-        self.mcp.is_active()
-            && self
-                .mcp
-                .snapshot()
-                .iter()
-                .any(|server| server.status == McpServerStatus::Pending)
-    }
-
-    /// Name the MCP servers that will not serve this run — a failed connect,
-    /// a sign-in only an interactive session can do.
-    fn report_mcp_unavailable(&self) {
-        let warnings: Vec<Emit> = self
-            .mcp
-            .snapshot()
-            .iter()
-            .filter_map(|server| match &server.status {
-                McpServerStatus::Failed(reason) => Some(core::warning(&format!(
-                    "MCP server {} is unavailable: {reason}",
-                    server.name
-                ))),
-                McpServerStatus::NeedsAuth => Some(core::warning(&format!(
-                    "MCP server {} needs a sign-in — /mcp in an interactive session",
-                    server.name
-                ))),
-                McpServerStatus::Pending => Some(core::warning(&format!(
-                    "MCP server {} is still connecting — the run goes on without it",
-                    server.name
-                ))),
-                _ => None,
-            })
-            .collect();
-        write(&warnings);
     }
 
     /// One subagent event, folded as the TUI folds it — except a permission
@@ -754,7 +714,7 @@ impl Session<'_> {
 
     /// The run is over: gather its report, shut the session down the TUI's
     /// way — the backend cancelled, every shell and agent stopped,
-    /// `SessionEnd` fired, the MCP servers reaped, the rollout flushed — and
+    /// `SessionEnd` fired, the rollout flushed — and
     /// write the result. Returns the exit status.
     fn finish(
         mut self,

@@ -27,7 +27,6 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use crate::context::{ContextMessage, ContextRole, TextOrigin, TextSegment};
-use crate::mcp::{is_mcp_tool, parse_wire_name};
 use crate::stream::TokenUsage;
 
 /// One tool the next request offers the model: its wire name and its schema
@@ -37,7 +36,7 @@ use crate::stream::TokenUsage;
 /// fields its own way, a few tokens either side.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ToolDefinition {
-    /// The wire name the model calls it by (`bash`, `mcp__deepwiki__ask`).
+    /// The wire name the model calls it by (`bash`, `web_search`).
     pub name: String,
     /// The whole Chat Completions `{"type":"function",…}` entry, as JSON.
     pub schema: String,
@@ -122,8 +121,6 @@ pub enum Category {
     SystemPrompt,
     /// The built-in tool schemas.
     SystemTools,
-    /// The MCP servers' tool schemas (`mcp__server__tool`).
-    McpTools,
     /// The reminder's `AGENTS.md` instructions section.
     ProjectDocs,
     /// The reminder's skills listing.
@@ -132,23 +129,19 @@ pub enum Category {
     AgentTypes,
     /// The reminder's secrets listing — names and context, never a value.
     Secrets,
-    /// The reminder's MCP server instructions, one subsection per server.
-    McpInstructions,
     /// The derived conversation.
     Messages,
 }
 
 impl Category {
     /// Every category, in the order the request carries them.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 7] = [
         Self::SystemPrompt,
         Self::SystemTools,
-        Self::McpTools,
         Self::ProjectDocs,
         Self::Skills,
         Self::AgentTypes,
         Self::Secrets,
-        Self::McpInstructions,
         Self::Messages,
     ];
 
@@ -158,12 +151,10 @@ impl Category {
         match self {
             Self::SystemPrompt => "System prompt",
             Self::SystemTools => "System tools",
-            Self::McpTools => "MCP tools",
             Self::ProjectDocs => "Project docs",
             Self::Skills => "Skills",
             Self::AgentTypes => "Agent types",
             Self::Secrets => "Secrets",
-            Self::McpInstructions => "MCP instructions",
             Self::Messages => "Messages",
         }
     }
@@ -174,12 +165,11 @@ impl Category {
     pub const fn unit(self) -> (&'static str, &'static str) {
         match self {
             Self::SystemPrompt => ("block", "blocks"),
-            Self::SystemTools | Self::McpTools => ("tool", "tools"),
+            Self::SystemTools => ("tool", "tools"),
             Self::ProjectDocs => ("file", "files"),
             Self::Skills => ("skill", "skills"),
             Self::AgentTypes => ("type", "types"),
             Self::Secrets => ("secret", "secrets"),
-            Self::McpInstructions => ("server", "servers"),
             Self::Messages => ("message", "messages"),
         }
     }
@@ -328,11 +318,8 @@ pub fn breakdown(sources: &Sources<'_>, count: &dyn Fn(&str) -> usize) -> Breakd
             parts,
         ));
     }
-    let (mcp, built_in): (Vec<&ToolDefinition>, Vec<&ToolDefinition>) = sources
+    let tool_parts: Vec<Part> = sources
         .tools
-        .iter()
-        .partition(|tool| is_mcp_tool(&tool.name));
-    let tool_parts: Vec<Part> = built_in
         .iter()
         .map(|tool| Part {
             label: tool.name.clone(),
@@ -341,13 +328,8 @@ pub fn breakdown(sources: &Sources<'_>, count: &dyn Fn(&str) -> usize) -> Breakd
         .collect();
     slices.push(Slice::summed(
         Category::SystemTools,
-        built_in.len(),
+        sources.tools.len(),
         tool_parts,
-    ));
-    slices.push(Slice::summed(
-        Category::McpTools,
-        mcp.len(),
-        server_parts(&mcp, count),
     ));
     // What the reminder carries that no section header claims — nothing the
     // session writes, but a token must never fall out of the total. It rides
@@ -436,33 +418,6 @@ fn prompt_blocks(prompt: &str) -> Vec<(String, &str)> {
     blocks
 }
 
-/// The MCP tools folded by server — the granularity `/mcp` acts on — each
-/// labelled with its tool count, in the order the request lists them.
-fn server_parts(tools: &[&ToolDefinition], count: &dyn Fn(&str) -> usize) -> Vec<Part> {
-    let mut servers: Vec<(String, usize, usize)> = Vec::new();
-    for tool in tools {
-        let server = parse_wire_name(&tool.name).map_or(tool.name.as_str(), |(server, _)| server);
-        let tokens = count(&tool.schema);
-        match servers.iter_mut().find(|(name, _, _)| name == server) {
-            Some((_, tools, sum)) => {
-                *tools += 1;
-                *sum += tokens;
-            }
-            None => servers.push((server.to_string(), 1, tokens)),
-        }
-    }
-    servers
-        .into_iter()
-        .map(|(server, tools, tokens)| Part {
-            label: format!(
-                "{server} · {tools} {}",
-                if tools == 1 { "tool" } else { "tools" }
-            ),
-            tokens,
-        })
-        .collect()
-}
-
 /// The reminder cut into its sections. The instructions section is the
 /// text the session stored (`instructions`), found whole where the reminder
 /// carries it: an `AGENTS.md` is the user's own text and may quote any
@@ -489,7 +444,6 @@ fn reminder_sections<'a>(
     }
     let mut end = reminder.len();
     for (category, header) in [
-        (Category::McpInstructions, crate::mcp::INSTRUCTIONS_HEADER),
         (Category::Secrets, crate::secrets::SECRET_LISTING_HEADER),
         (Category::AgentTypes, crate::subagents::AGENT_LISTING_HEADER),
         (Category::Skills, crate::skills::SKILL_LISTING_HEADER),
@@ -522,9 +476,6 @@ fn section_items(category: Category, section: &str) -> Vec<(String, &str)> {
     if category == Category::ProjectDocs {
         return doc_files(section);
     }
-    if category == Category::McpInstructions {
-        return server_subsections(section);
-    }
     section
         .lines()
         .filter_map(|line| {
@@ -547,29 +498,6 @@ fn listing_label(row: &str) -> &str {
         .min()
         .unwrap_or(row.len());
     row[..end].trim()
-}
-
-/// The MCP instructions section's servers: each `## {server}` heading to the
-/// next — a server's own headings are pushed below that level when the
-/// section is rendered (`mcp::instructions_section`), so none of them can
-/// start a part.
-fn server_subsections(section: &str) -> Vec<(String, &str)> {
-    let mut starts: Vec<(usize, String)> = Vec::new();
-    let mut at = 0;
-    for line in section.split_inclusive('\n') {
-        if let Some(name) = line.strip_prefix("## ") {
-            starts.push((at, name.trim_end().to_string()));
-        }
-        at += line.len();
-    }
-    starts
-        .iter()
-        .enumerate()
-        .map(|(i, (start, name))| {
-            let end = starts.get(i + 1).map_or(section.len(), |(next, _)| *next);
-            (name.clone(), section[*start..end].trim_end())
-        })
-        .collect()
 }
 
 /// The instructions section's files: each `Contents of {path} ({note}):`
@@ -828,36 +756,34 @@ mod tests {
     }
 
     #[test]
-    fn built_in_tools_and_mcp_tools_are_two_slices() {
+    fn tools_are_counted_individually_in_one_slice() {
         let tools = [
             tool("bash", "aaaaaaaaaa"),
             tool("read", "bbbbb"),
-            tool("mcp__deepwiki__ask_question", "cccccccc"),
-            tool("mcp__deepwiki__read_wiki", "dddd"),
-            tool("mcp__github__create_issue", "eeeeeeeeeeee"),
+            tool("web_search", "cccccccc"),
         ];
         let breakdown = of(Sources {
             tools: &tools,
             ..Sources::default()
         });
-        assert_eq!(tokens(&breakdown, Category::SystemTools), 15);
+        assert_eq!(tokens(&breakdown, Category::SystemTools), 23);
         assert_eq!(
             parts(&breakdown, Category::SystemTools),
-            [("bash".to_string(), 10), ("read".to_string(), 5)]
-        );
-        assert_eq!(breakdown.slice(Category::SystemTools).unwrap().items, 2);
-        // MCP tools fold by server — the granularity `/mcp` can act on — and
-        // a part says how many tools it holds; the slice counts the tools.
-        // The two servers tie, so they keep the order the request lists them.
-        assert_eq!(tokens(&breakdown, Category::McpTools), 24);
-        assert_eq!(
-            parts(&breakdown, Category::McpTools),
             [
-                ("deepwiki · 2 tools".to_string(), 12),
-                ("github · 1 tool".to_string(), 12),
+                ("bash".to_string(), 10),
+                ("web_search".to_string(), 8),
+                ("read".to_string(), 5),
             ]
         );
-        assert_eq!(breakdown.slice(Category::McpTools).unwrap().items, 3);
+        assert_eq!(breakdown.slice(Category::SystemTools).unwrap().items, 3);
+        assert_eq!(
+            breakdown
+                .slices
+                .iter()
+                .map(|slice| slice.category)
+                .collect::<Vec<_>>(),
+            [Category::SystemTools, Category::Messages]
+        );
     }
 
     #[test]
@@ -984,41 +910,6 @@ mod tests {
         );
         assert_eq!(breakdown.slice(Category::ProjectDocs).unwrap().items, 2);
         assert_eq!(breakdown.slice(Category::Secrets).unwrap().items, 2);
-    }
-
-    /// The MCP servers' instructions, the reminder's last section, are a
-    /// slice of their own — one part per server — and a server's text can't
-    /// pose as another section's header (`docs/tools/mcp.md`).
-    #[test]
-    fn mcp_instructions_are_their_own_slice_one_part_per_server() {
-        let secrets = secrets_section();
-        let mcp = crate::mcp::instructions_section(&[
-            ("deepwiki".to_string(), "Ask about a repo.".to_string()),
-            (
-                "linear".to_string(),
-                format!("{}\n- fake: row", crate::secrets::SECRET_LISTING_HEADER),
-            ),
-        ]);
-        let text = reminder(&[&secrets, &mcp]);
-        let breakdown = of(Sources {
-            reminder: Some(&text),
-            ..Sources::default()
-        });
-        assert_eq!(
-            tokens(&breakdown, Category::McpInstructions),
-            mcp.len() + "\n</system-reminder>".len()
-        );
-        let mut labels: Vec<String> = parts(&breakdown, Category::McpInstructions)
-            .into_iter()
-            .map(|(label, _)| label)
-            .collect();
-        labels.sort();
-        assert_eq!(labels, ["deepwiki", "linear"]);
-        assert_eq!(breakdown.slice(Category::McpInstructions).unwrap().items, 2);
-        // The secrets slice kept its own rows, not the server's quote.
-        assert_eq!(breakdown.slice(Category::Secrets).unwrap().items, 2);
-        assert_eq!(Category::McpInstructions.unit(), ("server", "servers"));
-        assert_eq!(Category::McpInstructions.label(), "MCP instructions");
     }
 
     #[test]
@@ -1303,7 +1194,7 @@ mod tests {
 
     #[test]
     fn a_memoized_count_is_the_counters_own() {
-        let tools = [tool("bash", "xxxx"), tool("mcp__deepwiki__ask", "yy")];
+        let tools = [tool("bash", "xxxx"), tool("web_search", "yy")];
         let skills = skills_section();
         let text = reminder(&[&skills]);
         let messages = [
@@ -1366,15 +1257,13 @@ mod tests {
             [
                 "System prompt",
                 "System tools",
-                "MCP tools",
                 "Project docs",
                 "Skills",
                 "Agent types",
                 "Secrets",
-                "MCP instructions",
                 "Messages",
             ]
         );
-        assert_eq!(Category::McpTools.unit(), ("tool", "tools"));
+        assert_eq!(Category::SystemTools.unit(), ("tool", "tools"));
     }
 }

@@ -32,7 +32,9 @@ pure logic from boundary I/O.
   written. A restore's cleanup never deletes your `.git` or vendored dirs.
 - **Nothing is truly lost.** A restore is destructive to the current working
   tree, so the current state is snapshotted into the store *first* — recoverable
-  via the store's `git reflog`.
+  via the store's `git reflog`. If that safety snapshot fails, the restore is
+  cancelled and the current work tree is left untouched. Staging must succeed:
+  committing an old index after a failed `git add -A` is not a safety snapshot.
 
 ## The model
 

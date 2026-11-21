@@ -1,21 +1,21 @@
-# Project-level `.zeroth` config — hooks, MCP servers, skills, agents
+# Project-level `.zeroth` config — hooks, skills, agents
 
 A project can now carry its own Zeroth config in a `.zeroth` directory
 at its root — `/home/user/project/.zeroth/` — so different projects load
-different hooks, MCP servers and skills. The directory name is `.zeroth`
+different hooks, skills and agents. The directory name is `.zeroth`
 (the crate's name, the config home's name, and the name the skills walk already
-uses), not a second spelling. A project's `.zeroth/` — the upstream app's
+uses), not a second spelling. A project's `.alter-zero/` — the upstream app's
 directory — is **not** read, so the two applications never share project
 configuration.
 
 The **project root** is the nearest ancestor-or-self of the cwd carrying a
-`.git` entry (`project_doc::find_project_root` — the `AGENTS.md`/skills/MCP
+`.git` entry (`project_doc::find_project_root` — the `AGENTS.md`/skills
 walk-up, so launching in `repo/src` still finds `repo/.zeroth`), falling
 back to the cwd itself in a directory that isn't a repo — **except the home
 directory, which is never a project** (`trust::is_project_root`, the
 `checkpoint::cwd_scope` instinct): launched in `~` the fallback root would
 make `{root}/.zeroth` the user's own config home, and the layer would
-rediscover the user's `hooks.json`/`mcp.json` as "project config" and read
+rediscover the user's `hooks.json` as "project config" and read
 the user's own files twice. In `~` the layer is simply off, while the same
 files keep loading as the user layer they are. A per-file identity guard in `tui::trust` catches
 the same collision anywhere else (an `ZEROTH_CONFIG_DIR` pointed inside
@@ -29,8 +29,6 @@ What the project layer reads:
 | `{root}/.zeroth/skills/`    | project skills (already shipped, unchanged) | first-root-wins walk (`docs/tools/skills.md`)      |
 | `{root}/.zeroth/agents/`    | project subagent types (outside the gate, like skills) | first-root-wins walk (`docs/agents/subagents.md`) |
 | `{root}/.zeroth/hooks.json` | project lifecycle hooks — **new**           | **union** after the user file (see below)    |
-| `{root}/.zeroth/mcp.json`   | project MCP servers — **new**               | first-name-wins, ahead of `.mcp.json`        |
-| `{root}/.mcp.json`              | Claude-Code-compat MCP servers (existing)   | first-name-wins, after `.zeroth/mcp.json` |
 
 Not among them: a `providers.toml`. A provider block in a checkout could
 point a stored key at a host of the checkout's choosing, and unlike a hook it
@@ -41,21 +39,16 @@ one from the working directory; it no longer does.
 
 ## Nothing in it runs until the user has seen it
 
-A checked-in `hooks.json` runs shell commands on lifecycle events, and a
-checked-in MCP entry spawns a process or opens a connection when the session
-starts: **cloning a repository must not earn it code execution.** So every
-project hook and every project MCP server waits for the **startup review**
-(`docs/state/config-review.md`), which opens on the first frame whenever one is new
-or changed, lists each verbatim, and records the answer per hook and per
-server in `{config_home}/trust.json`. A project server not enabled there
-still appears in `/mcp` — `⚠ awaiting review` while the review is open,
-`◯ disabled` once declined — because a server you can't see is a server you
-can't reason about; Enable there is the way back.
+A checked-in `hooks.json` runs shell commands on lifecycle events:
+**cloning a repository must not earn it code execution.** So every project
+hook waits for the **startup review** (`docs/state/config-review.md`), which
+opens on the first frame whenever one is new or changed, lists each verbatim,
+and records the answer per hook in `{config_home}/trust.json`. `/hooks` lets
+the user change that trust later.
 
 The review replaced a `/trust` menu that approved the project's config files
-whole, by content hash: one answer for every hook and server at once, asked
-only if the user opened the menu, and blind to the user's own `hooks.json`,
-which the review now covers too.
+whole, by content hash, and did not review the user's own `hooks.json`, which
+the review now covers too.
 
 - **Skills stay outside the review**: a `SKILL.md` is inert markdown until the
   model explicitly loads it, and any command in its body still meets the
@@ -82,35 +75,24 @@ copy), any block wins, `deny` > `ask` > `allow`, contexts concatenate. A
 malformed project file is a red toast naming it and the project's hooks stay
 off; the user's own hooks still load (each layer fails alone).
 
-**MCP: first name wins** across `[{root}/.zeroth/mcp.json,
-{root}/.mcp.json, {config_home}/mcp.json]` — the existing project-shadows-user
-precedence with the app-specific file ahead of the compat file (the skills
-convention: `.zeroth` outranks `.claude`) — for the servers the review
-**enabled**; a project server still waiting for its answer, or declined, is
-listed after the user's and so never shadows a user server of the same name
-out of the session (`mcp::merge_project_scopes`). Both project files are
-`McpScope::Project`, so the `/mcp` grouping is unchanged; each entry's
-`Config location:` row names its actual file.
-
 ## Lifecycle and knobs
 
-Project hooks/MCP files keep their subsystems' **read-once-at-bootstrap**
-lifetime; a decision made in the review, `/hooks` or `/mcp` applies to the
+Project hooks files keep their subsystem's **read-once-at-bootstrap**
+lifetime; a decision made in the review or `/hooks` applies to the
 copy read then. Mid-session edits need a restart, exactly like the
-user-level `hooks.json`/`mcp.json`, and are reviewed at the next launch.
+user-level `hooks.json`, and are reviewed at the next launch.
 Skills keep their per-turn rescan.
 
 - `ZEROTH_PROJECT_CONFIG` — default on; `0`/`false`/`no`/`off` turns the
-  whole project layer off: no project hooks/MCP discovery, and so nothing of
-  the project's in the review (the `ZEROTH_MCP` posture). **This is the
+  project hooks layer off: no project hook discovery, and so nothing of
+  the project's in the review. **This is the
   smoke suite's hermeticity switch** — `scripts/smoke.sh` sets it to `0` in
   the base env (the suite runs with cwd = a real checkout; a developer repo
   carrying `.zeroth/hooks.json` would otherwise be reviewed in every
   phase — the skills Phase 36 lesson), and the review phase turns it back on
   inside a `mktemp -d` workdir.
 - `ZEROTH_HOOKS_FILE` keeps replacing the **user** file only, project
-  discovery still runs — the `ZEROTH_MCP_FILE` convention, now shared by
-  both subsystems; the project layer's own kill switch is
+  discovery still runs; the project hooks layer's own kill switch is
   `ZEROTH_PROJECT_CONFIG=0`.
 - `trust.json` hangs off the config home like `permissions.json` — no
   override var of its own; `ZEROTH_CONFIG_DIR` moves it.
@@ -119,11 +101,9 @@ Skills keep their per-turn rescan.
 
 Pure (unit-tested, TDD):
 
-- `src/trust.rs` — the project-file path builders (`project_hooks_file`,
-  `project_mcp_files`), the root rules (`is_project_root`,
+- `src/trust.rs` — the project-file path builder (`project_hooks_file`), the root rules (`is_project_root`,
   `hooks_project_dir`), and the review's store (`docs/state/config-review.md`).
 - `hooks::HooksFile::merged` — the union.
-- `mcp::merge_project_scopes` — the approval-aware precedence.
 
 Boundary (smoke-verified):
 
@@ -131,15 +111,13 @@ Boundary (smoke-verified):
   `load_trust_file` (fail-closed + loud).
 - `tui/trust.rs` — reading the project layer at bootstrap
   (`load_project_layer`) and everything the review does with it.
-- `tui/mcp.rs` — `load_mcp_sources` reads the second project file and feeds
-  the manager the servers the review holds.
 
 ## Deliberately not doing
 
 - **No project-level `permissions.json`/`settings.json`.** Those are
   preference files, not capabilities; nothing in them is worth the trust
   surface today.
-- **No file watcher / per-turn rescan for hooks+MCP.** They keep their
+- **No file watcher / per-turn rescan for hooks.** They keep their
   established read-once lifetime; skills keep their rescan. A project layer
-  that appears mid-session is a restart away, like every other hooks/MCP
+  that appears mid-session is a restart away, like every other hooks
   edit.

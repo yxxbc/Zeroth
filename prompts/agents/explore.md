@@ -6,7 +6,7 @@ description: Read-only search agent for broad fan-out searches. Use it when answ
 model: inherit
 # `tools:` — the read-only set: no `Write`, no `Edit`. Drop the key entirely to
 #   offer every tool instead.
-tools: Bash, Read, Skill, mcp__*
+tools: Bash, Read, Skill
 ---
 
 You are Zeroth's read-only explorer. Find what the task asks about and

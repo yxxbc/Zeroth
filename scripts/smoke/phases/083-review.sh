@@ -1,50 +1,25 @@
 #!/usr/bin/env bash
-# Phase 83 — the startup review of hooks and project MCP servers
+# Phase 83 — the startup review of user and project hooks
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 smoke_begin
 
-# The startup review (docs/state/config-review.md). A temp project (no .git — the
-# root falls back to the cwd) carries .zeroth/hooks.json and .mcp.json
-# (the Phase 80 scripted stdio fixture plus an http server that never
-# answers), and the fresh config home a hooks.json of the user's own. Ctrl+C
-# there quits with nothing recorded. First launch: the review opens on the
-# first frame — the hooks page (the user's
-# and the project's hooks, verbatim, under their files), then the servers
-# page — and nothing waits behind it. One hook and one server are left
-# unselected: the trusted hooks and the enabled server run at once, /mcp
-# lists the other server disabled, /hooks marks the other hook not trusted
-# and trusts it from its page. A relaunch asks nothing. An edited user hook
-# is asked about again, "changed", with what it was; declined, it stays off
-# and is asked again at the next launch. An edited server entry is asked
-# about again too — saying what changed, since trust.json keeps no command
-# line — and /mcp's Enable turns it back on. Turning Hooks on in /settings
-# over a hook waiting for trust opens the hooks page, which Ctrl+C closes
-# without quitting. Two sessions answering at once keep both answers; a
-# trust.json with a typo is never written over; what /trust approved at the
-# files' current bytes carries over unasked. Launched in the home directory,
-# the user's own hooks are reviewed as the user's — never as a project's.
+# The startup review (docs/state/config-review.md). A temp project carries
+# .zeroth/hooks.json, and the fresh config home a hooks.json of the user's
+# own. Ctrl+C there quits with nothing recorded. First launch: the review
+# opens before the composer, showing both files' hooks verbatim. One hook
+# is left unselected; /hooks marks it not trusted and trusts it from its
+# page. A relaunch asks nothing. An edited user hook is asked about again,
+# "changed", with what it was; declined, it stays off and is asked again at
+# the next launch. Turning Hooks on in /settings over a hook waiting for
+# trust opens the review, which Ctrl+C closes without quitting. Concurrent
+# answers keep both decisions; malformed trust.json is never overwritten;
+# legacy /trust approvals carry over. In the home directory, the user's
+# hooks are reviewed as the user's, never as a project's.
 S83="${S}_review"
 RV_CFG="$(smoke_real_path "$(mktemp -d)")"
 RV_WORK="$(smoke_real_path "$(mktemp -d)")"
 mkdir -p "$RV_WORK/.zeroth"
-cat >"$RV_WORK/server.sh" <<'RVSRV'
-#!/bin/sh
-cat > /dev/null &
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28"],"capabilities":{"tools":{}},"ttlMs":60000,"cacheScope":"public","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"projfix","version":"1.0"}}}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"resultType":"complete","tools":[{"name":"echo_text","description":"Echo the text back.","inputSchema":{"type":"object","properties":{"text":{"type":"string","description":"What to echo."}},"required":["text"]}}],"ttlMs":60000,"cacheScope":"public"}}'
-sleep 60
-RVSRV
-chmod +x "$RV_WORK/server.sh"
-rv_servers() {
-	cat >"$RV_WORK/.mcp.json" <<RVJSON
-{"mcpServers": {
-  "projfix": {"type": "stdio", "command": "sh", "args": ["$RV_WORK/server.sh"$1]},
-  "docs": {"type": "http", "url": "http://127.0.0.1:9/mcp"}
-}}
-RVJSON
-}
-rv_servers ""
 cat >"$RV_WORK/.zeroth/hooks.json" <<'RVHOOKS'
 {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./fmt.sh"}]}]}}
 RVHOOKS
@@ -76,7 +51,7 @@ fi
 launch -c "$RV_WORK" -w "Esc to continue without trusting" "$S83" 100 40 "$RV_APP"
 rv_hooks="$(tmux capture-pane -t "$S83" -p)"
 dump "the hooks page" "$rv_hooks"
-for expect in "2 new hooks found  1/2" "Hooks run shell commands on their own" \
+for expect in "2 new hooks found" "Hooks run shell commands on their own" \
 	"User · " "❯ [✔] PreToolUse · Bash" "./guard.sh --strict" \
 	"Project ·" "[✔] Stop" "./fmt.sh" \
 	"Trust selected and continue" "Continue without trusting"; do
@@ -90,29 +65,7 @@ keys "$S83" Space
 sleep 0.2
 expect_has "$(tmux capture-pane -t "$S83" -p)" -F "❯ [ ] Stop" "Space did not unselect the highlighted hook"
 keys "$S83" Enter
-rv_mcp="$(wait_pane 5 "$S83" -F "Select any you wish to enable.")" || fail "the servers page never followed the hooks page"
-dump "the servers page" "$rv_mcp"
-for expect in "2 new MCP servers found in this project  2/2" \
-	"An enabled server runs its command" "❯ [✔] projfix · stdio" \
-	"sh $RV_WORK/server.sh" "[✔] docs · http" "http://127.0.0.1:9/mcp" \
-	"Enable selected" "Disable all" "Esc to disable all"; do
-	expect_has "$rv_mcp" -F "$expect" "the servers page is missing '$expect'"
-done
-keys "$S83" Down
-sleep 0.2
-keys "$S83" Space
-sleep 0.2
-keys "$S83" Enter
 wait_for 10 "$S83" -E '^❯' || fail "the composer never came back after the review"
-# The enabled server connects at once; the other is listed, disabled.
-rv_open "/mcp"
-wait_for 15 "$S83" -F "✔ connected"
-rv_list="$(tmux capture-pane -t "$S83" -p)"
-dump "/mcp after the review" "$rv_list"
-expect_has "$rv_list" -F "projfix · ✔ connected · 1 tool" "the enabled project server did not connect"
-expect_has "$rv_list" -F "docs · ◯ disabled" "the unselected server is not listed disabled"
-keys "$S83" Escape
-sleep 0.4
 # /hooks: the untrusted project hook says so, and its page trusts it.
 rv_open "/hooks"
 rv_menu="$(tmux capture-pane -t "$S83" -p)"
@@ -142,22 +95,9 @@ cat "$RV_CFG/trust.json"
 for expect in '"./guard.sh --strict"' '"./fmt.sh"'; do
 	expect_file_has "$RV_CFG/trust.json" -F "$expect" "trust.json does not record the trusted hook $expect"
 done
-if ! python3 - "$RV_CFG/trust.json" <<'PY'; then
-import json, sys
-servers = {name: record["enabled"] for records in json.load(open(sys.argv[1]))["mcp"].values() for name, record in records.items()}
-sys.exit(0 if servers == {"projfix": True, "docs": False} else 1)
-PY
-	fail "trust.json does not record projfix enabled and docs disabled"
-fi
-
-# --- A relaunch asks nothing, and the enabled server connects unprompted.
+# --- A relaunch asks nothing after both hooks were trusted.
 launch -c "$RV_WORK" "$S83" 100 40 "$RV_APP"
 expect_lacks "$(tmux capture-pane -t "$S83" -p)" -F "Space to select" "a relaunch with nothing new asked again"
-rv_open "/mcp"
-wait_for 15 "$S83" -F "✔ connected"
-expect_has "$(tmux capture-pane -t "$S83" -p)" -F "projfix · ✔ connected · 1 tool" "the enabled server did not connect at the relaunch"
-keys "$S83" Escape
-sleep 0.3
 tmux kill-session -t "$S83" 2>/dev/null
 
 # --- An edited hook is asked about again, saying what it was. Declined, it
@@ -184,46 +124,6 @@ expect_has "$(tmux capture-pane -t "$S83" -p)" -F "was: ./guard.sh --strict" "a 
 keys "$S83" Enter
 wait_for 10 "$S83" -E '^❯' || fail "trusting the changed hook did not close the review"
 tmux kill-session -t "$S83" 2>/dev/null
-
-# --- An edited server entry is asked about again; disabled, /mcp's Enable
-# turns it back on.
-rv_servers ', "--verbose"'
-launch -c "$RV_WORK" -w "Esc to disable all" "$S83" 100 40 "$RV_APP"
-rv_server_changed="$(tmux capture-pane -t "$S83" -p)"
-dump "the changed server" "$rv_server_changed"
-for expect in "1 MCP server changed in this project" "projfix · stdio  changed" \
-	"sh $RV_WORK/server.sh" "changed: the command line"; do
-	expect_has "$rv_server_changed" -F "$expect" "the changed server's page is missing '$expect'"
-done
-# The command line wraps once the path under it is long enough (a canonical
-# `/private/var/...` temp dir), so its tail is asserted on its own row — with
-# `-e`, because a pattern that opens with `--` is otherwise read as a grep
-# option.
-expect_has "$rv_server_changed" -F -e "--verbose" \
-	"the changed server's page does not show the changed flag"
-expect_lacks "$rv_server_changed" -F "docs · http" "a decided, unchanged server was asked about again"
-keys "$S83" Escape
-wait_for 10 "$S83" -E '^❯' || fail "Esc did not disable the changed server"
-rv_open "/mcp"
-expect_has "$(tmux capture-pane -t "$S83" -p)" -F "projfix · ◯ disabled" "Esc on the servers page did not disable the server"
-# projfix is the first row: its page, then Enable.
-keys "$S83" Enter
-sleep 0.4
-keys "$S83" Enter
-wait_for 15 "$S83" -F "✔ connected"
-expect_has "$(tmux capture-pane -t "$S83" -p)" -F "✔ connected" "/mcp's Enable did not connect the disabled project server"
-tmux kill-session -t "$S83" 2>/dev/null
-if ! python3 - "$RV_CFG/trust.json" <<'PY'; then
-import json, sys
-servers = {name: record["enabled"] for records in json.load(open(sys.argv[1]))["mcp"].values() for name, record in records.items()}
-sys.exit(0 if servers.get("projfix") is True else 1)
-PY
-	fail "/mcp's Enable was not recorded in trust.json"
-fi
-expect_lacks "$(cat "$RV_CFG/mcp.json" 2>/dev/null)" -F "projfix" "a project server's decision was written to the user's mcp.json"
-# trust.json is a file people sync with their dotfiles: no command line is
-# copied into it, only fingerprints and names.
-expect_file_lacks "$RV_CFG/trust.json" -F "server.sh" "trust.json copied a server's command line"
 
 # --- A review the user asks for: Hooks turned on in /settings over a hook
 # waiting for trust opens the hooks page, and its Ctrl+C closes it the
@@ -310,7 +210,7 @@ rv_fp="sha256:$(smoke_sha256 <"$RV_OLD/.zeroth/hooks.json")"
 cat >"$RV_CFG4/trust.json" <<RVLEGACY
 {"projects": {
   "$RV_OLD": {"files": {"$RV_OLD/.zeroth/hooks.json": "$rv_fp"}},
-  "/other": {"files": {"/other/.mcp.json": "sha256:bb"}}
+  "/other": {"files": {"/other/.zeroth/hooks.json": "sha256:bb"}}
 }}
 RVLEGACY
 launch -c "$RV_OLD" "$S83" 100 40 "$(rv_app_in "$RV_CFG4")"
@@ -318,7 +218,7 @@ expect_lacks "$(tmux capture-pane -t "$S83" -p)" -F "Space to select" "a hook /t
 tmux kill-session -t "$S83" 2>/dev/null
 expect_file_has "$RV_CFG4/trust.json" -F '"./old.sh"' "the /trust approval was not carried over"
 expect_file_lacks "$RV_CFG4/trust.json" -F "$rv_fp" "the carried-over /trust record was kept"
-expect_file_has "$RV_CFG4/trust.json" -F "/other/.mcp.json" "another project's /trust record was dropped"
+expect_file_has "$RV_CFG4/trust.json" -F "/other/.zeroth/hooks.json" "another project's /trust record was dropped"
 rm -rf "$RV_CFG2" "$RV_CFG3" "$RV_CFG4" "$RV_ONE" "$RV_TWO" "$RV_OLD"
 
 # --- The home directory is never a project (docs/state/project-config.md):

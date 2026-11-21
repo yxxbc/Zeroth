@@ -397,7 +397,6 @@ mod tests {
                 "write",
                 r#"{"path":"/x/.env","content":"KEY=<secret:API_KEY>\n"}"#,
             ),
-            call("mcp__github__create_issue", r#"{"token":"<secret:GH>"}"#),
         ] {
             let mut ran = false;
             let mut seen = Seen::default();
@@ -432,17 +431,5 @@ mod tests {
             ToolOutcome::ok("")
         });
         assert_eq!(ran.unwrap(), original);
-    }
-
-    #[test]
-    fn an_mcp_call_is_expanded_too() {
-        let secrets = secrets();
-        let expanded = expand_call(
-            &secrets,
-            &call("mcp__github__create_issue", r#"{"token":"<secret:TOKEN>"}"#),
-        )
-        .unwrap()
-        .unwrap();
-        assert!(expanded.arguments.contains(TOKEN));
     }
 }

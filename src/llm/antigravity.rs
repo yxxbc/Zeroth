@@ -33,8 +33,8 @@ use serde_json::{Value, json};
 
 use super::cloud_code::level_suffix;
 use super::loopback::{self, CallbackServer, Expected, Pages};
-use super::mcp::{form_encode, pkce_and_state};
 use super::models::ModelEntry;
+use super::oauth::{form_encode, pkce_and_state};
 use super::reasoning::{ReasoningEffort, ReasoningSupport};
 use super::{LlmError, Result};
 use crate::stream::CancelToken;
@@ -1584,7 +1584,7 @@ mod tests {
             "{url}"
         );
         let query = url.split_once('?').unwrap().1;
-        let param = |key: &str| crate::llm::mcp::redirect_param(&format!("?{query}"), key);
+        let param = |key: &str| crate::llm::oauth::redirect_param(&format!("?{query}"), key);
         assert_eq!(param("client_id").as_deref(), Some(CLIENT_ID));
         assert_eq!(param("response_type").as_deref(), Some("code"));
         assert_eq!(
@@ -1618,7 +1618,7 @@ mod tests {
     fn both_grants_are_form_encoded_and_carry_the_client_secret() {
         let exchange = code_exchange_body("the code", "VER", "http://localhost:9/oauth-callback");
         let field =
-            |body: &str, key: &str| crate::llm::mcp::redirect_param(&format!("?{body}"), key);
+            |body: &str, key: &str| crate::llm::oauth::redirect_param(&format!("?{body}"), key);
         assert_eq!(
             field(&exchange, "grant_type").as_deref(),
             Some("authorization_code")

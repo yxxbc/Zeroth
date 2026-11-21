@@ -347,7 +347,7 @@ pub enum PendingInput {
 /// run the executor. The serial [`run_agent`] passes `None`; the real backend
 /// passes the executor behind its secret/logging wrappers, whose `Fn` shape is
 /// shareable across threads. Tools outside
-/// [`is_parallel_safe`](super::tools::is_parallel_safe) (subagents, ask, MCP,
+/// [`is_parallel_safe`](super::tools::is_parallel_safe) (subagents, ask,
 /// skills, tasks) keep the serial path: their executors own state a worker must
 /// not race.
 #[derive(Clone, Copy)]
@@ -2163,8 +2163,8 @@ mod tests {
         }
     }
 
-    fn mcp_round() -> RoundOutcome {
-        let calls = vec![call("c1", "mcp__devtools__list_pages", "{}")];
+    fn tool_round() -> RoundOutcome {
+        let calls = vec![call("c1", "bashlist", "{}")];
         RoundOutcome::ToolCalls {
             assistant: assistant_with(&calls),
             calls,
@@ -2177,7 +2177,7 @@ mod tests {
         // and ended with nothing to show — and the turn ended there, as
         // though that were the answer (docs/architecture/unfinished-replies.md).
         let (events, messages, ran) = scripted_turn(
-            vec![mcp_round(), reply(""), reply("Here is what I found.")],
+            vec![tool_round(), reply(""), reply("Here is what I found.")],
             &NoHooks,
         );
         assert_eq!(ran, 3, "the empty round bought exactly one more");
@@ -2304,7 +2304,7 @@ mod tests {
         let mut script = Vec::new();
         for _ in 0..=MAX_CONTINUATIONS {
             script.push(reply(""));
-            script.push(mcp_round());
+            script.push(tool_round());
         }
         script.push(reply("All done."));
         let (events, _, _) = scripted_turn(script, &NoHooks);

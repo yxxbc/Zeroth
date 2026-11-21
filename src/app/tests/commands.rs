@@ -139,6 +139,18 @@ fn typing_a_slash_opens_the_command_palette_at_the_top() {
 }
 
 #[test]
+fn mcp_is_no_longer_a_command() {
+    assert!(COMMANDS.iter().all(|command| command.name != "mcp"));
+    let mut app = App::new();
+    assert!(app.commands().iter().all(|command| command.name != "mcp"));
+    type_chars(&mut app, "/mcp");
+    assert!(app.command_menu.is_some());
+    assert!(app.highlighted_command().is_none());
+    assert_eq!(app.on_key(key(KeyCode::Enter)), Action::None);
+    assert_eq!(app.input.text(), "/mcp");
+}
+
+#[test]
 fn help_is_no_longer_a_command() {
     // The palette is the command list: every command, what it does, and a
     // `(n/total)` counter saying how many there are. `/help` only printed

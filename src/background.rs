@@ -786,9 +786,12 @@ impl BackgroundRegistry {
                     "failed to start the command in a terminal: {err}"
                 ))
             };
-            let session =
+            let mut session =
                 crate::pty::spawn::spawn(self.detach.as_deref(), command).map_err(no_terminal)?;
-            let reader = session.master.try_clone().map_err(no_terminal)?;
+            // Once the command has started, a setup failure must never be
+            // reported as "no terminal": the caller would run the command a
+            // second time on a pipe. Tear the started session down instead.
+            let (reader, probe) = prepare_pty_handles(&mut session, File::try_clone)?;
             // The terminal's output: one stream (stdout and stderr share the
             // terminal), read until the session lets go of it (`EIO`).
             let (chunk_tx, chunk_rx) = mpsc::channel::<Vec<u8>>();
@@ -796,7 +799,6 @@ impl BackgroundRegistry {
             // Its input: a writer thread, since a terminal write blocks while
             // the program is not reading, and no call may block holding state.
             let (input_tx, input_rx) = mpsc::channel::<WriteOp>();
-            let probe = session.master.try_clone().map_err(no_terminal)?;
             let writer = session.master;
             std::thread::spawn(move || write_terminal(writer, &input_rx));
             let registered = self.register(
@@ -2164,6 +2166,30 @@ fn drain_pipe(mut pipe: impl Read, tx: &mpsc::Sender<Vec<u8>>) {
     }
 }
 
+/// Prepare every fallible handle before starting any reader/writer threads.
+#[cfg(unix)]
+fn prepare_pty_handles(
+    session: &mut crate::pty::spawn::PtyProcess,
+    mut clone: impl FnMut(&File) -> std::io::Result<File>,
+) -> Result<(File, File), TtyLaunchError> {
+    let handles = (|| Ok((clone(&session.master)?, clone(&session.master)?)))();
+    handles.map_err(|err: std::io::Error| {
+        stop_untracked_pty(session);
+        TtyLaunchError::Refused(format!("failed to set up the command's terminal: {err}"))
+    })
+}
+
+/// Stop a PTY session that failed its setup before registration. The process
+/// has already started, so it must be killed and reaped here; returning a
+/// no-terminal error to the caller would make it run the command a second time.
+#[cfg(unix)]
+fn stop_untracked_pty(session: &mut crate::pty::spawn::PtyProcess) {
+    kill_session(session.child.id(), Some(&session.master));
+    kill_group(session.child.id());
+    let _ = session.child.kill();
+    let _ = session.child.wait();
+}
+
 /// SIGKILL the whole process group `pgid` — the `llm::exec` pattern (this
 /// crate forbids `unsafe`, so the shell's POSIX `kill` builtin does it; the
 /// helper `sh` starts in its own group and never signals itself). Best-effort.
@@ -2366,6 +2392,33 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         panic!("no BgEvent arrived in time");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_pty_setup_failure_is_fatal_and_reaps_the_started_child() {
+        for fail_at in [1, 2] {
+            let mut session =
+                crate::pty::spawn::spawn(crate::subprocess::test_detach_helper(), "sleep 30")
+                    .expect("spawns");
+            let mut calls = 0;
+            let result = prepare_pty_handles(&mut session, |master| {
+                calls += 1;
+                if calls == fail_at {
+                    Err(std::io::Error::other("injected descriptor exhaustion"))
+                } else {
+                    master.try_clone()
+                }
+            });
+            assert!(
+                matches!(result, Err(TtyLaunchError::Refused(_))),
+                "a started command must not trigger pipe fallback"
+            );
+            assert!(
+                session.child.try_wait().unwrap().is_some(),
+                "failed setup must reap its child"
+            );
+        }
     }
 
     #[test]

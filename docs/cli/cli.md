@@ -10,10 +10,8 @@ of those, **a quoted message is a `[PROMPT]`** — `zeroth "fix the
 failing test"` boots straight into that turn, and `zeroth --resume {id}
 "and now the docs"` sends it into the reopened conversation — and `--help`
 is a titled, sectioned page in the app's own colour. (The same pre-TUI
-boundary also answers the `mcp` subcommand family — `zeroth mcp
-add/add-json/remove/get/list`, `docs/cli/mcp-cli.md` — and `zeroth
-update`, which installs the newest release over this binary through the
-one-line installer, `docs/ops/update.md`; each is routed by its first argument
+boundary also answers `zeroth update`, which installs the newest release over this binary through the
+one-line installer, `docs/ops/update.md`; it is routed by its first argument
 before the flag grammar below applies.) **`-p` runs the same session with no
 screen** — one prompt in, the answer on stdout, an exit status out — with
 its own section on the page; the run itself is `docs/cli/headless.md`, and this
@@ -27,12 +25,9 @@ Starts an interactive session by default; with -p, answers once and exits.
 
 Usage: zeroth [OPTIONS] [PROMPT]
        zeroth -p [OPTIONS] [PROMPT]
-       zeroth mcp <COMMAND>
        zeroth update
 
 Commands:
-  mcp                            Manage MCP servers in the user config file —
-                                 see zeroth mcp --help
   update                         Install the newest release over this binary,
                                  if one is out (the checksum-verified installer)
 
@@ -95,7 +90,7 @@ zeroth --resume 18a9f2c33d41e5b6-1a2b
 ## What we build
 
 The same surfaces, sized to this codebase: a pure `cli` module (the arg
-grammar, the help *pages* and the hint/usage strings), two pure `session`
+grammar, the help *page* and the hint/usage strings), two pure `session`
 helpers (the filename → id mapping and the newest-in-cwd pick), and a thin
 boundary in `src/tui/startup.rs` that resolves flags to a rollout *path* —
 and the prompt to a first turn — before the terminal is ever touched.
@@ -148,8 +143,7 @@ The grammar (`cli::parse`):
   refuses a blank draft too.
 - **The prompt is a message, verbatim.** A leading `!` or `/` is sent to
   the model as text, not run as a shell command or a slash command — the
-  composer's `!`/`/` grammars are keystroke grammars, and a script has
-  `zeroth mcp …` for the one thing it might have wanted `/mcp` for.
+  composer's `!`/`/` grammars are keystroke grammars.
 - **`--resume` keeps taking the next non-dash argument as its id**, so
   `zeroth --resume "fix the bug"` resolves `fix the bug` as an id and
   fails with `No session found for id: fix the bug` (Claude Code's
@@ -170,16 +164,14 @@ The grammar (`cli::parse`):
 
 ### The `--help` page
 
-One renderer, two pages: `cli::help(HelpPage::Main, style)` and
-`cli::help(HelpPage::Mcp, style)` each build a `HelpDoc` — a title, a
-description, the `Usage:` lines, and the sections' rows — and render it
+One renderer: `cli::help(HelpPage::Main, style)` builds a `HelpDoc` — a
+title, a description, the `Usage:` lines, and the sections' rows — and renders it
 the way clap and cargo do, so a reader who knows any Rust CLI knows where
 to look:
 
 - **The title is `Zeroth`** — `crate::APP_NAME`, the one place the
   app's name lives — on the first line, wearing the *heading* style: the
-  page names the product, and `zeroth` below it names the binary. The
-  `mcp` page is titled by its command, `zeroth mcp`, in the same style.
+  page names the product, and `zeroth` below it names the binary.
 - **The description** is the line under it, and it describes the
   *invocation*, not the product: `Starts an interactive session by
   default; with -p, answers once and exits.` Both references write this
@@ -193,7 +185,7 @@ to look:
   (`main_help_fits_eighty_columns` pins it).
 - **`Usage:`** is inline, the way clap prints it — `Usage: zeroth
   [OPTIONS] [PROMPT]` — with each further form on its own line indented to
-  the first (seven spaces). The command words (`zeroth`, `mcp`) are
+  the first (seven spaces). The command words (`zeroth`, `update`) are
   *literals*; the bracketed and angled parts are *placeholders*.
 - **Sections** — `Commands:`, `Arguments:`, `Options:` — each a heading
   over rows of `  {literal}{placeholder}   {description}`: two columns of
@@ -225,22 +217,20 @@ error: unrecognized argument: --frob
 
 Usage: zeroth [OPTIONS] [PROMPT]
        zeroth -p [OPTIONS] [PROMPT]
-       zeroth mcp <COMMAND>
        zeroth update
 
 For more information, try '--help'.
 ```
 
 `cli::usage_error(page, message, style)` renders it — the `error:` lead,
-the page's own `Usage:` block, the pointer at `--help` — and the `mcp`
-page's grammar errors take the same shape over its six usage lines. Exit
-`2`, on stderr, as before.
+the page's `Usage:` block, the pointer at `--help`. Exit `2`, on stderr,
+as before.
 
 ### The pure `cli` module (src/cli.rs)
 
 - `Cli` — the parsed invocation: `Session(SessionArgs)` (a session run —
   how to start, plus the optional prompt), `Help`, `Version`,
-  `Mcp(McpCli)`, `Update` (the `update` subcommand — `tui::update_cli::run`
+  `Update` (the `update` subcommand — `tui::update_cli::run`
   does the work, `docs/ops/update.md`).
   `SessionArgs { start, prompt, cwd, permission_mode, print }` with
   `SessionStart::{Fresh, Continue, Resume(Option<String>)}`, `cwd` the
@@ -248,7 +238,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
   and `print: Option<PrintOptions { output_format, max_turns }>` — `Some`
   for a headless run (`docs/cli/headless.md`), `None` for the TUI.
 - `parse(args)` — over `std::env::args().skip(1)`: a first argument of
-  `mcp` or `update` routes to that subcommand (`update` takes nothing — a
+  `update` routes to that subcommand (`update` takes nothing — a
   trailing argument is a usage error, never a guess); else `--continue`/`-c`,
   `--resume [id]`/`-r [id]` (also `--resume=id`), `--help`/`-h`,
   `--version`/`-V`, one positional `[PROMPT]`, `--` before it. Anything
@@ -272,8 +262,8 @@ page's grammar errors take the same shape over its six usage lines. Exit
   picker is a screen, so a headless run names its session. At the boundary
   `-C` is a `chdir` before anything reads the working directory, which is
   why `--continue` then looks for the newest conversation *there*.
-- `help(page, style)` / `usage_error(page, message, style)` — the two
-  pages above, in either style; `colour_enabled(no_color, term)` the
+- `help(page, style)` / `usage_error(page, message, style)` — the help
+  page and usage trailer above, in either style; `colour_enabled(no_color, term)` the
   colour rule.
 - `resume_hint(bin, id)` — the exit hint exactly as shown above (two lines,
   no indent). `bin_name(arg0)` derives the printed program name from how the
@@ -377,9 +367,10 @@ page's grammar errors take the same shape over its six usage lines. Exit
   alone, before and after a flag, after `--` (a dash-leading one), with
   `-c` and `-r {id}`; a second positional as an error carrying the quote
   hint; a blank prompt refused; a prompt with the bare picker refused;
-  `--resume "x y"` still an id. The help — the plain main page pinned
+  `--resume "x y"` still an id; `mcp` is an ordinary prompt and
+  `mcp add` is a second-positional error, not a subcommand. The help — the plain main page pinned
   line for line, every line under 80 columns with no trailing blanks, the
-  title `Zeroth` first, the `mcp` page's title and six usage lines;
+  title `Zeroth` first;
   the ANSI rendering stripped of escapes equal to the plain one, the
   title/headings carrying the heading escape and `zeroth` the bold
   one; `usage_error`'s three-part shape; `colour_enabled`'s three rules;
@@ -391,7 +382,7 @@ page's grammar errors take the same shape over its six usage lines. Exit
   otherwise.
 - `tests/cli_help.rs` (the real binary, `CARGO_BIN_EXE_zeroth`,
   offline): a piped `--help` is byte-for-byte `help(Main, Plain)` — no
-  escapes off a tty — and `mcp --help` the `Mcp` page; `--version` prints
+  escapes off a tty — and `mcp --help` is that same main page; `--version` prints
   `zeroth {version}`; a grammar error exits 2 with the `error:` shape
   on stderr and an empty stdout; two positionals name the second with the
   quote hint; a prompt with the bare picker is refused.

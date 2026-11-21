@@ -635,7 +635,7 @@ fn tool_set(schemas: &[&str]) -> std::sync::Arc<[crate::context_usage::ToolDefin
 
 const BASH_SCHEMA: &str = r#"{"type":"function","function":{"name":"bash","description":"Run a shell command in the working directory and return what it printed.","parameters":{"type":"object","properties":{"command":{"type":"string","description":"The command to run."}},"required":["command"]}}}"#;
 
-const SEARCH_SCHEMA: &str = r#"{"type":"function","function":{"name":"mcp__docs__search","description":"Search the project's documentation and return the best matching pages.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"What to look for."}},"required":["query"]}}}"#;
+const SEARCH_SCHEMA: &str = r#"{"type":"function","function":{"name":"web_search","description":"Search the project's documentation and return the best matching pages.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"What to look for."}},"required":["query"]}}}"#;
 
 #[test]
 fn before_any_report_the_gauge_counts_the_tool_schemas_too() {
@@ -661,7 +661,7 @@ fn an_empty_conversation_reads_zero_whatever_the_tools() {
 
 #[test]
 fn a_tool_set_that_grows_moves_the_gauge_by_the_new_schemas() {
-    // An MCP server connecting adds its tools to every request after it:
+    // Enabling a tool adds its schema to every request after it:
     // the reading moves by their estimate before the next request counts
     // them, and the provider's count of the tools it already had stays.
     let mut app = App::new();

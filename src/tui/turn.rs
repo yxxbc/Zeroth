@@ -73,6 +73,7 @@ pub(crate) struct CheckpointDone {
 pub(crate) struct RestoreDone {
     pub(crate) token: u64,
     pub(crate) restored: bool,
+    pub(crate) backup_succeeded: bool,
     /// The confirmation to toast on success — the caller's own wording
     /// ("checkpoint restored" for a `/resume`, "code rewound" for a backtrack),
     /// carried across the thread so the two paths keep their own copy.

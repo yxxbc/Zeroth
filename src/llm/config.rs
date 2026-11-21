@@ -2084,15 +2084,15 @@ api_base = "https://proxy.example/v1"
         // A local server can be its base and nothing else: the id is the
         // label a `/login` row and the footer need.
         let (file, issues) =
-            layer("[providers.llamacpp.kwargs]\napi_base = \"http://localhost:8080/v1\"\n");
+            layer("[providers.customlocal.kwargs]\napi_base = \"http://localhost:8080/v1\"\n");
         assert_eq!(issues, Vec::<String>::new());
-        assert_eq!(file.get("llamacpp").unwrap().name, "llamacpp");
+        assert_eq!(file.get("customlocal").unwrap().name, "customlocal");
         // A blank one is no name either.
         let (file, issues) = layer(
-            "[providers.llamacpp]\nname = \"  \"\n[providers.llamacpp.kwargs]\napi_base = \"http://localhost:8080/v1\"\n",
+            "[providers.customlocal]\nname = \"  \"\n[providers.customlocal.kwargs]\napi_base = \"http://localhost:8080/v1\"\n",
         );
         assert_eq!(issues, Vec::<String>::new());
-        assert_eq!(file.get("llamacpp").unwrap().name, "llamacpp");
+        assert_eq!(file.get("customlocal").unwrap().name, "customlocal");
     }
 
     #[test]
@@ -2551,16 +2551,16 @@ api_base = "http://localhost:20128/v1"
         // configuration, so `/model` lists it without a trip through `/login`.
         let (file, issues) = layer(
             r#"
-[providers.llamacpp]
+[providers.customlocal]
 name = "llama.cpp"
 auth = "optional_key"
 
-[providers.llamacpp.kwargs]
+[providers.customlocal.kwargs]
 api_base = "http://localhost:8080/v1"
 "#,
         );
         assert_eq!(issues, Vec::<String>::new());
-        assert!(file.get("llamacpp").unwrap().configured_by_definition());
+        assert!(file.get("customlocal").unwrap().configured_by_definition());
         // A pasted key is still needed for a keyed provider, and the shipped
         // local servers are pointed at through their address variables
         // (docs/providers/local-models.md).

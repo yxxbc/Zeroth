@@ -9,9 +9,8 @@ Claude Code 的 session CLI，移植到 `/resume` 的 rollout 文件之上
 `zeroth "fix the failing test"` 直接启动进入这个 turn，而
 `zeroth --resume {id} "and now the docs"` 把它送进重新打开的对话 —— 并且
 `--help` 是应用自身配色下的一个有标题、分节的一页。（同一个 pre-TUI 边界还
-应答 `mcp` 子命令族 —— `zeroth mcp add/add-json/remove/get/list`，
-`docs/cli/mcp-cli.md` —— 以及 `zeroth update`，它通过一行安装脚本把最新
-release 安装到这个二进制上，`docs/ops/update.md`；每一个都由其第一个参数在下面
+应答 `zeroth update`，它通过一行安装脚本把最新
+release 安装到这个二进制上，`docs/ops/update.md`；它由第一个参数在下面
 的 flag 语法生效之前路由。）**`-p` 在无屏幕的情况下运行同一个 session** ——
 一个 prompt 进去，答复在 stdout 上，退出状态出来 —— 在页面上有它自己的小节；
 运行本身见 `docs/cli/headless.md`，本页只涵盖它的语法。
@@ -24,12 +23,9 @@ Starts an interactive session by default; with -p, answers once and exits.
 
 Usage: zeroth [OPTIONS] [PROMPT]
        zeroth -p [OPTIONS] [PROMPT]
-       zeroth mcp <COMMAND>
        zeroth update
 
 Commands:
-  mcp                            Manage MCP servers in the user config file —
-                                 see zeroth mcp --help
   update                         Install the newest release over this binary,
                                  if one is out (the checksum-verified installer)
 
@@ -132,8 +128,7 @@ Enter 会绘制出的样子。
 - **空白 prompt 是用法错误**（`the prompt is empty`）：空字符串正是变量未设置
   时 shell 递过来的东西，而 Enter 同样拒绝空草稿。
 - **prompt 是一条消息，逐字对待。** 开头的 `!` 或 `/` 作为文本送给模型，而
-  不是当作 shell 命令或斜杠命令执行 —— composer 的 `!`/`/` 语法是按键语法，
-  而脚本有 `zeroth mcp …` 来满足它本来可能想用 `/mcp` 的那件事。
+  不是当作 shell 命令或斜杠命令执行 —— composer 的 `!`/`/` 语法是按键语法。
 - **`--resume` 仍然把下一个非短横线参数当作自己的 id**，所以
   `zeroth --resume "fix the bug"` 会把 `fix the bug` 当作 id 解析，并以
   `No session found for id: fix the bug` 失败（Claude Code 的行为；查找的提示
@@ -150,14 +145,13 @@ Enter 会绘制出的样子。
 
 ### `--help` 页面
 
-一个渲染器，两个页面：`cli::help(HelpPage::Main, style)` 和
-`cli::help(HelpPage::Mcp, style)` 各自构建一个 `HelpDoc` —— 一个标题、一段描述、
+一个渲染器：`cli::help(HelpPage::Main, style)` 构建一个 `HelpDoc` —— 一个标题、一段描述、
 `Usage:` 各行，以及各节的行 —— 并按 clap 与 cargo 的方式渲染，这样任何熟悉
 Rust CLI 的读者都知道该往哪里看：
 
 - **标题是 `Zeroth`** —— `crate::APP_NAME`，应用名字唯一所在之处 ——
   在第一行，穿着 *heading* 样式：页面点出产品名，而它下面的 `zeroth` 点出
-  二进制名。`mcp` 页面以其命令 `zeroth mcp` 为题，样式相同。
+  二进制名。
 - **描述**是它下面那行，描述的是*调用方式*，而不是产品：`Starts an interactive
   session by default; with -p, answers once and exits.` 两个参考实现都同样写这
   一行 —— codex 的 *"If no subcommand is specified, options will be forwarded to
@@ -168,7 +162,7 @@ Rust CLI 的读者都知道该往哪里看：
   像其他一切一样在 80 列以内（`main_help_fits_eighty_columns` 钉住它）。
 - **`Usage:`** 是内联的，正如 clap 的打印方式 —— `Usage: zeroth [OPTIONS]
   [PROMPT]` —— 之后每一个形式各占一行，缩进对齐到第一个（七个空格）。命令词
-  （`zeroth`、`mcp`）是*字面量*；方括号和尖括号里的部分是*占位符*。
+  （`zeroth`、`update`）是*字面量*；方括号和尖括号里的部分是*占位符*。
 - **各节** —— `Commands:`、`Arguments:`、`Options:` —— 每节是一个标题，下面是
   `  {literal}{placeholder}   {description}` 的行：两列缩进、该节最宽的字面量
   单元格、再三个列，然后是描述；多行描述在同列处续写。渲染时不换行 —— 每段
@@ -194,27 +188,25 @@ error: unrecognized argument: --frob
 
 Usage: zeroth [OPTIONS] [PROMPT]
        zeroth -p [OPTIONS] [PROMPT]
-       zeroth mcp <COMMAND>
        zeroth update
 
 For more information, try '--help'.
 ```
 
 `cli::usage_error(page, message, style)` 渲染它 —— `error:` 开头、该页面自己的
-`Usage:` 块、指向 `--help` 的提示 —— 而 `mcp` 页面的语法错误在其六行 usage 上
-取同样的形状。退出码 `2`，输出到 stderr，与之前一致。
+`Usage:` 块、指向 `--help` 的提示。退出码 `2`，输出到 stderr，与之前一致。
 
 ### 纯 `cli` 模块（src/cli.rs）
 
 - `Cli` —— 解析后的调用：`Session(SessionArgs)`（一次 session 运行 —— 如何
-  开始，外加可选的 prompt）、`Help`、`Version`、`Mcp(McpCli)`、`Update`
+  开始，外加可选的 prompt）、`Help`、`Version`、`Update`
   （`update` 子命令 —— `tui::update_cli::run` 干活，`docs/ops/update.md`）。
   `SessionArgs { start, prompt, cwd, permission_mode, print }`，其中
   `SessionStart::{Fresh, Continue, Resume(Option<String>)}`，`cwd` 是
   `-C`/`--cwd` 的目录，`permission_mode` 是 `--permission-mode` 的种子值，
   `print: Option<PrintOptions { output_format, max_turns }>` —— headless 运行时
   为 `Some`（`docs/cli/headless.md`），TUI 下为 `None`。
-- `parse(args)` —— 作用于 `std::env::args().skip(1)`：第一个参数为 `mcp` 或
+- `parse(args)` —— 作用于 `std::env::args().skip(1)`：第一个参数为
   `update` 时路由到该子命令（`update` 不接受任何东西 —— 尾随参数是用法错误，
   绝不猜测）；否则是 `--continue`/`-c`、`--resume [id]`/`-r [id]`（也支持
   `--resume=id`）、`--help`/`-h`、`--version`/`-V`、一个位置参数 `[PROMPT]`、
@@ -235,7 +227,7 @@ For more information, try '--help'.
   是一个屏幕，因此 headless 运行必须点名它的 session。在边界处，`-C` 是在任何
   东西读取工作目录之前的一次 `chdir`，这也是为什么 `--continue` 随后会在*那里*
   寻找最新的对话。
-- `help(page, style)` / `usage_error(page, message, style)` —— 上面那两个页面，
+- `help(page, style)` / `usage_error(page, message, style)` —— 上面的帮助页与用法尾部信息，
   任一样式；`colour_enabled(no_color, term)` 是颜色规则。
 - `resume_hint(bin, id)` —— 与上面所示完全一致的退出提示（两行，无缩进）。
   `bin_name(arg0)` 从用户实际调用它的方式推导出打印的程序名（改名或软链接的
@@ -321,9 +313,9 @@ For more information, try '--help'.
   help/version、未知 flag / `-c -r` 冲突作为错误；prompt —— 单独给、在 flag
   之前和之后、在 `--` 之后（以短横线开头的）、与 `-c` 和 `-r {id}` 同给；
   第二个位置参数作为携带引号提示的错误；空白 prompt 被拒；prompt 与裸选择器
-  同给被拒；`--resume "x y"` 仍是一个 id。help —— 纯文本主页逐行钉住、
-  每一行都在 80 列以内且无行尾空白、`Zeroth` 标题在最前、`mcp` 页面的
-  标题和六行 usage；ANSI 渲染剥掉转义后与纯文本版相等、标题/各节标题携带
+  同给被拒；`--resume "x y"` 仍是一个 id；`mcp` 是普通 prompt，而
+  `mcp add` 是第二个位置参数的错误，不是子命令。help —— 纯文本主页逐行钉住、
+  每一行都在 80 列以内且无行尾空白、`Zeroth` 标题在最前；ANSI 渲染剥掉转义后与纯文本版相等、标题/各节标题携带
   heading 转义而 `zeroth` 携带粗体转义；`usage_error` 的三段式形状；
   `colour_enabled` 的三条规则；`resume_hint` 与打印形状一致；`bin_name` 对
   路径取 basename，并在 `None`/空时回退。
@@ -332,7 +324,7 @@ For more information, try '--help'.
   挑出最新的 `updated_secs`，否则 `None`。
 - `tests/cli_help.rs`（真实二进制，`CARGO_BIN_EXE_zeroth`，离线）：管道化的
   `--help` 与 `help(Main, Plain)` 逐字节相同 —— tty 之外没有转义 ——
-  而 `mcp --help` 等于 `Mcp` 页面；`--version` 打印 `zeroth {version}`；
+  而 `mcp --help` 等于同一主页；`--version` 打印 `zeroth {version}`；
   语法错误以 `error:` 形状打印到 stderr、stdout 为空，退出 2；两个位置参数会
   点名第二个并给出引号提示；prompt 与裸选择器同给被拒。
 - `scripts/smoke.sh` Phase 61（I/O 边界）：退出一个记录过 turn 的 session 会

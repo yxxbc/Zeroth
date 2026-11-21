@@ -583,6 +583,21 @@ impl App {
     ///   was showing — which the boundary records under the notice
     ///   ([`InterruptedTurn::Kept`]).
     pub fn interrupt_turn(&mut self, elapsed_secs: u64) -> Option<InterruptedTurn> {
+        self.interrupt_turn_inner(elapsed_secs, true)
+    }
+
+    /// End a turn on process shutdown, retaining the submitted prompt even
+    /// before output arrives. Unlike interactive Esc, a headless shutdown has
+    /// no composer in which to restore an undone submission.
+    pub fn interrupt_for_shutdown(&mut self, elapsed_secs: u64) -> Option<InterruptedTurn> {
+        self.interrupt_turn_inner(elapsed_secs, false)
+    }
+
+    fn interrupt_turn_inner(
+        &mut self,
+        elapsed_secs: u64,
+        allow_undo: bool,
+    ) -> Option<InterruptedTurn> {
         if !self.is_streaming() && !self.turn_active() {
             return None;
         }
@@ -630,7 +645,8 @@ impl App {
         // path below records the notice. See `docs/tools/tools.md` / `docs/input/interrupt.md`.
         let submission_is_intact =
             matches!(self.history.last(), Some(HistoryItem::Message(m)) if m.role == Role::User);
-        if !compacting
+        if allow_undo
+            && !compacting
             && submission_is_intact
             && partial.is_none()
             && !previewed

@@ -12,23 +12,11 @@ fn hook_item(command: &str) -> ReviewItem {
                 event: "Stop".to_string(),
                 matcher: String::new(),
                 command: command.to_string(),
+                timeout_secs: crate::hooks::CommandHook::DEFAULT_TIMEOUT_SECS,
             },
         },
         title: "Stop".to_string(),
         detail: vec![command.to_string()],
-        change: None,
-        checked: true,
-    }
-}
-
-fn server_item(name: &str) -> ReviewItem {
-    ReviewItem {
-        key: ReviewKey::Server {
-            source: "/repo/.mcp.json".to_string(),
-            name: name.to_string(),
-        },
-        title: format!("{name} · stdio"),
-        detail: vec![format!("npx -y {name}")],
         change: None,
         checked: true,
     }
@@ -41,17 +29,6 @@ fn hooks_page(commands: &[&str]) -> ReviewPage {
             scope: Some("User".to_string()),
             path: "~/.zeroth/hooks.json".to_string(),
             items: commands.iter().map(|c| hook_item(c)).collect(),
-        }],
-    )
-}
-
-fn servers_page(names: &[&str]) -> ReviewPage {
-    ReviewPage::new(
-        ReviewKind::McpServers,
-        vec![ReviewSection {
-            scope: None,
-            path: "~/repo/.mcp.json".to_string(),
-            items: names.iter().map(|n| server_item(n)).collect(),
         }],
     )
 }
@@ -73,16 +50,13 @@ fn a_review_opens_on_its_first_item_with_everything_selected() {
     app.shortcuts_open = true;
     type_chars(&mut app, "/he");
     assert!(app.command_menu.is_some());
-    app.open_config_review(vec![
-        hooks_page(&["./a.sh", "./b.sh"]),
-        servers_page(&["gh"]),
-    ]);
+    app.open_config_review(vec![hooks_page(&["./a.sh", "./b.sh"])]);
     // The review replaces the composer, so the bands sharing it go.
     assert!(app.command_menu.is_none());
     assert!(!app.shortcuts_open);
     let review = app.config_review.as_ref().expect("the review is open");
-    assert_eq!(review.total, 2);
-    assert_eq!(review.pages.len(), 2);
+    assert_eq!(review.total, 1);
+    assert_eq!(review.pages.len(), 1);
     assert_eq!(page(&app).kind, ReviewKind::Hooks);
     assert_eq!(page(&app).selected, 0);
     // Everything starts selected (Claude Code's default).
@@ -164,16 +138,16 @@ fn enter_on_an_item_confirms_the_selection() {
 #[test]
 fn enter_on_the_first_action_confirms_and_on_the_second_declines() {
     let mut app = App::new();
-    app.open_config_review(vec![servers_page(&["gh"])]);
+    app.open_config_review(vec![hooks_page(&["./a.sh"])]);
     app.on_key(key(KeyCode::Down));
     let Action::ReviewAnswered(answer) = app.on_key(key(KeyCode::Enter)) else {
         panic!("Enter on the first action answers the page");
     };
     assert!(answer.confirmed);
-    assert_eq!(answer.kind, ReviewKind::McpServers);
+    assert_eq!(answer.kind, ReviewKind::Hooks);
 
     let mut app = App::new();
-    app.open_config_review(vec![servers_page(&["gh"])]);
+    app.open_config_review(vec![hooks_page(&["./a.sh"])]);
     app.on_key(key(KeyCode::End));
     let Action::ReviewAnswered(answer) = app.on_key(key(KeyCode::Enter)) else {
         panic!("Enter on the second action answers the page");
@@ -198,10 +172,9 @@ fn esc_declines_the_page() {
 #[test]
 fn ctrl_c_quits_without_answering_anything() {
     // The way out of a review the user did not mean to face: nothing is
-    // decided — Esc on the servers page would record every server disabled
-    // — so nothing it asked about runs, and the next launch asks again.
+    // decided, so nothing it asked about runs, and the next launch asks again.
     let mut app = App::new();
-    app.open_config_review(vec![hooks_page(&["./a.sh"]), servers_page(&["gh"])]);
+    app.open_config_review(vec![hooks_page(&["./a.sh"])]);
     assert_eq!(
         app.on_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
         Action::Quit
@@ -227,29 +200,6 @@ fn ctrl_c_closes_a_review_the_user_opened_like_a_picker() {
 }
 
 #[test]
-fn answering_a_page_moves_on_to_the_next() {
-    let mut app = App::new();
-    app.open_config_review(vec![hooks_page(&["./a.sh"]), servers_page(&["gh", "docs"])]);
-    let Action::ReviewAnswered(first) = app.on_key(key(KeyCode::Enter)) else {
-        panic!("Enter answers the hooks page");
-    };
-    assert_eq!(first.kind, ReviewKind::Hooks);
-    let review = app
-        .config_review
-        .as_ref()
-        .expect("the servers page follows");
-    assert_eq!(review.total, 2, "the counter keeps the review's whole size");
-    assert_eq!(review.pages.len(), 1);
-    assert_eq!(page(&app).kind, ReviewKind::McpServers);
-    assert_eq!(page(&app).selected, 0);
-    let Action::ReviewAnswered(second) = app.on_key(key(KeyCode::Esc)) else {
-        panic!("Esc answers the servers page");
-    };
-    assert_eq!(second.kind, ReviewKind::McpServers);
-    assert!(app.config_review.is_none());
-}
-
-#[test]
 fn the_review_owns_every_other_key() {
     let mut app = App::new();
     app.open_config_review(vec![hooks_page(&["./a.sh"])]);
@@ -267,20 +217,20 @@ fn the_review_owns_every_other_key() {
 }
 
 #[test]
-fn a_page_opened_over_an_open_review_queues_behind_it_once() {
+fn reopening_hooks_does_not_replace_the_review_or_reset_its_selection() {
     let mut app = App::new();
-    app.open_config_review(vec![servers_page(&["gh"])]);
     app.open_config_review(vec![hooks_page(&["./a.sh"])]);
+    app.on_key(key(KeyCode::Char(' ')));
+    app.open_requested_review(vec![hooks_page(&["./b.sh"])]);
     let review = app.config_review.as_ref().expect("still open");
-    assert_eq!(review.total, 2);
+    assert_eq!(review.total, 1);
+    assert_eq!(review.pages.len(), 1);
+    assert!(!review.requested, "startup Ctrl+C still quits");
     assert_eq!(
-        page(&app).kind,
-        ReviewKind::McpServers,
-        "the page on screen stays"
+        page(&app).items().next().unwrap().key,
+        hook_item("./a.sh").key
     );
-    // A page of a kind already queued is not asked twice.
-    app.open_config_review(vec![hooks_page(&["./b.sh"])]);
-    assert_eq!(app.config_review.as_ref().map(|r| r.pages.len()), Some(2));
+    assert_eq!(checked(&app), vec![false]);
 }
 
 #[test]

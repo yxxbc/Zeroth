@@ -107,24 +107,9 @@ pub(super) fn tool_header_lines(
             running_blink(tool.status, pulse),
         )
     };
-    // An MCP header wears its server capitalized (`Deepwiki - ask_question
-    // (MCP)`) while the record keeps the configured spelling — the context
-    // replay inverts `tool.name`, so the capitalization lives only at this
-    // render seam (`docs/tools/mcp.md`). The same string feeds the width math
-    // below: `to_uppercase` can widen a non-ASCII first char, and the
-    // painted row and the reserved indent must agree.
-    let display = if crate::mcp::is_mcp_display_name(&tool.name) {
-        crate::mcp::capitalize_display(&tool.name)
-    } else {
-        tool.name.clone()
-    };
+    let display = tool.name.clone();
     let name = || Span::styled(display.clone(), name_style);
-    // An MCP call stores its **raw arguments JSON** (what makes the record
-    // replayable — `docs/tools/mcp.md`); the header derives the pretty
-    // `key: "value"` form at render time instead.
-    let args = if crate::mcp::is_mcp_display_name(&tool.name) {
-        crate::mcp::pretty_args(&tool.args)
-    } else if is_command_tool(tool) {
+    let args = if is_command_tool(tool) {
         // The commit idiom's scaffolding says nothing about the command —
         // the header shows the message it carries (render-time only; the
         // record, the prompt and the replay keep the command verbatim).
@@ -133,8 +118,7 @@ pub(super) fn tool_header_lines(
         // A file tool's summary **is** its path, and the header shows it the
         // way the session reads paths — relative under the cwd, `~`-relative
         // under home, absolute elsewhere (`docs/tools/tools.md` *Path display*).
-        // The record keeps the model's absolute argument: this, like the MCP
-        // capitalization above, lives only at the render seam.
+        // The record keeps the model's absolute argument; only rendering changes it.
         shown_args(&tool.name, &tool.args, paths)
     };
     if args.is_empty() {
@@ -456,7 +440,7 @@ pub(super) fn tool_output_lines(tool: &ToolCall) -> Vec<String> {
 /// Split display `text` into lines: tabs expanded ([`expand_code_tabs`] — a
 /// `'\t'` paints as zero cells otherwise), with a single trailing blank from a
 /// final newline dropped so a hidden-line count stays accurate.
-fn split_display_lines(text: &str) -> Vec<String> {
+pub(super) fn split_display_lines(text: &str) -> Vec<String> {
     if text.is_empty() {
         return Vec::new();
     }
@@ -814,15 +798,6 @@ pub(super) fn live_tool_lines(
 
 /// The shared body of [`tool_lines`] / [`live_tool_lines`] — `pulse` is `Some`
 /// only on a live frame.
-///
-/// The **quiet resolved MCP cell** skips the classifier's provenance note: its
-/// whole inline presence is the one dim `Called {server}` line (`docs/tools/mcp.md`
-/// — a parallel run's aggregated line never carried the note either, and in
-/// auto mode every server call resolves noted, so the row doubled each cell
-/// into pure noise). The record survives where the full story lives — the
-/// Ctrl+O transcript ([`tool_full_lines`]), the rollout, a `/resume` — and a
-/// *failed* MCP call keeps the note on its loud generic cell, where it still
-/// explains why the call ran at all.
 fn tool_cell_lines(
     tool: &ToolCall,
     width: u16,
@@ -832,11 +807,7 @@ fn tool_cell_lines(
     let mut lines = tool_cell_body(tool, width, pulse, paths);
     lines.extend(command_receipt_lines(tool, width));
     lines.extend(session_state_row(tool));
-    let quiet_mcp =
-        tool.status == ToolStatus::Ok && crate::mcp::display_server(&tool.name).is_some();
-    if !quiet_mcp {
-        lines.extend(approval_note_row(tool));
-    }
+    lines.extend(approval_note_row(tool));
     lines
 }
 
@@ -978,195 +949,20 @@ fn ask_cell_lines(
     Some(lines)
 }
 
-/// The **collapsed** MCP cell (`docs/tools/mcp.md`) — inline it is deliberately
-/// quiet, the full `{server} - {tool} (MCP)({args})` story living in Ctrl+O:
-///
-/// - **Running**: `● Calling {server}… (ctrl+o to expand)` — the bullet
-///   coloured by status (and, live, blinking) — and nothing else: echoing a
-///   peek of the question under it says what the header already does, at the
-///   cost of a row and a wrapped fragment of the argument.
-/// - **Waiting**: the same header over the dim `⎿ Waiting…` its non-MCP
-///   batch siblings show (only a *mixed* batch renders these — an all-MCP
-///   batch collapses to [`mcp_batch_lines`]).
-/// - **Resolved ok**: the bullet-less dim
-///   `Called {server} (ctrl+o to expand)` line — the settled thinking line's
-///   exact shape ([`reasoning_label_color`]), because what is left is a fact
-///   about the turn; the result text never reaches inline scrollback.
-/// - **Failed / everything else**: `None` — the loud generic red cell (a
-///   failure must not whisper).
-fn mcp_cell_lines(
-    tool: &ToolCall,
-    width: u16,
-    pulse: Option<Duration>,
-) -> Option<Vec<Line<'static>>> {
-    let server = crate::mcp::display_server(&tool.name)?.to_string();
-    match tool.status {
-        ToolStatus::Waiting | ToolStatus::Running => {
-            // The lone-call header bypasses `batch_label`, so it capitalizes
-            // its one server itself (the aggregated forms get it there).
-            let mut lines = vec![mcp_calling_header(
-                &crate::mcp::capitalize_server(&server),
-                tool.status,
-                pulse,
-                width,
-            )];
-            if tool.status == ToolStatus::Waiting {
-                lines.push(result_row(0, TOOL_WAITING.to_string()));
-            }
-            Some(lines)
-        }
-        ToolStatus::Ok => Some(vec![mcp_called_line(&[&server])]),
-        ToolStatus::Failed | ToolStatus::Backgrounded => None,
-    }
-}
-
-/// The bullet-less dim `Called deepwiki 2 times (ctrl+o to expand)` line a
-/// resolved MCP call — or a whole **parallel run** of them ([`mcp_run`]) —
-/// leaves in scrollback: the settled thinking line's shape, because what is
-/// left is a fact about the turn (`docs/tools/mcp.md`).
-pub(super) fn mcp_called_line(servers: &[&str]) -> Line<'static> {
-    Line::from(Span::styled(
-        format!(
-            "{MCP_CALLED_PREFIX}{}{EXPAND_HINT}",
-            crate::mcp::batch_label(servers)
-        ),
-        Style::new().fg(reasoning_label_color()),
-    ))
-}
-
-/// The batch and server of a **collapsible** MCP cell: an MCP call that
-/// resolved `Ok` inside an announced parallel batch. `None` for anything else
-/// — a failure (which stays loud and separate), a lone call, a non-MCP tool.
-fn mcp_run_member(item: &HistoryItem) -> Option<(u64, &str)> {
-    let HistoryItem::Tool(tool) = item else {
-        return None;
-    };
-    let batch = tool.batch?;
-    (tool.status == ToolStatus::Ok)
-        .then(|| crate::mcp::display_server(&tool.name))
-        .flatten()
-        .map(|server| (batch, server))
-}
-
-/// The **parallel MCP run** leading `items`: the consecutive collapsible cells
-/// sharing the first one's batch id, as `(len, servers-in-call-order)`.
-///
-/// `None` unless at least two line up — one call's cell is already the same
-/// `Called {server}` line, and requiring the shared batch id is what keeps two
-/// *sequential* calls that merely landed next to each other in history from
-/// claiming they ran in parallel. See `docs/tools/mcp.md`.
-pub(super) fn mcp_run(items: &[HistoryItem]) -> Option<(usize, Vec<&str>)> {
-    let (batch, first) = mcp_run_member(items.first()?)?;
-    let mut servers = vec![first];
-    for item in &items[1..] {
-        match mcp_run_member(item) {
-            Some((id, server)) if id == batch => servers.push(server),
-            _ => break,
-        }
-    }
-    (servers.len() > 1).then_some((servers.len(), servers))
-}
-
-/// How many trailing cells of `history` are collapsible members of `batch` —
-/// the run walk both the commit and the hold are built on.
-fn trailing_run_len(history: &[HistoryItem], batch: Option<u64>) -> usize {
-    history
-        .iter()
-        .rev()
-        .take_while(|item| mcp_run_member(item).is_some_and(|(id, _)| Some(id) == batch))
-        .count()
-}
-
-/// The trailing `history` cells of a **parallel MCP run that is still in
-/// flight** — the ones [`tool_commit_lines`] is holding because the next call
-/// of their batch is about to start (`docs/tools/mcp.md`).
-///
-/// They are *recorded* but not yet in scrollback, and until the run ends the
-/// live strip's aggregated `● Calling deepwiki 2 times…` cell speaks for the
-/// whole batch. So a rebuild that happens in that gap — a permission prompt
-/// closing between two calls of the batch, a resize — must skip exactly these
-/// (`conversation_lines_live`), or it paints a `Called deepwiki` line the
-/// commit path is about to replace with the run's own.
-#[must_use]
-pub fn held_run_len(history: &[HistoryItem], queue: &VecDeque<ToolCall>) -> usize {
-    let Some(HistoryItem::Tool(last)) = history.last() else {
-        return 0;
-    };
-    let continues = mcp_run_member(history.last().expect("just matched")).is_some()
-        && queue.front().is_some_and(|next| {
-            next.batch == last.batch && crate::mcp::display_server(&next.name).is_some()
-        });
-    if continues {
-        trailing_run_len(history, last.batch)
-    } else {
-        0
-    }
-}
-
-/// The scrollback lines a **just-resolved** tool call commits — the last item
-/// of `history`, with `queue` holding what is left of its batch.
-///
-/// Normally that is simply its own collapsed cell. But an MCP call inside a
-/// parallel batch **holds** its line (`None`) while the next call of the same
-/// batch is about to run, so the run commits *once*, as the aggregated
-/// `Called deepwiki 2 times (ctrl+o to expand)` line — the very line the
-/// repaint builds from the same history ([`conversation_lines`]), so
-/// scrollback and a resize can never disagree. Whatever ends the run — its
-/// last call, or a failure/rejection in the middle of it — flushes the held
-/// cells with it. See `docs/tools/mcp.md`.
+/// The scrollback lines a just-resolved tool commits, including any image.
 #[must_use]
 pub fn tool_commit_lines(
     history: &[HistoryItem],
-    queue: &VecDeque<ToolCall>,
+    _queue: &VecDeque<ToolCall>,
     width: u16,
     paths: &PathDisplay,
 ) -> Option<Vec<Line<'static>>> {
-    let HistoryItem::Tool(last) = history.last()? else {
+    let item = history.last()?;
+    let HistoryItem::Tool(tool) = item else {
         return None;
     };
-    // Still mid-run: the next call of this batch is about to start, and it
-    // will render with this one.
-    if held_run_len(history, queue) > 0 {
-        return None;
-    }
-    // The run this call ends: the cells **held** before it plus this call
-    // itself, whatever it resolved as. Held is not merely "trailing member
-    // of the batch": a cell was held exactly when the call that ran next —
-    // this one, `last` — is another collapsible member of its batch *by
-    // name* (an MCP call, whatever it resolved as), the same predicate
-    // [`held_run_len`] applied at that cell's own resolution. A resolved
-    // MCP cell whose batch continued with a NON-MCP sibling was never held
-    // (a mixed batch keeps per-cell rendering): it committed its own
-    // `Called {server}` line at its own ToolEnd, and counting it into this
-    // flush printed it twice — the reported duplicate.
-    let before = if crate::mcp::display_server(&last.name).is_some() {
-        trailing_run_len(&history[..history.len() - 1], last.batch)
-    } else {
-        0
-    };
-    let items = &history[history.len() - 1 - before..];
-    let mut lines = Vec::new();
-    let mut i = 0;
-    while i < items.len() {
-        if !lines.is_empty() {
-            lines.push(Line::default()); // the spacer between committed cells
-        }
-        if let Some((len, servers)) = mcp_run(&items[i..]) {
-            lines.push(mcp_called_line(&servers));
-            i += len;
-        } else {
-            match &items[i] {
-                HistoryItem::Tool(tool) => lines.extend(tool_lines(tool, width, paths)),
-                // Unreachable: the walk above only ever crosses tool cells.
-                _ => break,
-            }
-            // An image `read` commits its picture with its cell, so the live
-            // commit and the rebuild ([`conversation_lines`]) write the same
-            // rows (`docs/ui/images.md`).
-            lines.extend(super::image::image_block_lines(&items[i], width));
-            i += 1;
-        }
-    }
+    let mut lines = tool_lines(tool, width, paths);
+    lines.extend(super::image::image_block_lines(item, width));
     Some(lines)
 }
 
@@ -1178,8 +974,7 @@ pub fn tool_commit_lines(
 /// the one call that just resolved — would find nothing to commit.
 ///
 /// Each record commits exactly as its own resolution would have, through
-/// [`tool_commit_lines`] on the history up to it: the first flushes a
-/// parallel MCP run it was holding (`docs/tools/mcp.md`), and a blank row
+/// [`tool_commit_lines`] on the history up to it, and a blank row
 /// separates the cells — the rows a rebuild paints from the same history
 /// ([`conversation_lines`]). Nothing is left in the queue to hold for, so
 /// nothing is held back. Empty when `count` is zero.
@@ -1215,88 +1010,6 @@ pub fn resolved_tools_commit_lines(
     lines
 }
 
-/// The `● Calling {label}… (ctrl+o to expand)` header row a collapsed MCP
-/// cell (or the aggregated all-MCP batch strip) wears — truncated to the
-/// width, the hint dropped first when the terminal is too narrow for both.
-/// `label` is the bare server list; the `Calling …` framing is added here so
-/// every caller wears it identically.
-fn mcp_calling_header(
-    label: &str,
-    status: ToolStatus,
-    pulse: Option<Duration>,
-    width: u16,
-) -> Line<'static> {
-    let label = &format!("{MCP_CALLING_PREFIX}{label}{MCP_CALLING_SUFFIX}");
-    let label_room = (width as usize).saturating_sub(cols(TOOL_BULLET)).max(1);
-    let mut spans = vec![
-        bullet_span(tool_status_color(status), running_blink(status, pulse)),
-        Span::styled(
-            truncate_cols(label, label_room).to_string(),
-            Style::new()
-                .fg(tool_name_color())
-                .add_modifier(Modifier::BOLD),
-        ),
-    ];
-    if cols(TOOL_BULLET) + cols(label) + cols(EXPAND_HINT) <= width as usize {
-        spans.push(Span::styled(
-            EXPAND_HINT.to_string(),
-            Style::new().fg(tool_dim_color()),
-        ));
-    }
-    Line::from(spans)
-}
-
-/// The one aggregated live cell for an in-flight batch whose calls are
-/// **all** MCP (`docs/tools/mcp.md`): `● Calling deepwiki, context7 3 times…
-/// (ctrl+o to expand)` — the servers in call order, and nothing else. A
-/// parallel batch is one act, so it reads as one line whether it is drawn in
-/// the streaming strip ([`preview_tool_lines`](super::live::preview_tool_lines),
-/// with a `pulse`) or above a permission prompt asking about one of its calls
-/// (at rest, `pulse: None`).
-///
-/// The count is the **batch's**, not the queue's: the siblings that already
-/// resolved are read back off the history, so a running batch's label doesn't
-/// count itself down. `None` when the queue is empty or holds anything that
-/// isn't an MCP call — a mixed batch keeps the ordinary per-cell rendering.
-pub(super) fn mcp_batch_lines(
-    app: &App,
-    pulse: Option<Duration>,
-    width: u16,
-) -> Option<Vec<Line<'static>>> {
-    let queue = app.tool_queue();
-    if queue.is_empty() {
-        return None;
-    }
-    let mut servers: Vec<&str> = queue
-        .iter()
-        .map(|tool| crate::mcp::display_server(&tool.name))
-        .collect::<Option<_>>()?;
-    // The batch's already-resolved calls, in call order, ahead of the queued
-    // ones: the trailing history cells stamped with this batch's id.
-    if let Some(batch) = queue.front().and_then(|tool| tool.batch) {
-        let mut done: Vec<&str> = Vec::new();
-        for item in app.history.iter().rev() {
-            match item {
-                HistoryItem::Tool(tool) if tool.batch == Some(batch) => {
-                    match crate::mcp::display_server(&tool.name) {
-                        Some(server) => done.push(server),
-                        None => break,
-                    }
-                }
-                _ => break,
-            }
-        }
-        done.reverse();
-        servers.splice(0..0, done);
-    }
-    Some(vec![mcp_calling_header(
-        &crate::mcp::batch_label(&servers),
-        ToolStatus::Running,
-        pulse,
-        width,
-    )])
-}
-
 /// [`tool_cell_lines`] minus the trailing provenance note, so every branch's
 /// early return stays as it was and the note lands exactly once.
 fn tool_cell_body(
@@ -1308,14 +1021,16 @@ fn tool_cell_body(
     if let Some(lines) = super::search::search_lines(tool, width, paths, false, pulse) {
         return lines;
     }
+    // A `web_fetch` cell names the visit in one line — the boundary paragraph
+    // that opens its output stays in Ctrl+O (`docs/tools/web-search.md`
+    // *Rendering*).
+    if let Some(mut lines) = super::web_fetch::cell_lines(tool, width, pulse) {
+        lines.extend(command_receipt_lines(tool, width));
+        return lines;
+    }
     // The resolved ask cell replaces the whole header with its outcome
     // headline (`docs/tools/ask.md`).
     if let Some(lines) = ask_cell_lines(tool, width, pulse, /*cap=*/ true) {
-        return lines;
-    }
-    // The collapsed MCP cell (`docs/tools/mcp.md`) — its failed state falls
-    // through to the loud generic path below.
-    if let Some(lines) = mcp_cell_lines(tool, width, pulse) {
         return lines;
     }
     let peek_width = (width as usize)
@@ -1495,7 +1210,7 @@ fn is_blank_row(line: &str) -> bool {
 /// later one aligned beneath it ([`output_row`]). The `!` shell cell's block
 /// (`docs/input/shell-command.md`): the same rows [`tool_full_body`] paints for the
 /// transcript, so the inline cell and Ctrl+O agree row for row.
-fn result_full_block(out_lines: &[String], peek_width: usize) -> Vec<Line<'static>> {
+pub(super) fn result_full_block(out_lines: &[String], peek_width: usize) -> Vec<Line<'static>> {
     let wrap_width = u16::try_from(peek_width).unwrap_or(u16::MAX);
     out_lines
         .iter()
@@ -1621,6 +1336,11 @@ fn tool_full_body(tool: &ToolCall, width: u16, paths: &PathDisplay) -> Vec<Line<
     // move or cost a full-tail re-render every 32 ms, for a bullet nobody is
     // watching blink. See `docs/ui/tool-pulse.md`.
     let pulse: Option<Duration> = None;
+    // A `web_fetch` keeps its folded cell's summary as the transcript's first
+    // row, then the boundary and the whole page the cell hid.
+    if super::web_fetch::applies(tool) {
+        return super::web_fetch::full_lines(tool, width, pulse);
+    }
     // The resolved ask cell keeps its headline header in the transcript too,
     // with the answer rows uncapped (`docs/tools/ask.md`).
     if let Some(lines) = ask_cell_lines(tool, width, pulse, /*cap=*/ false) {

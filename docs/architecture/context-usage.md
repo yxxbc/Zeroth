@@ -7,7 +7,7 @@ Date: 2026-10-22
 A **`/context`** slash command that answers the two questions a long session
 keeps raising: *how full is the context window*, and *what is filling it*. The
 footer's gauge (`docs/ui/footer.md`) already says how full; nothing said what. A
-system prompt, two dozen tool schemas, a stack of MCP tools, the project's
+system prompt, two dozen tool schemas, the project's
 `AGENTS.md`, the skills listing and the conversation itself all ride every
 request, and they are invisible until a provider refuses one.
 
@@ -21,18 +21,17 @@ cache (`docs/providers/prompt-caching.md`).
 ```
 ──────────────────────────────────────────────────────────────────────────────
   Context usage
-  gpt-5.5 · ≈36.4k of 200k tokens (18.2%)
+  gpt-5.5 · ≈35.3k of 200k tokens (17.7%)
 
-  █████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╱╱╱╱╱╱╱
+  ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╱╱╱╱╱╱╱
 
     ■ System prompt     161   0.1%   Messages · 48 messages
     ■ System tools     3.2k   1.6%   Tool results   17.2k  ━━━━━━━━━━━━
-    ■ MCP tools        1.1k   0.6%   Tool calls      6.1k  ━━━━
-    ■ Project docs     1.6k   0.8%   Replies         4.3k  ━━━
-    ■ Skills            433   0.2%   Your messages   2.2k  ━━
-    ■ Agent types       122   0.1%
+    ■ Project docs     1.6k   0.8%   Tool calls      6.1k  ━━━━
+    ■ Skills            433   0.2%   Replies         4.3k  ━━━
+    ■ Agent types       122   0.1%   Your messages   2.2k  ━━
   ❯ ■ Messages        29.8k  14.9%
-    □ Free space     143.6k  71.8%
+    □ Free space     144.7k  72.3%
     ╱ Auto-compact      20k  10.0%
 
   Last request   38.1k in · 1.2k out
@@ -115,15 +114,11 @@ share too small to print as a tenth reading `<0.1%` rather than a `0.0%` that
 would say the category is free. The colours are theme roles
 (`ui::theme::context_usage_color`): the system prompt and the tools keep the
 Ctrl+D view's own two, the messages the accent, the project docs the link
-blue, the skills the success green, the secrets the error red, and the three
-categories with no role of their own are blends — the MCP tools between the
-warning and the error hues, the agent types between the purple and the red,
-the MCP instructions between the green and the blue — so every row stays
-distinct in every theme. The terminal's own sixteen colours (`ansi`) have no
-components to mix, and a blend of two named colours would step to one of its
-ends — the MCP tools and the agent types both landing on the secrets' red —
-so there each takes the bright variant of its first hue instead (bright
-yellow, bright magenta, bright green; `palette::bright`).
+blue, the skills the success green, the secrets the error red, and the agent
+types blend purple and red, so every row stays distinct in every theme. The
+terminal's own sixteen colours (`ansi`) have no components to mix, so agent
+types take bright magenta (`palette::bright`) rather than sharing the secrets'
+red.
 
 The highlighted row's **detail** sits beside the legend on a terminal wide
 enough for both (`CONTEXT_USAGE_SIDE_BY_SIDE_MIN_COLS`), and under it
@@ -133,8 +128,7 @@ tokens and a bar measured against the largest part, the tail folded into one
 category, so the first thing on screen is the answer to "what is using my
 context?" — and **follows** the largest until the user moves it, since the
 page is counted as it opens and the tool set the boundary hands over right
-after it (an MCP server connecting later, a conversation outgrowing the tool
-schemas mid-turn) can change which category that is. Once the user has picked
+after it, or a conversation outgrowing the tool schemas mid-turn, can change which category that is. Once the user has picked
 a row, a re-count leaves the highlight on it; only a row that disappears
 sends it back to the largest.
 
@@ -142,12 +136,10 @@ sends it back to the largest.
 | --- | --- | --- |
 | System prompt | `App::system_prompt` — persona → environment → scratchpad (`docs/architecture/environment.md`) | one per markdown heading block (`System prompt`, `Environment`, `Scratchpad`) |
 | System tools | every built-in tool schema the next request offers | one per tool, by wire name |
-| MCP tools | every `mcp__server__tool` schema (`docs/tools/mcp.md`) | one per server, its tool count in the label |
 | Project docs | the reminder's `AGENTS.md` section (`docs/state/project-doc.md`) | one per file, by path |
 | Skills | the reminder's skills section (`docs/tools/skills.md`) | one per listed skill |
 | Agent types | the reminder's subagent-type section (`docs/agents/subagents.md`) | one per type |
 | Secrets | the reminder's secrets section (`docs/state/secrets.md`) — names and context only, never a value | one per secret |
-| MCP instructions | the reminder's last section: the connected MCP servers' own instructions (`docs/tools/mcp.md`) | one per server, by its `## {server}` heading |
 | Messages | the derived conversation (`context::context_messages`, `docs/architecture/context.md`) | your messages, shell commands, app notices, the compaction summary, replies, tool calls, tool results, images |
 
 The reminder's wrapper — the tags and its one-line preamble, a few tokens —
@@ -172,11 +164,8 @@ carries it: an `AGENTS.md` is the user's own text and may quote any of the
 headers below, so no header inside it may cut it. The listings after it are
 the session's own rendering, in a fixed order, and each is found by the
 header its contributor writes (`skills::SKILL_LISTING_HEADER`,
-`subagents::AGENT_LISTING_HEADER`, `secrets::SECRET_LISTING_HEADER`,
-`mcp::INSTRUCTIONS_HEADER`), from the end, where the session writes it. The
-MCP section holds text the servers chose, so its rendering pushes every one
-of their headings two levels down: none of it can start a line the way a
-section header or a `## {server}` part does. A subagent's briefing carries no
+`subagents::AGENT_LISTING_HEADER`, `secrets::SECRET_LISTING_HEADER`), from
+the end, where the session writes it. A subagent's briefing carries no
 instructions, so it has no **Project docs** row.
 
 The **Messages** parts split the user-role text by where it came from rather
@@ -237,7 +226,7 @@ what the first request will cost.
 ## Live
 
 The page never ticks — nothing on it animates — but it changes as the
-conversation does: a tool round lands, an MCP server connects, a skill is
+conversation does: a tool round lands, a skill is
 rescanned at a turn start. So the boundary refreshes it on the open and at
 every loop bottom while it is open (`tui::context_usage`,
 `Session::sync_context_usage`): the tool set is pulled from the backend
@@ -313,11 +302,11 @@ nothing flows into scrollback.
 
 ```
 ──────────────────────────────────────────────────────────
-  Context usage · ≈36.4k of 200k tokens (18.2%)
-  ↑ 5 more above
+  Context usage · ≈35.3k of 200k tokens (17.7%)
+  ↑ 4 more above
     ■ Agent types       122   0.1%
   ❯ ■ Messages        29.8k  14.9%
-    □ Free space     143.6k  71.8%
+    □ Free space     144.7k  72.3%
   ↓ 1 more below
   ↑↓ select  ctrl+d raw context  esc close
 ──────────────────────────────────────────────────────────
@@ -337,9 +326,9 @@ the one function that rebuilds that array (`sync_tool_specs`), so the two
 cannot drift; the subagent set is built by the same function its launch uses
 (`subagent_tool_specs`, beside `spawn_subagent_run`) and kept with the type
 and the allowlist it was built from, the one input a per-turn rescan
-rewrites in place. The skills verdict and the MCP set are the backend's as
-built — the boundary rebuilds the backend when either moves
-(`refresh_skills`, `refresh_mcp`), which starts a fresh set — so, like the
+rewrites in place. The skills verdict is the backend's as built — the
+boundary rebuilds the backend when it moves (`refresh_skills`), which starts
+a fresh set — so, like the
 lead's own, the agent's describes the backend as it stands.
 
 ## API
@@ -368,8 +357,7 @@ lead's own, the agent's describes the backend as it stands.
   and every sum is checkable by hand); the reminder's instructions counted
   as stored however they quote a header, its listings split by their
   headers, its wrapper counted with the first section; the system prompt
-  split at headings outside its code fences; MCP tools grouped by server;
-  messages split by kind and their user-role text by origin; the ledger's
+  split at headings outside its code fences; messages split by kind and their user-role text by origin; the ledger's
   sums and hit rate; the memo counting each text once across passes,
   forgetting what a pass skipped, and never changing a count.
 - `context` — each user-role text's origin noted where it lands, the
@@ -398,9 +386,8 @@ lead's own, the agent's describes the backend as it stands.
   down to two columns, no flow at any height, the hidden cursor seated on
   the `❯` on every page.
 - `scripts/smoke.sh` Phase 144 — the page end to end in a real terminal:
-  against an OpenAI-compatible stub with a skill, an `AGENTS.md` and a
-  scripted MCP server planted (every category on the legend, the MCP
-  server's tools landing on the already-open page, ↓ walking each detail,
+  against an OpenAI-compatible stub with a skill and an `AGENTS.md`
+  (every populated category on the legend, ↓ walking each detail,
   Ctrl+D over the page and back, the provider's in/out and 86% cache hit
   after two turns, a long third answer growing the conversation's run on
   the bar — its accent cells read off the raw SGR bytes — to its own share

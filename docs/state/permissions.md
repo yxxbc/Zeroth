@@ -38,19 +38,17 @@ don't cover.
 
 ## The shape
 
-Five kinds, one layout, per `permission::PermissionKind`:
+Four kinds, one layout, per `permission::PermissionKind`:
 
 | kind      | title           | body                              | question                              |
 | --------- | --------------- | --------------------------------- | ------------------------------------- |
 | `Write`   | `Create file`   | the numbered new contents         | `Do you want to create {file}?`       |
 | `Edit`    | `Edit file`     | the numbered diff hunks           | `Do you want to make this edit to {file}?` |
 | `Bash`    | `Bash command`  | the indented command + description | `Do you want to proceed?`             |
-| `Mcp`     | `Tool use`      | the indented `{server} - {tool}({args}) (MCP)` + the server's description | `Do you want to proceed?` |
 | `Session` | `Session input` | the input on one line (`print(2 + 2)⏎`) + a dim `into {command} · session {id}` | `Do you want to send this input?` |
 
-The `Mcp` row is the `Bash` row with a different target: it names a call
-rather than a command, so it wears the same shape (`docs/tools/mcp.md`). So is the
-`Session` row: input typed into a command left running (`bashsend`,
+The `Session` row uses the `Bash` row's shape: input typed into a command
+left running (`bashsend`,
 `docs/tools/bash-tools.md`) runs just as a command does — a line typed into
 `python3` is Python — so it asks the same way. A call that types nothing
 never asks: `bashwait` and `bashlist` only read, `bashkill` ends a command the
@@ -286,10 +284,6 @@ Every prompt offers three, selected with ↑/↓ + Enter (the steps wrap — ↓
    only an exact match is safe. No letter shortcut: the old `(a)` binding was
    one fat-finger away from a standing approval, so the remember row is
    picked by number or ↑/↓ + Enter, like Claude Code;
-   **Yes, and don't ask again for {server} - {tool} commands in {project}**
-   for an MCP call — the tool named the way the user knows it and the
-   project the rule is kept for (`App::project_dir`), while the rule stored
-   stays the exact `mcp__…` wire name (`docs/tools/mcp.md`);
    **Yes, and don't ask again for this session** for session input — the
    session id, held on the gate for as long as the session runs and never
    written to `permissions.json` (an id means nothing to the next process).
@@ -378,7 +372,11 @@ rule did not grant.
 
 There is no built-in safe-command list. In manual mode every `bash`, `write`,
 and `edit` asks until the rules say otherwise — Claude Code's default posture,
-and the only one that can't be wrong about what is safe. `read` is never gated.
+and the only one that can't be wrong about what is safe. `read` is not gated,
+but it refuses Zeroth's own credential stores under the config home (`.env`,
+`secrets.json`, and legacy `mcp-auth.json`), plus the file selected by
+`ZEROTH_ENV_FILE`, including symlink aliases, so those values cannot enter model
+context through `read`. This guard remains even though local MCP is removed.
 
 #### Splitting the way bash does
 
@@ -417,8 +415,8 @@ thing on the row:
   asking, `bash` commands still ask (until allow-listed).
 - **auto** (the default) — Claude Code's auto mode: `write`/`edit` run like
   edit mode, a `bash` command that only reads runs unreviewed (*Read-only
-  commands skip the classifier*, below), and any other command — or an MCP
-  tool call (`docs/tools/mcp.md`) — the allowlist doesn't already cover is
+  commands skip the classifier*, below), and any other command the allowlist
+  doesn't already cover is
   reviewed by the **auto mode classifier** — a silent LLM safety check in
   the user's stead (the next section). No prompt opens in auto mode unless
   the classifier itself fails.
@@ -429,7 +427,7 @@ The cycle wraps (`master` → `manual`), so one key walks the whole ladder. A
 session starts in auto, so the first press lands on master and the second on
 manual.
 `PermissionRules::allows` encodes the standing coverage: file changes are
-covered by every mode above manual; a command or an MCP call only by master
+covered by every mode above manual; a command only by master
 or the allowlist — auto mode's classifier is a **per-call consult in the
 approve seam**, never a standing rule, which is what lets a classifier
 failure fall back to the prompt.
@@ -487,19 +485,17 @@ launches without it to cover the default.
 
 ## Auto mode: the classifier
 
-In auto mode a `bash` command — or an MCP tool call (`docs/tools/mcp.md`), or input
-typed into an interactive session (`docs/tools/interactive-shell.md`: the classifier
-is told the program the keys go to, since typing `rm -rf ~⏎` into a shell *is*
-running it) — that would have prompted goes to the **auto mode classifier**
-instead — Claude
-Code's auto-mode reviewer, rebuilt on the session's own provider
-(`llm::classifier::SafetyClassifier`; the reference feeds its MCP calls to
-the same reviewer, `mcpToolInputToAutoClassifierInput`). The approve seam
+In auto mode a `bash` command — or input typed into an interactive session
+(`docs/tools/interactive-shell.md`: the classifier is told the program the keys
+go to, since typing `rm -rf ~⏎` into a shell *is* running it) — that would have
+prompted goes to the **auto mode classifier** instead — Claude Code's auto-mode
+reviewer, rebuilt on the session's own provider
+(`llm::classifier::SafetyClassifier`). The approve seam
 (`llm::approval::approve_call`) consults it between the allowlist check and
 the prompt:
 
 ```
-approve(bash/MCP call) ── gate.allows()? ── yes ─────────────────► runs (no note)
+approve(bash or input) ── gate.allows()? ── yes ─────────────────► runs (no note)
                            └ no · mode == auto
                               only reads? ── yes ──────────────────► runs (no note)
                               └ no
@@ -565,8 +561,7 @@ it while the verdict is decided. Its one user message has two parts. The
 line (`> ` per line, so a request carrying markdown of its own stays visibly
 quoted material rather than becoming structure), over one line per action
 the agent has taken, each in the transcript cell's own `Name(args)`
-vocabulary (`Read(/path)`, `Bash(cargo test)`,
-`deepwiki - ask_question (MCP)({…})` — the same `display_name`/
+vocabulary (`Read(/path)`, `Bash(cargo test)` — the same `display_name`/
 `summarize_call` pair the cells use, so the classifier and the user read
 the turn in the same words), a refused call marked `— denied, not run` (an
 agent re-trying a variant of a denied command should be *seen* doing so).
@@ -584,10 +579,8 @@ the same on turn fifty as on turn one.
 Then, under its own `## Action to review` header so what is being *decided*
 can never blur into what already happened: the cwd and the request itself —
 for a command: the command and the model's stated `description` (labelled a
-claim, not proof); for an MCP call: the tool named `{server} - {tool}`, the
-server's own description of it, and the arguments in the cell's
-`key: "value"` form (`classifier_request_prompt`'s MCP arm — the wire name
-alone would hide where a remote call's risk actually lives). Context makes
+claim, not proof); for session input: the interactive program and the input
+sent to it (`classifier_request_prompt`'s `Session` arm). Context makes
 the verdict *task-aware* — `rm -rf build/` right after a failed
 `cargo build` reads differently from `rm -rf` out of nowhere — without
 opening the old poisoned-transcript hole, because the block is **bounded
@@ -637,18 +630,13 @@ The note renders in the collapsed cell and the Ctrl+O transcript alike
 statuses — a running cell keeps its live look), rides the rollout as
 `ToolRecord::approval_note` (omitted when absent, so old files parse) and so
 survives a `/resume`, and a subagent's allowed call carries it onto its own
-transcript through the same `ToolNote` event (`AgentRun::apply`). One cell
-skips it inline: the **quiet resolved MCP cell** — its whole inline presence
-is the one dim `Called {server}` line, and in auto mode every server call
-resolves noted, so the row doubled each cell into noise (a parallel run's
-aggregated line never carried it anyway); the Ctrl+O transcript, the rollout
-and a failed MCP call's loud cell keep the record (`docs/tools/mcp.md`).
+transcript through the same `ToolNote` event (`AgentRun::apply`).
 
 A **denied** call never runs: the seam returns `Approval::Reject` with
 `Denied by auto mode classifier` (+ `Reason: {…}` on a second line, the
 amend-feedback shape) as the red cell and a longer model-facing result —
-adapted from Claude Code's auto-mode denial, worded kind-neutrally since it
-answers commands and MCP calls alike — telling the model the call was not
+adapted from Claude Code's auto-mode denial, covering commands and session
+input alike — telling the model the call was not
 executed, other work may continue, a safer approach is fine, the denial's
 intent must not be bypassed, and an essential capability means stop and ask
 the user (who can approve it in manual mode, do it themselves, or Shift+Tab).
@@ -666,13 +654,11 @@ note, the scripted `rm -rf /tmp/scratch` rejects, and the same demo in manual
 mode prompts for all three — which is what lets `smoke.sh` drive the whole
 feature without a provider (Phase 64).
 The live OpenRouter suite (`tests/live_openrouter.rs`) covers the real
-thing: verdicts both ways for commands *and* MCP calls — with the task
-context attached and bare — plus the two context properties that matter (a
-context that begs for an allow lifts nothing, and a retried variant of a
-`— denied, not run` action stays blocked), and a full auto-mode turn whose
-events show `ToolStart → ToolNote → ToolEnd` with no `Permission` in sight
-— `tests/live_mcp.rs` closing the loop with a real server tool classified
-end to end (`live_auto_mode_classifies_an_mcp_call_instead_of_prompting`).
+thing: verdicts both ways for commands — with the task context attached and
+bare — plus the two context properties that matter (a context that begs for
+an allow lifts nothing, and a retried variant of a `— denied, not run` action
+stays blocked), and a full auto-mode turn whose events show
+`ToolStart → ToolNote → ToolEnd` with no `Permission` in sight.
 
 ## Seeing what the classifier sees — Ctrl+D, Tab
 
@@ -683,24 +669,26 @@ of the Ctrl+D view** — Tab flips between them:
 
 ```
 / C L A S S I F I E R / / / / / / / / / / / / / / / / / / / / / / / / / / /
-Auto mode — the classifier reads this before each command or MCP call.
+Auto mode — the classifier reads this before each command or session input.
 
  SYSTEM  #1 · classifier prompt · abridged
   ⎿  You are the safety classifier for an autonomous AI coding agent in auto
-     mode: it runs shell commands and MCP tool calls without asking the user,
-     and you decide — one action at a time — whether the action runs or is
-     blocked.
-     … +6 lines
+     mode: it runs shell commands and input to the interactive programs it
+     started without asking the user, and you decide — one action at a time —
+     whether the action runs …
+     … +7 lines
 
      ## Shell commands
      Allow ordinary, project-scoped development work: reading, searching and
-     listing files; `git` work in the working directory; building, testing, lin…
+     listing files; `git` work in the working directory; building, testing,
+     linting, formatting and running the project's own code; creating,
+     modifying or deleting files in…
      … +8 lines
 
-     ## MCP tool calls
-     For a tool exposed by an MCP server — named `server - tool`, with the
-     server's description and the call's arguments:
-     … +8 lines
+     ## Input typed into an interactive program
+     For keys the agent types into a program it started in a terminal — a REPL,
+     a shell, an installer's questions, an editor — named with the program:
+     … +2 lines
 
      ## Output Format
      If the action should be blocked:
@@ -719,7 +707,7 @@ Auto mode — the classifier reads this before each command or MCP call.
      - Bash(sudo rm -rf /var/log) — denied, not run
 
      ## Action to review
-     (the command or MCP call being judged — filled in when a verdict is asked)
+     (the command or session input being judged — filled in when a verdict is asked)
 
 ──────────────────────────────────────────────────────────────────── 100% ─
  ↑/↓ to scroll   ←/→ prev/next message   pgup/pgdn to page   home/end to jump
@@ -749,8 +737,8 @@ follows these rules:
   known when a verdict is asked (the header is one constant,
   `classifier::ACTION_TO_REVIEW_HEADER`, shared with `classifier_prompt`, so
   the page and the request cannot drift). The prompt is **abridged to its
-  structure** rather than shown whole — 3.6 KB of rubric is sixty rows,
-  which would push the live block the page exists for off the screen:
+  structure** rather than shown whole, which would push the live block the
+  page exists for off the screen:
   `ui::classifier_view::abridge_prompt` keeps every heading whole (the
   sections *are* the structure), each section's opening paragraph up to
   `CLASSIFIER_PROMPT_PEEK_COLS` (240 — three rows of an 80-column terminal;
@@ -895,8 +883,8 @@ I/O: the startup load seeds the gate (`seed_commands`, then `set_mode` with
 `starting_mode`'s answer) before the first frame, and every change **re-reads
 the file, updates only what changed in this project's entry, and rewrites
 it** — a mode change (Shift+Tab, the `/settings` row, option 2 on a file
-prompt) only the `mode` (`record_mode`), a command or MCP rule (option 2 on
-their prompts) only `allow_commands` (`record_commands`). The split is what
+prompt) only the `mode` (`record_mode`), a command rule (option 2 on
+its prompt) only `allow_commands` (`record_commands`). The split is what
 keeps an `ZEROTH_PERMISSION_MODE` seed out of the file — the gate's live
 mode carries the seed, and a rule saved under it would otherwise have
 written the seed over the mode the project chose (the `settings.json` rule,

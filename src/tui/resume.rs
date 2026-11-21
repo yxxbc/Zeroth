@@ -441,12 +441,13 @@ impl Session<'_> {
         let tx = self.restore_tx.clone();
         let handle = std::thread::spawn(move || {
             let began = Instant::now();
-            let _ = store.snapshot(label);
-            let restored = store.restore(&commit).unwrap_or(false);
+            let backup_succeeded = store.snapshot(label).is_some();
+            let restored = restore_only_after_backup(backup_succeeded, || store.restore(&commit));
             super::timing::record("checkpoint.restore", began.elapsed());
             let _ = tx.send(super::turn::RestoreDone {
                 token,
                 restored,
+                backup_succeeded,
                 notice,
             });
         });
@@ -476,7 +477,12 @@ impl Session<'_> {
             .expect("matched pending restore");
         let _ = pending.handle.join();
         super::timing::record("checkpoint.restore-wait", pending.began.elapsed());
-        if done.restored {
+        if !done.backup_succeeded {
+            self.toast(
+                "Files not restored: could not back up the current worktree",
+                ToastKind::Error,
+            );
+        } else if done.restored {
             self.toast(done.notice, zeroth::app::ToastKind::Info);
         }
         if !self.app.turn_active() {
@@ -487,9 +493,33 @@ impl Session<'_> {
     }
 }
 
+fn restore_only_after_backup(
+    backup_succeeded: bool,
+    restore: impl FnOnce() -> std::io::Result<bool>,
+) -> bool {
+    if !backup_succeeded {
+        return false;
+    }
+    restore().unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_backup_prevents_destructive_restore() {
+        let mut restore_called = false;
+        let restored = restore_only_after_backup(false, || {
+            restore_called = true;
+            Ok(true)
+        });
+        assert!(!restored);
+        assert!(
+            !restore_called,
+            "restore must not run without a recovery snapshot"
+        );
+    }
 
     #[test]
     fn sessions_root_follows_the_config_home_when_nothing_overrides_it() {

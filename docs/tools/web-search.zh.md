@@ -487,6 +487,20 @@ client 上的三个字段的原因。
   URL 从中间截短）。
 - `⎿` 行：`N results from <source>`，然后是编号的命中。失败时是常规的红色行
   加原因。
+- **一个 `web_fetch` cell 用一行说清这次访问**（`src/ui/web_fetch.rs`）：
+
+  ```text
+  ● https://example.com
+    ⎿  Read 41 rows, 3,201 chars (ctrl+o to expand)
+  ```
+
+  头部是裸 URL，而不是 `WebFetch(…)`；`⎿` 行是页面的大小——行数按 Ctrl+O
+  展开的宽度计，旁边是字符数（只有一行能装下的正文只报字符数，因为“1 行”
+  会掩盖它其实折行）。每条 fetch 结果开头那段边界段是写给模型的，所以留在
+  Ctrl+O 里：transcript 在那里用通用的 `● WebFetch({url})` 头部展示边界和
+  整页的每一行。把那段话渲染进折叠 cell，会把 cell 的行花在每次 fetch 都要
+  重复一遍的文字上。失败的调用没有页面可折叠：原因整段显示，与边界不进 cell
+  是同一个理由。
 - 两者都属于折叠的 **search** 组（`docs/ui/tool-groups.md`）：
   `Searched for 1 pattern, read 2 files` 已经在统计
   `read_only::ReadKind::Search`，而从用户视角看一次 `web_search` 是同一类

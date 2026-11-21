@@ -320,10 +320,7 @@ again (`docs/agents/agent-tools.md` *A resume is news when it starts*).
   renderer asks `activity_shown` for the row with the session's rule
   applied, `docs/tools/tools.md` *Path display*; never the cell header's
   `Write({args})`, whose parens read as clutter on a dim clipped
-  one-liner),
-  and an MCP call as the **capitalized server over the tool**
-  (`Deepwiki: ask_question` — the full `deepwiki - ask_question (MCP)`
-  display name is a mouthful for this row); a call with nothing to say
+  one-liner); a call with nothing to say
   after the colon shows the bare name — held between calls (never dropping
   to `Working…`) so the row keeps its context while the agent reasons over
   a result (`StreamEvent::ToolStart` carries the `detail`;

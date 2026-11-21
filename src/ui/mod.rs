@@ -62,7 +62,6 @@ mod link_card_view;
 mod live;
 mod login_view;
 mod mascot_view;
-mod mcp_view;
 mod menu;
 mod message;
 mod model_view;
@@ -88,6 +87,7 @@ mod tool_group;
 mod transcript;
 mod usage_view;
 mod view_flow;
+mod web_fetch;
 mod wrap;
 
 pub use self::agent::{
@@ -137,7 +137,6 @@ pub use self::link_card_view::link_card_lines;
 pub use self::live::{composer_cursor_at, render_live, render_live_with_preview};
 pub use self::login_view::render_key_onboarding;
 pub use self::mascot_view::{mascot_picker_height, render_mascot_picker};
-pub use self::mcp_view::{mcp_menu_height, mcp_view_lines, render_mcp_menu};
 pub use self::menu::{
     band_rows, centered_window, command_menu_lines, file_menu_lines, file_menu_rows, menu_rows,
     menu_window, shortcuts_lines, shortcuts_rows, skill_menu_lines, skill_menu_rows,
@@ -163,7 +162,7 @@ pub use self::tasks::{checklist_lines, idle_task_lines, task_rows};
 pub use self::theme::{COMPACTED_NOTICE, LIVE_MIN_HEIGHT};
 pub use self::theme_view::{render_theme_picker, theme_picker_height};
 pub use self::tips::{tip_lines, tip_rows};
-pub use self::tool::{held_run_len, resolved_tools_commit_lines, tool_commit_lines, tool_lines};
+pub use self::tool::{resolved_tools_commit_lines, tool_commit_lines, tool_lines};
 pub use self::tool_group::tool_group_lines;
 pub use self::transcript::{
     TranscriptCache, agent_transcript_lines, backtrack_scroll, backtrack_scroll_for,

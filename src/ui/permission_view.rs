@@ -283,67 +283,6 @@ fn detail_rows(request: &PermissionRequest, room: u16) -> Vec<(String, Color)> {
         .unwrap_or_default()
 }
 
-/// An MCP prompt's body (`docs/tools/mcp.md`) — the `bash` body's shape, because it
-/// answers the same question (*what exactly is about to run?*):
-///
-/// ```text
-///   Deepwiki - read_wiki_structure(repoName: "linuztx/flaredantic") (MCP)
-///   Get a list of documentation topics for a GitHub repository.
-/// ```
-///
-/// The call reads as the cell header will — the display label with the
-/// arguments in the `key: "value"` form, in the model's own key order — and
-/// the ` (MCP)` marker closes it dim, riding the call's last row when it fits
-/// so the eye lands on the tool and not on the badge. The server's own
-/// description follows, dim. (The framed pretty-printed JSON this replaced
-/// spent five rows re-punctuating two arguments.)
-fn mcp_rows(request: &PermissionRequest, width: u16, budget: usize) -> (Vec<Line<'static>>, usize) {
-    let indent = PERMISSION_COMMAND_INDENT;
-    let room = width.saturating_sub(cols(indent) as u16).max(1);
-    let label = crate::permission::mcp_display_label(&request.target);
-    let args = request.body.trim();
-    let call = if args.is_empty() {
-        label
-    } else {
-        format!("{label}({args})")
-    };
-    let dim = Style::new().fg(permission_detail_color());
-    let mut rows: Vec<Vec<Span<'static>>> = wrap_output(&call, room)
-        .into_iter()
-        .map(|row| {
-            vec![Span::styled(
-                row,
-                Style::new().fg(permission_target_color()),
-            )]
-        })
-        .collect();
-    let suffix = crate::mcp::MCP_DISPLAY_SUFFIX;
-    let fits = rows.last().is_some_and(|last| {
-        last.iter().map(|s| cols(&s.content)).sum::<usize>() + cols(suffix) <= room as usize
-    });
-    match rows.last_mut() {
-        Some(last) if fits => last.push(Span::styled(suffix.to_string(), dim)),
-        _ => rows.push(vec![Span::styled(suffix.trim_start().to_string(), dim)]),
-    }
-    rows.extend(
-        detail_rows(request, room)
-            .into_iter()
-            .map(|(text, color)| vec![Span::styled(text, Style::new().fg(color))]),
-    );
-    let hidden = rows.len().saturating_sub(budget.max(1));
-    let shown = rows.len() - hidden;
-    let lines = rows
-        .into_iter()
-        .take(shown)
-        .map(|spans| {
-            let mut row = vec![Span::raw(indent)];
-            row.extend(spans);
-            Line::from(row)
-        })
-        .collect();
-    (lines, hidden)
-}
-
 /// The context cells above the prompt as separable chunks, in priority order:
 /// the round's live agent group (when a subagent asked), then one chunk per
 /// queued call — the asked-about front call first, its batch siblings behind
@@ -385,15 +324,6 @@ fn context_chunks(app: &App, width: u16) -> Vec<Vec<Line<'static>>> {
     let agents = live_agent_group_lines(app, width);
     if !agents.is_empty() {
         chunks.push(agents);
-    }
-    // An all-MCP batch is one act and reads as one line here too — the strip's
-    // aggregated cell, drawn at rest (`docs/tools/mcp.md`). A prompt raised while
-    // three `⎿ Waiting…` copies of it stacked up said the same thing three
-    // times, in the rows the question needed.
-    if chunks.is_empty()
-        && let Some(batch) = super::tool::mcp_batch_lines(app, None, width)
-    {
-        return vec![batch];
     }
     let mut queue = queue_chunks(
         asked_first(app.tool_queue().iter(), asked).into_iter(),
@@ -589,7 +519,7 @@ pub fn permission_lines(app: &App, width: u16, term_height: u16) -> Vec<Line<'st
         ));
         below.push(Line::default());
     }
-    if matches!(request.kind, PermissionKind::Mcp | PermissionKind::Session) {
+    if request.kind == PermissionKind::Session {
         below.push(Line::default());
     }
     below.push(text_row(&question(request), Color::Reset, width));
@@ -637,8 +567,6 @@ pub fn permission_lines(app: &App, width: u16, term_height: u16) -> Vec<Line<'st
             width,
             PERMISSION_BODY_MAX_ROWS,
         )
-    } else if request.kind == PermissionKind::Mcp {
-        mcp_rows(request, width, PERMISSION_BODY_MAX_ROWS)
     } else if request.kind == PermissionKind::Session {
         session_rows(request, width, PERMISSION_BODY_MAX_ROWS)
     } else {
@@ -783,8 +711,6 @@ pub fn render_permission(area: Rect, buf: &mut Buffer, app: &App) {
 pub fn permission_remember_label(request: &PermissionRequest) -> String {
     match request.kind {
         PermissionKind::Bash => command_scope(&request.target).display(),
-        // The MCP rule is the exact wire name (`docs/tools/mcp.md`).
-        PermissionKind::Mcp => request.target.clone(),
         PermissionKind::Session => "this session".to_string(),
         PermissionKind::Write | PermissionKind::Edit => "all edits".to_string(),
     }

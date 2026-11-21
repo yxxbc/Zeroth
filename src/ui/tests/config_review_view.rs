@@ -3,9 +3,7 @@
 use super::*;
 use crate::app::{ItemChange, ReviewItem, ReviewKey, ReviewKind, ReviewPage, ReviewSection};
 use crate::trust::HookIdentity;
-use crate::ui::theme::{
-    REVIEW_DISABLE_LABEL, REVIEW_ENABLE_LABEL, REVIEW_SKIP_LABEL, REVIEW_TRUST_LABEL,
-};
+use crate::ui::theme::{REVIEW_SKIP_LABEL, REVIEW_TRUST_LABEL};
 use crate::ui::{config_review_height, config_review_lines, render_config_review};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -16,6 +14,7 @@ fn hook(event: &str, matcher: &str, command: &str, previous: Option<&str>) -> Re
         event: event.to_string(),
         matcher: matcher.to_string(),
         command: command.to_string(),
+        timeout_secs: crate::hooks::CommandHook::DEFAULT_TIMEOUT_SECS,
     };
     ReviewItem {
         title: identity.label(),
@@ -26,19 +25,6 @@ fn hook(event: &str, matcher: &str, command: &str, previous: Option<&str>) -> Re
             source: "/home/u/.zeroth/hooks.json".to_string(),
             identity,
         },
-    }
-}
-
-fn server(name: &str, transport: &str, detail: &[&str]) -> ReviewItem {
-    ReviewItem {
-        key: ReviewKey::Server {
-            source: "/home/u/repo/.mcp.json".to_string(),
-            name: name.to_string(),
-        },
-        title: format!("{name} · {transport}"),
-        detail: detail.iter().map(|d| (*d).to_string()).collect(),
-        change: None,
-        checked: true,
     }
 }
 
@@ -67,27 +53,6 @@ fn hooks_page() -> ReviewPage {
                 )],
             },
         ],
-    )
-}
-
-fn servers_page() -> ReviewPage {
-    ReviewPage::new(
-        ReviewKind::McpServers,
-        vec![ReviewSection {
-            scope: None,
-            path: "~/repo/.mcp.json".to_string(),
-            items: vec![
-                server(
-                    "brave-devtools",
-                    "stdio",
-                    &[
-                        "npx -y @brave/devtools-mcp",
-                        "env  BRAVE_API_KEY=${BRAVE_API_KEY}",
-                    ],
-                ),
-                server("github", "http", &["https://api.githubcopilot.com/mcp/"]),
-            ],
-        }],
     )
 }
 
@@ -135,10 +100,10 @@ fn many_hooks(n: usize) -> ReviewPage {
 
 #[test]
 fn the_hooks_page_shows_each_hook_verbatim_under_its_file() {
-    let app = review_app(vec![hooks_page(), servers_page()]);
+    let app = review_app(vec![hooks_page()]);
     let texts = texts(&app, 80, TALL);
     let title = find(&texts, "2 hooks to review · 1 new, 1 changed");
-    assert!(texts[title].ends_with("1/2"), "{:?}", texts[title]);
+    assert!(!texts[title].contains("1/2"), "{:?}", texts[title]);
     let info = find(&texts, "Hooks run shell commands on their own");
     let user = find(&texts, "User · ~/.zeroth/hooks.json");
     let stop = find(&texts, "[✔] Stop");
@@ -218,82 +183,6 @@ fn the_titles_count_what_is_new_and_what_changed() {
         &texts(&review_app(vec![changed]), 80, TALL),
         "2 hooks changed",
     );
-    find(
-        &texts(&review_app(vec![servers_page()]), 80, TALL),
-        "2 new MCP servers found in this project",
-    );
-    let mut one = servers_page();
-    one.sections[0].items.truncate(1);
-    one.sections[0].items[0].change = Some(ItemChange::Parts(vec!["the command line".to_string()]));
-    find(
-        &texts(&review_app(vec![one]), 80, TALL),
-        "1 MCP server changed in this project",
-    );
-}
-
-#[test]
-fn a_changed_server_says_what_changed_under_what_it_runs() {
-    // A server's entry is not kept in `trust.json`, only its shape: the
-    // review names the parts that changed — the variable a payload hides
-    // in, the command line — under the entry as it is now.
-    let mut page = servers_page();
-    page.sections[0].items[0].change = Some(ItemChange::Parts(vec![
-        "env NODE_OPTIONS added".to_string(),
-        "the command line".to_string(),
-    ]));
-    let texts = texts(&review_app(vec![page]), 80, TALL);
-    let brave = find(&texts, "[✔] brave-devtools · stdio");
-    assert!(texts[brave].ends_with("changed"), "{:?}", texts[brave]);
-    let env = find(&texts, "env  BRAVE_API_KEY=${BRAVE_API_KEY}");
-    let changed = find(&texts, "changed: env NODE_OPTIONS added, the command line");
-    assert_eq!(changed, env + 1, "{texts:#?}");
-    // Nothing to name — only the badge says so.
-    let mut bare = servers_page();
-    bare.sections[0].items[0].change = Some(ItemChange::Parts(Vec::new()));
-    let texts = self::texts(&review_app(vec![bare]), 80, TALL);
-    assert!(texts[find(&texts, "[✔] brave-devtools · stdio")].ends_with("changed"));
-    assert!(
-        !texts.iter().any(|row| row.contains("changed:")),
-        "{texts:#?}"
-    );
-}
-
-#[test]
-fn the_servers_page_asks_which_to_enable() {
-    let mut app = review_app(vec![hooks_page(), servers_page()]);
-    // Past the hooks page.
-    app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-    let texts = texts(&app, 80, TALL);
-    let title = find(&texts, "2 new MCP servers found in this project");
-    assert!(texts[title].ends_with("2/2"), "{:?}", texts[title]);
-    let ask = find(&texts, "Select any you wish to enable.");
-    let info = find(&texts, "An enabled server runs its command");
-    let file = find(&texts, "~/repo/.mcp.json");
-    let brave = find(&texts, "[✔] brave-devtools · stdio");
-    let command = find(&texts, "npx -y @brave/devtools-mcp");
-    let env = find(&texts, "env  BRAVE_API_KEY=${BRAVE_API_KEY}");
-    let github = find(&texts, "[✔] github · http");
-    let url = find(&texts, "https://api.githubcopilot.com/mcp/");
-    let enable = find(&texts, REVIEW_ENABLE_LABEL);
-    let disable = find(&texts, REVIEW_DISABLE_LABEL);
-    let hint = find(&texts, "Esc to disable all");
-    assert!(
-        title < ask
-            && ask < info
-            && info < file
-            && file < brave
-            && brave < command
-            && command < env
-            && env < github
-            && github < url
-            && url < enable
-            && enable < disable
-            && disable < hint,
-        "{texts:#?}"
-    );
-    // One scope on the page: the file heading carries no scope word.
-    assert_eq!(texts[file].trim(), "~/repo/.mcp.json");
-    assert_frame_hugs_content("the servers page", &config_review_lines(&app, 80, TALL));
 }
 
 #[test]
@@ -328,21 +217,21 @@ fn a_long_command_wraps_whole_and_its_tail_is_never_cut() {
 
 #[test]
 fn an_unselected_item_shows_an_empty_box() {
-    let mut app = review_app(vec![servers_page()]);
+    let mut app = review_app(vec![hooks_page()]);
     app.on_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
     let texts = texts(&app, 80, TALL);
-    find(&texts, "[ ] brave-devtools");
-    find(&texts, "[✔] github");
+    find(&texts, "[ ] Stop");
+    find(&texts, "[✔] PreToolUse · bash");
 }
 
 #[test]
 fn the_highlight_reaches_the_action_rows() {
-    let mut app = review_app(vec![servers_page()]);
+    let mut app = review_app(vec![hooks_page()]);
     for _ in 0..2 {
         app.on_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     }
     let texts = texts(&app, 80, TALL);
-    let enable = find(&texts, REVIEW_ENABLE_LABEL);
+    let enable = find(&texts, REVIEW_TRUST_LABEL);
     assert!(texts[enable].contains('❯'), "{:?}", texts[enable]);
     assert_eq!(
         texts.iter().filter(|l| l.contains('❯')).count(),
@@ -427,14 +316,14 @@ fn the_height_is_the_built_page() {
 
 #[test]
 fn the_page_paints_into_the_region() {
-    let app = review_app(vec![servers_page()]);
+    let app = review_app(vec![hooks_page()]);
     let width = 80u16;
     let height = config_review_height(&app, width, 60).unwrap();
     let mut buf = buffer(width, height);
     render_config_review(buf.area, &mut buf, &app);
     let painted: Vec<String> = (0..height).map(|y| row(&buf, y, width)).collect();
     assert!(painted[0].starts_with('─'), "{painted:#?}");
-    assert!(painted.iter().any(|r| r.contains("brave-devtools")));
+    assert!(painted.iter().any(|r| r.contains("Stop")));
     assert!(painted[usize::from(height) - 1].starts_with('─'));
     // A menu: no hardware cursor, its seat on the ❯ row.
     assert!(!crate::ui::cursor_visible(&app));

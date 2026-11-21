@@ -1,7 +1,7 @@
 //! The startup review's boundary half (`docs/state/config-review.md`): reading what
-//! it decides on — the user's hooks, the project's hooks and MCP servers —
+//! it decides on — the user's hooks and the project's hooks —
 //! and `trust.json`; building its pages; applying each answer live; and the
-//! `/hooks` and `/mcp` toggles that change a decision later. Every decision
+//! `/hooks` toggles that change a decision later. Every decision
 //! is applied to the session's own copy of the store first, so a session
 //! with nowhere to write still remembers what it was told, then recorded
 //! over `trust.json` **as it is on disk at that moment**
@@ -9,24 +9,17 @@
 //! would erase whatever another session recorded since — and never over a
 //! file that will not parse.
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use zeroth::app::{
     ItemChange, ReviewAnswer, ReviewItem, ReviewKey, ReviewKind, ReviewPage, ReviewSection,
     ToastKind,
 };
-use zeroth::trust::{
-    self, HookIdentity, HookTrust, ServerChange, ServerReview, ServerTrust, TrustFile,
-};
-use zeroth::{hooks, mcp};
+use zeroth::hooks;
+use zeroth::trust::{self, HookIdentity, HookTrust, TrustFile};
 
 use super::Session;
 use super::config;
-
-/// One MCP file's share of a set of server decisions: its absolute path,
-/// its parse, and `(name, enabled)` for each server decided.
-type FileDecisions = (String, mcp::McpFile, Vec<(String, bool)>);
 
 /// A project config file as read at bootstrap: where, the fingerprint of
 /// its bytes, and its parse.
@@ -60,26 +53,6 @@ pub(crate) struct ProjectLayer {
     pub(crate) root: PathBuf,
     /// `{root}/.zeroth/hooks.json`, when present.
     pub(crate) hooks: Option<ProjectFile<hooks::HooksFile>>,
-    /// `{root}/.zeroth/mcp.json`, when present.
-    pub(crate) mcp_alter: Option<ProjectFile<mcp::McpFile>>,
-    /// `{root}/.mcp.json` (the Claude-Code-compat name), when present.
-    pub(crate) mcp_compat: Option<ProjectFile<mcp::McpFile>>,
-}
-
-impl ProjectLayer {
-    /// The project's MCP files that parsed, in precedence order.
-    fn mcp_files(&self) -> Vec<(&Path, &mcp::McpFile)> {
-        [&self.mcp_alter, &self.mcp_compat]
-            .into_iter()
-            .flatten()
-            .filter_map(|file| {
-                file.parsed
-                    .as_ref()
-                    .ok()
-                    .map(|parsed| (file.path.as_path(), parsed))
-            })
-            .collect()
-    }
 }
 
 /// What the review decides over: `trust.json` and the files it is about.
@@ -130,20 +103,11 @@ impl TrustState {
         };
         let root = project.root.display().to_string();
         let hooks = project.hooks.as_ref().and_then(ProjectFile::pinned);
-        let mcp: Vec<(String, String, mcp::McpFile)> = [&project.mcp_alter, &project.mcp_compat]
-            .into_iter()
-            .flatten()
-            .filter_map(ProjectFile::pinned)
-            .collect();
         let migrate = |store: &mut TrustFile| {
             let hooks = hooks
                 .as_ref()
                 .map(|(path, fingerprint, file)| (path.as_str(), fingerprint.as_str(), file));
-            let mcp: Vec<(&str, &str, &mcp::McpFile)> = mcp
-                .iter()
-                .map(|(path, fingerprint, file)| (path.as_str(), fingerprint.as_str(), file))
-                .collect();
-            store.migrate_legacy(&root, hooks, &mcp)
+            store.migrate_legacy(&root, hooks)
         };
         if !migrate(&mut self.store) {
             return Ok(());
@@ -235,60 +199,6 @@ impl TrustState {
         (!sections.is_empty()).then(|| ReviewPage::new(ReviewKind::Hooks, sections))
     }
 
-    /// Every project server and where it stands (`trust::review_servers`).
-    pub(crate) fn server_reviews(&self) -> Vec<ServerReview> {
-        let Some(project) = &self.project else {
-            return Vec::new();
-        };
-        let files: Vec<(String, &mcp::McpFile)> = project
-            .mcp_files()
-            .into_iter()
-            .map(|(path, file)| (path.display().to_string(), file))
-            .collect();
-        let borrowed: Vec<(&str, &mcp::McpFile)> = files
-            .iter()
-            .map(|(path, file)| (path.as_str(), *file))
-            .collect();
-        trust::review_servers(&self.store, &borrowed)
-    }
-
-    /// The servers page: the servers the manager holds for the review
-    /// (`awaiting`), each under the file declaring it.
-    pub(crate) fn mcp_page(&self, awaiting: &[String], home: Option<&Path>) -> Option<ReviewPage> {
-        let mut sections: Vec<ReviewSection> = Vec::new();
-        for review in self.server_reviews() {
-            if !awaiting.contains(&review.name) {
-                continue;
-            }
-            let change = match &review.trust {
-                ServerTrust::Changed { changes } => Some(ItemChange::Parts(
-                    changes.iter().map(ServerChange::describe).collect(),
-                )),
-                _ => None,
-            };
-            let item = ReviewItem {
-                title: format!("{} · {}", review.name, review.config.transport_label()),
-                detail: server_detail(&review.config),
-                change,
-                checked: true,
-                key: ReviewKey::Server {
-                    source: review.source.clone(),
-                    name: review.name.clone(),
-                },
-            };
-            let path = zeroth::ui::display_cwd(Path::new(&review.source), home);
-            match sections.iter_mut().find(|section| section.path == path) {
-                Some(section) => section.items.push(item),
-                None => sections.push(ReviewSection {
-                    scope: None,
-                    path,
-                    items: vec![item],
-                }),
-            }
-        }
-        (!sections.is_empty()).then(|| ReviewPage::new(ReviewKind::McpServers, sections))
-    }
-
     /// Record a hooks decision for the file `source`. `Err` names a write
     /// that did not happen: the decision still holds for the session.
     fn record_hooks(
@@ -306,34 +216,6 @@ impl TrustState {
             return Ok(());
         };
         self.record(|store| store.record_hooks(source, &file, trusted, distrusted))
-    }
-
-    /// Record server decisions — `(file, name, enabled)`.
-    fn record_servers(&mut self, decisions: &[(String, String, bool)]) -> Result<(), String> {
-        let sources: BTreeSet<&String> = decisions.iter().map(|(source, _, _)| source).collect();
-        let mut files: Vec<FileDecisions> = Vec::new();
-        for source in sources {
-            let Some(file) = self.project.as_ref().and_then(|project| {
-                project
-                    .mcp_files()
-                    .into_iter()
-                    .find(|(path, _)| path.display().to_string() == *source)
-                    .map(|(_, file)| file.clone())
-            }) else {
-                continue;
-            };
-            let named: Vec<(String, bool)> = decisions
-                .iter()
-                .filter(|(from, _, _)| from == source)
-                .map(|(_, name, enabled)| (name.clone(), *enabled))
-                .collect();
-            files.push((source.clone(), file, named));
-        }
-        self.record(|store| {
-            for (source, file, named) in &files {
-                store.record_servers(source, file, named);
-            }
-        })
     }
 
     /// Apply `change` to the session's copy, then record it in `trust.json`.
@@ -369,28 +251,6 @@ impl TrustState {
     }
 }
 
-/// A server's detail rows on the review: its command line or URL, then for
-/// a local server its environment (`KEY=value` — what the program starts
-/// with is part of what runs), and for a remote one the names of the
-/// headers it sends (never their values, a token's usual home).
-fn server_detail(config: &mcp::McpServerConfig) -> Vec<String> {
-    let mut out = vec![config.target()];
-    match config {
-        mcp::McpServerConfig::Stdio { env, .. } if !env.is_empty() => {
-            let pairs: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
-            out.push(format!("env  {}", pairs.join("  ")));
-        }
-        mcp::McpServerConfig::Http { headers, .. } | mcp::McpServerConfig::Sse { headers, .. }
-            if !headers.is_empty() =>
-        {
-            let names: Vec<&str> = headers.keys().map(String::as_str).collect();
-            out.push(format!("headers  {}", names.join(", ")));
-        }
-        _ => {}
-    }
-    out
-}
-
 /// Gather the project layer at bootstrap: resolve the root and read each
 /// project file. `None` when `ZEROTH_PROJECT_CONFIG` is off, or the
 /// root is the home directory (never a project, `trust::is_project_root`).
@@ -406,12 +266,8 @@ pub(crate) fn load_project_layer(cwd: &Path) -> Option<ProjectLayer> {
     // A project path that IS the user layer's file (an
     // `ZEROTH_CONFIG_DIR` pointed inside the project) is already loaded
     // as the user's — never read twice.
-    let user_files = [
-        config::user_hooks_path(),
-        config::mcp_user_file_path().map(|path| std::path::absolute(&path).unwrap_or(path)),
-    ];
-    let own = |path: &PathBuf| user_files.iter().flatten().any(|user| user == path);
-    let guard = |path: PathBuf| (!own(&path)).then_some(path);
+    let user_file = config::user_hooks_path();
+    let guard = |path: PathBuf| (user_file.as_ref() != Some(&path)).then_some(path);
     let read = |path: PathBuf| -> Option<(PathBuf, String, Result<String, String>)> {
         match std::fs::read_to_string(&path) {
             Ok(text) => Some((path, trust::fingerprint(text.as_bytes()), Ok(text))),
@@ -419,25 +275,6 @@ pub(crate) fn load_project_layer(cwd: &Path) -> Option<ProjectLayer> {
             Err(err) => Some((path, String::new(), Err(err.to_string()))),
         }
     };
-    let parse_mcp = |text: &str| -> Result<mcp::McpFile, String> {
-        let file = mcp::parse_mcp_file(text);
-        // A document-level failure parses to a lone error and no servers —
-        // a broken file, not an empty one; per-entry errors keep the healthy
-        // entries (the mcp module's leniently-but-loudly posture).
-        match (file.servers.is_empty(), file.errors.first()) {
-            (true, Some(error)) => Err(error.clone()),
-            _ => Ok(file),
-        }
-    };
-    let mcp_file = |path: Option<PathBuf>| {
-        let (path, fingerprint, text) = read(path?)?;
-        Some(ProjectFile {
-            parsed: text.and_then(|text| parse_mcp(&text)),
-            fingerprint,
-            path,
-        })
-    };
-    let [mcp_alter, mcp_compat] = trust::project_mcp_files(&root).map(guard);
     let hooks =
         guard(trust::project_hooks_file(&root))
             .and_then(read)
@@ -450,19 +287,13 @@ pub(crate) fn load_project_layer(cwd: &Path) -> Option<ProjectLayer> {
                 fingerprint,
                 path,
             });
-    Some(ProjectLayer {
-        root,
-        hooks,
-        mcp_alter: mcp_file(mcp_alter),
-        mcp_compat: mcp_file(mcp_compat),
-    })
+    Some(ProjectLayer { root, hooks })
 }
 
 impl Session<'_> {
     /// The startup toasts for what the review reads, least severe first so
     /// the one toast slot ends on what matters most: a project hooks file
-    /// that would not parse (red — its MCP siblings' errors ride
-    /// `report_mcp_errors`), then a malformed `trust.json` (red — the guard
+    /// that would not parse (red), then a malformed `trust.json` (red — the guard
     /// file limits everything).
     pub(crate) fn report_trust_state(&mut self, trust_error: Option<String>) {
         let hooks_error = self
@@ -486,23 +317,13 @@ impl Session<'_> {
         }
     }
 
-    /// The review's pages for what is new or changed: the hooks page while
-    /// the session runs hooks, the servers page for the servers the manager
-    /// holds for it while MCP is on (the `/settings` **MCP** row).
-    pub(crate) fn review_pages(&self, hooks: bool, servers: bool) -> Vec<ReviewPage> {
+    /// The review's hooks page while hooks are enabled and await trust.
+    pub(crate) fn review_pages(&self, hooks: bool) -> Vec<ReviewPage> {
         let home = std::env::var_os("HOME").map(PathBuf::from);
         let mut pages = Vec::new();
         if hooks
             && self.models.hooks_enabled()
             && let Some(page) = self.trust.hooks_page(home.as_deref())
-        {
-            pages.push(page);
-        }
-        if servers
-            && self.mcp.is_active()
-            && let Some(page) = self
-                .trust
-                .mcp_page(&self.mcp.awaiting_review(), home.as_deref())
         {
             pages.push(page);
         }
@@ -513,7 +334,7 @@ impl Session<'_> {
     /// `SessionStart` until it closes (`docs/state/config-review.md`). Whether it
     /// opened — the caller holds a `[PROMPT]` the same way.
     pub(crate) fn open_startup_review(&mut self) -> bool {
-        let pages = self.review_pages(true, true);
+        let pages = self.review_pages(true);
         self.app.open_config_review(pages);
         let open = self.app.config_review.is_some();
         if open {
@@ -525,14 +346,7 @@ impl Session<'_> {
     /// Open the hooks page alone — the `/settings` **Hooks** row turned on
     /// over hooks that wait for trust.
     pub(crate) fn open_hooks_review(&mut self) {
-        let pages = self.review_pages(true, false);
-        self.app.open_requested_review(pages);
-    }
-
-    /// Open the servers page alone — the `/settings` **MCP** row turned on
-    /// over project servers that wait for the review.
-    pub(crate) fn open_servers_review(&mut self) {
-        let pages = self.review_pages(false, true);
+        let pages = self.review_pages(true);
         self.app.open_requested_review(pages);
     }
 
@@ -541,7 +355,6 @@ impl Session<'_> {
     pub(crate) fn apply_review_answer(&mut self, answer: ReviewAnswer) {
         let result = match answer.kind {
             ReviewKind::Hooks => self.apply_hooks_answer(&answer),
-            ReviewKind::McpServers => self.apply_servers_answer(&answer),
         };
         if let Err(error) = result {
             self.toast(error, ToastKind::Error);
@@ -578,30 +391,8 @@ impl Session<'_> {
         result
     }
 
-    /// Servers: a confirmed page records each server enabled or disabled as
-    /// it was selected; a declined one records every server disabled. The
-    /// enabled ones connect at once.
-    fn apply_servers_answer(&mut self, answer: &ReviewAnswer) -> Result<(), String> {
-        let decisions: Vec<(String, String, bool)> = answer
-            .choices
-            .iter()
-            .filter_map(|(key, checked)| match key {
-                ReviewKey::Server { source, name } => {
-                    Some((source.clone(), name.clone(), answer.confirmed && *checked))
-                }
-                ReviewKey::Hook { .. } => None,
-            })
-            .collect();
-        let result = self.trust.record_servers(&decisions);
-        for (_, name, enabled) in &decisions {
-            self.mcp.set_approved(name, *enabled);
-        }
-        result
-    }
-
     /// The review has closed: fire the held `SessionStart` with the hooks it
-    /// trusted, and submit a held `[PROMPT]` so the first turn starts with
-    /// the servers just enabled.
+    /// trusted, and submit a held `[PROMPT]` with those hooks active.
     fn finish_review(&mut self) {
         self.models.release_session_start();
         if let Some(prompt) = self.held_prompt.take() {
@@ -625,43 +416,5 @@ impl Session<'_> {
             Ok(()) => self.toast("Hook no longer trusted — it does not run", ToastKind::Info),
         }
         self.frame.schedule_frame();
-    }
-
-    /// `/mcp` Enable or Disable on a **project** server: the decision is the
-    /// review's, recorded in `trust.json`, never in the user's MCP file.
-    /// `false` when `name` is not a project server the session knows, so
-    /// the caller applies the user file's toggle instead.
-    pub(crate) fn set_project_server(&mut self, name: &str, enabled: bool) -> bool {
-        let manager = self.mcp.clone();
-        let project = manager
-            .snapshot()
-            .iter()
-            .any(|server| server.name == name && server.scope == mcp::McpScope::Project);
-        let Some(review) = self.server_reviews_named(name).filter(|_| project) else {
-            return false;
-        };
-        let result = self
-            .trust
-            .record_servers(&[(review.source, name.to_string(), enabled)]);
-        manager.set_approved(name, enabled);
-        // A project server turned off in `/mcp` before the review existed
-        // sits in the user file's disabled set; enabling it here clears that
-        // too, or it would stay off.
-        let cleared = if enabled && manager.is_user_disabled(name) {
-            manager.set_disabled(name, false)
-        } else {
-            Ok(())
-        };
-        if let Err(error) = result.and(cleared) {
-            self.toast(error, ToastKind::Error);
-        }
-        true
-    }
-
-    fn server_reviews_named(&self, name: &str) -> Option<ServerReview> {
-        self.trust
-            .server_reviews()
-            .into_iter()
-            .find(|review| review.name == name)
     }
 }

@@ -26,7 +26,6 @@
 | `src/cli.rs`、`--help`、参数解析 | `cargo test --lib cli::` + `cargo test --test cli_help` |
 | `src/headless.rs`、`src/tui/headless.rs`、任何与 `-p` 有关的 | `cargo test --lib headless::` + `cargo test --test headless` + `scripts/smoke.sh 153` |
 | `src/pty/`、`src/subprocess.rs` | `cargo test --lib pty::` 或 `subprocess::` + `cargo test --test detached_exec`（Mac：先 `cargo build`） |
-| `src/mcp/`、`src/llm/mcp/`、`mcp` CLI | `cargo test --lib mcp::` + `cargo test --test mcp_cli` |
 | 一条对内存敏感的路 | 对应的 `tests/*_memory.rs` |
 | `providers.toml`、`src/llm/config.rs` | `cargo test --lib llm::config` |
 | `scripts/smoke/lib.sh`、`scripts/smoke.sh` | `bash scripts/smoke/selftest.sh` |
@@ -71,9 +70,8 @@ smoke 的读取器。Linux 是参照；两者都应该是绿的。
   session。`cargo test` 会构建它；`cargo test --lib` 不会，所以先跑
   `cargo build` —— 否则约 46 个终端测试会以「no way to give the command a
   terminal of its own here」失败。改了 helper 之后要重建。
-- **38 个测试只在 Linux 上跑**（`cfg(target_os = "linux")`）：`llm/exec` 18、
-  `pty/probe` 8、`clipboard` 4、`subprocess` 4、`background` 2、`pty/spawn` 1、
-  `llm/mcp/transport` 1。一次 macOS 全绿对 `/proc` 探测、流式剪贴板、`setsid`
+- **37 个测试只在 Linux 上跑**（`cfg(target_os = "linux")`）：`llm/exec` 18、
+  `pty/probe` 8、`clipboard` 4、`subprocess` 4、`background` 2、`pty/spawn` 1。一次 macOS 全绿对 `/proc` 探测、流式剪贴板、`setsid`
   detach 或 Linux 执行器什么也没说。在提交里说明你跑的是哪个平台。
 - **BSD 工具：** `pkill` 没有 `-s`（它的 `-t` 什么也匹配不到），`ps` 没有
   `sid`，`od` 会给它的列补位。不要依赖 GNU 的形式。

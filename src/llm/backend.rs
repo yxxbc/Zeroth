@@ -64,9 +64,9 @@ pub struct LlmBackend {
     tool_definitions: Arc<[ToolDefinition]>,
     /// The last subagent tool set `agent_tool_definitions` built, kept with
     /// the type and the allowlist it was built from — the one input a
-    /// rescan rewrites in place. The skills verdict and the MCP set are this
-    /// backend's as built, and the boundary rebuilds the backend when either
-    /// moves, so neither needs a key. Reset with the client's own set.
+    /// rescan rewrites in place. The skills verdict is this backend's as
+    /// built, and the boundary rebuilds the backend when it moves, so it
+    /// needs no key. Reset with the client's own set.
     agent_tools: Arc<Mutex<Option<AgentToolsMemo>>>,
     /// The shared background-shell registry, when the boundary attached one —
     /// enables the `bash` tool's `run_in_background` and Ctrl+B handoff
@@ -124,13 +124,6 @@ pub struct LlmBackend {
     /// "no sources" spends the model's attention on a dead end. Subagents
     /// carry it too — research is the case a subagent exists for.
     web: Option<std::sync::Arc<crate::web::walk::Search>>,
-    /// The session's MCP servers, when the boundary attached the manager —
-    /// **adds every connected server's tools** under their
-    /// `mcp__server__tool` wire names (`docs/tools/mcp.md`). Attached only when at
-    /// least one tool is actually offered (the `with_skills` posture — a
-    /// spec set that can only answer "unknown tool" spends the model's
-    /// attention on a dead end). Subagents carry it too.
-    mcp: Option<super::mcp::McpManager>,
     /// The auto mode classifier bound to this backend's provider
     /// (`docs/state/permissions.md`): consulted by the approve seam for `bash`
     /// calls in [`crate::permission::PermissionMode::Auto`] — idle in every
@@ -252,7 +245,6 @@ impl LlmBackend {
             tasks: None,
             skills: None,
             web: None,
-            mcp: None,
             classifier,
             turn_context: Arc::new(Mutex::new(ClassifierContext::new())),
             max_retries: MAX_RETRIES,
@@ -409,26 +401,11 @@ impl LlmBackend {
         self
     }
 
-    /// Attach the session's MCP manager, **adding every connected server's
-    /// tools** (`docs/tools/mcp.md`): the client's tool set gains one
-    /// `mcp__server__tool` spec per discovered tool (tools must already be
-    /// enabled). Attached only when something is actually offered — the
-    /// boundary re-checks at every MCP event and rebuilds on a flip
-    /// (`Session::refresh_mcp`, the `skills_attached` pattern).
-    #[must_use]
-    pub fn with_mcp(mut self, manager: super::mcp::McpManager) -> Self {
-        if self.tools_enabled && manager.has_tools() {
-            self.mcp = Some(manager);
-            self.sync_tool_specs();
-        }
-        self
-    }
-
     /// Rebuild the client's tool set from what is attached — the `agent` spec
     /// when a subagent registry is, the ask spec when an ask gate is, the
-    /// task specs when a task registry is, the MCP specs when a manager is —
-    /// so [`with_agents`](Self::with_agents)/[`with_ask`](Self::with_ask)/
-    /// [`with_tasks`](Self::with_tasks)/[`with_mcp`](Self::with_mcp) compose
+    /// task specs when a task registry is — so
+    /// [`with_agents`](Self::with_agents)/[`with_ask`](Self::with_ask)/
+    /// [`with_tasks`](Self::with_tasks) compose
     /// in any order.
     fn sync_tool_specs(&mut self) {
         let mut specs = if self.agents.is_some() {
@@ -447,9 +424,6 @@ impl LlmBackend {
         }
         if self.web.is_some() {
             specs.extend(tools::web_specs());
-        }
-        if let Some(manager) = &self.mcp {
-            specs.extend(manager.tool_specs());
         }
         self.tool_definitions = ToolDefinition::from_specs(&specs);
         self.agent_tools = Arc::default();
@@ -785,7 +759,6 @@ impl ReplySource for LlmBackend {
         let ask = self.ask.clone();
         let task_list = self.tasks.clone();
         let skills = self.skills.clone();
-        let mcp = self.mcp.clone();
         let classifier = self.classifier.clone();
         let turn_context = Arc::clone(&self.turn_context);
         let max_retries = self.max_retries;
@@ -909,7 +882,7 @@ impl ReplySource for LlmBackend {
             // ordinary file/command tools can run on a small worker pool, so a
             // batch of slow commands overlaps instead of summing. It carries
             // the same classifier log and secret expansion as the serial
-            // closure below; tools that own state (ask, skills, MCP, agents,
+            // closure below; tools that own state (ask, skills, agents,
             // tasks) stay on the serial path.
             let parallel_execute =
                 |call: &crate::llm::tools::ToolCallRequest,
@@ -996,17 +969,6 @@ impl ReplySource for LlmBackend {
                                     &mut loaded_skills,
                                     call,
                                 );
-                            }
-                            // An `mcp__server__tool` call (docs/tools/mcp.md):
-                            // routed to the manager's live connection; without
-                            // one the call is declined recoverably.
-                            if crate::mcp::is_mcp_tool(&call.name) {
-                                return match &mcp {
-                                    Some(manager) => manager.call_tool(call, &cancel),
-                                    None => tools::ToolOutcome::error(
-                                        "MCP tools are not available here",
-                                    ),
-                                };
                             }
                             // `agent`'s companions (docs/agents/agent-tools.md):
                             // message, read, stop or list the session's
@@ -1107,11 +1069,9 @@ impl ReplySource for LlmBackend {
                             .unwrap_or_default();
                         classifier.classify(request, &context, &cancel)
                     };
-                    // An MCP prompt shows the server's own description of the
-                    // tool under the call (docs/tools/mcp.md); a session's, the
-                    // command it runs (docs/tools/interactive-shell.md).
-                    let describe =
-                        |key: &str| describe_for_prompt(key, mcp.as_ref(), background.as_ref());
+                    // A session prompt shows the command it runs
+                    // (docs/tools/interactive-shell.md).
+                    let describe = |key: &str| describe_for_prompt(key, background.as_ref());
                     let approval = approval::approve_call(
                         permissions.as_ref(),
                         Some(&classify),
@@ -1218,7 +1178,6 @@ impl ReplySource for LlmBackend {
         let Ok(mut memo) = self.agent_tools.lock() else {
             return ToolDefinition::from_specs(&subagent_tool_specs(
                 self.skills.is_some(),
-                self.mcp.as_ref(),
                 &allowed,
             ));
         };
@@ -1228,11 +1187,8 @@ impl ReplySource for LlmBackend {
         {
             return Arc::clone(&kept.tools);
         }
-        let tools = ToolDefinition::from_specs(&subagent_tool_specs(
-            self.skills.is_some(),
-            self.mcp.as_ref(),
-            &allowed,
-        ));
+        let tools =
+            ToolDefinition::from_specs(&subagent_tool_specs(self.skills.is_some(), &allowed));
         *memo = Some(AgentToolsMemo {
             agent_type: agent_type.to_string(),
             allowed,
@@ -1328,10 +1284,6 @@ struct SubagentConfig {
     /// — a side agent benefits from an authored `SKILL.md` exactly as the lead
     /// does, and loading one is pure text, so it needs no gate of its own.
     skills: Option<crate::skills::SkillRegistry>,
-    /// The session's MCP manager, so a subagent can call the same servers'
-    /// tools (`docs/tools/mcp.md`) — a side agent queries a wiki exactly as the
-    /// lead does, over the same live connections.
-    mcp: Option<super::mcp::McpManager>,
     /// The session's retry budget, so a subagent's rounds retry exactly as
     /// the main turn's do (`docs/state/settings.md`).
     max_retries: u32,
@@ -1367,7 +1319,6 @@ impl LlmBackend {
             classifier: self.classifier.clone(),
             web: self.web.clone(),
             skills: self.skills.clone(),
-            mcp: self.mcp.clone(),
             max_retries: self.max_retries,
             max_tool_calls: self.max_tool_calls,
             hooks: Arc::clone(&self.hooks),
@@ -1407,23 +1358,11 @@ impl SubagentConfig {
         let allowed = self
             .definition(agent_type)
             .map_or(crate::subagents::AgentTools::All, |def| def.tools);
-        // The instructions of the servers whose tools this type may call —
-        // the lead's own reminder never reaches a subagent's fresh context.
-        let mcp_instructions = self
-            .mcp
-            .as_ref()
-            .map(|manager| {
-                crate::mcp::instructions_section(
-                    &manager.instructions(&|wire| allowed.allows(wire)),
-                )
-            })
-            .unwrap_or_default();
         subagent_briefing(
             self.skills
                 .as_ref()
                 .filter(|_| allowed.allows(crate::skills::SKILL_TOOL_NAME)),
             self.secrets.as_ref().filter(|_| allowed.reaches_secrets()),
-            &mcp_instructions,
         )
     }
 
@@ -1461,23 +1400,19 @@ struct AgentToolsMemo {
 
 /// A subagent's tool set: the built-ins its definition's `allowed` list
 /// permits (never `agent` — no nesting), plus the `skill` tool when the
-/// session found any (`docs/tools/skills.md`) and the MCP servers' tools
-/// (`docs/tools/mcp.md`), both through the same allowlist. One function, because
+/// session found any (`docs/tools/skills.md`), through the same allowlist.
+/// One function, because
 /// two answer the same question: the launch that **sends** it
 /// ([`spawn_subagent_run`]) and the agent view's `/context` page that
 /// **counts** it (`ReplySource::agent_tool_definitions`).
 fn subagent_tool_specs(
     skills: bool,
-    mcp: Option<&super::mcp::McpManager>,
     allowed: &crate::subagents::AgentTools,
 ) -> Vec<serde_json::Value> {
     let mut specs = tools::subagent_tool_specs(allowed);
     let mut extras = Vec::new();
     if skills {
         extras.push(tools::skill_spec());
-    }
-    if let Some(manager) = mcp {
-        extras.extend(manager.tool_specs());
     }
     specs.extend(tools::allowed_specs(extras, allowed));
     specs
@@ -1497,7 +1432,6 @@ fn subagent_tool_specs(
 fn subagent_briefing(
     skills: Option<&crate::skills::SkillRegistry>,
     secrets: Option<&crate::secrets::SecretRegistry>,
-    mcp_instructions: &str,
 ) -> Option<String> {
     let skills = skills
         .map(|skills| skills.listing(crate::skills::listing_budget(None)))
@@ -1508,7 +1442,6 @@ fn subagent_briefing(
     let rendered = crate::reminder::reminder_message(&[
         &crate::skills::skill_section(&skills),
         &crate::secrets::secret_section(&secrets),
-        mcp_instructions,
     ]);
     (!rendered.is_empty()).then_some(rendered)
 }
@@ -1791,7 +1724,6 @@ fn spawn_subagent_run(
 ) {
     let skills = config.skills.clone();
     let web = config.web.clone();
-    let mcp = config.mcp.clone();
     let secrets = config.secrets.clone();
     // Kept whole for the settle-window continuation at the very bottom.
     let respawn_config = config.clone();
@@ -1802,7 +1734,7 @@ fn spawn_subagent_run(
     let allowed = definition
         .as_ref()
         .map_or(crate::subagents::AgentTools::All, |def| def.tools.clone());
-    let specs = subagent_tool_specs(skills.is_some(), mcp.as_ref(), &allowed);
+    let specs = subagent_tool_specs(skills.is_some(), &allowed);
     // A definition may pin its own model (`model: kimi-k3`): same provider,
     // base and key, and the session's thinking mode / vision verdict dropped
     // — both describe the model being replaced, not this one.
@@ -1984,16 +1916,6 @@ fn spawn_subagent_run(
                                 call,
                             );
                         }
-                        // …and its MCP calls ride the same live connections
-                        // (docs/tools/mcp.md).
-                        if crate::mcp::is_mcp_tool(&call.name) {
-                            return match &mcp {
-                                Some(manager) => manager.call_tool(call, &cancel),
-                                None => {
-                                    tools::ToolOutcome::error("MCP tools are not available here")
-                                }
-                            };
-                        }
                         executor.execute(call, &cancel, on_output)
                     },
                 )
@@ -2035,8 +1957,7 @@ fn spawn_subagent_run(
                         .unwrap_or_default();
                     classifier.classify(request, &context, &cancel)
                 };
-                let describe =
-                    |key: &str| describe_for_prompt(key, mcp.as_ref(), background.as_ref());
+                let describe = |key: &str| describe_for_prompt(key, background.as_ref());
                 let approval = approval::approve_call(
                     permissions.as_ref(),
                     Some(&classify),
@@ -2279,21 +2200,15 @@ fn to_tool_call_specs(calls: &[ToolCallRequest]) -> Vec<ToolCallSpec> {
         .collect()
 }
 
-/// The approve seam's description lookup ([`approval::DescribeTool`]): an
-/// MCP wire name → the server's description of the tool (`docs/tools/mcp.md`), a
+/// The approve seam's description lookup ([`approval::DescribeTool`]): a
 /// session id → the command that session runs (`docs/tools/interactive-shell.md`).
 fn describe_for_prompt(
     key: &str,
-    mcp: Option<&super::mcp::McpManager>,
     background: Option<&crate::background::BackgroundRegistry>,
 ) -> Option<String> {
-    if crate::mcp::is_mcp_tool(key) {
-        mcp.and_then(|manager| manager.tool_description(key))
-    } else {
-        background
-            .and_then(|registry| registry.session(key))
-            .map(|session| session.command)
-    }
+    background
+        .and_then(|registry| registry.session(key))
+        .map(|session| session.command)
 }
 
 #[cfg(test)]
@@ -2942,38 +2857,16 @@ mod tests {
             dir: std::path::PathBuf::from("/s/commit"),
             path: std::path::PathBuf::from("/s/commit/SKILL.md"),
         }]);
-        let reminder = subagent_briefing(Some(&registry), None, "").expect("a reminder");
+        let reminder = subagent_briefing(Some(&registry), None).expect("a reminder");
         assert!(reminder.contains("<system-reminder>"), "{reminder}");
         assert!(
             reminder.contains("commit: Write a commit message"),
             "{reminder}"
         );
         // No registry (or nothing enabled) means no tool, so no reminder.
-        assert!(subagent_briefing(None, None, "").is_none());
+        assert!(subagent_briefing(None, None).is_none());
         registry.set_disabled(["commit".to_string()].into_iter().collect());
-        assert!(subagent_briefing(Some(&registry), None, "").is_none());
-    }
-
-    /// A subagent allowed an MCP server's tools is told how that server
-    /// wants them used — the lead's reminder never reaches its fresh context
-    /// — and the instructions close its briefing, as they close the lead's.
-    #[test]
-    fn a_subagent_with_mcp_tools_gets_their_servers_instructions() {
-        let section = crate::mcp::instructions_section(&[(
-            "deepwiki".to_string(),
-            "Ask about one repo at a time.".to_string(),
-        )]);
-        let reminder = subagent_briefing(None, None, &section).expect("a reminder");
-        assert!(
-            reminder.contains("## deepwiki\nAsk about one repo at a time."),
-            "{reminder}"
-        );
-        assert!(
-            reminder
-                .trim_end()
-                .ends_with(&format!("{section}\n</system-reminder>"))
-        );
-        assert!(subagent_briefing(None, None, "").is_none());
+        assert!(subagent_briefing(Some(&registry), None).is_none());
     }
 
     #[test]

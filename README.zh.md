@@ -39,7 +39,7 @@ Zeroth 是一个用 Rust 写的开源 AI 编码 agent，灵感来自 Claude Code
 | **看得懂的工作过程** | 实时的命令输出、可读的 diff 和一份任务清单，让进展一眼可查。 |
 | **对执行的掌控** | 选一个权限模式、复核提议的改动，并在 agent 干活时给它掌舵。 |
 | **模型由你挑** | 用某个支持的订阅或 API key 接入，用 Ollama、LM Studio 或 llama.cpp 跑本地模型，或者添加一个 OpenAI 兼容的供应商。 |
-| **可扩展的余地** | 加入专职的 subagent、可复用的 skill、生命周期 hook 与 MCP 服务器，贴合你的工作方式。 |
+| **可扩展的余地** | 加入专职的 subagent、可复用的 skill、生命周期 hook，贴合你的工作方式。 |
 | **原生的终端体验** | 一个内存占用很小的 Rust 二进制，带持久 session、内联图片与键盘操作。 |
 
 ## 快速开始
@@ -211,9 +211,8 @@ api_base = "https://api.groq.com/openai/v1"
 - **回滚点与回退。** 按目录启用回滚点，把工作文件快照到另一个存储里。**Esc Esc**
   回到之前的某条消息，并且在有回滚点可用时连文件一起恢复。
 - **没有东西会在你看不见的地方自己跑起来。** 应用启动时会列出任何新增或变过的
-  hook（你的或项目的），以及任何新增的项目 MCP 服务器，并如实显示每一个会跑什
-  么。hook 只在你信任它之后才跑，服务器只在你启用它之后才跑，而 `/hooks` 与
-  `/mcp` 之后可以改这两者。
+  hook（你的或项目的），并如实显示每一个会跑什么。hook 只在你信任它之后才跑，
+  而 `/hooks` 之后可以改这份信任。
 - **用占位符管凭据。** 用 `/secrets` 存一份凭据，agent 就能用它的占位符而不看见
   值。见 [密钥是怎么存与怎么用](docs/state/secrets.md)。
 
@@ -235,8 +234,6 @@ api_base = "https://api.groq.com/openai/v1"
 - **公网隧道。** 内置的 `flaredantic` skill 指导你借助另行安装的 `flare` CLI，经
   Cloudflare、Microsoft Dev Tunnels 或 Serveo 把一个本地服务暴露出去。隧道会让这
   个服务在公网可达；先想清楚你暴露了什么。
-- **MCP 服务器。** 经 stdio、HTTP 或 SSE 接入 tool，包括带 OAuth 的远程服务器。
-  用 `/mcp` 或 `zeroth mcp` 管理连接。
 - **Hook 与项目说明。** 用 `hooks.json` 批准、拒绝或调整 tool call，并补充上下
   文。`AGENTS.md` 文件承载你项目的约定；`/init` 帮你写一个。
 
@@ -293,7 +290,6 @@ api_base = "https://api.groq.com/openai/v1"
 | `/spinner` | 选状态 spinner 样式 |
 | `/hooks` | 浏览 hook，逐个信任或取消信任 |
 | `/skills` | 浏览 skill，逐个启用或停用 |
-| `/mcp` | 管理 MCP 服务器 |
 | `/secrets` | 存下 agent 以占位符 `<secret:NAME>` 使用的凭据，agent 全程看不见值 |
 | `/quit` | 退出应用 |
 
@@ -334,7 +330,6 @@ api_base = "https://api.groq.com/openai/v1"
 ```text
 Usage: zeroth [OPTIONS] [PROMPT]
        zeroth -p [OPTIONS] [PROMPT]
-       zeroth mcp <COMMAND>
        zeroth update
 
 Arguments:
@@ -371,7 +366,7 @@ git diff origin/main | zeroth -p --output-format json "Review this diff"
 
 [Headless 模式](docs/cli/headless.md) 讲了各输出格式、退出码与权限模式。
 
-跑 `zeroth mcp --help` 看 MCP 服务器的管理命令，跑 `zeroth update` 把最新
+跑 `zeroth update` 把最新
 release 装在你正在跑的这个二进制之上。
 
 </details>
@@ -395,12 +390,12 @@ release 装在你正在跑的这个二进制之上。
 | --- | --- |
 | `~/.zeroth/.env` | 通过 `/login` 保存的 key 与 token |
 | `~/.zeroth/agents/` 与 `~/.zeroth/skills/` | 你的共享 agent 定义与 skill |
-| `~/.zeroth/hooks.json` 与 `~/.zeroth/mcp.json` | 你的共享 hook 与 MCP 服务器 |
-| 项目里的 `.zeroth/` | 项目专属的 `agents/`、`skills/`、`hooks.json` 与 `mcp.json` |
+| `~/.zeroth/hooks.json` | 你的共享 hook |
+| 项目里的 `.zeroth/` | 项目专属的 `agents/`、`skills/` 与 `hooks.json` |
 | `AGENTS.md` | agent 读取的项目说明 |
 
-也支持 Claude Code 风格的 `.claude/skills/` 与 `.mcp.json`。你的 hook、项目的
-hook，以及项目的 MCP 服务器，都只在你开机时于应用里批准过之后才运行。
+也支持 Claude Code 风格的 `.claude/skills/` 目录。你的 hook 与项目的 hook，
+都只在你开机时于应用里批准过之后才运行。
 
 </details>
 

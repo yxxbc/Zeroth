@@ -69,15 +69,8 @@ pub(crate) struct LoadedSession {
 /// here; the TUI never starts on an error path.
 pub(crate) fn resolve_cli() -> Result<Startup, i32> {
     let parsed = cli::parse(std::env::args().skip(1)).map_err(|message| {
-        // An `mcp` grammar error gets the subcommand's own usage block
-        // (`mcp` only ever routes as the first argument).
-        let page = if std::env::args().nth(1).is_some_and(|first| first == "mcp") {
-            HelpPage::Mcp
-        } else {
-            HelpPage::Main
-        };
         let style = help_style(std::io::stderr().is_terminal());
-        eprintln!("{}", cli::usage_error(page, &message, style));
+        eprintln!("{}", cli::usage_error(HelpPage::Main, &message, style));
         2
     })?;
     match parsed {
@@ -85,9 +78,6 @@ pub(crate) fn resolve_cli() -> Result<Startup, i32> {
             println!("{}", cli::help(HelpPage::Main, stdout_style()));
             Err(0)
         }
-        // The mcp subcommand family (docs/cli/mcp-cli.md): does its file work
-        // and exits — success rides the same Err(0) channel --help uses.
-        Cli::Mcp(cmd) => Err(super::mcp_cli::run(&cmd)),
         // `zeroth update` (docs/ops/update.md): the same print-and-exit path.
         Cli::Update => Err(super::update_cli::run()),
         Cli::Version => {

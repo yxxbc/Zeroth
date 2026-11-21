@@ -139,7 +139,7 @@
 | `login.rs` | `/login` 流程的边界一半：打开它、运行某个订阅的登录 —— 按 provider 是设备码或浏览器 PKCE 流程 —— 并持久化它所铸造的东西（`docs/providers/copilot.md`、`docs/providers/chatgpt.md`）。 |
 | `config.rs` | 读取环境：provider、key、按目录的 `/model` 选择与 `/settings` 旋钮（`docs/state/per-directory-state.md`）、权限规则、按用户的 `update.json`（`docs/ops/update.md`）与 `tips.json`（`docs/ui/tips.md`）、各条路径。 |
 | `bootstrap.rs` | `Session::bootstrap` / `shutdown` / `after_iteration` —— 装配、拆除、循环底部的工作。 |
-| `startup.rs` | `--continue`/`--resume`/`[PROMPT]` 的参数解析、`-C` 的 `chdir`、带样式的 `--help` / usage 错误打印，以及 `mcp` / `update` 子命令分发（`docs/cli/cli.md`）。 |
+| `startup.rs` | `--continue`/`--resume`/`[PROMPT]` 的参数解析、`-C` 的 `chdir`、带样式的 `--help` / usage 错误打印，以及 `update` 子命令分发（`docs/cli/cli.md`）。 |
 | `headless.rs` | `zeroth -p`：在 runtime 之前从参数和 stdin 读取的 prompt、无屏幕地运行同一个 `Session` 的循环、信号、各条流、退出状态（`docs/cli/headless.md`）。 |
 | `recorder.rs` | `SessionRecorder`：把历史镜像到 rollout 文件（`docs/state/resume.md`）。 |
 | `resume.rs` | 在磁盘上寻找已录制的 session，以及 `/resume` + 回溯的分支。 |

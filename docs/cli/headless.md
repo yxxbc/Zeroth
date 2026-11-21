@@ -75,7 +75,7 @@ follow-up turns, the same hooks, recorder, compaction and subagents — over a
 viewport that paints nowhere (`InlineViewport::headless`, a sink with a fixed
 size whose commits are dropped as they are queued), with **no `EventStream`
 at all**. What it replaces is the terminal half of the loop: `tui::headless`
-selects over the reply, background, subagent and MCP channels plus the
+selects over the reply, background and subagent channels plus the
 process signals, and turns what the session records into output.
 
 The alternative — a lean runner calling `App` and the backend directly —
@@ -193,17 +193,13 @@ byte is still worth reading.
    variables) — a CI job "succeeding" on a canned demo reply is the worst
    failure a misconfiguration could have. `ZEROTH_DUMMY=1` still forces
    the demo, which is how the tests run offline.
-4. **MCP servers settle first**: the TUI connects servers in the background
-   and a turn simply runs without the ones still connecting; a headless run
-   is over in seconds, so it waits until no server is `Pending` (each is
-   bounded by its own startup timeout) before the first request.
-5. **The prompt is submitted** through the same path as the `[PROMPT]`
+4. **The prompt is submitted** through the same path as the `[PROMPT]`
    shortcut — redacted against the secrets, then `start_turn`. A
    `--continue`d conversation already past its window compacts first: the
    TUI's idle-boundary auto-compaction (`docs/architecture/compact.md`), run once before
    the prompt and afterwards only while the run waits on its subagents —
    never after the last answer, where it would only cost a request.
-6. **The loop runs until the session is idle**: no turn in flight, nothing
+5. **The loop runs until the session is idle**: no turn in flight, nothing
    queued, no subagent running. A background agent's completion starts the
    follow-up turn the TUI would start, so "launch the critic agent, write a
    report" reports. That wait is bounded: once nothing but background agents
@@ -215,8 +211,8 @@ byte is still worth reading.
    Background **shells** are not waited for — a dev server started with `&`
    never exits — so any still running then are stopped and named on stderr;
    the system prompt tells the model as much (below).
-7. **Shutdown** is the TUI's: the backend cancelled, shells and agents
-   killed, `SessionEnd` fired (reason `other`), MCP children reaped, the
+6. **Shutdown** is the TUI's: the backend cancelled, shells and agents
+   killed, `SessionEnd` fired (reason `other`), the
    rollout flushed. Then the result is printed and the process exits.
 
 ### What the model is told
@@ -282,7 +278,7 @@ list.
 ### Trust
 
 The startup review (`docs/state/config-review.md`) is a screen, so it never opens:
-a hook or a project MCP server nobody has trusted **stays off**, exactly as
+a hook nobody has trusted **stays off**, exactly as
 it would after the review was declined, and stderr says what is waiting and
 that `zeroth` run interactively in that directory asks about it. A
 headless run never trusts anything on its own.
@@ -312,8 +308,8 @@ and the one a cron job wants, since cron mails whatever a job writes. A run
 that went well writes nothing there. What it always says: why a run failed
 (`zeroth: HTTP 401: …`, `interrupted by SIGTERM`, the `--max-turns`
 limit), the calls nobody could approve, the background work it stopped,
-stdin it waited on or left alone, an outage it is waiting out, the hooks and
-MCP servers held for review, an error toast. **`--verbose`** adds the run's
+stdin it waited on or left alone, an outage it is waiting out, the hooks
+held for review, an error toast. **`--verbose`** adds the run's
 step log below, in every format: the header, each tool call and its result,
 the narration, a retry, an info toast, the closing footer.
 
@@ -394,11 +390,11 @@ codex's item stream, closed by the result:
 - **Items** are the history the run records, in its order, ids `item_N`
   counted per process: `user_message`, `agent_message`, `reasoning` (only
   when the thinking display is on), `tool_call` (every tool — `bash`,
-  `write`, `mcp__…`, the task tools — with the model's own `arguments`, the
+  `write`, `web_search`, the task tools — with the model's own `arguments`, the
   header's `summary`, the `output` the **model** read, and an approval
   `note`; `status` is `completed`, `failed`, `declined` — it never ran — or
   `background`; its `name` is the one the model called — `bash`,
-  `mcp__github__create_issue` — never the screen's `Bash` label),
+  `web_fetch` — never the screen's `Bash` label),
   `subagents` (a launched group: each agent's id, type,
   status and result), `background_notice` (its `shell_id`), `agent_notice`
   (its `agent_id`), `compaction`, `hook` and `notice`. No item has a field
@@ -426,11 +422,15 @@ codex's item stream, closed by the result:
 | `130` / `143` | Interrupted by `SIGINT` / `SIGTERM`. |
 
 A signal is handled, not just suffered: it cancels the turn and runs the
-shutdown above — shells live in their own sessions (`setsid`) and MCP
-servers are children, so dying on the default action would orphan them —
+shutdown above — shells live in their own sessions (`setsid`), so dying
+on the default action would orphan them —
 then prints the result (`error_interrupted`, a tool call still open
-completed `failed` ahead of it) and exits `128 + signal`. The handlers are
-installed before bootstrap starts any server, and the shutdown is bounded
+completed `failed` ahead of it) and exits `128 + signal`. Interrupted tool
+calls are settled into history and the rollout before the result is emitted;
+the completion is not merely an output-only event. The submitted prompt stays
+recorded even if no reply arrived: there is no composer in which a headless
+shutdown could restore an undone prompt. The handlers are
+installed before bootstrap starts any background work, and the shutdown is bounded
 (`SessionEnd` has its two seconds), so nothing outlives the run.
 
 ## Several jobs at once

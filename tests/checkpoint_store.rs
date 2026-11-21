@@ -76,6 +76,37 @@ fn restore_returns_the_working_directory_to_an_earlier_snapshot() {
 }
 
 #[test]
+fn a_failed_stage_does_not_report_a_successful_safety_snapshot() {
+    if !git_available() {
+        return;
+    }
+    let root = tempfile::tempdir().unwrap();
+    let work = tempfile::tempdir().unwrap();
+    let store = store(root.path(), work.path());
+    write(work.path(), "important.txt", "original\n");
+    store.snapshot("original").unwrap();
+    write(work.path(), "important.txt", "uncheckpointed edit\n");
+
+    // Git cannot stage a nested repository with no commits, but it can still
+    // commit the already-staged index. Such a commit is not a safety backup.
+    let nested = work.path().join("nested");
+    fs::create_dir(&nested).unwrap();
+    assert!(
+        std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .arg(&nested)
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(store.snapshot("safety backup"), None);
+    assert_eq!(
+        read(work.path(), "important.txt").as_deref(),
+        Some("uncheckpointed edit\n")
+    );
+}
+
+#[test]
 fn a_restore_never_touches_the_users_real_git_or_vendor_dirs() {
     if !git_available() {
         return;

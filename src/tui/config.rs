@@ -694,7 +694,7 @@ pub(crate) fn load_hooks(path: Option<&Path>) -> (zeroth::hooks::HooksFile, Opti
 
 /// Whether the project-level `.zeroth` config layer is discovered at all
 /// (`docs/state/project-config.md`) — `ZEROTH_PROJECT_CONFIG`, default on.
-/// Falsy = no project hooks/MCP discovery and so nothing of a project's in
+/// Falsy = no project hooks discovery and so nothing of a project's in
 /// the startup review — and the smoke suite's hermeticity switch, since its
 /// phases run with cwd inside a real checkout.
 pub(crate) fn project_config_enabled() -> bool {
@@ -1362,13 +1362,6 @@ pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionS
     if let Some(on) = env_flag_set("ZEROTH_SKILLS") {
         settings.skills = on;
     }
-    // `ZEROTH_MCP` seeds the **MCP** row the way `ZEROTH_HOOKS`
-    // seeds Hooks — an override for this run, never saved (docs/tools/mcp.md). A
-    // falsy value used to remove the manager outright; now the session
-    // starts with MCP off, which `/settings` can turn back on.
-    if let Some(on) = env_flag_set("ZEROTH_MCP") {
-        settings.mcp = on;
-    }
     if let Some(t) = temperature() {
         settings.temperature = Some(t);
     }
@@ -1503,57 +1496,6 @@ pub(crate) fn prompt_context(cwd: &Path) -> Option<String> {
         &user_context(),
         &cwd.display().to_string(),
     ))
-}
-
-/// The **user** MCP config file: `ZEROTH_MCP_FILE` (what makes a smoke
-/// run hermetic — the project `.mcp.json` is still discovered), else
-/// `{config_home}/mcp.json`.
-pub(crate) fn mcp_user_file_path() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("ZEROTH_MCP_FILE") {
-        return Some(PathBuf::from(path));
-    }
-    config_home().map(|dir| dir.join("mcp.json"))
-}
-
-/// The OAuth token store (`docs/tools/mcp.md`).
-pub(crate) fn mcp_auth_path() -> Option<PathBuf> {
-    config_home().map(|dir| dir.join("mcp-auth.json"))
-}
-
-/// Sweep away the **retired** era cache (`{config_home}/mcp-era.json`).
-/// Nothing reads it any more — the era and the protocol revision are
-/// re-derived from the server at every connect (`docs/tools/mcp.md`) — and a file
-/// left behind implies a feature that no longer exists, with a stale
-/// revision written in it. Best-effort: our own cache, our own to drop.
-pub(crate) fn remove_retired_mcp_era_cache() {
-    if let Some(path) = config_home().map(|dir| dir.join("mcp-era.json")) {
-        let _ = std::fs::remove_file(path);
-    }
-}
-
-/// One MCP timeout knob in milliseconds, defaulting when unset/unparseable.
-fn mcp_timeout_ms(name: &str, default: std::time::Duration) -> std::time::Duration {
-    std::env::var(name)
-        .ok()
-        .and_then(|v| v.trim().parse::<u64>().ok())
-        .filter(|ms| *ms > 0)
-        .map_or(default, std::time::Duration::from_millis)
-}
-
-/// The per-server connect budget (`ZEROTH_MCP_STARTUP_TIMEOUT_MS`).
-pub(crate) fn mcp_startup_timeout() -> std::time::Duration {
-    mcp_timeout_ms(
-        "ZEROTH_MCP_STARTUP_TIMEOUT_MS",
-        zeroth::llm::mcp::DEFAULT_STARTUP_TIMEOUT,
-    )
-}
-
-/// The per-call budget (`ZEROTH_MCP_TOOL_TIMEOUT_MS`).
-pub(crate) fn mcp_tool_timeout() -> std::time::Duration {
-    mcp_timeout_ms(
-        "ZEROTH_MCP_TOOL_TIMEOUT_MS",
-        zeroth::llm::mcp::DEFAULT_TOOL_TIMEOUT,
-    )
 }
 
 #[cfg(test)]

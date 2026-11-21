@@ -22,7 +22,7 @@ Claude Code 的 agent 文件，移植过来了：`agent` 工具可以启动的 s
 name: explore
 description: Read-only search agent for broad fan-out searches …
 model: inherit
-tools: Bash, Read, Skill, mcp__*
+tools: Bash, Read, Skill
 ---
 
 You are Zeroth's explore subagent. …
@@ -33,7 +33,7 @@ You are Zeroth's explore subagent. …
 | `name` | 可选 | 模型作为 `subagent_type` 传的那个类型。默认取文件名主干，所以 `reviewer.md` 不需要 `name:` |
 | `description` | **必填** | 模型据以选择的一句话简介 —— 它是挑一个类型的全部依据，所以没有它的文件被拒绝 |
 | `model` | 可选 | 这个类型跑在哪个 provider 模型 id（`kimi-k3`）上，或者 `inherit` 表示用 session 自己的模型。播种出来的文件写 `inherit` 而不是省略它：这样那个键就*在那里*，可以改 |
-| `tools` | 可选 | 逗号分隔的允许列表。**省略表示每个工具。** 内置工具首字母大写（`Bash`、`Read`、`Write`、`Edit`、`Skill`）；MCP 工具保持它们的 wire 拼法（`mcp__deepwiki__ask_question`），末尾的 `*` 做通配（`mcp__deepwiki__*`、`mcp__*`） |
+| `tools` | 可选 | 逗号分隔的允许列表。**省略表示每个工具。** 内置工具首字母大写（`Bash`、`Read`、`Write`、`Edit`、`Skill`）；原生网页工具使用 wire 名字（`web_search`、`web_fetch`），末尾的 `*` 做通配（`web_*`） |
 | 正文 | 可选 | **这个 subagent 的 system prompt**，替换这个类型所用的 `prompts/zeroth.md` 人格。省略它，这个类型就跑 session 自己的人格 |
 
 未知的键被忽略，不是被拒绝（`SKILL.md` 的规则）：一个为别的工具写的 agent 文件
@@ -82,7 +82,7 @@ frontmatter 解析是**共享的** `crate::frontmatter` 模块 —— 同样的 
 `llm::backend::spawn_subagent_run` 在启动时解析一次定义：
 
 - **tools** —— `subagent_tool_specs(def)` 通过 `AgentTools::allows` 过滤 `bash`/
-  `read`/`write`/`edit`、`skill` spec 和每个连上的 MCP 工具。`agent` 永远不在这
+  `read`/`write`/`edit`、`web_search`/`web_fetch` 和 `skill` spec 等内置工具。`agent` 永远不在这
   个集合里，不管文件怎么写：agent 不嵌套。同一个谓词也守着**执行器**，不只是提供
   出去的 spec：模型可以点名一个从没给过它的工具（有些 provider 会透传一个），而
   一行只塑造了请求的 `tools:` 会是执行器不守的承诺 —— 一次被扣住的调用以一个可恢
@@ -120,7 +120,7 @@ The following skills are available for use with the Skill tool:
 Available agent types for the Agent tool:
 
 - general-purpose: General-purpose agent for researching complex questions … (Tools: *)
-- explore: Read-only search agent … (Tools: Bash, Read, Skill, mcp__*)
+- explore: Read-only search agent … (Tools: Bash, Read, Skill)
 </system-reminder>
 ```
 

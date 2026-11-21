@@ -273,9 +273,7 @@ base36 字符），保存每个运行中 subagent 的 `CancelToken` + 完成标�
   头相同的相对 / `~` 相对 / 绝对规则显示：运行把最新的调用原样留着
   （`AgentRun::last_call`），渲染器为那一行向 `activity_shown` 要套用了会话规则
   的结果，`docs/tools/tools.md` *Path display*；绝不用 cell 头的
-  `Write({args})`，那对括号在暗色裁剪过的一行式上只会显得杂乱），而 MCP 调用
-  写成**大写服务器名压在 tool 名之上**（`Deepwiki: ask_question` —— 完整的
-  `deepwiki - ask_question (MCP)` 显示名对这一行来说太绕口）；冒号后无话可说的
+  `Write({args})`，那对括号在暗色裁剪过的一行式上只会显得杂乱）；冒号后无话可说的
   调用只显示光秃秃的名字 —— 在调用之间保持（绝不掉回 `Working…`），好让 agent
   在就一个结果推理时那一行仍保有上下文（`StreamEvent::ToolStart` 携带
   `detail`；`AgentRun::last_call`）。agent **说的话**也是它的活动：它写的时候，

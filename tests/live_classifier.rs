@@ -69,7 +69,11 @@ fn live_venice_classifier_prompt_view_and_synthetic_verdicts() {
         .position(|row| row == "user:")
         .expect("the live task context has its own tag");
     assert!(system_at < user_at, "the rubric precedes task context");
-    for heading in ["## Shell commands", "## MCP tool calls", "## Output Format"] {
+    for heading in [
+        "## Shell commands",
+        "## Input typed into an interactive program",
+        "## Output Format",
+    ] {
         assert!(
             rows[system_at..user_at].iter().any(|row| row == heading),
             "the abridged prompt retains {heading}"

@@ -41,7 +41,7 @@ unicode-segmentation = "1"
 # Async runtime for the codex-style event loop (current-thread, minimal feature
 # set — no tokio I/O; crossterm's EventStream owns stdin via its own reactor).
 # `signal`: a headless run (`-p`) catches SIGINT/SIGTERM to shut its shells,
-# agents and MCP servers down rather than orphan them (docs/cli/headless.md).
+# agents down rather than orphan them (docs/cli/headless.md).
 tokio = { version = "1", features = ["rt", "macros", "sync", "time", "signal"] }
 # `StreamExt::next` for crossterm's async `EventStream`.
 tokio-stream = "0.1"
@@ -81,8 +81,8 @@ png = "0.18"
 serde = { version = "1", features = ["derive"] }
 # `preserve_order` keeps a parsed object's keys in the order they arrived
 # rather than sorting them: a model's tool-call arguments render in the order
-# it wrote them (`repoName` before the long `question` it qualifies), which is
-# what the MCP cell headers and the permission prompt show (docs/tools/mcp.md).
+# it wrote them, including in tool-call previews and permission prompts
+# (docs/tools/tools.md).
 # `raw_value` lets the `/v1/models` parse borrow each record as an unparsed
 # slice of the body instead of materializing the whole catalog as a `Value`
 # tree at once — the tree cost ~10x the body in small heap blocks the
@@ -114,14 +114,14 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 # half — a TOML serializer in `toml` and `toml_edit` — stayed out of the
 # build once it was noticed (docs/ops/build-time.md).
 toml = { version = "0.8", default-features = false, features = ["parse"] }
-# The MCP OAuth flow's PKCE S256 challenge (docs/tools/mcp.md) — used ONLY at the
-# I/O boundary (src/llm/mcp/oauth.rs). Both crates are already compiled into
+# Provider sign-ins use PKCE S256 and secure random state (src/llm/oauth.rs);
+# sha2 also fingerprints hook approvals (src/trust.rs). Both crates are compiled into
 # every build transitively (rustls/ring pull them), so declaring them direct
 # costs nothing new.
 sha2 = "0.10"
 getrandom = "0.3"
-# Parse/derive OAuth discovery URLs and the legacy-SSE endpoint resolution at
-# the MCP boundary. Already in the tree via reqwest — same zero-cost stance.
+# Parse provider endpoints and local-model addresses (src/llm/config.rs,
+# src/llm/local.rs). Already in the tree via reqwest — same zero-cost stance.
 url = "2"
 # Hook matchers (docs/tools/hooks.md). Both Claude Code and codex take a non-regex
 # fast path for `Bash`-style names and compile anything else as a regex; we

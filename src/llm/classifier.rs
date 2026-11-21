@@ -1,7 +1,7 @@
 //! The **auto mode classifier** (`docs/state/permissions.md`): the silent LLM
-//! safety check a `bash` command — or an MCP tool call (`docs/tools/mcp.md`) —
-//! goes through in [`PermissionMode::Auto`] instead of the user prompt —
-//! Claude Code's auto-mode classifier, on the session's own provider.
+//! safety check a shell command or interactive session input goes through in
+//! [`PermissionMode::Auto`] instead of the user prompt — Claude Code's
+//! auto-mode classifier, on the session's own provider.
 //!
 //! The request/response shape follows the reference: a fixed system prompt
 //! ([`prompts/classifier.md`](../../prompts/classifier.md)) with a strict
@@ -34,7 +34,7 @@ use std::collections::VecDeque;
 use super::config::ModelConfig;
 use super::openai::OpenAiClient;
 use super::tools::{display_name, flatten_one_line, summarize_call};
-use crate::permission::{ClassifierVerdict, PermissionKind, PermissionRequest, mcp_label};
+use crate::permission::{ClassifierVerdict, PermissionKind, PermissionRequest};
 use crate::stream::CancelToken;
 
 /// The classifier's system prompt — authored in
@@ -61,34 +61,11 @@ pub fn classifier_user_prompt(command: &str, description: Option<&str>, cwd: &st
     format!("Working directory: {cwd}\n{description}Command:\n```\n{command}\n```")
 }
 
-/// The classifier's one user message for a whole request (`docs/tools/mcp.md`): a
-/// `bash` request keeps the [`classifier_user_prompt`] command shape, and an
-/// MCP request gets the tool-call shape — the tool named `{server} - {tool}`
-/// the way the prompt and the cell name it, the server's own description when
-/// it gave one (a claim about the tool, like the agent's command description),
-/// and the arguments fenced like a command so a multi-line value stays one
-/// obvious block, an argument-less call saying so explicitly rather than
-/// leaving the classifier to wonder what was omitted. Pure — unit-tested.
+/// The classifier's user message: a shell command, or the program and input
+/// for an interactive session. Pure — unit-tested.
 #[must_use]
 pub fn classifier_request_prompt(request: &PermissionRequest, cwd: &str) -> String {
     match request.kind {
-        PermissionKind::Mcp => {
-            let description = match request
-                .detail
-                .as_deref()
-                .map(str::trim)
-                .filter(|d| !d.is_empty())
-            {
-                Some(description) => format!("Server's description of the tool: {description}\n"),
-                None => String::new(),
-            };
-            let args = Some(request.body.trim()).filter(|b| !b.is_empty());
-            format!(
-                "Working directory: {cwd}\n{description}MCP tool call: {label}\nArguments:\n```\n{args}\n```",
-                label = mcp_label(&request.target),
-                args = args.unwrap_or("(no arguments)"),
-            )
-        }
         // Input typed into a session (`docs/tools/interactive-shell.md`): the
         // program decides what the keys do, so it is named above them; the
         // session id is the harness's bookkeeping and stays out.
@@ -124,7 +101,7 @@ pub const CONTEXT_MAX_ACTIONS: usize = 20;
 pub const CONTEXT_MAX_REQUESTS: usize = 10;
 
 /// The character cap on one recorded action line. One pathological call — a
-/// heredoc `bash` command, a huge MCP argument object — must not spend the
+/// heredoc `bash` command, a huge tool argument object — must not spend the
 /// whole context budget on itself (`docs/ui/long-lines.md`'s posture, in
 /// prompt form); the cut is closed with `…` so a clipped line can't read as
 /// one that simply ended.
@@ -154,7 +131,7 @@ fn truncate_chars(text: &str, max: usize) -> String {
 }
 
 /// One recorded action, in the transcript cell's own header shape —
-/// `Bash(cargo test)`, `Read(/path)`, `deepwiki - ask_question (MCP)({…})` —
+/// `Bash(cargo test)`, `Read(/path)` —
 /// via the same [`display_name`]/[`summarize_call`] pair the cells use, so
 /// the classifier and the user read the turn in the same vocabulary. Capped
 /// at [`CONTEXT_ACTION_MAX_CHARS`].
@@ -431,7 +408,7 @@ impl SafetyClassifier {
         CLASSIFIER_SYSTEM_PROMPT.trim()
     }
 
-    /// Classify one request — a `bash` command or an MCP tool call: one
+    /// Classify one shell command or interactive session input: one
     /// silent streaming completion (no events reach the UI — the asked-about
     /// cell keeps its `⎿ Waiting…` row), the reply parsed against the output
     /// contract. `context` is the turn's rendered [`ClassifierContext`]
@@ -465,48 +442,6 @@ impl SafetyClassifier {
 mod tests {
     use super::*;
     use crate::permission::PermissionKind;
-
-    fn mcp_request(target: &str, body: &str, detail: Option<&str>) -> PermissionRequest {
-        PermissionRequest {
-            call_id: None,
-            id: String::new(),
-            kind: PermissionKind::Mcp,
-            target: target.to_string(),
-            body: body.to_string(),
-            detail: detail.map(str::to_string),
-            agent: None,
-            agent_id: None,
-        }
-    }
-
-    #[test]
-    fn an_mcp_request_prompts_with_the_tool_its_args_and_the_server_description() {
-        // Auto mode classifies MCP calls too (`docs/tools/mcp.md`): the classifier
-        // reads the tool named the way the user knows it, the server's own
-        // description of it, and the arguments — fenced like a command, so a
-        // multi-line value stays one obvious block.
-        let request = mcp_request(
-            "mcp__deepwiki__ask_question",
-            r#"repoName: "a/b", question: "What?""#,
-            Some("Ask about a repo."),
-        );
-        let prompt = classifier_request_prompt(&request, "/home/user/proj");
-        assert!(
-            prompt.contains("Working directory: /home/user/proj"),
-            "got {prompt}"
-        );
-        assert!(prompt.contains("deepwiki - ask_question"), "got {prompt}");
-        assert!(prompt.contains("Ask about a repo."), "got {prompt}");
-        assert!(
-            prompt.contains("```\nrepoName: \"a/b\", question: \"What?\"\n```"),
-            "got {prompt}"
-        );
-        // No description line when the server gave none; an argument-less
-        // call says so explicitly, so nothing reads as hidden.
-        let bare = classifier_request_prompt(&mcp_request("mcp__s__t", "", None), "/p");
-        assert!(!bare.contains("description"), "got {bare}");
-        assert!(bare.contains("(no arguments)"), "got {bare}");
-    }
 
     #[test]
     fn a_bash_request_keeps_the_command_prompt_shape() {
@@ -582,16 +517,6 @@ mod tests {
     }
 
     #[test]
-    fn the_system_prompt_briefs_the_classifier_on_mcp_tool_calls() {
-        // The system prompt must set up both judgements — a classifier told
-        // only about shell commands has no rubric for a server tool.
-        assert!(
-            CLASSIFIER_SYSTEM_PROMPT.contains("MCP"),
-            "prompts/classifier.md never mentions MCP tool calls"
-        );
-    }
-
-    #[test]
     fn the_system_prompt_briefs_the_classifier_on_stored_secrets() {
         // An action carrying `<secret:NAME>` uses a credential the user
         // stored for the agent (docs/state/secrets.md); a rubric that never says so
@@ -638,10 +563,6 @@ mod tests {
             "bash",
             r#"{"command":"cargo test","description":"Run tests"}"#,
         );
-        context.record_call(
-            "mcp__deepwiki__ask_question",
-            r#"{"repoName":"a/b","question":"What?"}"#,
-        );
         let block = context.render();
         assert!(block.contains("## Task context"), "got {block}");
         assert!(block.contains("> Improve the project"), "got {block}");
@@ -654,14 +575,6 @@ mod tests {
             "got {block}"
         );
         assert!(block.contains("Bash(cargo test)"), "got {block}");
-        // An MCP action keeps the user-facing `{server} - {tool} (MCP)` name
-        // and its compact-JSON arguments, so the classifier sees where the
-        // remote call's risk lives.
-        assert!(
-            block.contains("deepwiki - ask_question (MCP)"),
-            "got {block}"
-        );
-        assert!(block.contains(r#""repoName":"a/b""#), "got {block}");
     }
 
     #[test]

@@ -286,8 +286,8 @@ pub fn subagent_tool_specs(tools: &crate::subagents::AgentTools) -> Vec<Value> {
 }
 
 /// `specs` filtered by an agent definition's allowlist — the one place that
-/// filter is applied, so the `skill` spec and the MCP servers' specs obey the
-/// file exactly as the built-ins do. A `tools:` line that governed only the
+/// filter is applied, so the `skill` spec obeys the file exactly as the
+/// built-ins do. A `tools:` line that governed only the
 /// built-ins would be a half-truth about what the agent can reach.
 #[must_use]
 pub fn allowed_specs(specs: Vec<Value>, tools: &crate::subagents::AgentTools) -> Vec<Value> {
@@ -979,10 +979,8 @@ fn agent_list_spec() -> Value {
     )
 }
 
-/// The Chat Completions `{"type":"function", …}` entry every tool def uses —
-/// `pub(crate)` so the MCP manager can build specs for dynamically-discovered
-/// tools in exactly this shape (`docs/tools/mcp.md`).
-pub(crate) fn function_spec(name: &str, description: &str, parameters: Value) -> Value {
+/// The Chat Completions `{"type":"function", …}` entry every tool def uses.
+fn function_spec(name: &str, description: &str, parameters: Value) -> Value {
     json!({
         "type": "function",
         "function": {
@@ -1675,7 +1673,7 @@ pub fn parse_args<T: for<'de> Deserialize<'de>>(arguments: &str) -> Result<T, St
 
 /// The tools whose call is a self-contained process or file operation — safe
 /// to run on a worker ahead of the model's order. The rest — the ask tool,
-/// subagent launches, MCP, skills, task calls — keep the serial loop: their
+/// subagent launches, skills, task calls — keep the serial loop: their
 /// executors own state a worker must not race (`docs/tools/parallel-tools.md`).
 #[must_use]
 pub fn is_parallel_safe(name: &str) -> bool {
@@ -1766,11 +1764,6 @@ pub fn display_name(name: &str) -> String {
     if let Some(display) = crate::tasks::task_display_name(name) {
         return display.to_string();
     }
-    // An `mcp__server__tool` call wears Claude Code's user-facing
-    // `{server} - {tool} (MCP)` (`docs/tools/mcp.md`).
-    if let Some(display) = crate::mcp::display_from_wire(name) {
-        return display;
-    }
     match name {
         "bash" => "Bash".to_string(),
         "read" => "Read".to_string(),
@@ -1818,20 +1811,6 @@ pub fn call_description(name: &str, arguments: &str) -> Option<String> {
 /// flattened slice of the raw arguments when they don't parse.
 #[must_use]
 pub fn summarize_call(name: &str, arguments: &str) -> String {
-    // An MCP call keeps its **arguments JSON** as the summary — that is
-    // what makes the recorded cell replayable (`context::reconstruct_arguments`
-    // returns it verbatim, so a later round re-reads the JSON the model
-    // actually sent); the pretty `key: "value"` header form is derived at
-    // render time from this string instead (`ui::tool`'s MCP branch,
-    // `docs/tools/mcp.md`). Re-serialized compactly — lossless (a raw flatten
-    // would collapse spaces *inside* string values), and single-line by
-    // construction; only unparseable arguments fall back to the flatten.
-    if crate::mcp::is_mcp_tool(name) {
-        if let Ok(value) = serde_json::from_str::<Value>(arguments.trim()) {
-            return value.to_string();
-        }
-        return flatten_one_line(arguments.trim());
-    }
     let value: Option<Value> = serde_json::from_str(arguments.trim()).ok();
     let field = |key: &str| -> Option<String> {
         value
@@ -2852,7 +2831,7 @@ pub fn truncate_output(s: String, max_bytes: usize) -> (String, bool) {
     if s.len() <= max_bytes {
         // The common case (most outputs are under the cap): hand the input
         // back untouched — every tool result flows through here, so a copy on
-        // this path taxed each bash/read/MCP call one whole-output duplicate.
+        // this path taxed each bash/read call one whole-output duplicate.
         return (s, false);
     }
     let mut cut = max_bytes;
@@ -3538,8 +3517,7 @@ mod tests {
         // The model can act on none of it — where the harness renders a
         // value, or ids nothing model-facing takes back. Chrome like that
         // spends schema tokens on every request and goes stale the moment
-        // the UI moves. Sweep every authored spec, parameters included
-        // (MCP specs pass through the server's own text and are exempt).
+        // the UI moves. Sweep every authored spec, parameters included.
         let mut specs = tool_specs_with_agents();
         specs.push(ask_spec());
         specs.push(skill_spec());
@@ -4700,7 +4678,7 @@ mod tests {
     fn truncate_output_under_the_cap_hands_back_the_same_allocation() {
         // The no-op path is every tool call's common case (most outputs are
         // under the 64 KiB cap) — it must move the String through, not copy
-        // it, or every bash/read/MCP result pays one whole-output copy.
+        // it, or every bash/read result pays one whole-output copy.
         let s = "well under the cap".to_string();
         let ptr = s.as_ptr();
         let (out, cut) = truncate_output(s, 1024);
@@ -4819,25 +4797,17 @@ mod tests {
     }
 
     #[test]
-    fn the_allowlist_filters_the_skill_and_mcp_specs_too() {
+    fn the_allowlist_filters_the_skill_spec_too() {
         use crate::subagents::AgentTools;
-        let extras = vec![
-            skill_spec(),
-            function_spec("mcp__deepwiki__ask_question", "d", json!({})),
-            function_spec("mcp__other__thing", "d", json!({})),
-        ];
-        // A file that names neither keeps neither: an allowlist that only
-        // governed the built-ins would be a half-truth.
-        assert!(allowed_specs(extras.clone(), &AgentTools::parse("Bash")).is_empty());
+        assert!(allowed_specs(vec![skill_spec()], &AgentTools::parse("Bash")).is_empty());
         assert_eq!(
             spec_names(&allowed_specs(
-                extras.clone(),
-                &AgentTools::parse("Skill, mcp__deepwiki__*")
+                vec![skill_spec()],
+                &AgentTools::parse("Skill")
             )),
-            ["skill", "mcp__deepwiki__ask_question"]
+            ["skill"]
         );
-        // …and an omitted `tools:` keeps everything the session has.
-        assert_eq!(allowed_specs(extras, &AgentTools::All).len(), 3);
+        assert_eq!(allowed_specs(vec![skill_spec()], &AgentTools::All).len(), 1);
     }
 
     #[test]
@@ -5060,31 +5030,6 @@ mod tests {
         assert!(desc.contains("notified"), "{desc}");
         assert!(desc.contains("wait"), "{desc}");
     }
-    #[test]
-    fn an_mcp_call_wears_the_claude_code_display_name() {
-        assert_eq!(
-            display_name("mcp__deepwiki__ask_question"),
-            "deepwiki - ask_question (MCP)"
-        );
-        // A non-MCP unknown name still falls through verbatim.
-        assert_eq!(display_name("mystery"), "mystery");
-    }
-
-    #[test]
-    fn an_mcp_summary_is_the_compact_arguments_json() {
-        // Lossless: `context::reconstruct_arguments` replays this verbatim
-        // (docs/tools/mcp.md). Spaces inside string values survive.
-        assert_eq!(
-            summarize_call(
-                "mcp__deepwiki__ask_question",
-                "{\n  \"q\": \"two  spaces\"\n}"
-            ),
-            r#"{"q":"two  spaces"}"#
-        );
-        // Unparseable arguments degrade to the flattened text.
-        assert_eq!(summarize_call("mcp__s__t", "not json"), "not json");
-    }
-
     #[test]
     fn only_independent_batches_run_in_parallel() {
         let call = |name: &str, arguments: &str| ToolCallRequest {

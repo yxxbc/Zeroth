@@ -43,7 +43,7 @@ definitions + JSON schemas live in [`llm::tools`](../../src/llm/tools.rs)
 | `bashwait` | `session_id` (req), `wait` (opt, seconds — default 120) | wait for new output, the exit or a question; `wait: 0` just checks |
 | `bashkill` | `session_id` (req) | stop a command and everything it started — `SIGINT`, `SIGTERM`, then `SIGKILL` |
 | `bashlist` | — | the running sessions: id, command, runtime, whether each waits for input |
-| `read` | `path` (req — absolute, like the other two), `offset` (opt 1-based line), `limit` (opt, default 2000 lines) | read the file: text returns numbered lines (a dynamic-width gutter); an **image** (png/jpg/jpeg/gif/webp) is attached visually so the model can see it (`offset`/`limit` ignored — see "Image reads" below) |
+| `read` | `path` (req — absolute, like the other two), `offset` (opt 1-based line), `limit` (opt, default 2000 lines) | read the file: text returns numbered lines (a dynamic-width gutter); an **image** (png/jpg/jpeg/gif/webp) is attached visually so the model can see it (`offset`/`limit` ignored — see "Image reads" below). Zeroth's credential stores (`.env`, `secrets.json`, and legacy `mcp-auth.json` under the config home, plus the file selected by `ZEROTH_ENV_FILE`) are refused, including symlink aliases |
 | `write` | `path` (req — the schema asks for an **absolute** path), `content` (req) | create parent dirs, write the file; **show** `Wrote {N} lines to {path}` over the numbered contents for a new file, or the numbered diff hunks vs the previous content — the head's path shown cwd-relative (`tools::display_path`, `../` climbs outside the cwd), the `● Write({path})` header by the TUI's own rule ("Path display" below) — while the *model* reads a one-line ack |
 | `edit` | `path` (req — absolute, like `write`'s), `old_string` (req), `new_string` (req), `replace_all` (opt) | exact string replacement; error if `old_string` is absent, or non-unique without `replace_all`; **show** `Updated {path} (+A -D)` over the numbered diff hunks, the path shown cwd-relative like `write`'s — the model again reads the ack |
 
@@ -222,6 +222,15 @@ cores in `llm::tools`:
   lines numbered by the *new* file, removed by the *old*, codex's
   `diff_render` numbering). Both bodies cap at `DIFF_MAX_LINES` with a
   `… N more lines` tail — and, again, only on the cell.
+
+Both file tools publish a complete replacement atomically (`replace_atomically`):
+write a temporary file in the target's directory, preserve the existing file's
+permission bits (including executable modes), sync it, then rename it over the
+target. A failure while preparing or publishing the replacement leaves the old
+file intact rather than truncating it; the temporary file is cleaned up. New
+files use ordinary creation permissions (`0666` filtered by the umask on Unix).
+The parent directory is synced after the rename on Unix; a failure at that final
+sync is reported even though the complete replacement is already installed.
 
 ### The result the model reads is one line
 
@@ -525,9 +534,8 @@ Only the header keeps it: the one-row surfaces — the agent roster's
 action list — flatten the summary themselves (`tools::flatten_one_line`).
 The `(` rides the **name's** row rather than the first argument word, so an
 argument too wide for what is left beside the name spills to the continuation
-row **whole** — `● Deepwiki - ask_question (MCP)(` over `repoName: "…"` —
-instead of being hard-broken across the two (`(repoName` / `: "…"`, the shape
-a forty-column terminal used to show; `docs/tools/mcp.md`).
+row **whole** — for example, `● Bash(` over `./scripts/test.sh` in a narrow
+terminal — instead of hard-breaking the first argument across the two rows.
 
 **A very long header is cut inline** the way Claude Code cuts it
 (`ui::tool::header_cut`, its `renderToolUseMessage` ported): the command's
@@ -568,7 +576,7 @@ ones the whole command wrapped to, and the last one ends in `…)` — giving up
 the two columns the marker needs when it was full to the edge, which can cut
 a word (`titles=World%2` → `titles=World…)` above). It counts rows of
 **arguments**: a spilled header's name-only first row
-(`● Deepwiki - ask_question (MCP)(` at forty columns) is not one of the two,
+(`● Bash(` when its first word spills) is not one of the two,
 so the spill still never costs the arguments it was made to fit. Below ninety
 columns the width, not the text budget, decides where the cut falls. That
 costs little: every resize re-wraps the cells from history, so the screen
@@ -762,8 +770,8 @@ file*, the corner row where it is from here:
   where the file is, the head how the executor reached it.
 - **Only a file tool's summary is a path.** `tools::is_file_tool`
   (`Read`/`Write`/`Edit`, by display name) gates it: a `Bash` command embeds
-  paths the shell will resolve, an `Agent`'s summary is prose, an MCP call's
-  is JSON, and the `!` shell cell has no header — those echo the record
+  paths the shell will resolve, an `Agent`'s summary is prose, and the `!`
+  shell cell has no header — those echo the record
   verbatim.
 - **And the shown path is a link to the file.** The header's path rides an
   OSC 8 hyperlink whose target is the file's absolute `file://` URI

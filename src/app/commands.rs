@@ -150,11 +150,6 @@ pub enum CommandEffect {
     /// previewed live. Works **mid-turn** like `/mascot` — it only replaces
     /// the composer. See `docs/ui/spinner.md`.
     Spinner,
-    /// Open the inline `/mcp` manager: every declared MCP server, its live
-    /// status, tools, and the authenticate/reconnect/disable operations.
-    /// Works **mid-turn** like `/hooks` — it only replaces the composer;
-    /// connection work runs on worker threads either way. See `docs/tools/mcp.md`.
-    Mcp,
     /// Open the read-only `/donate` page: the project's crypto donation
     /// addresses, each one copyable. Works **mid-turn** like `/hooks` — it
     /// only replaces the composer. See `docs/ui/donate.md`.
@@ -309,7 +304,6 @@ pub const COMMANDS: &[SlashCommand] = &[
         "Browse skills and enable or disable each one",
         CommandEffect::Skills,
     ),
-    SlashCommand::builtin("mcp", "Manage MCP servers", CommandEffect::Mcp),
     SlashCommand::builtin(
         "donate",
         "Support the project with a crypto donation",
@@ -825,13 +819,6 @@ impl App {
                 // docs/ui/spinner.md.
                 self.open_spinner_picker();
                 Action::OpenSpinnerPicker
-            }
-            CommandEffect::Mcp => {
-                // /mcp works mid-turn too — it only replaces the composer,
-                // and every connection op runs on a worker thread. The *loop*
-                // snapshots the live manager and opens the menu over it
-                // (docs/tools/mcp.md).
-                Action::OpenMcpMenu
             }
             CommandEffect::Donate => {
                 // /donate works mid-turn like /hooks: a read-only page that

@@ -96,7 +96,7 @@ pub enum AgentTools {
     #[default]
     All,
     /// The allowlist as the file wrote it: built-in display names
-    /// (`Bash`, `Read`, …), MCP wire names, and `*`-suffixed globs.
+    /// (`Bash`, `Read`, …), wire names, and `*`-suffixed globs.
     Only(Vec<String>),
 }
 
@@ -113,8 +113,8 @@ impl AgentTools {
             .map(|entry| {
                 // Brackets and quotes at either end are punctuation; a `-` is
                 // only ever a YAML sequence dash, which is at the FRONT — a
-                // trailing one belongs to the name (an MCP tool may well be
-                // spelled with hyphens).
+                // trailing one belongs to the name (tool names may contain
+                // hyphens).
                 entry
                     .trim_matches(['[', ']', '"', '\''])
                     .trim_start_matches('-')
@@ -130,11 +130,10 @@ impl AgentTools {
     }
 
     /// Is the tool whose **wire** name is `name` (`bash`, `read`,
-    /// `mcp__deepwiki__ask_question`) in this allowlist?
+    /// `web_search`) in this allowlist?
     ///
     /// Case-insensitive — the file writes `Bash` and the wire says `bash` —
-    /// and a trailing `*` globs, so one `mcp__deepwiki__*` entry covers a
-    /// whole server's tools.
+    /// and a trailing `*` globs, so one `task*` entry covers the task tools.
     #[must_use]
     pub fn allows(&self, name: &str) -> bool {
         let Self::Only(entries) = self else {
@@ -163,9 +162,9 @@ impl AgentTools {
     /// (`docs/state/secrets.md`).
     #[must_use]
     pub fn reaches_secrets(&self) -> bool {
-        let Self::Only(entries) = self else {
+        if matches!(self, Self::All) {
             return true;
-        };
+        }
         [
             "bash",
             crate::llm::tools::BASH_SEND_TOOL,
@@ -176,12 +175,6 @@ impl AgentTools {
         ]
         .into_iter()
         .any(|tool| self.allows(tool))
-            || entries.iter().any(|entry| {
-                entry
-                    .trim()
-                    .to_ascii_lowercase()
-                    .starts_with(crate::mcp::MCP_TOOL_PREFIX)
-            })
     }
 
     /// How the listing renders this set: `*`, or the allowlist as written.
@@ -611,21 +604,13 @@ mod tests {
     #[test]
     fn a_type_reaches_secrets_through_any_tool_that_expands_them() {
         // A subagent is briefed on the user's secrets when its tools can use
-        // a placeholder (docs/state/secrets.md): the shell family, the file tools,
-        // an MCP tool. A type that can only plan or load skills cannot.
+        // a placeholder (docs/state/secrets.md): the shell family and the file tools.
+        // A type that can only plan or load skills cannot.
         assert!(AgentTools::All.reaches_secrets());
-        for tools in [
-            "Bash",
-            "Read",
-            "Write",
-            "Edit",
-            "bashsend",
-            "mcp__deepwiki__*",
-            "mcp__gh__issue",
-        ] {
+        for tools in ["Bash", "Read", "Write", "Edit", "bashsend", "ba*", "re*"] {
             assert!(AgentTools::parse(tools).reaches_secrets(), "{tools}");
         }
-        for tools in ["Skill", "TaskCreate, TaskUpdate", "Agent"] {
+        for tools in ["Skill", "TaskCreate, TaskUpdate", "Agent", "web_*"] {
             assert!(!AgentTools::parse(tools).reaches_secrets(), "{tools}");
         }
     }
@@ -634,7 +619,7 @@ mod tests {
     fn reads_the_name_description_model_and_tools_over_the_body() {
         let def = parse(
             "---\nname: reviewer\ndescription: Reviews a diff.\nmodel: kimi-k3\n\
-             tools: Bash, Read, mcp__deepwiki__*\n---\n\nYou are a reviewer.\n",
+             tools: Bash, Read, task*\n---\n\nYou are a reviewer.\n",
         );
         assert_eq!(def.name, "reviewer");
         assert_eq!(def.description, "Reviews a diff.");
@@ -644,7 +629,7 @@ mod tests {
             AgentTools::Only(vec![
                 "Bash".to_string(),
                 "Read".to_string(),
-                "mcp__deepwiki__*".to_string()
+                "task*".to_string()
             ])
         );
         assert_eq!(def.system_prompt.as_deref(), Some("You are a reviewer."));
@@ -750,12 +735,12 @@ mod tests {
     }
 
     #[test]
-    fn a_star_suffix_globs_a_whole_mcp_server() {
-        let tools = AgentTools::parse("Read, mcp__deepwiki__*");
-        assert!(tools.allows("mcp__deepwiki__ask_question"));
-        assert!(tools.allows("mcp__deepwiki__read_wiki_structure"));
-        assert!(!tools.allows("mcp__other__tool"));
-        assert!(AgentTools::parse("mcp__*").allows("mcp__other__tool"));
+    fn a_star_suffix_globs_a_tool_family() {
+        let tools = AgentTools::parse("Read, Task*");
+        assert!(tools.allows("taskcreate"));
+        assert!(tools.allows("taskupdate"));
+        assert!(!tools.allows("web_search"));
+        assert!(AgentTools::parse("web_*").allows("web_search"));
     }
 
     #[test]
@@ -763,7 +748,7 @@ mod tests {
         assert!(AgentTools::All.allows("write"));
         assert_eq!(AgentTools::parse(""), AgentTools::All);
         assert_eq!(AgentTools::parse("*"), AgentTools::All);
-        assert!(AgentTools::parse("*").allows("mcp__x__y"));
+        assert!(AgentTools::parse("*").allows("web_search"));
     }
 
     #[test]
@@ -782,8 +767,8 @@ mod tests {
 
     #[test]
     fn a_hyphenated_tool_name_survives_the_sequence_dash_strip() {
-        let tools = AgentTools::parse("- mcp__srv__do-it - Read");
-        assert!(tools.allows("mcp__srv__do-it"), "{tools:?}");
+        let tools = AgentTools::parse("- custom-tool- - Read");
+        assert!(tools.allows("custom-tool-"), "{tools:?}");
         assert!(tools.allows("read"));
     }
 

@@ -334,7 +334,6 @@ fn an_unavailable_row_is_labelled_and_dimmed() {
         checkpoints: false,
         hooks: true,
         skills: true,
-        mcp: true,
         images: true,
         update_check: true,
     });

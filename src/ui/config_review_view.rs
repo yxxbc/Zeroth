@@ -4,8 +4,7 @@
 //! [`render_config_review`] can never disagree.
 //!
 //! A page is a checkbox list of what would run, grouped by the file it came
-//! from, each item showing **verbatim** what runs — a hook's command, a
-//! server's command line or URL and its environment — over the two action
+//! from, each item showing **verbatim** the hook's command over the two action
 //! rows and the key hint. The review opens on the first frame, so the page
 //! must never flow into scrollback (a flowed page purge-rebuilds the screen
 //! when it closes, which at startup would wipe the terminal's own
@@ -20,7 +19,7 @@ use super::theme::*;
 use super::wrap::{cols, ellipsize, wrap_output};
 use super::*;
 
-use crate::app::{ItemChange, ReviewChoice, ReviewItem, ReviewKind, ReviewPage, ReviewSection};
+use crate::app::{ItemChange, ReviewChoice, ReviewItem, ReviewPage, ReviewSection};
 
 /// What one rung of the ladder keeps.
 #[derive(Debug, Clone, Copy)]
@@ -34,7 +33,7 @@ struct Shape {
     window: Option<usize>,
     /// The highlighted item's detail cut to this many rows.
     cap: Option<usize>,
-    /// The title (and, on the servers page, the question under it).
+    /// The title.
     title: bool,
     /// The key hint wrapped whole — off only on the last rung, which cuts it
     /// to one row.
@@ -110,21 +109,10 @@ fn counted(count: usize, noun: &str) -> String {
 fn headline(page: &ReviewPage) -> String {
     let (new, changed) = page.counts();
     let all = new + changed;
-    match (page.kind, new, changed) {
-        (ReviewKind::Hooks, _, 0) => format!("{} found", counted(all, "new hook")),
-        (ReviewKind::Hooks, 0, _) => format!("{} changed", counted(all, "hook")),
-        (ReviewKind::Hooks, ..) => {
-            format!("{all} hooks to review · {new} new, {changed} changed")
-        }
-        (ReviewKind::McpServers, _, 0) => {
-            format!("{} found in this project", counted(all, "new MCP server"))
-        }
-        (ReviewKind::McpServers, 0, _) => {
-            format!("{} changed in this project", counted(all, "MCP server"))
-        }
-        (ReviewKind::McpServers, ..) => {
-            format!("{all} MCP servers to review in this project · {new} new, {changed} changed")
-        }
+    match (new, changed) {
+        (_, 0) => format!("{} found", counted(all, "new hook")),
+        (0, _) => format!("{} changed", counted(all, "hook")),
+        _ => format!("{all} hooks to review · {new} new, {changed} changed"),
     }
 }
 
@@ -172,7 +160,7 @@ fn heading_spans(section: &ReviewSection) -> Vec<Span<'static>> {
     }
 }
 
-/// A file's heading, wrapped whole: which file a hook or a server comes
+/// A file's heading, wrapped whole: which file a hook comes
 /// from is half of what the page says, and a path's tail is its file name,
 /// so it never loses its end to a `…`. The scope word keeps its weight on
 /// the first row.
@@ -281,7 +269,7 @@ fn item_head(item: &ReviewItem, highlighted: bool, folded: bool, width: u16) -> 
 
 /// An item's detail rows — every line of what it runs, word-wrapped whole
 /// with its spaces kept (the tail of a command is the part worth reading),
-/// then a changed item's `was:` or `changed:` line — each under the title's
+/// then a changed item's `was:` line — each under the title's
 /// column.
 fn detail_rows(item: &ReviewItem, width: u16) -> Vec<Line<'static>> {
     let inset = " ".repeat(detail_inset());
@@ -295,25 +283,15 @@ fn detail_rows(item: &ReviewItem, width: u16) -> Vec<Line<'static>> {
             ]));
         }
     };
-    for (i, line) in item.detail.iter().enumerate() {
-        // What runs reads plainly; what rides along with it (a server's
-        // `env`) is dim.
-        let style = if i == 0 {
-            Style::default()
-        } else {
-            Style::new().fg(model_meta_color())
-        };
-        push(line, style, &mut out);
+    for line in &item.detail {
+        push(line, Style::default(), &mut out);
     }
-    let change = match &item.change {
-        Some(ItemChange::Was(previous)) => Some(format!("{REVIEW_WAS_PREFIX}{previous}")),
-        Some(ItemChange::Parts(parts)) if !parts.is_empty() => {
-            Some(format!("{REVIEW_CHANGED_PREFIX}{}", parts.join(", ")))
-        }
-        _ => None,
-    };
-    if let Some(change) = change {
-        push(&change, Style::new().fg(model_meta_color()), &mut out);
+    if let Some(ItemChange::Was(previous)) = &item.change {
+        push(
+            &format!("{REVIEW_WAS_PREFIX}{previous}"),
+            Style::new().fg(model_meta_color()),
+            &mut out,
+        );
     }
     out
 }
@@ -342,13 +320,9 @@ fn capped(mut rows: Vec<Line<'static>>, cap: usize, width: u16) -> Vec<Line<'sta
 
 /// The two action rows, the highlighted one marked.
 fn action_rows(page: &ReviewPage, width: u16) -> Vec<Line<'static>> {
-    let (confirm, decline) = match page.kind {
-        ReviewKind::Hooks => (REVIEW_TRUST_LABEL, REVIEW_SKIP_LABEL),
-        ReviewKind::McpServers => (REVIEW_ENABLE_LABEL, REVIEW_DISABLE_LABEL),
-    };
     [
-        (ReviewChoice::Confirm, confirm),
-        (ReviewChoice::Decline, decline),
+        (ReviewChoice::Confirm, REVIEW_TRUST_LABEL),
+        (ReviewChoice::Decline, REVIEW_SKIP_LABEL),
     ]
     .into_iter()
     .map(|(choice, label)| {
@@ -381,13 +355,10 @@ fn action_rows(page: &ReviewPage, width: u16) -> Vec<Line<'static>> {
 }
 
 /// The key hint, wrapped rather than cut — it is where the page says what
-/// Esc does, which differs between the two pages — except on the last rung,
+/// Esc does — except on the last rung,
 /// which has nothing else left to shed.
-fn hint_lines(page: &ReviewPage, whole: bool, width: u16) -> Vec<Line<'static>> {
-    let hint = match page.kind {
-        ReviewKind::Hooks => REVIEW_HOOKS_HINT,
-        ReviewKind::McpServers => REVIEW_MCP_HINT,
-    };
+fn hint_lines(whole: bool, width: u16) -> Vec<Line<'static>> {
+    let hint = REVIEW_HOOKS_HINT;
     let style = Style::new().fg(model_meta_color());
     if whole {
         return wrapped(hint, style, width);
@@ -410,19 +381,8 @@ fn build(
     let mut lines = vec![model_rule(width)];
     if shape.title {
         lines.push(title_line(page, position, width));
-        if page.kind == ReviewKind::McpServers {
-            lines.extend(wrapped(
-                REVIEW_MCP_QUESTION,
-                Style::new().fg(model_id_color()),
-                width,
-            ));
-        }
         if shape.info {
-            let info = match page.kind {
-                ReviewKind::Hooks => REVIEW_HOOKS_INFO,
-                ReviewKind::McpServers => REVIEW_MCP_INFO,
-            };
-            lines.extend(wrapped(info, dim, width));
+            lines.extend(wrapped(REVIEW_HOOKS_INFO, dim, width));
         }
     }
     let items: Vec<(&ReviewSection, &ReviewItem)> = page
@@ -498,7 +458,7 @@ fn build(
     }
     lines.extend(action_rows(page, width));
     lines.push(Line::default());
-    lines.extend(hint_lines(page, shape.full_hint, width));
+    lines.extend(hint_lines(shape.full_hint, width));
     lines.push(model_rule(width));
     lines
 }

@@ -46,7 +46,7 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 
 use super::loopback::{self, CallbackServer, Expected, Pages};
-use super::mcp::{form_encode, parse_redirect, pkce_and_state};
+use super::oauth::{form_encode, parse_redirect, pkce_and_state};
 use super::{LlmError, Result};
 use crate::stream::CancelToken;
 

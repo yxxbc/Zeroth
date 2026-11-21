@@ -23,7 +23,7 @@ per change.
   Permission mode         auto
   ...
   Max tool calls          0
-  (1/20)
+  (1/19)
 
   Hide the model's chain-of-thought…
 
@@ -33,7 +33,7 @@ per change.
 
 ## The settings
 
-Twenty rows, each one a knob the running session actually reads. Every value
+Nineteen rows, each one a knob the running session actually reads. Every value
 **cycles** — there is no free-text field anywhere, so Enter and Space mean the
 same thing on every row and the menu never needs an edit mode.
 
@@ -52,7 +52,6 @@ same thing on every row and the menu never needs an edit mode.
 | **Project docs** | `true` / `false` | Whether the project's `AGENTS.md` files are re-read each turn into the context's leading user entry (`docs/state/project-doc.md`). Seeded from `ZEROTH_PROJECT_DOC_MAX_BYTES=0`. |
 | **Hooks** | **`true`** / `false` | Whether the lifecycle hooks the user trusted run — the user's `~/.zeroth/hooks.json` and a project's — around tool calls, turns, and the session boundaries (`docs/tools/hooks.md`). **On until a directory turns it off** (`docs/state/per-directory-state.md`); each hook runs once it is trusted in the startup review (`docs/state/config-review.md`); seeded from `ZEROTH_HOOKS`; **unavailable** when no hooks file resolved or it had nothing runnable in it. |
 | **Skills** | `true` / `false` | Whether the `skill` tool is offered and the `<system-reminder>` listing rides the context (`docs/tools/skills.md`). Seeded from `ZEROTH_SKILLS`; **unavailable** when no `SKILL.md` loaded — there is nothing to turn on. |
-| **MCP** | **`true`** / `false` | Whether the MCP servers connect and the model is offered their tools and instructions (`docs/tools/mcp.md` *MCP off for the session*). **On until a directory turns it off**, the Hooks posture. Off stops every server, and each keeps its own `/mcp` enabled or disabled state, so turning the row back on brings back exactly the servers that were enabled; `/mcp` still opens and says MCP is off. Seeded from `ZEROTH_MCP`; **unavailable** when no server is declared in the user's `mcp.json` or a project's. |
 | **Temperature** | `default` / `0.0` / `0.3` / `0.5` / `0.7` / `1.0` | The sampling temperature every request carries; `default` sends none and leaves it to the provider. Seeded from `ZEROTH_TEMPERATURE`. |
 | **Max tool calls** | **`0`** / `5` / `10` / `20` / `50` / `100` | How many tool **calls** one turn may run before it gives up (`llm::agent::run_agent`'s cap). **`0` is no limit, and the default** — see below. |
 | **Ask timeout** | `5m` / **`10m`** / `20m` / `30m` / `1h` / `never` | How long an `AskUserQuestion` question waits on an **idle** user before it resolves unanswered and the agent keeps working on its own judgment (`docs/tools/ask.md`) — any key press or paste starts the wait over, and the modal's closing rule counts it down. `never` stops the clock. Seeded from `ZEROTH_ASK_TIMEOUT_SECS` (seconds, `0` = never), whose odd values still read whole (`1m 30s`). Read where it is used: the draw tick reads it on every reading of the idle clock, so a new value applies to a wait already running and `never` stops it at once. |
@@ -163,7 +162,7 @@ page (`docs/ui/view-flow.md` *A picker's page*):
     Show images          true
     Image width          120
     Auto-resize images   true
-    (1/20)
+    (1/19)
 
     Hide the model's chain-of-thought instead of streaming it above the composer
 
@@ -190,7 +189,7 @@ now by `/mascot`, `/skills` and `/login`). No blank row hugs either rule
 there are, and the search reaches any of them), windowed by the shared
 `centered_window` so the selection stays centred; the whole page is one line
 builder
-(`settings_view_lines` — the `/mcp` family's shape, its height the built line
+(`settings_view_lines` — the inline-page family's shape, its height the built line
 count, painted bottom-anchored with the skipped top flowing into scrollback,
 `docs/ui/view-flow.md`). Unlike `/model` the chrome never collapses: there is
 always at least one setting, and a search that matches nothing still shows its
@@ -224,7 +223,7 @@ sheds rows before it flows*):
     Tools                true
   → Permission mode      auto
     Checkpoints          false
-  ↓ 12 more below
+  ↓ 11 more below
   Type to search · Enter/Space to change · Esc to cancel
 ──────────────────────────────────────────────────────────
 ```
@@ -292,14 +291,6 @@ docs`.
     context (so the row re-renders `App::skill_listing`). Flipping it off
     leaves the discovered set in memory, so flipping it back on costs no
     rescan (`docs/tools/skills.md`).
-  - **MCP** switches the session's MCP manager (`McpManager::set_active`,
-    `Session::apply_mcp_setting`). Off drops every connection — each stdio
-    server stopped — and withdraws the servers' tools and instructions at
-    once: the next turn's backend is rebuilt without them and the reminder
-    re-rendered. On connects every server enabled in `/mcp`, the backend
-    gaining each one's tools as its connect lands, opens the review's servers
-    page over project servers waiting for it, and names a config problem the
-    startup kept quiet about (`docs/tools/mcp.md`).
   - **Verbose output** purge-rebuilds the conversation, the **Show images**
     rule: every committed read and search changes shape — a cell per call, or
     one collapsed line — and the rebuild repaints them from history. Turning
@@ -376,7 +367,7 @@ Precedence at startup is the same rule the rest of the app follows — **the
 environment wins**: an explicitly set `ZEROTH_*` variable overrides the saved
 value for that one setting (`tui::config::apply_setting_overrides` — including
 `ZEROTH_HOOKS`, which seeds the **Hooks** row the way `ZEROTH_TOOLS`
-seeds **Tools**, and `ZEROTH_MCP`, which seeds **MCP** the same way).
+seeds **Tools**).
 Anything neither set nor saved takes its default.
 
 And, as with `ZEROTH_MODEL`, the environment **never sticks**. A save is a
@@ -388,7 +379,7 @@ persisted an override set for one run: turn `Error retry` up in a shell that
 happens to export `ZEROTH_TOOLS=0`, and every later session in that
 directory would have started with tools off.
 
-### Hooks and checkpoints default to off
+### Hook and checkpoint defaults
 
 **Checkpoints** run a whole-cwd `git add -A` before the first frame, so they
 are **off** until a directory turns them on: a checkpoint store for a tree
@@ -399,10 +390,7 @@ each hook — the user's or a project's — runs once it is trusted in the
 startup review (`docs/state/config-review.md`); a directory opts out with one cycle,
 recorded as `"hooks": false`. `ZEROTH_HOOKS` / `ZEROTH_CHECKPOINTS`
 seed either for a run without saving anything — which is how `smoke.sh`'s
-hooks and checkpoint phases get them. **MCP** follows Hooks: on, each server
-still connecting only once it is enabled (a project's in the startup
-review), and a directory that wants none of them opts out with one cycle,
-recorded as `"mcp": false`.
+hooks and checkpoint phases get them.
 
 ## Testing
 
@@ -414,7 +402,4 @@ checks the toast and the collapsed composer; Phase 109 drives the per-directory
 half (a knob cycled in one directory, the defaults in the next, both against
 one config home); Phase 139 opens it on a 12-row terminal and walks its compact
 page; Phase 146 cycles **Verbose output** over a collapsed read/search group
-and checks the rebuild unfolds it (`docs/ui/tool-groups.md`); Phase 152 cycles
-**MCP** off and on against a scripted server and checks it stops, stays off
-across a relaunch, connects again, and that `ZEROTH_MCP=0` is never saved
-(`docs/tools/mcp.md`).
+and checks the rebuild unfolds it (`docs/ui/tool-groups.md`).

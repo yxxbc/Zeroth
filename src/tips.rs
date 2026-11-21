@@ -67,7 +67,7 @@ pub const TIPS: &[&str] = &[
     "Define your own subagent types in .zeroth/agents/<name>.md",
     "Run /spinner to restyle the spinner above this tip",
     "Run /skills to turn individual skills on or off",
-    "Run /mcp to manage MCP servers, or zeroth mcp add to add one",
+    "Run /hooks to browse configured lifecycle hooks",
     "Run zeroth update to install the latest release",
     "Run /mascot to change the banner mascot",
     "Run /settings to change retries, temperature, tools and more",

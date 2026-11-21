@@ -23,7 +23,7 @@ fn tool(name: &str, size: usize) -> ToolDefinition {
     }
 }
 
-/// A session with a prompt, seven built-in tools and an MCP server's tool,
+/// A session with a prompt and seven built-in tools,
 /// one message, and `window` — the page open on it.
 fn open_with(window: Option<u64>) -> App {
     let mut app = with_session();
@@ -38,7 +38,6 @@ fn open_with(window: Option<u64>) -> App {
         tool("agent", 1_200),
         tool("taskcreate", 900),
         tool("skill", 800),
-        tool("mcp__deepwiki__ask_question", 700),
     ]));
     app.record_user_message("hello there");
     app.set_context_window(window);
@@ -143,7 +142,6 @@ fn the_page_is_framed_with_its_title_subtitle_bar_legend_usage_and_hint() {
         &format!("dummy_model_name · ≈{total} of 200k tokens ("),
         "System prompt",
         "System tools",
-        "MCP tools",
         "Messages",
         "Free space",
         "Auto-compact",
@@ -674,15 +672,6 @@ fn a_long_detail_folds_its_tail_into_one_row() {
 }
 
 #[test]
-fn mcp_tools_are_listed_by_server() {
-    let mut app = open_app();
-    select(&mut app, ContextUsageRow::Slice(Category::McpTools));
-    let texts = page_texts(&app, 100);
-    assert!(has(&texts, "MCP tools · 1 tool"), "{texts:?}");
-    assert!(has(&texts, "deepwiki · 1 tool"), "{texts:?}");
-}
-
-#[test]
 fn the_messages_detail_says_what_the_conversation_is_made_of() {
     let mut app = open_app();
     select(&mut app, ContextUsageRow::Slice(Category::Messages));
@@ -986,13 +975,13 @@ fn a_short_terminal_windows_the_legend_around_the_highlight() {
         page[4].trim_start().starts_with("❯ ■ System tools"),
         "{page:#?}"
     );
-    assert!(page[5].contains("MCP tools"), "{page:#?}");
-    assert_eq!(page[6].trim(), "↓ 3 more below", "{page:#?}");
+    assert!(page[5].contains("Messages"), "{page:#?}");
+    assert_eq!(page[6].trim(), "↓ 2 more below", "{page:#?}");
     assert!(page[7].contains("↑↓ select"), "{page:#?}");
     let last = *app.context_usage_rows().last().expect("rows");
     select(&mut app, last);
     let page = texts(&app);
-    assert_eq!(page[2].trim(), "↑ 3 more above", "{page:#?}");
+    assert_eq!(page[2].trim(), "↑ 2 more above", "{page:#?}");
     assert!(page[3].contains("Messages"), "{page:#?}");
     assert!(page[4].contains("Free space"), "{page:#?}");
     assert!(page[5].trim_start().starts_with('❯'), "{page:#?}");

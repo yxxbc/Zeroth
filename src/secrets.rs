@@ -289,7 +289,7 @@ pub fn validate_draft(draft: &SecretDraft, names: &[String]) -> Result<(), Secre
 }
 
 /// Whether a tool's arguments get their placeholders expanded. The tools
-/// that **act** — the shell family, the file tools, every MCP tool — do;
+/// that **act** — the shell family and the file tools — do;
 /// the tools whose arguments are shown to a person or handed to another
 /// model (`agent`, `askuserquestion`, `skill`, the task tools) never do,
 /// since expanding there would put the value on the screen or in a context.
@@ -299,7 +299,6 @@ pub fn expands_placeholders(tool: &str) -> bool {
     matches!(tool, "bash" | "read" | "write" | "edit")
         || tool == BASH_SEND_TOOL
         || tool == BASH_SESSION_TOOL_NAME
-        || crate::mcp::is_mcp_tool(tool)
 }
 
 /// A placeholder in some text: its byte range and the name as written.
@@ -1785,15 +1784,7 @@ mod tests {
 
     #[test]
     fn only_the_tools_that_act_expand_placeholders() {
-        for acting in [
-            "bash",
-            "bashsend",
-            "bash_session",
-            "read",
-            "write",
-            "edit",
-            "mcp__github__create_issue",
-        ] {
+        for acting in ["bash", "bashsend", "bash_session", "read", "write", "edit"] {
             assert!(expands_placeholders(acting), "{acting}");
         }
         for shown in [
@@ -1803,6 +1794,7 @@ mod tests {
             "taskcreate",
             "taskupdate",
             "bashlist",
+            "web_search",
             "unknown",
         ] {
             assert!(!expands_placeholders(shown), "{shown}");

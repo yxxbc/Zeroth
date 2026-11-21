@@ -6,7 +6,7 @@
 
 一条 **`/context`** 斜杠命令，回答长会话里一再到来的两个问题：*上下文窗口有多
 满*，以及*是什么在占它*。页脚的量表（`docs/ui/footer.md`）已经说了有多满；没有
-任何东西说过是什么。一段 system prompt、二十几个 tool schema、一堆 MCP tool、
+任何东西说过是什么。一段 system prompt、二十几个 tool schema、
 项目的 `AGENTS.md`、skills 清单，以及对话本身，每一次请求都带着，而在某个
 provider 拒绝之前，它们都是看不见的。
 
@@ -19,18 +19,17 @@ provider 对最后一次请求的说法 —— 进和出的 token，以及输入
 ```
 ──────────────────────────────────────────────────────────────────────────────
   Context usage
-  gpt-5.5 · ≈36.4k of 200k tokens (18.2%)
+  gpt-5.5 · ≈35.3k of 200k tokens (17.7%)
 
-  █████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╱╱╱╱╱╱╱
+  ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╱╱╱╱╱╱╱
 
     ■ System prompt     161   0.1%   Messages · 48 messages
     ■ System tools     3.2k   1.6%   Tool results   17.2k  ━━━━━━━━━━━━
-    ■ MCP tools        1.1k   0.6%   Tool calls      6.1k  ━━━━
-    ■ Project docs     1.6k   0.8%   Replies         4.3k  ━━━
-    ■ Skills            433   0.2%   Your messages   2.2k  ━━
-    ■ Agent types       122   0.1%
+    ■ Project docs     1.6k   0.8%   Tool calls      6.1k  ━━━━
+    ■ Skills            433   0.2%   Replies         4.3k  ━━━
+    ■ Agent types       122   0.1%   Your messages   2.2k  ━━
   ❯ ■ Messages        29.8k  14.9%
-    □ Free space     143.6k  71.8%
+    □ Free space     144.7k  72.3%
     ╱ Auto-compact      20k  10.0%
 
   Last request   38.1k in · 1.2k out
@@ -98,32 +97,27 @@ prompt 是一道看得见的小缝而不是什么都没有 —— 而那一格�
 和份额，列都对齐 —— 小到印不出十分位的份额读作 `<0.1%`，而不是一个会说该类
 免费的 `0.0%`。颜色是主题角色（`ui::theme::context_usage_color`）：system
 prompt 和 tools 沿用 Ctrl+D 视图自己的那两个，messages 用强调色，project docs
-用链接蓝，skills 用成功绿，secrets 用错误红，而没有自己角色的三个类别是混色 ——
-MCP tools 在警告与错误的色相之间，agent types 在紫色与红色之间，MCP
-instructions 在绿色与蓝色之间 —— 所以每一行在每个主题下都保持可区分。终端自带
-的十六色（`ansi`）没有可混的分量，而两个具名颜色的混色会倒向它的一端 —— MCP
-tools 和 agent types 都落到 secrets 的红上 —— 所以在那里它们各自取第一个色相的
-明亮变体（亮黄、亮洋红、亮绿；`palette::bright`）。
+用链接蓝，skills 用成功绿，secrets 用错误红；agent types 混合紫色与红色，
+所以每一行在每个主题下都保持可区分。终端自带的十六色（`ansi`）没有可混的
+分量，所以 agent types 改用亮洋红（`palette::bright`），避免与 secrets 共用红色。
 
 高亮行的**详情**在终端够宽放得下两者时坐在图例旁边
 （`CONTEXT_USAGE_SIDE_BY_SIDE_MIN_COLS`），否则在它下面：该类别自己的分解，从
 最大的开始，每部分一个标签、它的 token 数和一根以最大部分为基准的条，尾部折成
 一行 `… N more` 带着它们之和。高亮开在**最大**的类别上，所以屏幕上第一眼就是
 「我的上下文被谁占了？」的答案 —— 并且**跟随**最大的那个，直到用户移动它，
-因为页面在打开时就被计数，而边界在它之后马上交过来的 tool 集合（一个稍后连上的
-MCP server，一段在回合中途长过 tool schema 的对话）可能改变哪个类别最大。一旦
+因为页面在打开时就被计数，而边界随后交过来的 tool 集合和一段在回合中途
+长过 tool schema 的对话，可能改变哪个类别最大。一旦
 用户挑了一行，重数会把高亮留在那一行上；只有当某一行消失时才回到最大的那个。
 
 | 类别 | 它数的是什么 | 它的分项 |
 | --- | --- | --- |
 | System prompt | `App::system_prompt` —— persona → environment → scratchpad（`docs/architecture/environment.md`） | 每个 markdown 标题块一个（`System prompt`、`Environment`、`Scratchpad`） |
 | System tools | 下一次请求提供的每个内置 tool schema | 每个 tool 一个，按 wire 名字 |
-| MCP tools | 每个 `mcp__server__tool` schema（`docs/tools/mcp.md`） | 每个 server 一个，tool 数写在标签里 |
 | Project docs | 提醒里的 `AGENTS.md` 小节（`docs/state/project-doc.md`） | 每个文件一个，按路径 |
 | Skills | 提醒里的 skills 小节（`docs/tools/skills.md`） | 每个列出的 skill 一个 |
 | Agent types | 提醒里的 subagent 类型小节（`docs/agents/subagents.md`） | 每个类型一个 |
 | Secrets | 提醒里的 secrets 小节（`docs/state/secrets.md`）—— 只有名字和上下文，绝不含值 | 每个 secret 一个 |
-| MCP instructions | 提醒的最后一个小节：已连上的 MCP server 自己的 instructions（`docs/tools/mcp.md`） | 每个 server 一个，按它的 `## {server}` 标题 |
 | Messages | 推导出的对话（`context::context_messages`，`docs/architecture/context.md`） | 你的消息、shell 命令、app 通知、压缩摘要、回复、tool call、tool 结果、图片 |
 
 提醒的外壳 —— 那些标签和它一行前言，几个 token —— 计入它的第一个小节，所以提醒
@@ -144,10 +138,8 @@ Ollama 的请求，见 `docs/providers/claude.md`、`docs/providers/chatgpt.md`�
 用户自己的文本，可能引用下面任何一个标题，所以它内部的任何标题都不能切它。
 它之后的那些清单是会话自己渲染的，顺序固定，每一个都按它的贡献者所写的标题找到
 （`skills::SKILL_LISTING_HEADER`、`subagents::AGENT_LISTING_HEADER`、
-`secrets::SECRET_LISTING_HEADER`、`mcp::INSTRUCTIONS_HEADER`），从末尾找，
-也就是会话写出它的地方。MCP 小节装的是 server 自己选定的文本，所以它的渲染把
-它们每一个标题都降两级：它里面没有任何东西能像小节标题或 `## {server}` 分项那样
-起一行。subagent 的 briefing 不含 instructions，所以它没有 **Project docs** 行。
+`secrets::SECRET_LISTING_HEADER`），从末尾找，也就是会话写出它的地方。
+subagent 的 briefing 不含 instructions，所以它没有 **Project docs** 行。
 
 **Messages** 的分项是按用户角色文本的来源而不是角色来切的，因为随用户消息一起
 走的很多东西并不是用户打的：推导在每段文本落地时记下它的来源
@@ -197,7 +189,7 @@ tokenizer 怎么数本会话的文本。页面上的每个计数都过那一课
 ## 活页
 
 这一页从不滴答 —— 它上面没有任何东西在动 —— 但它随对话变化：一轮 tool 落地，
-一个 MCP server 连上，一次回合开始时重扫了 skill。所以边界在打开时以及打开期间
+一次回合开始时重扫了 skill。所以边界在打开时以及打开期间
 每个循环底部都刷新它（`tui::context_usage`、`Session::sync_context_usage`）：
 tool 集合从后端拉（`ReplySource::tool_definitions`，一个共享句柄，后端随它的
 tool 集合重建，所以拉取的代价是一次指针拷贝），而纯核心只在它的**签名**动时才
@@ -259,11 +251,11 @@ scrollback。
 
 ```
 ──────────────────────────────────────────────────────────
-  Context usage · ≈36.4k of 200k tokens (18.2%)
-  ↑ 5 more above
+  Context usage · ≈35.3k of 200k tokens (17.7%)
+  ↑ 4 more above
     ■ Agent types       122   0.1%
   ❯ ■ Messages        29.8k  14.9%
-    □ Free space     143.6k  71.8%
+    □ Free space     144.7k  72.3%
   ↓ 1 more below
   ↑↓ select  ctrl+d raw context  esc close
 ──────────────────────────────────────────────────────────
@@ -281,9 +273,8 @@ fn agent_tool_definitions(&self, agent_type: &str) -> Arc<[ToolDefinition]>;
 数组旁边留着自己的一套，由重建那个数组的同一个函数重建（`sync_tool_specs`），
 所以两者无法漂移；subagent 那套由它启动时用的同一个函数构建
 （`subagent_tool_specs`，就在 `spawn_subagent_run` 旁边），并与它据以构建的类型
-和白名单放在一起 —— 那是每回合重扫会就地改写的唯一输入。skills 的判定和 MCP
-集合是后端构建时的那一份 —— 其中任何一个变动时边界都会重建后端
-（`refresh_skills`、`refresh_mcp`），那会起一套新的 —— 所以和 lead 自己的那套
+和白名单放在一起 —— 那是每回合重扫会就地改写的唯一输入。skills 的判定是后端
+构建时的那一份 —— 它变动时边界会重建后端（`refresh_skills`），那会起一套新的 —— 所以和 lead 自己的那套
 一样，agent 的那套描述的是后端当下的状态。
 
 ## API
@@ -309,8 +300,8 @@ fn agent_tool_definitions(&self, agent_type: &str) -> Arc<[ToolDefinition]>;
 - `context_usage` —— 每个类别在一套 fixture 的 prompt、tool 集合、提醒和历史
   上的归属（计数器是注入的，所以一个 token 就是一个字节，每个和都能手算核对）；
   提醒的 instructions 不管怎么引用标题都按存下来的计，它的各清单按标题切开，
-  它的外壳与第一个小节合算；system prompt 在它代码围栏之外的标题处切开；MCP
-  tool 按 server 分组；messages 按种类切，它们的用户角色文本按来源切；账本的和
+  它的外壳与第一个小节合算；system prompt 在它代码围栏之外的标题处切开；
+  messages 按种类切，它们的用户角色文本按来源切；账本的和
   与命中率；备忘在多次遍历之间每段文本只数一次、忘掉某一趟跳过的内容，并且从不
   改掉一个计数。
 - `context` —— 每段用户角色文本的来源在它落地处标出，包含压缩的文本和它的桥接，
@@ -330,9 +321,8 @@ fn agent_tool_definitions(&self, agent_type: &str) -> Arc<[ToolDefinition]>;
   图例和只剩标题行，宽度安全到两列，任何高度都不流，隐藏的光标在每一页都坐在
   `❯` 上。
 - `scripts/smoke.sh` 第 144 阶段 —— 在真实终端里端到端跑这一页：对一个
-  OpenAI 兼容的 stub，种下一个 skill、一个 `AGENTS.md` 和一个脚本化的 MCP
-  server（每个类别都上图例，MCP server 的 tool 落到已经开着的页面上，↓ 走遍
-  每份详情，Ctrl+D 压上页面再回来，两轮之后 provider 的进/出和 86% 的缓存命中，
+  OpenAI 兼容的 stub，种下一个 skill 和一个 `AGENTS.md`（每个有内容的类别
+  都上图例，↓ 走遍每份详情，Ctrl+D 压上页面再回来，两轮之后 provider 的进/出和 86% 的缓存命中，
   一段很长的第三个回答让对话的条在窗口条上长到它自己的份额 —— 它的强调色格是
   从原始 SGR 字节里读出来的），然后是回合中途的 dummy（页面之上的状态行，对话
   随着回合在它下面流式而重数）。

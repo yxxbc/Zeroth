@@ -30,7 +30,7 @@ use zeroth::llm;
 /// resolver needs (providers, `.env`, the saved selection).
 ///
 /// A session still owns everything mutable — its `App`, rollout, permission
-/// gate, MCP manager, background shells and subagent registry. The Host is
+/// gate, background shells and subagent registry. The Host is
 /// read-only after [`Host::resolve`], so a batch can hand `&Host` to every
 /// worker; cloning a field out of it is how a session gets its own copy.
 pub(crate) struct Host {

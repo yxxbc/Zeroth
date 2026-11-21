@@ -43,6 +43,12 @@ classifier's context, a hook's `tool_input`, or a `Debug` print:
 screen a value can reach is the composer, while the user types it: the
 keystrokes show until Enter, and Enter replaces them.
 
+The `read` tool additionally refuses Zeroth's credential-store files under the
+config home (`.env`, `secrets.json`, and legacy `mcp-auth.json`), plus the file
+selected by `ZEROTH_ENV_FILE`, including symlink aliases. The legacy file stays
+protected after local MCP removal; these stores must not enter model context,
+including credentials that are not registered with the secret redactor.
+
 ## The placeholder
 
 `<secret:NAME>`, `NAME` being `[A-Z_][A-Z0-9_]*` — an environment
@@ -79,8 +85,8 @@ writing a known one as text was never possible, since it expands.
 ## Expansion: only where a tool acts
 
 `secrets::expands_placeholders` decides per tool. The tools that **act** —
-`bash`, `bashsend` (and the legacy `bash_session`), `read`, `write`, `edit`,
-and every `mcp__server__tool` — get their arguments expanded
+`bash`, `bashsend` (and the legacy `bash_session`), `read`, `write`, and `edit`
+— get their arguments expanded
 (`secrets::expand_arguments`: every JSON **string** walked, keys left alone,
 the document re-serialized, so a value holding `"` or `\` is escaped
 correctly). The tools whose arguments are shown to a person or handed to
@@ -143,8 +149,8 @@ text would be — pinned by a test that splits a stream at every byte. The
 held tail is shown with the live row, masked if it is a long enough piece of
 a value.
 
-**Truncation.** Three tools cut their output at the end — `read`, MCP, and
-the `!` shell's cap — and mark it `truncated`. A cut through a value would
+**Truncation.** `read` and the `!` shell's cap cut output at the end and mark
+it `truncated`. A cut through a value would
 leave its first half behind, so a truncated output is redacted with
 `redact_cut_tail`: a trailing piece of four or more characters that begins a
 value is masked as that value's placeholder. `HeadTail`, the bash tools'

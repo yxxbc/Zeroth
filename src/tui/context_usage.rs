@@ -3,7 +3,7 @@
 //!
 //! The pure side counts the window and owns the page. What the boundary
 //! adds is the one input `App` does not hold on its own — the tool set the
-//! backend will send, which an MCP server connecting or a skills rescan can
+//! backend will send, which a Tools setting change or a skills rescan can
 //! change while the page is open — and the refresh that re-counts whenever
 //! anything the page was counted from has moved.
 

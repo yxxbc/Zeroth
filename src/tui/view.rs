@@ -137,7 +137,7 @@ impl Session<'_> {
     }
 
     /// The framed-view rows that must be **flowed** into scrollback for the
-    /// current state — a screen-tall `/mcp`/`/hooks` page's top —
+    /// current state — a screen-tall `/hooks` page's top —
     /// or `None` when nothing flows (`ui::view_flow`, `docs/ui/view-flow.md`).
     /// Capped like every purge-rebuild write.
     pub(crate) fn current_view_flow(&self) -> Option<ui::ViewFlow> {
@@ -859,9 +859,8 @@ impl Session<'_> {
         let height = self.live_region_height();
         let tail = ui::repaint_tail(
             // Only what has actually reached scrollback: the open read/search
-            // group, or a parallel MCP run still in flight, has cells
-            // recorded but held, and the strip is showing them
-            // (`docs/ui/tool-groups.md`, `docs/tools/mcp.md`).
+            // group has cells recorded but held, and the strip is showing
+            // them (`docs/ui/tool-groups.md`).
             ui::committed_history(&self.app.history, self.app.tool_queue(), held),
             self.app.streaming_text(),
             &mut self.render,
@@ -921,7 +920,7 @@ impl Session<'_> {
             return Ok(());
         };
         // Only the agent's committed cells, the main view's rule
-        // (`ui::committed_history`, `docs/tools/mcp.md`) — and its pictures looked
+        // (`ui::committed_history`) — and its pictures looked
         // for again, the main rebuild's rule.
         let history = ui::committed_history(&run.history, &run.tool_queue, None).to_vec();
         recheck_pictures(&history);
@@ -1121,10 +1120,6 @@ fn live_region_height(app: &App, screen: ratatui::layout::Rect) -> u16 {
     }
     // The read-only `/usage` page, likewise (docs/providers/usage.md).
     if let Some(height) = ui::usage_page_height(app, screen.width, screen.height) {
-        return height;
-    }
-    // The `/mcp` manager, likewise (docs/tools/mcp.md).
-    if let Some(height) = ui::mcp_menu_height(app, screen.width, screen.height) {
         return height;
     }
     if let Some(height) = ui::background_view_height(app, screen.width, screen.height) {

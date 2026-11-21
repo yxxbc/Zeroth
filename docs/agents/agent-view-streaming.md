@@ -207,8 +207,8 @@ what drifted, and this view had already fallen behind the main one once (§1).
 `Session::commit_agent_tail` keys on **what `AgentRun::apply` appended to the
 transcript** instead: the boundary snapshots `run.history.len()` before the
 fold, and afterwards commits every item recorded past it — a `Tool` through
-`ui::tool_commit_lines` over the history up to it (which still holds an MCP
-run's members until the run ends), a `Summary` through `ui::summary_lines`.
+`ui::tool_commit_lines` over the history up to it, a `Summary` through
+`ui::summary_lines`.
 That is the same question a rebuild answers, which is exactly why the two now
 agree; a future resolution event needs no change here at all. *Every* item,
 not the newest: a settle resolves a whole parallel batch at once — the running

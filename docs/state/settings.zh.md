@@ -22,7 +22,7 @@
   Permission mode         auto
   ...
   Max tool calls          0
-  (1/20)
+  (1/19)
 
   Hide the model's chain-of-thought…
 
@@ -32,7 +32,7 @@
 
 ## 设置项
 
-二十行，每一行都是运行中的 session 真正会读的一个旋钮。每个值都是**循环**的
+十九行，每一行都是运行中的 session 真正会读的一个旋钮。每个值都是**循环**的
 ——任何地方都没有自由文本字段，所以 Enter 和 Space 在每一行上意思相同，菜单也
 从不需要编辑模式。
 
@@ -51,7 +51,6 @@
 | **Project docs** | `true` / `false` | 项目的 `AGENTS.md` 文件是否每回合被重读进上下文的领头 user 条目（`docs/state/project-doc.md`）。由 `ZEROTH_PROJECT_DOC_MAX_BYTES=0` 播种。 |
 | **Hooks** | **`true`** / `false` | 用户信任过的 lifecycle hook 是否运行——用户的 `~/.zeroth/hooks.json` 和一个项目的——围绕 tool call、回合和 session 边界（`docs/tools/hooks.md`）。**开，直到某个目录把它关掉**（`docs/state/per-directory-state.md`）；每个 hook 在启动复核里被信任之后才运行（`docs/state/config-review.md`）；由 `ZEROTH_HOOKS` 播种；**不可用**于没有解析出 hooks 文件、或其中没有可运行的东西时。 |
 | **Skills** | `true` / `false` | `skill` 工具是否被提供，以及 `<system-reminder>` 的清单是否搭在上下文上（`docs/tools/skills.md`）。由 `ZEROTH_SKILLS` 播种；**不可用**于没有任何 `SKILL.md` 加载时——没有东西可打开。 |
-| **MCP** | **`true`** / `false` | MCP 服务器是否连接，以及模型是否被提供它们的工具和 instructions（`docs/tools/mcp.md` 的 *MCP off for the session*）。**开，直到某个目录把它关掉**，Hooks 的姿态。关掉会停下每个服务器，而各自保留它在 `/mcp` 里的启用或禁用状态，于是把这一行重新打开，带回来的正是那些原本启用的服务器；`/mcp` 仍能打开并说明 MCP 已关。由 `ZEROTH_MCP` 播种；**不可用**于用户 `mcp.json` 或某个项目的里面一个服务器都没声明时。 |
 | **Temperature** | `default` / `0.0` / `0.3` / `0.5` / `0.7` / `1.0` | 每个请求携带的采样温度；`default` 什么都不发，留给 provider。由 `ZEROTH_TEMPERATURE` 播种。 |
 | **Max tool calls** | **`0`** / `5` / `10` / `20` / `50` / `100` | 一个回合在放弃之前可以跑多少个 tool **call**（`llm::agent::run_agent` 的上限）。**`0` 是无限制，也是默认**——见下文。 |
 | **Ask timeout** | `5m` / **`10m`** / `20m` / `30m` / `1h` / `never` | 一个 `AskUserQuestion` 问题在一个**空闲**用户身上等多久才无答复地解决、让 agent 按自己的判断继续（`docs/tools/ask.md`）——任何按键或粘贴都重新开始计时，而模态的收尾规则把它倒数出来。`never` 停掉这个钟。由 `ZEROTH_ASK_TIMEOUT_SECS` 播种（秒，`0` = never），它的奇数取值仍整段读出（`1m 30s`）。在用到它的地方读：绘制 tick 每一次读空闲时钟时都读它，于是一个新值作用于一个已经在跑的等待，而 `never` 立刻停掉它。 |
@@ -150,7 +149,7 @@ config home、一个该特性愿意快照的 cwd（`checkpoint::cwd_scope`——
     Show images          true
     Image width          120
     Auto-resize images   true
-    (1/20)
+    (1/19)
 
     Hide the model's chain-of-thought instead of streaming it above the composer
 
@@ -172,7 +171,7 @@ picker 的 `model_has_detail` 规则，现在由 `/mascot`、`/skills` 和 `/log
 ——十二行固定装饰围着一个封顶在 `SETTINGS_MENU_MAX_ROWS`（五；曾是十——计数器
 说明还有多少个，而搜索能到达其中任何一个）的列表，由共享的 `centered_window`
 开窗，所以选中项保持居中；整页是一个行构造器
-（`settings_view_lines`——`/mcp` 家族的形状，它的高度就是构造出的行数，底部锚定
+（`settings_view_lines`——内联页面家族的形状，它的高度就是构造出的行数，底部锚定
 绘制，被跳过的顶部流进 scrollback，`docs/ui/view-flow.md`）。与 `/model` 不同，
 装饰从不折叠：总至少有一个设置，而一个什么都匹配不到的搜索仍在同一个帧里显示
 它的占位符。
@@ -199,7 +198,7 @@ sheds rows before it flows*）：
     Tools                true
   → Permission mode      auto
     Checkpoints          false
-  ↓ 12 more below
+  ↓ 11 more below
   Type to search · Enter/Space to change · Esc to cancel
 ──────────────────────────────────────────────────────────
 ```
@@ -257,12 +256,6 @@ Space 用于循环，正是搜索不能含空格的原因；这没关系——la
   - **Skills** 两半都做，因为该特性有两半：工具搭在后端构建上（所以这一行重建
     它），而清单搭在上下文上（所以这一行重新渲染 `App::skill_listing`）。关掉它
     把发现到的集合留在内存里，于是再打开不花一次重扫（`docs/tools/skills.md`）。
-  - **MCP** 切换 session 的 MCP manager（`McpManager::set_active`、
-    `Session::apply_mcp_setting`）。关掉丢弃每条连接——每个 stdio 服务器都被
-    停掉——并立刻撤回服务器的工具和 instructions：下一回合的后端不带它们重建，
-    reminder 重新渲染。打开则连接 `/mcp` 里启用的每个服务器，后端随着每个 connect
-    落地而获得它的工具，在等着它的项目服务器之上打开复核的服务器页，并点名一个
-    启动时保持安静的配置问题（`docs/tools/mcp.md`）。
   - **Verbose output** purge 重建对话，**Show images** 的规则：每一次已提交的
     read 和搜索改变形状——每次调用一个单元格，或一行折叠行——而重建从 history
     重绘它们。打开它会先放掉一个打开的组，于是它持有的那些 read 作为它们自己的
@@ -329,8 +322,7 @@ diff**——里面只有你真正改过的东西：
 启动时的优先级是应用其余部分遵循的同一条规则——**环境胜出**：一个显式设置的
 `ZEROTH_*` 变量为那一个设置覆盖已保存的值
 （`tui::config::apply_setting_overrides`——包括 `ZEROTH_HOOKS`，它播种
-**Hooks** 行，正如 `ZEROTH_TOOLS` 播种 **Tools**，以及 `ZEROTH_MCP`，
-它以同样方式播种 **MCP**）。既没设置也没保存的任何东西取它的默认。
+**Hooks** 行，正如 `ZEROTH_TOOLS` 播种 **Tools**）。既没设置也没保存的任何东西取它的默认。
 
 而且，像 `ZEROTH_MODEL` 一样，环境**永不粘住**。一次保存是对文件本身的一次
 读-改-写：重读该目录的条目（否则种子），**只有用户循环过的那个键**从活 blob 里
@@ -339,7 +331,7 @@ diff**——里面只有你真正改过的东西：
 导出 `ZEROTH_TOOLS=0` 的 shell 里把 `Error retry` 调高，那个目录之后每个
 session 都会以工具关闭启动。
 
-### Hooks 和 checkpoints 默认关
+### Hooks 和 checkpoints 的默认值
 
 **Checkpoints** 在第一帧之前跑一次整 cwd 的 `git add -A`，所以它们是**关**的，
 直到某个目录把它们打开：为一个你只是打开来读一个文件的树做 checkpoint 存储，
@@ -349,8 +341,7 @@ hook——用户的或项目的——在启动复核里被信任之后才运行
 （`docs/state/config-review.md`）；一个目录循环一次退出，记作
 `"hooks": false`。`ZEROTH_HOOKS` / `ZEROTH_CHECKPOINTS` 为一次运行播种
 两者而不保存任何东西——`smoke.sh` 的 hooks 和 checkpoint phase 就是这样拿到它们
-的。**MCP** 跟随 Hooks：开，每个服务器仍只在被启用之后连接（一个项目的要经启动
-复核），而一个一个都不要的目录循环一次退出，记作 `"mcp": false`。
+的。
 
 ## 测试
 
@@ -360,6 +351,4 @@ hook——用户的或项目的——在启动复核里被信任之后才运行
 并检查 toast 和被收起的 composer；Phase 109 驱动按目录的那一半（一个目录里循环
 一个旋钮，下一个目录里是默认，两者对着同一个 config home）；Phase 139 在一个
 12 行终端上打开它并走过它的紧凑页；Phase 146 在一个折叠的 read/搜索组上循环
-**Verbose output**，并检查重建把它展开（`docs/ui/tool-groups.md`）；Phase 152
-在一个脚本化服务器上把 **MCP** 关掉再打开，检查它停下、跨重启动保持关着、再次
-连上，以及 `ZEROTH_MCP=0` 从不被保存（`docs/tools/mcp.md`）。
+**Verbose output**，并检查重建把它展开（`docs/ui/tool-groups.md`）。

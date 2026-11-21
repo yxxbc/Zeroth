@@ -36,19 +36,16 @@ session 以 **auto** 启动：文件改动会执行，只做读取的命令会�
 
 ## 形状
 
-五种，一种版式，对应 `permission::PermissionKind`：
+四种，一种版式，对应 `permission::PermissionKind`：
 
 | kind      | title           | body                              | question                              |
 | --------- | --------------- | --------------------------------- | ------------------------------------- |
 | `Write`   | `Create file`   | the numbered new contents         | `Do you want to create {file}?`       |
 | `Edit`    | `Edit file`     | the numbered diff hunks           | `Do you want to make this edit to {file}?` |
 | `Bash`    | `Bash command`  | the indented command + description | `Do you want to proceed?`             |
-| `Mcp`     | `Tool use`      | the indented `{server} - {tool}({args}) (MCP)` + the server's description | `Do you want to proceed?` |
 | `Session` | `Session input` | the input on one line (`print(2 + 2)⏎`) + a dim `into {command} · session {id}` | `Do you want to send this input?` |
 
-`Mcp` 那一行就是换了个目标的 `Bash` 行：它命名的是一个调用而不是一条命令，所以
-沿用同样的形状（`docs/tools/mcp.md`）。`Session` 行也是如此：输入到一条仍在运行
-的命令里的内容（`bashsend`，`docs/tools/bash-tools.md`）和一条命令一样会执行
+`Session` 行沿用 `Bash` 行的形状：输入到一条仍在运行的命令里的内容（`bashsend`，`docs/tools/bash-tools.md`）和一条命令一样会执行
 —— 输入到 `python3` 的一行就是 Python —— 所以它以同样的方式发问。什么都不输入
 的调用从不会发问：`bashwait` 和 `bashlist` 只做读取，`bashkill` 结束的是一条
 模型自己启动的命令（↓ 管理器里的停止同样不发问），而单独一个 `<C-c>` 只是中断。
@@ -236,10 +233,6 @@ prompt 只有十几行；回答高的那个会把它的单元格提交出活跃�
    `Bash(prefix:*)`），只有精确匹配才安全时则是整条命令。没有字母快捷键：旧的
    `(a)` 绑定与一条长期有效的批准只差一次手误，所以记住那一行要用数字或 ↑/↓ +
    Enter 来选，和 Claude Code 一样；
-   对 MCP 调用是 **Yes, and don't ask again for {server} - {tool} commands in
-   {project}** —— 工具按用户认识它的名字来称呼，项目是规则为其保留的那个
-   （`App::project_dir`），而存储下来的规则仍是精确的 `mcp__…` 线上名
-   （`docs/tools/mcp.md`）；
    对 session 输入是 **Yes, and don't ask again for this session** —— 用 session
    id 记住，只要 session 在跑就一直留在 gate 上，从不写入 `permissions.json`
    （一个 id 对下一个进程毫无意义）。
@@ -310,7 +303,10 @@ session 输入也受它所在 session 的**启动命令**所适用的规则覆�
 
 没有内置的安全命令清单。在 manual 模式下，每一条 `bash`、`write` 和 `edit` 都要
 问，直到规则另有说法 —— 这是 Claude Code 的默认姿态，也是唯一不会在"什么安全"
-上出错的姿态。`read` 从不受门控。
+上出错的姿态。`read` 不走权限门控，但会拒绝读取配置目录中的 Zeroth 凭据文件
+（`.env`、`secrets.json` 和遗留的 `mcp-auth.json`），以及 `ZEROTH_ENV_FILE` 指定的
+文件，包括符号链接别名，避免这些值经 `read` 进入模型上下文。即使本地 MCP 已移除，
+这道防护仍然保留。
 
 #### 按 bash 的方式切分
 
@@ -343,8 +339,7 @@ composer 里用 **Shift+Tab** **循环**切换，每按一次在自主性上走�
   `bash` 命令仍然要问（直到被加入 allowlist）。
 - **auto**（默认）—— Claude Code 的 auto 模式：`write`/`edit` 像 edit 模式那样
   跑；只做读取的 `bash` 命令不经复核就跑（下文*只读命令跳过 classifier*）；其他
-  任何命令 —— 或一次 MCP 工具调用（`docs/tools/mcp.md`）—— allowlist 尚未覆盖
-  的，都由 **auto 模式 classifier** 复核 —— 一个代替用户做的静默 LLM 安全检查
+  任何 allowlist 尚未覆盖的命令，都由 **auto 模式 classifier** 复核 —— 一个代替用户做的静默 LLM 安全检查
   （下一节）。auto 模式下不会打开 prompt，除非 classifier 自己失败。
 - **master** —— Claude Code 的 bypass-permissions 姿态：一切不问就跑。没有
   prompt，没有 classifier；用户把安全带解开了。
@@ -352,7 +347,7 @@ composer 里用 **Shift+Tab** **循环**切换，每按一次在自主性上走�
 循环会绕回（`master` → `manual`），所以一个键走完整条梯子。session 以 auto 启动，
 所以第一次按落在 master，第二次落在 manual。
 `PermissionRules::allows` 编码了既有的覆盖范围：文件改动被 manual 之上的每一种模式
-覆盖；命令或 MCP 调用只被 master 或 allowlist 覆盖 —— auto 模式的 classifier 是
+覆盖；命令只被 master 或 allowlist 覆盖 —— auto 模式的 classifier 是
 **approve 接缝中的一次逐调用咨询**，从不是一条长期规则，这正是 classifier 失败能
 退回 prompt 的原因。
 
@@ -400,17 +395,15 @@ auto 是默认值，因为 manual 会为每一次文件改动、每一条命令�
 
 ## 自动模式：classifier
 
-在自动模式下，一条本来会弹出 prompt 的 `bash` 命令 —— 或者一次 MCP tool
-call（`docs/tools/mcp.md`），或者输入到交互式 session 里的按键
-（`docs/tools/interactive-shell.md`：classifier 会被告知这些按键发往哪个
+在自动模式下，一条本来会弹出 prompt 的 `bash` 命令 —— 或者输入到交互式 session
+里的按键（`docs/tools/interactive-shell.md`：classifier 会被告知这些按键发往哪个
 程序，因为往 shell 里敲 `rm -rf ~⏎` *就是* 在运行它）—— 改为交给 **auto
 mode classifier**：Claude Code 的自动模式审查器，在 session 自己的 provider
-上重建（`llm::classifier::SafetyClassifier`；参考实现把它的 MCP 调用也
-喂给同一个审查器，`mcpToolInputToAutoClassifierInput`）。approve 接缝
+上重建（`llm::classifier::SafetyClassifier`）。approve 接缝
 （`llm::approval::approve_call`）在 allowlist 检查和 prompt 之间询问它：
 
 ```
-approve(bash/MCP call) ── gate.allows()? ── yes ─────────────────► runs (no note)
+approve(bash or input) ── gate.allows()? ── yes ─────────────────► runs (no note)
                            └ no · mode == auto
                               only reads? ── yes ──────────────────► runs (no note)
                               └ no
@@ -470,8 +463,7 @@ user 消息有两部分。`## Task context` 块是 session 的近况 —— 也�
 context**（`classifier::ClassifierContext`）：近期的用户请求，逐行引用
 （每行前置 `> `，这样一条自身带 markdown 的请求会清楚地保持为被引用的
 材料，而不会变成结构），加上 agent 已采取动作的一行一条，各自使用
-transcript cell 自己的 `Name(args)` 词汇（`Read(/path)`、`Bash(cargo test)`、
-`deepwiki - ask_question (MCP)({…})` —— 与 cell 用的是同一对
+transcript cell 自己的 `Name(args)` 词汇（`Read(/path)`、`Bash(cargo test)` —— 与 cell 用的是同一对
 `display_name`/`summarize_call`，所以 classifier 和用户用同样的话读这一
 轮），被拒绝的调用标为 `— denied, not run`（agent 重试某条被拒命令的变体
 时，应该被*看见*在这么做）。
@@ -485,10 +477,8 @@ transcript cell 自己的 `Name(args)` 词汇（`Read(/path)`、`Bash(cargo test
 的 `(+N … omitted)` 标记。因此一次裁决在第五十轮的代价与第一轮相同。
 然后，在它自己的 `## Action to review` 标题之下，使正在*裁决*的东西绝不会
 与已经发生的事混在一起：cwd 和请求本身 —— 对命令而言：命令与模型自述的
-`description`（标明是主张，不是证据）；对 MCP 调用而言：名为
-`{server} - {tool}` 的 tool、server 自己对它的描述，以及用 cell 的
-`key: "value"` 形式给出的参数（`classifier_request_prompt` 的 MCP 分支
-—— 光有 wire name 会掩盖远程调用的风险究竟在哪）。上下文让裁决**具备任务
+`description`（标明是主张，不是证据）；对 session 输入而言：交互式程序与发送给它
+的输入（`classifier_request_prompt` 的 `Session` 分支）。上下文让裁决**具备任务
 感知** —— `cargo build` 刚失败之后的 `rm -rf build/` 读起来与凭空冒出的
 `rm -rf` 不同 —— 又不会重新打开旧的被投毒 transcript 漏洞，因为这个块是
 **有界且惰性**的：每一部分都截断（每条请求一个 `CONTEXT_REQUEST_MAX_CHARS`
@@ -532,17 +522,11 @@ id —— Claude Code 的 small-fast-model 槽位。取消走与每个请求相�
 外观），随 rollout 记录为 `ToolRecord::approval_note`（不存在时省略，所以
 旧文件仍可解析），因而能挺过一次 `/resume`；subagent 被允许的调用也通过
 同一个 `ToolNote` 事件把它带到自己的 transcript 上（`AgentRun::apply`）。
-有一个 cell 会跳过它的内联显示：**安静的已解决 MCP cell** —— 它全部的内联
-存在就是一行暗色的 `Called {server}`，而在自动模式下每次 server 调用都带
-note 解决，这一行会把每个 cell 翻倍成噪声（一次并行运行的聚合行本来也从不
-携带它）；Ctrl+O transcript、rollout 以及失败的 MCP 调用那条响亮的 cell
-仍保留这条记录（`docs/tools/mcp.md`）。
 
 一次**被拒绝**的调用绝不运行：该接缝返回 `Approval::Reject`，以
 `Denied by auto mode classifier`（第二行是 `Reason: {…}`，与 amend 反馈的
 形状相同）作为红色 cell，并给模型一条更长的结果 —— 改编自 Claude Code 的
-自动模式拒绝文本，措辞不偏向命令或 MCP 调用中的任何一方，因为它对两者都作
-答 —— 告诉模型这次调用未执行、其他工作可以继续、换一种更安全的做法没问题、
+自动模式拒绝文本，同时覆盖命令和 session 输入 —— 告诉模型这次调用未执行、其他工作可以继续、换一种更安全的做法没问题、
 不得绕过拒绝的本意，而若某能力确实必需就停下来问用户（用户可以切到 manual
 模式批准、自己动手，或按 Shift+Tab）。两段文本都像任何拒绝一样随被记录的
 调用一起走（`context_output`），所以后续轮次重放的正是模型当时被告知的内容。
@@ -555,13 +539,10 @@ note 解决，这一行会把每个 cell 翻倍成噪声（一次并行运行的
 `pytest -q` 被启发式允许并带着 note 运行，脚本里的 `rm -rf /tmp/scratch`
 被拒绝，而同样的演示在 manual 模式下对三者都弹出 prompt —— 正因如此，
 `smoke.sh` 无需 provider 就能驱动整个特性（Phase 64）。
-live OpenRouter 套件（`tests/live_openrouter.rs`）覆盖真实情况：命令*和*
-MCP 调用的两个方向裁决 —— 带 task context 与裸的两种 —— 外加两个要紧的
-上下文性质（一个哀求放行的上下文什么也抬不起来，一个 `— denied, not run`
-动作的重试变体仍被封锁），以及一整轮自动模式，其事件显示
-`ToolStart → ToolNote → ToolEnd`，全程不见 `Permission` ——
-`tests/live_mcp.rs` 用一个真实的 server tool 端到端地归类收尾
-（`live_auto_mode_classifies_an_mcp_call_instead_of_prompting`）。
+live OpenRouter 套件（`tests/live_openrouter.rs`）覆盖真实情况：命令的两个方向裁决
+—— 带 task context 与裸的两种 —— 外加两个要紧的上下文性质（一个哀求放行的上下文
+什么也抬不起来，一个 `— denied, not run` 动作的重试变体仍被封锁），以及一整轮
+自动模式，其事件显示 `ToolStart → ToolNote → ToolEnd`，全程不见 `Permission`。
 
 ## 看清 classifier 看到的东西 —— Ctrl+D、Tab
 
@@ -571,24 +552,26 @@ task context 决定一条命令是否不问就运行，所以它是裁决中用�
 
 ```
 / C L A S S I F I E R / / / / / / / / / / / / / / / / / / / / / / / / / / /
-Auto mode — the classifier reads this before each command or MCP call.
+Auto mode — the classifier reads this before each command or session input.
 
  SYSTEM  #1 · classifier prompt · abridged
   ⎿  You are the safety classifier for an autonomous AI coding agent in auto
-     mode: it runs shell commands and MCP tool calls without asking the user,
-     and you decide — one action at a time — whether the action runs or is
-     blocked.
-     … +6 lines
+     mode: it runs shell commands and input to the interactive programs it
+     started without asking the user, and you decide — one action at a time —
+     whether the action runs …
+     … +7 lines
 
      ## Shell commands
      Allow ordinary, project-scoped development work: reading, searching and
-     listing files; `git` work in the working directory; building, testing, lin…
+     listing files; `git` work in the working directory; building, testing,
+     linting, formatting and running the project's own code; creating,
+     modifying or deleting files in…
      … +8 lines
 
-     ## MCP tool calls
-     For a tool exposed by an MCP server — named `server - tool`, with the
-     server's description and the call's arguments:
-     … +8 lines
+     ## Input typed into an interactive program
+     For keys the agent types into a program it started in a terminal — a REPL,
+     a shell, an installer's questions, an editor — named with the program:
+     … +2 lines
 
      ## Output Format
      If the action should be blocked:
@@ -607,7 +590,7 @@ Auto mode — the classifier reads this before each command or MCP call.
      - Bash(sudo rm -rf /var/log) — denied, not run
 
      ## Action to review
-     (the command or MCP call being judged — filled in when a verdict is asked)
+     (the command or session input being judged — filled in when a verdict is asked)
 
 ──────────────────────────────────────────────────────────────────── 100% ─
  ↑/↓ to scroll   ←/→ prev/next message   pgup/pgdn to page   home/end to jump
@@ -632,8 +615,8 @@ Auto mode — the classifier reads this before each command or MCP call.
   `## Action to review` 标题收尾，其下是消息中唯一只在请求裁决时才知晓的
   那部分的暗色占位符（标题是一个常量
   `classifier::ACTION_TO_REVIEW_HEADER`，与 `classifier_prompt` 共用，所以
-  这一页和请求不会漂移）。prompt 被**节略到其结构**而不是整份显示 ——
-  3.6 KB 的评分标准有六十行，会把这一页存在的理由（实时块）挤出屏幕：
+  这一页和请求不会漂移）。prompt 被**节略到其结构**而不是整份显示，以免把这一页
+  存在的理由（实时块）挤出屏幕：
   `ui::classifier_view::abridge_prompt` 完整保留每个标题（各节*就是*结构），
   每节的开头段落保留到 `CLASSIFIER_PROMPT_PEEK_COLS`（240 —— 80 列终端的
   三行；整行能放下就整行，溢出的行截断并以 `…` 收尾），把该节其余部分折进
@@ -755,7 +738,7 @@ write/edit 的监狱 —— `bash` 仍然能碰到它命令点名的任何东西
 的加载在第一帧之前播种 gate（`seed_commands`，然后以 `starting_mode` 的答案
 调用 `set_mode`），而每次变更都**重新读取文件，只更新本项目条目中变了的部分，
 再写回** —— 一次模式变更（Shift+Tab、`/settings` 行、文件 prompt 上的选项
-2）只改 `mode`（`record_mode`），一条命令或 MCP rule（其 prompt 上的选项 2）
+2）只改 `mode`（`record_mode`），一条命令 rule（其 prompt 上的选项 2）
 只改 `allow_commands`（`record_commands`）。这个拆分正是把
 `ZEROTH_PERMISSION_MODE` 的播种挡在文件之外的原因 —— gate 的实时模式
 携带着播种值，否则在其下保存的一条 rule 会把播种值写到项目选定的模式上

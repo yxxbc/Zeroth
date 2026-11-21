@@ -323,9 +323,9 @@ pub struct AgentRun {
     /// The **newest call** the agent started — what the sticky
     /// `{Name}: {detail}` activity row is built from ([`activity`] /
     /// [`activity_shown`], over `activity_line`: a `bash` call's
-    /// model-supplied `description`, else its args summary; an MCP call as
-    /// `{Server}: {tool}`). Kept until the *next* tool starts, so the tree
-    /// row shows what the agent is doing (or just did) rather than dropping
+    /// model-supplied `description`, else its args summary). Kept until the
+    /// *next* tool starts, so the tree row shows what the agent is doing
+    /// (or just did) rather than dropping
     /// to a generic `Working…` between calls (`docs/agents/agent-tool.md`). The
     /// record as it came: a file tool's path is the model's own, shown by
     /// the session's rule only when the row is painted.
@@ -663,7 +663,7 @@ impl AgentRun {
                         arguments: None,
                         approval_note: None,
                         // A subagent's parallel calls are not aggregated: its
-                        // session view keeps a cell per call (`docs/tools/mcp.md`).
+                        // session view keeps a cell per call.
                         batch: None,
                         call_id: item.call_id.clone(),
                         position: None,
@@ -1453,7 +1453,7 @@ impl AgentRun {
 /// (`activity_line`) reads, kept as they came.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentCall {
-    /// The display name (`Write`, `Bash`, an MCP `server - tool (MCP)`).
+    /// The display name (`Write`, `Bash`, `WebSearch`).
     pub name: String,
     /// The one-line args summary — a file tool's path, a command, JSON.
     pub args: String,
@@ -1466,19 +1466,10 @@ pub struct AgentCall {
 /// description when it gave one (`Bash: Fetching current weather…`), else the
 /// call's args summary (`Write: game.py` — never the cell header's
 /// `Write({args})`, whose parens read as clutter on a dim clipped one-liner).
-/// An MCP call's display name is a mouthful for that row, so it leads with
-/// the **capitalized server** over the tool instead (`Deepwiki:
-/// ask_question`); a call with nothing to say after the colon is the bare
-/// name.
+/// A call with nothing to say after the colon is the bare name.
 fn activity_line(name: &str, args: &str, detail: Option<&str>) -> String {
     if let Some(detail) = detail {
         return format!("{name}: {detail}");
-    }
-    if let (Some(server), Some(tool)) = (
-        crate::mcp::display_server(name),
-        crate::mcp::display_tool(name),
-    ) {
-        return format!("{}: {tool}", crate::mcp::capitalize_server(server));
     }
     // One dim clipped row: a `bash` summary keeps the command's newlines and
     // space runs for the cell header, flattened here to the row's one line.
@@ -3702,23 +3693,6 @@ mod tests {
             arguments: None,
         }));
         assert_eq!(run.activity(), "TaskList");
-    }
-
-    #[test]
-    fn an_mcp_calls_activity_leads_with_the_server_name() {
-        // An MCP call's display name (`deepwiki - ask_question (MCP)`) is a
-        // mouthful for a clipped dim row: the activity shows the capitalized
-        // server over the tool instead — `Deepwiki: ask_question`
-        // (`docs/agents/agent-tool.md`).
-        let mut run = AgentRun::new("a1", "d", GENERAL_PURPOSE, "p", false);
-        assert!(!run.apply(&StreamEvent::ToolStart {
-            call_id: None,
-            name: "deepwiki - ask_question (MCP)".into(),
-            args: "{\"repoName\":\"facebook/react\"}".into(),
-            detail: None,
-            arguments: None,
-        }));
-        assert_eq!(run.activity(), "Deepwiki: ask_question");
     }
 
     #[test]

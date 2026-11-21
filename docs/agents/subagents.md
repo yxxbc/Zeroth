@@ -24,7 +24,7 @@ changes about the run.
 name: explore
 description: Read-only search agent for broad fan-out searches …
 model: inherit
-tools: Bash, Read, Skill, mcp__*
+tools: Bash, Read, Skill
 ---
 
 You are Zeroth's explore subagent. …
@@ -35,7 +35,7 @@ You are Zeroth's explore subagent. …
 | `name` | optional | the type the model passes as `subagent_type`. Defaults to the file stem, so `reviewer.md` needs no `name:` |
 | `description` | **required** | the one-line pitch the model chooses from — it is the whole basis for picking a type, so a file without one is refused |
 | `model` | optional | a provider model id (`kimi-k3`) run this type on, or `inherit` for the session's own model. The seeded files say `inherit` rather than omitting it: the key is then *there* to edit |
-| `tools` | optional | comma-separated allowlist. **Omit for every tool.** Built-ins are Capitalized (`Bash`, `Read`, `Write`, `Edit`, `Skill`); MCP tools keep their wire spelling (`mcp__deepwiki__ask_question`), and a trailing `*` globs (`mcp__deepwiki__*`, `mcp__*`) |
+| `tools` | optional | comma-separated allowlist. **Omit for every tool.** Built-ins are Capitalized (`Bash`, `Read`, `Write`, `Edit`, `Skill`); native web tools use their wire names (`web_search`, `web_fetch`), and a trailing `*` globs (`web_*`) |
 | body | optional | **the subagent's system prompt**, replacing the `prompts/zeroth.md` persona for this type. Omit it and the type runs the session's own persona |
 
 Unknown keys are ignored, not rejected (the `SKILL.md` rule): an agent file
@@ -91,8 +91,8 @@ property the tool depends on, not a convenience.
 
 `llm::backend::spawn_subagent_run` resolves the definition once, at launch:
 
-- **tools** — `subagent_tool_specs(def)` filters `bash`/`read`/`write`/`edit`,
-  the `skill` spec, and every connected MCP tool through
+- **tools** — `subagent_tool_specs(def)` filters the built-in tools, including
+  `bash`/`read`/`write`/`edit`, `web_search`/`web_fetch`, and the `skill` spec through
   `AgentTools::allows`. `agent` is never in the set, whatever the file says:
   agents don't nest. The same predicate guards the **executor**, not just the
   offered specs: a model can name a tool it was never given (some providers
@@ -139,7 +139,7 @@ The following skills are available for use with the Skill tool:
 Available agent types for the Agent tool:
 
 - general-purpose: General-purpose agent for researching complex questions … (Tools: *)
-- explore: Read-only search agent … (Tools: Bash, Read, Skill, mcp__*)
+- explore: Read-only search agent … (Tools: Bash, Read, Skill)
 </system-reminder>
 ```
 

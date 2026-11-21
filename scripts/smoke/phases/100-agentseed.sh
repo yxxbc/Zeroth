@@ -52,7 +52,7 @@ if ! grep -q "^# \`tools:\`" "$AG_CFG/agents/general-purpose.md" 2>/dev/null; th
 	fail "the seeded default does not document the tools key"
 fi
 # explore is the read-only one: its allowlist leaves Write and Edit out.
-if ! grep -q "^tools: Bash, Read, Skill, mcp__\*" "$AG_CFG/agents/explore.md" 2>/dev/null; then
+if ! grep -q "^tools: Bash, Read, Skill$" "$AG_CFG/agents/explore.md" 2>/dev/null; then
 	fail "explore.md is not the read-only allowlist"
 fi
 
