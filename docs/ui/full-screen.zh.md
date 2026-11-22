@@ -60,39 +60,49 @@ session 视图保留自己的 strip 预览 —— 它的流是它自己的一列
 
 ### viewport 接缝
 
-`InlineViewport` 多了一个兄弟，而调用点看到的是一个 `Screen` 值（一个 enum，
-不是 `dyn` trait —— 绘制方法收一个闭包）：
+三种模式是**同一个 viewport 之上的一个 enum** —— 是 enum 而不是 `dyn` trait，因为
+恰好三个分支、分派就是一次 `match`（`src/tui/screen.rs`，`core-host-split.md`
+第 2 阶段）：
 
 ```rust
-enum Screen {
-    Inline(InlineViewport),
-    Full(FullViewport),
+enum ScreenMode {
+    Inline,
+    Full,
+    Headless,
 }
 
-impl Screen {
-    /// Show `lines` as part of the conversation. Inline: commit into
-    /// scrollback (`insert_before`). Full: no-op — history already holds it.
-    fn commit(&mut self, lines: Vec<Line<'static>>) -> io::Result<()>;
-    /// Reseat before a commit (inline) / no-op.
-    fn set_view_height(&mut self, height: u16) -> io::Result<()>;
-    /// The caller composes a region: inline paints the live region at the
-    /// bottom; full paints its whole frame and places that region in it.
-    fn draw(&mut self, render: impl FnOnce(Rect, &mut Buffer)) -> io::Result<()>;
-    /// An app-owned page: inline opens an alt-screen overlay; full paints the
-    /// same page into its frame.
-    fn draw_overlay(&mut self, render: impl FnOnce(Rect, &mut Buffer)) -> io::Result<()>;
-    fn exit_overlay(&mut self) -> io::Result<()>;
-    fn suspend(&mut self) -> io::Result<()>;
-    fn resume(&mut self) -> io::Result<()>;
-    fn restore(&mut self) -> io::Result<()>;
+struct Screen<'t> {
+    viewport: &'t mut InlineViewport,
+    mode: ScreenMode,
+}
+
+impl Screen<'_> {
+    fn is_full(&self) -> bool;
+    fn is_headless(&self) -> bool;
+    /// Only the screen-owning frame has a hit map and a pointer.
+    fn accepts_pointer(&self) -> bool;
+    /// Inline and headless paint the bottom live region.
+    fn draw_region(&mut self, height: u16, render: impl FnOnce(Rect, &mut Buffer), app: &App)
+        -> io::Result<()>;
+    /// The screen-owning mode paints its whole frame from the conversation tail.
+    fn draw_frame(
+        &mut self,
+        tail: &[Line<'static>],
+        height: u16,
+        scrollbar: &[ScrollbarCell],
+        render: impl FnOnce(Rect, &mut Buffer),
+        app: &App,
+    ) -> io::Result<()>;
 }
 ```
 
-TUI 的处理函数本来就把自己的 scrollback 写入收束到少数几个 `Session` 方法上
-（`commit_tool_cell`、`flush_segment`、`insert_before`、`reflow`、
-`overlay_return_repaint`……）。在全屏模式下，这些提交方法变成空操作（`history`
-里的记录就是那一帧的来源），而每一帧都从状态重建。这就让处理函数和事件契约保持
-不动；模式切换发生在边界上，而不是散进每一个 `if fullscreen`。
+`Session` 持有 `Screen` 而不是 viewport，调用点问它：`is_full` 代替 viewport 的
+`full` 标志、鼠标处理前问 `accepts_pointer`、两种绘制形状走 `draw_region` /
+`draw_frame`。剩下的 viewport 调用（提交、overlay、reflow、光标查询）仍经 `Deref`
+到达；第 3 阶段给它们各自的方法。全屏模式下提交在
+`InlineViewport::insert_before` 里面本来就是空操作，而帧每次绘制都从状态重建 ——
+处理函数和事件契约一点没动。
+
 
 ### 那一帧
 

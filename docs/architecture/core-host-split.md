@@ -2,10 +2,10 @@
 
 Date: 2026-11-23
 
-Status: **proposal**. Phase 1 is a small, independently mergeable slice; nothing
-past it starts without the trigger named below and the user's go-ahead. The
-decision this plan extends — and deliberately does **not** overturn — is
-[`core-seam-decision.md`](core-seam-decision.md).
+Status: **in progress**. Phase 1 (`ConversationView`) and Phase 2 (the `Screen`
+seam) are done (2026-11-23). Phase 3 waits on the user's go-ahead; Phase 4 also
+needs its product trigger. The decision this plan extends — and deliberately
+does **not** overturn — is [`core-seam-decision.md`](core-seam-decision.md).
 
 ## The question
 
@@ -76,7 +76,7 @@ Workspace            the session table, the one terminal, the one runtime
 Each phase is one or a few commits, buildable and shippable on its own. A phase
 does not start until the one before it is green on CI and in the smoke suite.
 
-### Phase 1 — `ConversationView` (the first slice, mergeable now)
+### Phase 1 — `ConversationView` (done 2026-11-23)
 
 **What**: move the 23 full-screen view fields — and, while here, the
 screen-agnostic renderers (`render`, `agent_render`, `transcript`, `context`),
@@ -117,7 +117,7 @@ the wire's URLs). `src/ui` untouched.
 
 **Rollback**: one `git revert`; nothing is persisted, no format changes.
 
-### Phase 2 — the `Screen` seam
+### Phase 2 — the `Screen` seam (done 2026-11-23)
 
 **What**: `Session` stops naming `InlineViewport`. A small `Screen` enum
 (`Inline`, `Full`, `Headless`) implements `commit`, `draw_frame`,
@@ -134,7 +134,11 @@ places.
 **Files**: `src/tui/screen.rs` (new), `src/term.rs` (the viewport's public
 surface narrows to what the enum needs), `src/tui/mod.rs`, `src/tui/view.rs`,
 `src/tui/actions.rs`, `src/tui/bootstrap.rs`, `src/tui/startup.rs`,
-`src/main.rs` (construct the variant).
+`src/main.rs` (construct the variant). **As landed**: one enum over the same
+viewport, `is_full`/`is_headless`/`accepts_pointer` plus `draw_region`/
+`draw_frame` dispatch; the six production `fullscreen()` branches and the
+`Session::headless` field are gone. The remaining viewport calls still reach it
+through `Deref` — Phase 3 gives them methods.
 
 **Invariants at risk**: one stdin reader, created after the init cursor query
 (invariant 1); the inline mode's two-way resize reflow (invariant 3); the

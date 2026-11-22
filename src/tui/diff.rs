@@ -65,7 +65,7 @@ impl Session<'_> {
                 match result {
                     Ok(()) => {
                         self.app.open_diff_review();
-                        self.term.enter_overlay()?;
+                        self.screen.enter_overlay()?;
                         self.load_diff_review();
                         self.draw_diff_review()?;
                     }
@@ -101,15 +101,15 @@ impl Session<'_> {
 
     pub(crate) fn close_diff_review(&mut self) -> io::Result<()> {
         self.diff_generation = self.diff_generation.wrapping_add(1);
-        self.term.exit_overlay()?;
+        self.screen.exit_overlay()?;
         self.overlay_return_repaint()
     }
 
     pub(crate) fn draw_diff_review(&mut self) -> io::Result<()> {
         self.app
-            .settle_diff_scroll(ui::diff_body_rows(self.term.screen()));
+            .settle_diff_scroll(ui::diff_body_rows(self.screen.screen()));
         let app = &self.app;
-        self.term
+        self.screen
             .draw_overlay(|area, buf| ui::render_diff_view(app, area, buf))
     }
 }

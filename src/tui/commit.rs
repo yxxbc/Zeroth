@@ -66,7 +66,7 @@ impl Session<'_> {
         // A headless run shows nothing: what an error toast would have said
         // is a warning on stderr instead, and an info toast is the step
         // log's (`--verbose`, docs/cli/headless.md).
-        if self.headless {
+        if self.screen.is_headless() {
             let error = kind == ToastKind::Error;
             let line = zeroth::headless::toast_line(&text.into(), error, self.headless_verbose);
             super::headless::write(line.as_slice());
@@ -113,9 +113,9 @@ impl Session<'_> {
         };
         if committing && !lines.is_empty() {
             let height = self.live_region_height();
-            self.term.set_view_height(height);
-            self.term.insert_before(lines);
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.set_view_height(height);
+            self.screen.insert_before(lines);
+            self.screen.insert_before(vec![Line::default()]);
         }
         true
     }
@@ -143,9 +143,9 @@ impl Session<'_> {
         // The group's live cell leaves the strip as its line commits, so the
         // viewport is reseated first (invariant 3).
         let height = self.live_region_height();
-        self.term.set_view_height(height);
-        self.term.insert_before(lines);
-        self.term.insert_before(vec![Line::default()]);
+        self.screen.set_view_height(height);
+        self.screen.insert_before(lines);
+        self.screen.insert_before(vec![Line::default()]);
     }
 
     /// Record a hook note and commit its cell — the `● Ran 1 Stop hook`
@@ -171,9 +171,9 @@ impl Session<'_> {
         self.app.record_hook_note(label, text, report);
         if committing && let Some(lines) = cell {
             let height = self.live_region_height();
-            self.term.set_view_height(height);
-            self.term.insert_before(lines);
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.set_view_height(height);
+            self.screen.insert_before(lines);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 
@@ -184,23 +184,23 @@ impl Session<'_> {
     /// recorder). Only reached in the conversation view, so it never writes the
     /// alternate screen.
     fn commit_notice(&mut self, role: Role, record: fn(&mut App, &str), text: &str) {
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let committing = self.commits_allowed();
         // A notice is no part of an open read/search group (docs/ui/tool-groups.md).
         self.close_tool_group(committing, width);
         if let Some(segment) = self.app.flush_streaming_segment()
             && committing
         {
-            self.term
+            self.screen
                 .insert_before(self.view.render.finish(&segment, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
             self.view.render.reset();
         }
         record(&mut self.app, text);
         if committing {
-            self.term
+            self.screen
                 .insert_before(ui::message_lines(role, text, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 
@@ -249,13 +249,13 @@ impl Session<'_> {
         if !self.commits_allowed() {
             return;
         }
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let height = self.live_region_height();
-        self.term.set_view_height(height);
+        self.screen.set_view_height(height);
         if let Some(partial) = partial {
-            self.term
+            self.screen
                 .insert_before(self.view.render.finish(&partial, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
         // Every call the death resolved — the running one and each `⎿
         // Waiting…` sibling behind it — in the batch's order
@@ -270,20 +270,20 @@ impl Session<'_> {
             self.app.path_display(),
         );
         if !lines.is_empty() {
-            self.term.insert_before(lines);
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(lines);
+            self.screen.insert_before(vec![Line::default()]);
         }
         // The agent group the death resolved (its members marked interrupted) —
         // the red tree cell, before the notice (docs/agents/agent-tool.md).
         if let Some(group) = agents {
-            self.term
+            self.screen
                 .insert_before(ui::agent_group_lines(&group, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
         if let Some(notice) = notice {
-            self.term
+            self.screen
                 .insert_before(ui::message_lines(Role::Error, notice, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 
@@ -295,14 +295,14 @@ impl Session<'_> {
     pub(crate) fn commit_turn_summary(&mut self, summary: TurnSummary) {
         self.app.record_turn_summary(summary);
         if self.commits_allowed() {
-            let width = self.term.screen().width;
-            self.term.insert_before(ui::review_turn_summary_lines(
+            let width = self.screen.screen().width;
+            self.screen.insert_before(ui::review_turn_summary_lines(
                 &self.app.history,
                 self.app.history.len() - 1,
                 width,
                 self.app.path_display(),
             ));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 }

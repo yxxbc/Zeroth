@@ -43,7 +43,7 @@ core/host 拆分把对话移出终端：
 按成本从高到低大致是：
 
 1. **`App` 是一个对话。** `history`、私有的 `streaming`、`queued` 和 composer 的 `input` 都直接挂在它上面。N 个对话要么每个对话一个 `App`（外加容器），要么把这几块收进 `App` 拥有的 `Conversation`。所有渲染和决策都读这些字段之一。
-2. **`Session<'t>` 借用 `&'t mut InlineViewport`。** 终端的生命周期就是会话的生命周期。[`full-screen.md`](../ui/full-screen.md) 里设计的 `Screen` 接缝没有落地：`term` 带着一个 `full` 标志和分支，循环在每个调用点读 `fullscreen()`。第二个前端需要那条接缝真的存在。
+2. **`Session<'t>` 借用屏幕的生命周期。** 终端的生命周期就是会话的生命周期 —— 这一点仍然成立，是第 3 阶段的事。[`full-screen.md`](../ui/full-screen.md) 里设计的 `Screen` 接缝**已经落地**（`core-host-split.md` 第 2 阶段）：`Session` 持有一个 `Screen`（inline / 全屏 / 无头），TUI 问它 —— `is_full`、`accepts_pointer`、`draw_region`、`draw_frame` —— 而不是在每个调用点读 viewport 的 `full` 标志。
 3. **全屏视图状态在 `Session` 上。** tail 缓存、滚动锚点、选择、hover、命中图、展开集合和置顶输入都是存在唯一 app 旁边的每窗格状态。窗格模型必须能由 `App` 加一个尺寸重建，就像内联 viewport 现在这样。
 4. **`Session` 是 `!Send`。** 文档记录的原因是 `syntect` 的 `onig` 原始指针跨 await。每会话一线程绕开了它；daemon 或共享 async runtime 得先改高亮器。
 5. **进程级假设是分散的。** `palette::ACTIVE` 是 `thread_local`，`OVERLAY_ACTIVE` 是 `static` 原子，而信号、MCP manager 和 provider client 都是每会话一份。批量能成立，是因为每个会话拥有自己的线程；多对话 TUI 会共享它们。
@@ -82,7 +82,7 @@ core/host 拆分把对话移出终端：
 
 ## 真要做时的路径
 
-1. **`Screen` 接缝。** `Session` 不再点名 `InlineViewport`；内联、全屏和 headless 三条路径实现同一个很小的接口（`commit`/`draw`/`draw_overlay`/`restore`）。完成的标准是循环不再在 `fullscreen()` 上分支。
+1. **`Screen` 接缝 —— 已完成**（`core-host-split.md` 第 2 阶段）。`Session` 不再点名 `InlineViewport`；内联、全屏和 headless 三条路径是一个 enum（`commit`/`draw_region`/`draw_frame`/`draw_overlay`/`restore` 在它后面）。循环不再在 `fullscreen()` 上分支；剩下的 viewport 调用经由接缝走到第 3 阶段给它们各自的方法。
 2. **每对话一个视图对象。** 全屏缓存从 `Session` 移到每个对话一个的值里，由 `App` 加一个尺寸重建。完成的标准是不碰事件循环也能构造第二个视图。
 3. **拆 `App`。** `history`、`streaming`、`queued` 和 `input` 移进 `Conversation`；`App` 拥有一个或多个。完成的标准是 `-p --jobs` 能复用同一类型，TUI 能持有 N 个。
 4. **TUI 客户端。** 一个会话切换器和它背后的 transport（#28）。完成的标准是第二个对话在跑回合时，第一个仍在正常绘制 —— 也就是批量已经实测过的线程形状。

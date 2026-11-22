@@ -119,7 +119,7 @@ impl Session<'_> {
                 // ("Working… (… tokens)") instead of the committed
                 // "Done for Ns" summary.
                 if self.app.view != View::Conversation {
-                    self.term.exit_overlay()?;
+                    self.screen.exit_overlay()?;
                     self.overlay_return_repaint()?;
                 }
                 // A `/login` device flow's worker parks on a poll for minutes;
@@ -404,7 +404,7 @@ impl Session<'_> {
     /// the inline viewport (its history is the terminal's scrollback) or before
     /// the first frame has measured the painted tail.
     fn scroll_full(&mut self, scroll: Scroll) {
-        if !self.term.fullscreen() || self.view.full_len == 0 {
+        if !self.screen.accepts_pointer() || self.view.full_len == 0 {
             return;
         }
         let conv = self.view.full_conv_h;
@@ -432,7 +432,7 @@ impl Session<'_> {
     /// the escape hatch on terminals that keep it), and a left click with no
     /// drag opens the link under the pointer.
     fn on_mouse(&mut self, mouse: MouseEvent) -> std::io::Result<()> {
-        if !self.term.fullscreen() {
+        if !self.screen.accepts_pointer() {
             return Ok(());
         }
         // The permission prompt takes the pointer before anything else: it is
@@ -538,7 +538,7 @@ impl Session<'_> {
         // A left click in the composer places the caret there — the one
         // live-region click the mode supports so far (`docs/ui/full-screen.md`).
         if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
-            let screen = self.term.screen();
+            let screen = self.screen.screen();
             let height = self.live_region_height();
             // The composer lives in the conversation's width: the sidebar's
             // column is not the live region (`docs/ui/sidebar.md`), so a click
@@ -721,7 +721,7 @@ impl Session<'_> {
     /// because it tracks the window, not the whole conversation area
     /// (`InlineViewport::draw_full_with_tail`).
     fn full_bar_row(&self, mouse: &MouseEvent) -> Option<u16> {
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         let rest = screen
             .width
             .saturating_sub(ui::sidebar_columns(&self.app, screen.width));
@@ -786,7 +786,7 @@ impl Session<'_> {
         if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
             return Ok(());
         }
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         let area = ratatui::layout::Rect::new(0, 0, screen.width, screen.height);
         let Some(index) = ui::resume_row_at(&self.app, area, mouse.row, mouse.column) else {
             return Ok(());
@@ -892,13 +892,13 @@ impl Session<'_> {
         // just settled included — above the interrupt's remains
         // (docs/ui/tool-groups.md).
         let committing = self.commits_allowed();
-        self.close_tool_group(committing, self.term.screen().width);
+        self.close_tool_group(committing, self.screen.screen().width);
         self.abandon_inflight();
         // The interrupt takes a live foreground agent group down with it, and
         // a member may be the conversation on screen — the `Error` arm's rule
         // (`docs/agents/agent-view-streaming.md`). A no-op with no agent view open,
         // which is the ordinary case: Esc inside one leaves the view instead.
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let owed = self.begin_turn_agent_settle(width);
         // Interrupt only arises in the conversation view (overlay Esc returns
         // instead), so nothing here touches the alternate screen.
@@ -1054,7 +1054,7 @@ impl Session<'_> {
     /// screen, duplicating the TUI text. Only the inline view reflows; the overlay
     /// just redraws at the new size (reflowing would write the alternate screen).
     fn on_resize(&mut self, width: u16, height: u16) -> std::io::Result<()> {
-        let size_changed = self.term.resized(width, height);
+        let size_changed = self.screen.resized(width, height);
         if size_changed && self.app.view == View::Conversation {
             self.view.full_tab_press = None;
             // A resize under an open permission prompt reseats it with this
@@ -1156,7 +1156,7 @@ impl Session<'_> {
         // Consume the overlay-resized flag (a resize under the overlay must not
         // leak to the next return); we purge unconditionally below anyway.
         self.overlay_resized = false;
-        self.term.exit_overlay()?;
+        self.screen.exit_overlay()?;
         // (The transcript cache needs no explicit clear: the truncation bumped
         // the history generation, so the loop-bottom warm rebuilds the kept
         // prefix.)

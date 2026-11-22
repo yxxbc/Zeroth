@@ -65,11 +65,13 @@ In rough order of cost:
    and the composer `input` live directly on it. N conversations means either
    one `App` per conversation (and a container) or a `Conversation` struct that
    `App` owns. Everything that renders or decides reads one of these fields.
-2. **`Session<'t>` borrows `&'t mut InlineViewport`.** The terminal's lifetime
-   is the session's lifetime. The `Screen` seam designed in
-   [`full-screen.md`](../ui/full-screen.md) was not implemented: `term` carries a
-   `full` flag and branches, and the loop reads `fullscreen()` at each call
-   site. A second frontend needs that seam to exist for real.
+2. **`Session<'t>` borrows the screen's lifetime.** The terminal's lifetime is
+   the session's lifetime — still true, and Phase 3's business. The `Screen`
+   seam designed in [`full-screen.md`](../ui/full-screen.md) **has since
+   landed** (`core-host-split.md` Phase 2): `Session` holds a `Screen`
+   (inline / full-screen / headless) and the TUI asks it — `is_full`,
+   `accepts_pointer`, `draw_region`, `draw_frame` — instead of reading the
+   viewport's `full` flag at each call site.
 3. **Full-screen view state lives on `Session`.** The tail cache, scroll anchor,
    selection, hover, hit map, expanded set and pinned prompt are all per-pane
    state stored beside the one app. A pane model has to be reconstructible from
@@ -139,10 +141,12 @@ The absence of a trigger is the answer: keep deferring.
 
 ## The path when it happens
 
-1. **The `Screen` seam.** `Session` stops naming `InlineViewport`; the inline,
-   full-screen and headless paths implement one small interface
-   (`commit`/`draw`/`draw_overlay`/`restore`). Done when the loop no longer
-   branches on `fullscreen()`.
+1. **The `Screen` seam — done** (`core-host-split.md` Phase 2). `Session` no
+   longer names `InlineViewport`; the inline, full-screen and headless paths
+   are one enum (`commit`/`draw_region`/`draw_frame`/`draw_overlay`/`restore`
+   behind it). The loop no longer branches on `fullscreen()`; the remaining
+   viewport calls are reached through the seam until Phase 3 gives them
+   methods of their own.
 2. **A per-conversation view object.** The full-screen caches move off `Session`
    into one value per conversation, rebuilt from `App` plus a size. Done when a
    second view can be constructed without touching the event loop.

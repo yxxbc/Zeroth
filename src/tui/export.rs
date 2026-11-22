@@ -35,7 +35,7 @@ impl Session<'_> {
     /// it there, then say what happened. The page is already closed (the
     /// pick is the whole point of it), so the toast lands over the composer.
     pub(crate) fn export_conversation(&mut self, target: ExportTarget) {
-        let text = ui::export_text(&self.app, self.term.screen().width);
+        let text = ui::export_text(&self.app, self.screen.screen().width);
         match target {
             ExportTarget::Clipboard => match clipboard::copy_to_clipboard(&text) {
                 Ok(lease) => {

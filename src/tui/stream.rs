@@ -63,7 +63,7 @@ impl Session<'_> {
         // withdraws back to (docs/providers/offline.md *A connection lost mid-reply*).
         // Every event, before it is folded.
         self.app.track_attempt(&event);
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let committing = self.commits_allowed();
         match event {
             StreamEvent::AgentBatch { background, agents } => {
@@ -96,10 +96,10 @@ impl Session<'_> {
                 let group = self.app.finish_agent_group(background, &agents);
                 if committing {
                     let height = self.live_region_height();
-                    self.term.set_view_height(height);
-                    self.term
+                    self.screen.set_view_height(height);
+                    self.screen
                         .insert_before(ui::agent_group_lines(&group, width));
-                    self.term.insert_before(vec![Line::default()]);
+                    self.screen.insert_before(vec![Line::default()]);
                 }
                 self.clocks.command_start = None;
                 false
@@ -118,7 +118,7 @@ impl Session<'_> {
                 }
                 if committing && let Some(text) = self.app.streaming_text() {
                     let lines = self.view.render.commit(text, width);
-                    self.term.insert_before(lines);
+                    self.screen.insert_before(lines);
                 }
                 false
             }
@@ -386,10 +386,10 @@ impl Session<'_> {
                     // The strip loses the pending row as the bubble lands, so
                     // reseat before committing (invariant 3).
                     let height = self.live_region_height();
-                    self.term.set_view_height(height);
-                    self.term
+                    self.screen.set_view_height(height);
+                    self.screen
                         .insert_before(ui::message_lines(Role::User, &text, width));
-                    self.term.insert_before(vec![Line::default()]);
+                    self.screen.insert_before(vec![Line::default()]);
                 }
                 false
             }
@@ -663,10 +663,10 @@ impl Session<'_> {
         ) {
             if committing {
                 let height = self.live_region_height();
-                self.term.set_view_height(height);
-                self.term
+                self.screen.set_view_height(height);
+                self.screen
                     .insert_before(ui::compaction_lines(&compaction, width));
-                self.term.insert_before(vec![Line::default()]); // blank spacer
+                self.screen.insert_before(vec![Line::default()]); // blank spacer
             }
             self.settle_bg_completions();
             self.view.render.reset();
@@ -697,11 +697,11 @@ impl Session<'_> {
             // stays flush at the bottom (instead of rising and leaving blank rows
             // beneath it).
             let height = self.live_region_height();
-            self.term.set_view_height(height);
+            self.screen.set_view_height(height);
             if let Some(text) = final_text {
-                self.term
+                self.screen
                     .insert_before(self.view.render.finish(&text, width));
-                self.term.insert_before(vec![Line::default()]); // blank spacer
+                self.screen.insert_before(vec![Line::default()]); // blank spacer
             }
         }
         // Settle before recording the summary — history-gated commit inside
@@ -756,7 +756,7 @@ impl Session<'_> {
             self.app.finish_reasoning(secs);
             return;
         }
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let committing = self.commits_allowed();
         // The text before the phase becomes its own history message, so the
         // thought slots after it in scrollback and history alike. Normally
@@ -779,10 +779,10 @@ impl Session<'_> {
         }
         if committing {
             let height = self.live_region_height();
-            self.term.set_view_height(height);
-            self.term
+            self.screen.set_view_height(height);
+            self.screen
                 .insert_before(ui::reasoning_lines(&reasoning, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 
@@ -804,9 +804,9 @@ impl Session<'_> {
         if let Some(segment) = self.app.flush_streaming_segment()
             && committing
         {
-            self.term
+            self.screen
                 .insert_before(self.view.render.finish(&segment, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 }

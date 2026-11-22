@@ -68,7 +68,7 @@ impl Session<'_> {
     /// user's `x` does — the session view committing what the stop recorded —
     /// but owing no notice, since the lead's own result reported the stop.
     fn on_agent_stopped_by_lead(&mut self, id: &str) {
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let on_screen = self.viewing_agent(id);
         let recorded = self.begin_local_agent_settle(id, width);
         if self.app.stop_agent_by_lead(id) {
@@ -103,7 +103,7 @@ impl Session<'_> {
         event: StreamEvent,
         settle: Option<(bool, u64)>,
     ) {
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         // A subagent's permission request is the *user's* business, not the
         // roster's: raise the same shared prompt the main turn does, and stop —
         // the agent's own state is untouched while it waits
@@ -353,9 +353,9 @@ impl Session<'_> {
     /// scrollback and left the render stale for the chat continuation that
     /// follows (`docs/agents/agent-view-streaming.md`).
     fn flush_agent_segment(&mut self, text: &str, width: u16) {
-        self.term
+        self.screen
             .insert_before(self.view.agent_render.finish(text, width));
-        self.term.insert_before(vec![Line::default()]);
+        self.screen.insert_before(vec![Line::default()]);
         self.view.agent_render.reset();
     }
 
@@ -475,10 +475,10 @@ impl Session<'_> {
             return;
         }
         let height = self.live_region_height();
-        self.term.set_view_height(height);
-        self.term
+        self.screen.set_view_height(height);
+        self.screen
             .insert_before(ui::reasoning_lines(&reasoning, width));
-        self.term.insert_before(vec![Line::default()]);
+        self.screen.insert_before(vec![Line::default()]);
     }
 
     /// Is `id`'s session the conversation currently on the inline screen?
@@ -550,10 +550,10 @@ impl Session<'_> {
             return;
         }
         let height = self.live_region_height();
-        self.term.set_view_height(height);
+        self.screen.set_view_height(height);
         for lines in owed {
-            self.term.insert_before(lines);
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(lines);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 
@@ -587,7 +587,7 @@ impl Session<'_> {
                 .and_then(|run| run.streaming.as_deref())
             {
                 let lines = self.view.agent_render.commit(text, width);
-                self.term.insert_before(lines);
+                self.screen.insert_before(lines);
             }
             return;
         }
@@ -597,10 +597,10 @@ impl Session<'_> {
         // here — after the cell the failure resolved, the main view's order.
         if let StreamEvent::Error(message) = event {
             let height = self.live_region_height();
-            self.term.set_view_height(height);
-            self.term
+            self.screen.set_view_height(height);
+            self.screen
                 .insert_before(ui::message_lines(Role::Error, message, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 
@@ -655,7 +655,7 @@ impl Session<'_> {
         // follows to carry its cell — so the session view commits what the
         // stop recorded, exactly as the fold does
         // (`docs/agents/agent-view-streaming.md`).
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let on_screen = self.viewing_agent(id);
         let recorded = self.begin_local_agent_settle(id, width);
         match self.app.stop_agent(id) {
@@ -760,13 +760,13 @@ impl Session<'_> {
                 // would drop the run's events and its notice.
                 self.drain_agent_events();
                 let resumed = self.app.agent_chat(id, text);
-                let width = self.term.screen().width;
+                let width = self.screen.screen().width;
                 if self.viewing_agent(id) {
                     let height = self.live_region_height();
-                    self.term.set_view_height(height);
-                    self.term
+                    self.screen.set_view_height(height);
+                    self.screen
                         .insert_before(ui::message_lines(Role::User, text, width));
-                    self.term.insert_before(vec![Line::default()]);
+                    self.screen.insert_before(vec![Line::default()]);
                 }
                 self.agent_clocks
                     .entry(id.to_string())

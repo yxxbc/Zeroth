@@ -43,7 +43,7 @@ impl Session<'_> {
     /// a failing request within one session.
     pub(crate) fn update_day_check(&mut self) {
         // A headless run has no card to show a newer release on.
-        if self.headless || !self.app.settings().update_check_active() {
+        if self.screen.is_headless() || !self.app.settings().update_check_active() {
             return;
         }
         if self.update_attempted.as_deref() == Some(host::utc_day().as_str()) {
@@ -144,17 +144,17 @@ impl Session<'_> {
     /// — `zeroth update`, or the package manager's that unpacked this
     /// binary under `node_modules`.
     fn commit_update_notice(&mut self, latest: &str) {
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         let manager = std::env::current_exe()
             .ok()
             .and_then(|exe| update::package_manager(&exe));
-        self.term.insert_before(ui::update_notice_lines(
+        self.screen.insert_before(ui::update_notice_lines(
             width,
             env!("CARGO_PKG_VERSION"),
             latest,
             &config::update_repo_url(),
             &update::update_command(manager),
         ));
-        self.term.insert_before(vec![Line::default()]);
+        self.screen.insert_before(vec![Line::default()]);
     }
 }

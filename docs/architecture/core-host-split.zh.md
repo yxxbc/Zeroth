@@ -2,9 +2,10 @@
 
 日期：2026-11-23
 
-状态：**提案**。第 1 阶段是一个可独立合入的小切片；在那之后的任何一步，都要等
-下面点名的触发条件成立、且用户点头之后才开始。本方案所延伸（并且刻意**不**推翻）
-的决策是 [`core-seam-decision.md`](core-seam-decision.md)。
+状态：**进行中**。第 1 阶段（`ConversationView`）和第 2 阶段（`Screen` 接缝）已
+完成（2026-11-23）。第 3 阶段等用户点头；第 4 阶段还要等它自己的产品触发条件。本
+方案所延伸（并且刻意**不**推翻）的决策是
+[`core-seam-decision.md`](core-seam-decision.md)。
 
 ## 问题
 
@@ -66,7 +67,7 @@ Workspace            the session table, the one terminal, the one runtime
 每个阶段是一个或几个 commit，能独立构建、独立发布。前一阶段在 CI 和 smoke 套件里
 绿了，后一阶段才开始。
 
-### 第 1 阶段 —— `ConversationView`（第一个切片，现在就能合）
+### 第 1 阶段 —— `ConversationView`（2026-11-23 完成）
 
 **做什么**：把 23 个全屏视图字段 —— 顺带把与屏幕无关的渲染器（`render`、
 `agent_render`、`transcript`、`context`）、帧的钉住/命中偏移和链接卡片预览 ——
@@ -102,7 +103,7 @@ Workspace            the session table, the one terminal, the one runtime
 
 **怎么回滚**：一次 `git revert`；没有落盘格式变化。
 
-### 第 2 阶段 —— `Screen` 接缝
+### 第 2 阶段 —— `Screen` 接缝（2026-11-23 完成）
 
 **做什么**：`Session` 不再点名 `InlineViewport`。一个小的 `Screen` enum（`Inline`、
 `Full`、`Headless`）实现 `commit`、`draw_frame`、`draw_overlay`、`suspend`、
@@ -115,7 +116,11 @@ Workspace            the session table, the one terminal, the one runtime
 
 **文件**：`src/tui/screen.rs`（新）、`src/term.rs`（viewport 的公开表面收窄到
 enum 需要的东西）、`src/tui/mod.rs`、`src/tui/view.rs`、`src/tui/actions.rs`、
-`src/tui/bootstrap.rs`、`src/tui/startup.rs`、`src/main.rs`（构造变体）。
+`src/tui/bootstrap.rs`、`src/tui/startup.rs`、`src/main.rs`（构造变体）。**实际落
+地**：同一个 viewport 之上的一个 enum，`is_full`/`is_headless`/
+`accepts_pointer` 加上 `draw_region`/`draw_frame` 分派；六个生产
+`fullscreen()` 分支和 `Session::headless` 字段都没了。剩下的 viewport 调用仍经
+`Deref` 到达 —— 第 3 阶段给它们方法。
 
 **有风险的不变量**：一个 stdin 读取者，且在初始化光标查询之后创建（不变量 1）；
 内联模式的双向 resize 重排（不变量 3）；overlay 重绘规则。每个都有 smoke 金丝雀

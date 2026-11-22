@@ -70,7 +70,6 @@ use zeroth::clipboard::ClipboardLease;
 use zeroth::frame::FrameRequester;
 use zeroth::paste::PasteBurst;
 use zeroth::stream::{CancelToken, StreamEvent};
-use zeroth::term::InlineViewport;
 
 use self::history_store::InputHistoryStore;
 use self::models::ModelSession;
@@ -104,6 +103,7 @@ pub(crate) mod models;
 pub(crate) mod permission;
 pub(crate) mod recorder;
 pub(crate) mod resume;
+pub(crate) mod screen;
 pub(crate) mod secrets;
 pub(crate) mod settings;
 pub(crate) mod shell;
@@ -129,9 +129,9 @@ pub(crate) mod workers;
 /// is what makes this a `'t` — `main.rs` keeps ownership so it can restore the
 /// terminal even if the loop returns an error.
 pub(crate) struct Session<'t> {
-    /// The custom inline viewport: scrollback commits, the live region, the
-    /// alternate-screen overlays.
-    term: &'t mut InlineViewport,
+    /// The one screen: the viewport plus which contract it is painting
+    /// through (`docs/architecture/core-host-split.md` Phase 2).
+    screen: screen::Screen<'t>,
     /// The pure conversation state — the only thing that *decides* anything.
     app: App,
     /// Who replies, and how (`docs/providers/llm.md`).
@@ -196,10 +196,6 @@ pub(crate) struct Session<'t> {
     /// open one: crossterm opens the controlling terminal as the stream is
     /// built (`docs/cli/headless.md`).
     events: Option<EventStream>,
-    /// Whether this session runs **headless** — `zeroth -p`, the same
-    /// session over a viewport that paints nowhere (`docs/cli/headless.md`):
-    /// nothing asked, nothing shown, toasts on stderr.
-    headless: bool,
     /// A headless run's `--verbose`: its info toasts reach stderr too, beside
     /// the errors every headless run reports (`docs/cli/headless.md` *Output*).
     headless_verbose: bool,

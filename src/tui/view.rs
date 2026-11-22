@@ -405,7 +405,7 @@ impl Session<'_> {
     /// post-stream commit can reserve that same idle height before flushing the
     /// final lines (see `InlineViewport::set_view_height`).
     pub(crate) fn live_region_height(&self) -> u16 {
-        live_region_height(&self.app, self.term.screen())
+        live_region_height(&self.app, self.screen.screen())
     }
 
     /// Write the live status's times onto `App` before a draw: how long the turn
@@ -479,7 +479,7 @@ impl Session<'_> {
     /// or `None` when nothing flows (`ui::view_flow`, `docs/ui/view-flow.md`).
     /// Capped like every purge-rebuild write.
     pub(crate) fn current_view_flow(&self) -> Option<ui::ViewFlow> {
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         ui::view_flow(
             &self.app,
             screen.width,
@@ -495,7 +495,7 @@ impl Session<'_> {
     /// clears it and returns the composer (`docs/ui/view-flow.md`). Cheap when
     /// no framed view is open and nothing is flowed (both sides `None`).
     pub(crate) fn view_flow_stale(&self) -> bool {
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         ui::view_flow_signature(
             &self.app,
             screen.width,
@@ -513,12 +513,12 @@ impl Session<'_> {
     pub(crate) fn modal_rebuild_due(&self) -> bool {
         ui::modal_needs_rebuild(
             ui::region_is_modal(&self.app),
-            self.term.modal_scrolled(),
-            self.term.painted_bottom(),
-            self.term.view_top(),
-            self.term.pending_rows(),
+            self.screen.modal_scrolled(),
+            self.screen.painted_bottom(),
+            self.screen.view_top(),
+            self.screen.pending_rows(),
             self.live_region_height(),
-            self.term.screen().height,
+            self.screen.screen().height,
         )
     }
 
@@ -547,7 +547,7 @@ impl Session<'_> {
     /// table on screen nowhere: withheld by the commit, one row of it in the
     /// strip (`docs/agents/agent-view-streaming.md`).
     fn stream_preview_lines(&mut self) -> Option<Vec<Line<'static>>> {
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         let max_rows = ui::stream_preview_max_rows(&self.app, screen.width, screen.height);
         let preview = match self.app.viewed_agent() {
             Some(run) => run
@@ -594,8 +594,8 @@ impl Session<'_> {
         // the conversation (`full_tail_lines`), so its strip previews nothing:
         // an empty preview with a zero-row budget, not the `None` fallback
         // (which renders the last line again).
-        let fullscreen = self.term.fullscreen();
-        let preview = if fullscreen {
+        let full = self.screen.is_full();
+        let preview = if full {
             self.app.set_stream_preview_rows(0);
             Some(Vec::new())
         } else {
@@ -605,9 +605,9 @@ impl Session<'_> {
         // The screen-owning mode paints the conversation and the live region
         // into one frame (`docs/ui/full-screen.md`); the inline mode keeps its
         // bottom-anchored region and scrollback commits.
-        if fullscreen {
+        if full {
             let tail = self.full_tail_lines();
-            let screen = self.term.screen();
+            let screen = self.screen.screen();
             let live_h = usize::from(height.min(screen.height));
             let conv_area = usize::from(screen.height).saturating_sub(live_h);
             // A click-to-expand rebuild pins the toggled item's first line to
@@ -681,7 +681,7 @@ impl Session<'_> {
             painted.extend(window);
             let app = &self.app;
             let mut hits = ui::SessionBarHits::default();
-            self.term.draw_full_with_tail(
+            self.screen.draw_frame(
                 &painted,
                 height,
                 &bar,
@@ -696,7 +696,7 @@ impl Session<'_> {
         let app = &self.app;
         // `term` places the cursor from the final (content-anchored) viewport
         // via `ui::cursor_position`, which mirrors render_live's layout exactly.
-        self.term.draw(
+        self.screen.draw_region(
             height,
             |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
             app,
@@ -709,7 +709,7 @@ impl Session<'_> {
     /// scrolls and repaints under the image and would leave it behind
     /// (`ui::header_lines_plain`).
     fn banner_lines(&self, width: u16) -> Vec<Line<'static>> {
-        if self.term.fullscreen() {
+        if self.screen.is_full() {
             ui::header_lines_plain(&self.app, width)
         } else {
             ui::header_lines(&self.app, width)
@@ -724,7 +724,7 @@ impl Session<'_> {
     /// rebuild would re-wrap every row under the reader
     /// (`docs/ui/sidebar.md`).
     fn full_text_width(&self) -> u16 {
-        let screen = self.term.screen().width;
+        let screen = self.screen.screen().width;
         screen
             .saturating_sub(ui::sidebar_columns(&self.app, screen))
             .saturating_sub(ui::SCROLLBAR_COLUMNS)
@@ -748,7 +748,7 @@ impl Session<'_> {
             &self.app,
             &mut self.view,
             width,
-            self.term.screen().width,
+            self.screen.screen().width,
             self.link_cards,
             &self.card_tx,
         );
@@ -897,7 +897,7 @@ impl Session<'_> {
     /// current screen first (so the last line can reach the bottom but not
     /// scroll past it), then paints the view onto the alternate screen.
     pub(crate) fn draw_tool_view(&mut self) -> io::Result<()> {
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         // An agent session view's Ctrl+O shows the *viewed agent's* transcript —
         // a fresh, bounded build (docs/agents/agent-tool.md); the main cache below is
         // untouched, so the ordinary open stays warm.
@@ -906,7 +906,7 @@ impl Session<'_> {
             self.app.settle_tool_scroll(max);
             let app = &self.app;
             return self
-                .term
+                .screen
                 .draw_overlay(|area, buf| ui::render_tool_view(area, buf, app, &lines));
         }
         // A backtrack preview open/step requested a scroll to its highlighted
@@ -931,7 +931,7 @@ impl Session<'_> {
         self.app.settle_tool_scroll(max);
         let app = &self.app;
         let transcript = &mut self.view.transcript;
-        self.term
+        self.screen
             .draw_overlay(|area, buf| transcript.render(area, buf, app))
     }
 
@@ -939,7 +939,7 @@ impl Session<'_> {
     /// (the transcript overlay's twin). See `docs/state/resume.md`.
     pub(crate) fn draw_resume_picker(&mut self) -> io::Result<()> {
         let app = &self.app;
-        self.term
+        self.screen
             .draw_overlay(|area, buf| ui::render_resume_picker(area, buf, app))
     }
 
@@ -958,7 +958,7 @@ impl Session<'_> {
         if self.app.debug_page == DebugPage::Classifier {
             return self.draw_classifier_page();
         }
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         let body = self.view.context.body(&self.app, screen.width);
         let max = ui::tool_view_max_scroll_for(body.lines.len(), screen.height);
         // A ←/→ press lands against the page as built — its width, its
@@ -966,7 +966,7 @@ impl Session<'_> {
         self.app.resolve_debug_jump(&body.headers, max);
         self.app.settle_debug_scroll(max);
         let app = &self.app;
-        self.term
+        self.screen
             .draw_overlay(|area, buf| ui::render_context_view(area, buf, app, body))
     }
 
@@ -995,13 +995,13 @@ impl Session<'_> {
             None => self.models.backend().classifier_context(),
         };
         self.app.set_classifier_context(context);
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         let body = ui::classifier_body(&self.app, screen.width);
         let max = ui::tool_view_max_scroll_for(body.lines.len(), screen.height);
         self.app.resolve_debug_jump(&body.headers, max);
         self.app.settle_classifier_scroll(max);
         let app = &self.app;
-        self.term
+        self.screen
             .draw_overlay(|area, buf| ui::render_context_view(area, buf, app, &body))
     }
 
@@ -1036,7 +1036,7 @@ impl Session<'_> {
             // opening over a flowed menu cleans the flow in the very rebuild
             // that seats the prompt).
             View::Conversation if self.view_flow_stale() || self.modal_rebuild_due() => {
-                let _ = self.term.take_modal_scrolled();
+                let _ = self.screen.take_modal_scrolled();
                 self.repaint_active_view()
             }
             View::Conversation => self.draw_conversation(),
@@ -1106,10 +1106,10 @@ impl Session<'_> {
     /// synchronized update. (`reflow` cleared the pending queue first, so the
     /// re-commit can never double up with pre-rebuild leftovers.)
     pub(crate) fn repaint_conversation(&mut self) -> io::Result<()> {
-        if self.term.fullscreen() {
+        if self.screen.is_full() {
             return self.draw_conversation();
         }
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         // The purge takes the encoded pictures with it, so a picture whose
         // file has gone since it was drawn — or since the conversation was
         // recorded — must not reserve its rows again (`docs/ui/images.md`).
@@ -1156,7 +1156,7 @@ impl Session<'_> {
             tail.extend(flow.lines);
         }
         let app = &self.app;
-        self.term.reflow(
+        self.screen.reflow(
             tail,
             height,
             |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
@@ -1173,7 +1173,7 @@ impl Session<'_> {
             && let Some(text) = self.app.streaming_text().filter(|text| !text.is_empty())
         {
             let lines = self.view.render.commit(text, screen.width);
-            self.term.insert_before(lines);
+            self.screen.insert_before(lines);
         }
         Ok(())
     }
@@ -1185,10 +1185,10 @@ impl Session<'_> {
     /// roster) painted below in the same synchronized frame. The in-flight
     /// partial commits through `agent_render` so later chunks append seamlessly.
     pub(crate) fn repaint_agent_view(&mut self) -> io::Result<()> {
-        if self.term.fullscreen() {
+        if self.screen.is_full() {
             return self.draw_conversation();
         }
-        let screen = self.term.screen();
+        let screen = self.screen.screen();
         self.view.agent_render.reset();
         let Some(run) = self.app.viewed_agent() else {
             return Ok(());
@@ -1223,7 +1223,7 @@ impl Session<'_> {
             tail.extend(flow.lines);
         }
         let app = &self.app;
-        self.term.reflow(
+        self.screen.reflow(
             tail,
             height,
             |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
@@ -1237,7 +1237,7 @@ impl Session<'_> {
             && let Some(text) = streaming.as_deref()
         {
             let lines = self.view.agent_render.commit(text, screen.width);
-            self.term.insert_before(lines);
+            self.screen.insert_before(lines);
         }
         Ok(())
     }
@@ -1427,13 +1427,13 @@ impl Session<'_> {
     /// to it as items commit.
     pub(crate) fn toggle_tool_view(&mut self) -> io::Result<()> {
         if self.app.view == View::ToolOutput {
-            self.term.enter_overlay()?;
+            self.screen.enter_overlay()?;
             // Paint the overlay now rather than on the next tick — the
             // freshly-cleared alt screen would show as a black flash for a frame
             // otherwise.
             self.draw_tool_view()
         } else {
-            self.term.exit_overlay()?;
+            self.screen.exit_overlay()?;
             // Catch the inline view up on whatever committed — or was
             // dispatched off the queue — while the overlay was showing: it all
             // sits in the pending queue, and this draw flushes it above the
@@ -1449,7 +1449,7 @@ impl Session<'_> {
     /// (`docs/architecture/context.md`).
     pub(crate) fn toggle_context_debug(&mut self) -> io::Result<()> {
         if self.app.view == View::ContextDebug {
-            self.term.enter_overlay()?;
+            self.screen.enter_overlay()?;
             self.draw_context_view()
         } else {
             // Return the rendered window's memory with the view: the cache
@@ -1460,7 +1460,7 @@ impl Session<'_> {
             // …and the classifier page's injected block, which the next open
             // refreshes from the backend anyway.
             self.app.set_classifier_context(None);
-            self.term.exit_overlay()?;
+            self.screen.exit_overlay()?;
             self.overlay_return_repaint()
         }
     }

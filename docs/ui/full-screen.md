@@ -74,40 +74,50 @@ settles, the next repaint drops the live rows and history's committed cell or
 
 ### The viewport seam
 
-`InlineViewport` gains a sibling, and the call sites see one `Screen` value
-(an enum, not a `dyn` trait — the draw methods take a closure):
+The three modes are **one enum over the same viewport** — an enum, not a `dyn`
+trait, because there are exactly three arms and the dispatch is one `match`
+(`src/tui/screen.rs`, `core-host-split.md` Phase 2):
 
 ```rust
-enum Screen {
-    Inline(InlineViewport),
-    Full(FullViewport),
+enum ScreenMode {
+    Inline,
+    Full,
+    Headless,
 }
 
-impl Screen {
-    /// Show `lines` as part of the conversation. Inline: commit into
-    /// scrollback (`insert_before`). Full: no-op — history already holds it.
-    fn commit(&mut self, lines: Vec<Line<'static>>) -> io::Result<()>;
-    /// Reseat before a commit (inline) / no-op.
-    fn set_view_height(&mut self, height: u16) -> io::Result<()>;
-    /// The caller composes a region: inline paints the live region at the
-    /// bottom; full paints its whole frame and places that region in it.
-    fn draw(&mut self, render: impl FnOnce(Rect, &mut Buffer)) -> io::Result<()>;
-    /// An app-owned page: inline opens an alt-screen overlay; full paints the
-    /// same page into its frame.
-    fn draw_overlay(&mut self, render: impl FnOnce(Rect, &mut Buffer)) -> io::Result<()>;
-    fn exit_overlay(&mut self) -> io::Result<()>;
-    fn suspend(&mut self) -> io::Result<()>;
-    fn resume(&mut self) -> io::Result<()>;
-    fn restore(&mut self) -> io::Result<()>;
+struct Screen<'t> {
+    viewport: &'t mut InlineViewport,
+    mode: ScreenMode,
+}
+
+impl Screen<'_> {
+    fn is_full(&self) -> bool;
+    fn is_headless(&self) -> bool;
+    /// Only the screen-owning frame has a hit map and a pointer.
+    fn accepts_pointer(&self) -> bool;
+    /// Inline and headless paint the bottom live region.
+    fn draw_region(&mut self, height: u16, render: impl FnOnce(Rect, &mut Buffer), app: &App)
+        -> io::Result<()>;
+    /// The screen-owning mode paints its whole frame from the conversation tail.
+    fn draw_frame(
+        &mut self,
+        tail: &[Line<'static>],
+        height: u16,
+        scrollbar: &[ScrollbarCell],
+        render: impl FnOnce(Rect, &mut Buffer),
+        app: &App,
+    ) -> io::Result<()>;
 }
 ```
 
-The TUI handlers already funnel their scrollback writes through a handful of
-`Session` methods (`commit_tool_cell`, `flush_segment`, `insert_before`,
-`reflow`, `overlay_return_repaint`, …). In full mode the commit methods become
-no-ops (the record in `history` is the frame's source) and the frame is rebuilt
-from state each draw. That keeps the handlers and the event contract untouched;
-the mode switch is at the boundary, not in every `if fullscreen`.
+`Session` holds the `Screen`, not the viewport, and the call sites ask it:
+`is_full` instead of the viewport's `full` flag, `accepts_pointer` before mouse
+work, `draw_region`/`draw_frame` for the two paint shapes. The remaining
+viewport calls (commits, overlays, reflow, the cursor query) still reach it
+through `Deref`; Phase 3 gives them methods of their own. In full mode commits
+are already no-ops inside `InlineViewport::insert_before`, and the frame is
+rebuilt from state each draw — the handlers and the event contract are
+untouched.
 
 ### The frame
 

@@ -55,7 +55,7 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
     // Keys typed while `InlineViewport::init`'s startup read waited on the
     // terminal: that read took them in, so they go first — through the same
     // handler, and ahead of anything the EventStream reads (`term::query`).
-    for event in session.term.take_typeahead() {
+    for event in session.screen.take_typeahead() {
         if session.on_terminal_event(event)? == Flow::Quit {
             return Ok(session.shutdown());
         }

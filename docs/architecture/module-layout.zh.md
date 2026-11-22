@@ -133,7 +133,8 @@
 | `background.rs` | 后台 shell 事件与 `settle_bg_completions`（`docs/tools/background.md`）。 |
 | `permission.rs` | `PermissionStore` —— permission gate、它的文件、本项目的键 —— 以及 prompt 的答案（`docs/state/permissions.md`）。 |
 | `ask.rs` | `AskUserQuestion` 空闲时钟的边界一半：每次按键、粘贴和绘制都把 `Instant::now()` 送进纯的 `ask::AskTimer`，以及使等待中的问题以未作答状态结束的到期（`docs/tools/ask.md`）。 |
-| `view.rs` | 绘制：draw tick、各 overlay、各次重绘、`live_region_height`、注入的时钟。 |
+| `screen.rs` | `Screen` 接缝：inline / 全屏 / 无头是同一个 viewport 之上的一个 enum，以及循环问它的那些模式问题（`docs/architecture/core-host-split.md` 第 2 阶段）。 |
+| `view.rs` | 绘制：draw tick、各 overlay、各次重绘、`live_region_height`、注入的时钟，以及帧从 `App` 推导出的 `ConversationView` 状态（`core-host-split.md` 第 1 阶段）。 |
 | `commit.rs` | Scrollback 提交 —— invariant 4 唯一被强制执行的地方 —— 以及 toast。 |
 | `models.rs` | `ModelSession`：backend 以及选择它的每一个旋钮，外加 `/model`、Ctrl+T 与探测的分支（`docs/providers/llm.md`）。 |
 | `login.rs` | `/login` 流程的边界一半：打开它、运行某个订阅的登录 —— 按 provider 是设备码或浏览器 PKCE 流程 —— 并持久化它所铸造的东西（`docs/providers/copilot.md`、`docs/providers/chatgpt.md`）。 |

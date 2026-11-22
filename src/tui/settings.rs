@@ -218,7 +218,7 @@ impl Session<'_> {
             // Nothing to toggle when no `SKILL.md` loaded (`docs/tools/skills.md`).
             skills: !self.skill_registry.is_empty(),
             // Whether this terminal can draw a picture (`docs/ui/images.md`).
-            images: self.term.image_capability().0,
+            images: self.screen.image_capability().0,
             // Nowhere to remember the day without a config home — and
             // nothing to turn on when the environment forbade it
             // (`docs/ops/update.md`).
@@ -238,7 +238,7 @@ impl Session<'_> {
     /// rows; the `read` executor reads its `auto_resize` to decide whether to
     /// downscale before uploading.
     pub(crate) fn sync_image_policy(&mut self) {
-        let (available, font, protocol) = self.term.image_capability();
+        let (available, font, protocol) = self.screen.image_capability();
         let settings = self.app.settings();
         images::set_policy(ImagePolicy {
             show: settings.show_images,
@@ -325,7 +325,7 @@ impl Session<'_> {
             // pictures, and rebuild so the committed ones change with it.
             SettingKey::ShowImages | SettingKey::ImageWidth => {
                 self.sync_image_policy();
-                self.term.invalidate_images();
+                self.screen.invalidate_images();
                 // The Ctrl+O transcript's frozen prefix is pinned on the
                 // history generation, and this changes what those rows *are*
                 // without changing history — so a warm cache would keep

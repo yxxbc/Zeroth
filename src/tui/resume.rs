@@ -275,7 +275,7 @@ impl Session<'_> {
         // formatting the recorder writes into each session's meta line.
         let cwd = self.cwd.display().to_string();
         self.app.open_resume_picker(sessions, cwd);
-        self.term.enter_overlay()?;
+        self.screen.enter_overlay()?;
         self.draw_resume_picker()
     }
 
@@ -288,7 +288,7 @@ impl Session<'_> {
         // (docs/tools/hooks.md). A no-op when nothing is queued — a picker opened
         // mid-session closes on a conversation that already began.
         self.models.fire_session_start();
-        self.term.exit_overlay()?;
+        self.screen.exit_overlay()?;
         self.overlay_return_repaint()
     }
 
@@ -302,7 +302,7 @@ impl Session<'_> {
         });
         let Some((text, meta, items)) = loaded else {
             self.app.close_resume_picker();
-            self.term.exit_overlay()?;
+            self.screen.exit_overlay()?;
             self.overlay_return_repaint()?;
             self.commit_error_notice(&format!("Failed to load session: {}", path.display()));
             return Ok(());
@@ -358,7 +358,7 @@ impl Session<'_> {
         // …and the resumed one begins: SessionStart(resume), in the background
         // now that the recorder names its id (docs/tools/hooks.md).
         self.models.begin_conversation("resume");
-        self.term.exit_overlay()?;
+        self.screen.exit_overlay()?;
         // A resumed session REPLACES the whole conversation: purge-rebuild
         // (like /clear) so the loaded history fills scrollback — a plain
         // catch-up would leave the old chat above it, and the resumed

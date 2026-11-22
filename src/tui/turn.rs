@@ -124,7 +124,7 @@ impl Session<'_> {
             return;
         }
         let TurnInput { texts, images } = input;
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         // Each path is recorded onto the message whose text carries its
         // placeholder, in text-occurrence order — a merged batch's duplicate
         // `[Image #1]`s resolve to their own drafts' paths, and the
@@ -145,15 +145,16 @@ impl Session<'_> {
             self.app
                 .record_user_message_with_images(text, std::mem::take(attached));
             if committing {
-                self.term
+                self.screen
                     .insert_before(ui::message_lines(Role::User, text, width));
                 // A Ctrl+V-pasted screenshot draws under its own bubble, the
                 // rows taken from the item just recorded so the commit and the
                 // rebuild agree (`docs/ui/images.md`).
                 if let Some(item) = self.app.history.last() {
-                    self.term.insert_before(ui::image_block_lines(item, width));
+                    self.screen
+                        .insert_before(ui::image_block_lines(item, width));
                 }
-                self.term.insert_before(vec![Line::default()]);
+                self.screen.insert_before(vec![Line::default()]);
             }
         }
         self.app.begin_stream();
@@ -232,7 +233,7 @@ impl Session<'_> {
         self.toast_masked_secrets();
         // A headless run's prompt is a script's, not something the user
         // typed: ↑ in the TUI never walks through it (docs/cli/headless.md).
-        if !self.headless {
+        if !self.screen.is_headless() {
             self.app.input_history.record(&prompt);
         }
         self.start_turn(TurnInput {
@@ -256,7 +257,7 @@ impl Session<'_> {
             self.app.queue_shell_command(command);
             return;
         }
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         // begin_shell records the cell's `! command` header (Role::Shell) in
         // history; commit it with NO trailing blank — the `⎿ Running…` preview
         // (and later the committed `⎿` output) sits flush below it, forming the
@@ -265,7 +266,7 @@ impl Session<'_> {
         // commit (docs/agents/agent-tool.md, docs/ui/view-flow.md).
         self.app.begin_shell(&command);
         if self.commits_allowed() {
-            self.term
+            self.screen
                 .insert_before(ui::message_lines(Role::Shell, &command, width));
         }
         self.view.render.reset();
@@ -408,7 +409,7 @@ impl Session<'_> {
         // ended (docs/ui/tool-groups.md); this is the backstop, so a group no
         // close point reached can never hold its reads out of scrollback.
         let committing = self.commits_allowed();
-        self.close_tool_group(committing, self.term.screen().width);
+        self.close_tool_group(committing, self.screen.screen().width);
         // The turn just ended and its history is settled. The snapshot runs
         // on its own thread; when it lands, the queued follow-up (or the
         // automatic completion turn) is dispatched — so nothing starts

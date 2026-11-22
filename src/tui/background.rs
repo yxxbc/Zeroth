@@ -231,20 +231,20 @@ impl Session<'_> {
         // The notice lands after the reads before it, never among them
         // (docs/ui/tool-groups.md).
         let committing = self.commits_allowed();
-        self.close_tool_group(committing, self.term.screen().width);
+        self.close_tool_group(committing, self.screen.screen().width);
         let notice = self.app.record_background_notice(completion);
         if committing {
-            let width = self.term.screen().width;
+            let width = self.screen.screen().width;
             // A completion can settle right after a turn whose strip just
             // collapsed — reseat the viewport like every post-stream commit
             // so the notice replaces the strip's rows in place (invariant 3).
             // Mid-turn this re-asserts the current strip-aware height (a
             // no-op sync; `paint_live` re-syncs before any pending flush).
             let height = self.live_region_height();
-            self.term.set_view_height(height);
-            self.term
+            self.screen.set_view_height(height);
+            self.screen
                 .insert_before(ui::background_notice_lines(&notice, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 
@@ -253,16 +253,16 @@ impl Session<'_> {
     /// (docs/agents/agent-tool.md).
     fn settle_agent_notice(&mut self, notice: &zeroth::app::AgentNotice) {
         let committing = self.commits_allowed();
-        self.close_tool_group(committing, self.term.screen().width);
+        self.close_tool_group(committing, self.screen.screen().width);
         self.app.settle_agent_completion(notice);
         self.app.record_agent_notice(notice);
         if committing {
-            let width = self.term.screen().width;
+            let width = self.screen.screen().width;
             let height = self.live_region_height();
-            self.term.set_view_height(height);
-            self.term
+            self.screen.set_view_height(height);
+            self.screen
                 .insert_before(ui::agent_notice_lines(notice, width));
-            self.term.insert_before(vec![Line::default()]);
+            self.screen.insert_before(vec![Line::default()]);
         }
     }
 }

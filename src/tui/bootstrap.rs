@@ -565,7 +565,7 @@ impl<'t> Session<'t> {
         let mut agent_render = ui::StreamRender::new();
         agent_render.set_paths(Some(app.path_display().clone()));
         let mut session = Self {
-            term,
+            screen: super::screen::Screen::new(term),
             app,
             models,
             view: super::view::ConversationView {
@@ -592,7 +592,6 @@ impl<'t> Session<'t> {
             // A headless run creates none: building one opens the controlling
             // terminal, which a cron job or a CI step does not have.
             events: (!headless).then(EventStream::new),
-            headless,
             headless_verbose,
             round_budget,
             frame,
@@ -714,9 +713,9 @@ impl<'t> Session<'t> {
                 .as_ref()
                 .and_then(|migration| migration.notice())
         {
-            let width = session.term.screen().width;
+            let width = session.screen.screen().width;
             session
-                .term
+                .screen
                 .insert_before(ui::startup_notice_lines(&notice, width));
         }
         session.paint_first_frame(picker)?;
@@ -873,8 +872,8 @@ impl<'t> Session<'t> {
         // store with nothing new probes as zero and stays quiet, so ordinary
         // relaunches cost no extra frame.
         if let Some(notice) = checkpoint::snapshot_notice(&cost) {
-            let width = self.term.screen().width;
-            self.term
+            let width = self.screen.screen().width;
+            self.screen
                 .insert_before(ui::startup_notice_lines(&notice, width));
             self.draw_conversation()?;
         }
@@ -971,8 +970,8 @@ impl<'t> Session<'t> {
                 // undo that silently (docs/cli/headless.md *Resume*).
                 // The code reset runs on a worker (docs/state/checkpoint.md);
                 // `on_restore_done` reports it, ahead of the first paint.
-                let _restoring =
-                    !self.headless && self.restore_final_checkpoint(&session_checkpoints);
+                let _restoring = !self.screen.is_headless()
+                    && self.restore_final_checkpoint(&session_checkpoints);
                 let count = items.len();
                 self.app.load_session(items);
                 // `paint_first_frame` commits the loaded transcript with no
@@ -1030,9 +1029,10 @@ impl<'t> Session<'t> {
         // never enters `history`, so it reaches neither the model nor the
         // `/resume` rollout. It flows in through the normal flicker-free pipeline
         // (the next draw writes it above the box in one synchronized frame).
-        let width = self.term.screen().width;
-        self.term.insert_before(ui::header_lines(&self.app, width));
-        self.term.insert_before(vec![Line::default()]);
+        let width = self.screen.screen().width;
+        self.screen
+            .insert_before(ui::header_lines(&self.app, width));
+        self.screen.insert_before(vec![Line::default()]);
         // A --continue/--resume load commits the loaded conversation under the
         // banner through the same pipeline (docs/cli/cli.md) — insert_before, never a
         // Purge: a fresh launch must not wipe the user's terminal scrollback (the
@@ -1046,7 +1046,7 @@ impl<'t> Session<'t> {
                 self.app.path_display(),
                 self.app.settings().verbose,
             );
-            self.term.insert_before(lines);
+            self.screen.insert_before(lines);
         }
         self.frame.schedule_frame(); // first paint
         // Bare --resume boots into the /resume picker (docs/cli/cli.md): the
@@ -1112,7 +1112,7 @@ impl<'t> Session<'t> {
         // session's end — and under the sink's own 2 s budget, so a quit
         // never hangs on a hook. Claude Code's reason for an interactive
         // quit is `prompt_input_exit`; a headless run's end is `other`.
-        self.models.end_conversation(if self.headless {
+        self.models.end_conversation(if self.screen.is_headless() {
             "other"
         } else {
             "prompt_input_exit"
@@ -1217,7 +1217,7 @@ impl<'t> Session<'t> {
         // whole loaded history on the iteration a `/resume` swapped it in. Paying
         // it here, at the boundary, is what makes the Ctrl+O keypress itself
         // O(live tail): the overlay never opens cold.
-        let width = self.term.screen().width;
+        let width = self.screen.screen().width;
         self.view.transcript.warm(&self.app, width);
         // Reap detached backend threads (interrupt / `/clear` abandonments) that
         // have finished. `is_finished()` never blocks, so this can't stall the
