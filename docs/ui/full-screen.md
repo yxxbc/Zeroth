@@ -216,6 +216,25 @@ still applies.
   none is spent, and pointing at the strip lights it because a click scrolls
   the prompt back (`pinned_prompt`, `full_prompts`,
   [`conversation-tool-details-and-pin`](conversation-tool-details-and-pin.md)).
+- **No terminal images in the frame.** The banner renders its **text badge**
+  here, never the graphic mascot (`ui::header_lines_plain`): a terminal image
+  is anchored to the screen's cells rather than to the app's buffer, and this
+  frame scrolls and repaints under it, so a placement is left behind as ghost
+  blocks wherever it used to sit — the reported "noise after scrolling". The
+  inline viewport is unaffected (its banner is committed to scrollback once),
+  and the sidebar's art is safe (a fixed column that never scrolls). On a
+  terminal or multiplexer that reports a graphics protocol but does not render
+  it, the placeholder cells arrive as box glyphs; `ZEROTH_IMAGE_PROTOCOL=none`
+  turns pictures off entirely if that ever happens.
+- **The frame's own chrome.** Two columns are the app's, outside the
+  conversation's wrap width: the [sidebar](sidebar.md) on the right (a pure
+  function of the screen's width — 30, 24 or no columns) and a **scrollbar** on
+  the right. The bar owns one column always, so the wrap width never moves
+  under the reader; it paints only when something is off screen, with the
+  thumb sized to the share on show and placed on the track by the scroll
+  position (`ui::scrollbar_rows`, `ui::render_scrollbar`). Nothing else says
+  where in a long conversation the window sits, and a wheel that moves the
+  conversation without a mark is the inline mode's one advantage lost.
 - **Mouse.** Capture is on for the session (and disabled on exit). The last
   painted conversation rows are the hit map (`full_window`): moving over a link
   underlines its run, a left click with no drag opens it through the platform

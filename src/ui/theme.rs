@@ -370,6 +370,102 @@ pub(super) const TOOL_TRUNCATED_MARKER: &str = "…";
 /// Placeholder body for a finished tool that produced no output.
 pub(super) const TOOL_NO_OUTPUT: &str = "(no output)";
 
+// ---------------------------------------------------------------------------
+// The screen-owning mode's sidebar (docs/ui/sidebar.md): a column at the
+// screen's left edge carrying the brand, the session's facts and what is
+// running. Its widths and band limits live with the module's policy; these are
+// the words and marks it draws.
+// ---------------------------------------------------------------------------
+
+/// The seam between the sidebar and the conversation.
+pub(super) const SIDEBAR_SEAM: &str = "│";
+
+/// The product name, as the banner spells it.
+pub(super) const SIDEBAR_NAME: &str = "Zeroth";
+
+/// The one-line slogan — the page title of `about.html`, in the TUI's language.
+pub(super) const SIDEBAR_SLOGAN: &str = "a coding agent that lives in your terminal";
+
+/// The offline demo's call to action, where the banner puts it.
+pub(super) const SIDEBAR_CONNECT: &str = "Connect a model →";
+
+/// Section headings, lower-case like the footer's words.
+pub(super) const SIDEBAR_SESSION: &str = "session";
+pub(super) const SIDEBAR_RUNNING: &str = "running";
+
+/// The session facts' labels.
+pub(super) const SIDEBAR_MODEL: &str = "model";
+pub(super) const SIDEBAR_CWD: &str = "cwd";
+pub(super) const SIDEBAR_MODE: &str = "mode";
+pub(super) const SIDEBAR_CONTEXT: &str = "context";
+
+/// The task marks: the one in flight, and the ones waiting.
+pub(super) const SIDEBAR_TASK_ACTIVE: &str = "▸";
+pub(super) const SIDEBAR_TASK_PENDING: &str = "·";
+
+/// A running agent, and a running background shell's row lead.
+pub(super) const SIDEBAR_AGENT: &str = "◯";
+pub(super) const SIDEBAR_SHELL: &str = "⌁";
+
+/// The context meter: what is used and what is left, over `SIDEBAR_GAUGE_COLS`.
+pub(super) const SIDEBAR_GAUGE_FILL: &str = "█";
+pub(super) const SIDEBAR_GAUGE_EMPTY: &str = "░";
+pub(super) const SIDEBAR_GAUGE_COLS: u16 = 8;
+
+/// The mascot graphic's box in the sidebar: its column count (clamped to the
+/// column), its minimum before the art is dropped, and its rows. Narrower than
+/// the banner's, and it never fights the meta rows beside it — the sidebar has
+/// no beside.
+pub(super) const SIDEBAR_MASCOT_COLS: u16 = 16;
+pub(super) const SIDEBAR_MASCOT_MIN_COLS: u16 = 10;
+pub(super) const SIDEBAR_MASCOT_ROWS: u16 = 8;
+pub(super) const SIDEBAR_MASCOT_PX: (u32, u32) = (384, 351);
+
+/// A heading: dim, so the body under it is what the eye lands on.
+pub(super) fn sidebar_heading_color() -> Color {
+    tool_dim_color()
+}
+
+/// The product name: the brightest ink, one step over the slogan.
+pub(super) fn sidebar_name_color() -> Color {
+    palette().text
+}
+
+/// Labels and numbers — the footer's dim, for the same reason.
+pub(super) fn sidebar_meta_color() -> Color {
+    tool_dim_color()
+}
+
+/// The slogan: quieter than the name, louder than a label.
+pub(super) fn sidebar_slogan_color() -> Color {
+    palette().text_muted
+}
+
+/// A fact's value and a running item's name.
+pub(super) fn sidebar_value_color() -> Color {
+    palette().text_muted
+}
+
+/// The accent: the in-flight task's mark, a running agent, `/login`.
+pub(super) fn sidebar_accent_color() -> Color {
+    palette().accent
+}
+
+// ---------------------------------------------------------------------------
+// The screen-owning conversation's scrollbar (docs/ui/full-screen.md). One
+// column at the conversation's right edge; the thumb is the accent so it reads
+// as "you are here" without competing with the reply's ink.
+// ---------------------------------------------------------------------------
+
+/// The thumb: a solid half-block, the densest thing a one-column bar can be.
+pub(super) const SCROLLBAR_THUMB: &str = "▐";
+
+/// The thumb's ink — the accent, the same "this is the live thing" colour the
+/// footer's model name wears.
+pub(super) fn scrollbar_thumb_color() -> Color {
+    palette().accent
+}
+
 /// The pinned prompt's ellipsis: the one column a summary too long for the
 /// frame gives up to say so (`pinned_prompt_line`,
 /// `docs/ui/conversation-tool-details-and-pin.md`). A separate constant from

@@ -70,6 +70,7 @@ mod palette;
 mod permission_view;
 mod reasoning;
 mod resume_view;
+mod scrollbar;
 mod search;
 mod secrets_view;
 mod session_bar;
@@ -113,8 +114,17 @@ pub use self::conversation::{
     pinned_prompt_line, repaint_lines, repaint_tail,
 };
 pub use self::diff_view::{diff_body_rows, render_diff_view};
+pub use self::scrollbar::{
+    COLUMNS as SCROLLBAR_COLUMNS, Cell as ScrollbarCell, render as render_scrollbar,
+    rows as scrollbar_rows,
+};
 pub use self::selection::{highlight, slice};
+pub use self::sidebar::{
+    SECTIONS as SIDEBAR_SECTIONS, SIDEBAR_SEAM_COLS, Section as SidebarSection,
+    lines as sidebar_lines, render as render_sidebar, width as sidebar_width,
+};
 pub mod selection;
+mod sidebar;
 pub use self::donate_view::{donate_picker_height, donate_view_lines, render_donate_picker};
 pub use self::export_view::{
     export_picker_height, export_text, export_view_lines, render_export_picker,
@@ -124,8 +134,8 @@ pub use self::footer::{
     search_line, shell_mode_line, toast_line, toast_rows,
 };
 pub use self::header::{
-    MASCOT_ICON_PX, header_lines, notice_card_lines, startup_notice_lines, startup_paragraph_lines,
-    update_notice_lines,
+    MASCOT_ICON_PX, header_lines, header_lines_plain, notice_card_lines, startup_notice_lines,
+    startup_paragraph_lines, update_notice_lines,
 };
 pub use self::hook_cell::hook_report_lines;
 pub use self::hooks_view::{hooks_menu_height, hooks_view_lines, render_hooks_menu};

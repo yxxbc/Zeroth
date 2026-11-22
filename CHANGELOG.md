@@ -18,6 +18,15 @@ release heading when a version is cut.
 
 ### Added
 
+- **The full-screen mode has a sidebar and a scrollbar.** The right column
+  carries the brand, the session's facts (model, cwd, context meter, permission
+  mode) and what is running (tasks, subagents, background shells); it shows at
+  96 columns and wider, in two widths, and folds away below that. Its sections
+  are a registry, so a new one is an addition rather than a layout edit. The
+  conversation's rightmost column carries a scrollbar so a long reply says
+  where in it you are (thumb only — a drawn track beside the sidebar's seam
+  read as a second divider); both columns are outside the wrapping width.
+
 - **`--inline` switches back to the conversation-in-scrollback viewport, and
   `ZEROTH_TUI=inline` matches it.** Asking for both viewports at once is
   refused; the flag is what pins the old mode in an alias or a script.
@@ -56,6 +65,12 @@ release heading when a version is cut.
   prompt when clicked.
 
 ### Fixed
+
+- **Full-screen mode no longer leaves ghost blocks behind when the conversation
+  scrolls.** Its banner draws the text badge instead of the graphic mascot: a
+  terminal image is anchored to the screen's cells, and this frame repaints and
+  scrolls under it. If your terminal or multiplexer claims a graphics protocol
+  it does not render, `ZEROTH_IMAGE_PROTOCOL=none` turns pictures off.
 
 - **Selecting text in full-screen mode highlights exactly what it copies.** The
   selection is cut on grapheme boundaries, so a wide glyph or a joined emoji is

@@ -1,0 +1,98 @@
+# 侧栏
+
+拥有屏幕的模式**右边**那一列：品牌、会话事实，以及正在跑的东西 —— 这些在内联
+viewport 里分散在 banner 和页脚之间。它存在的理由和这个模式的其余部分一样：内联画完的一行归终端
+所有，那里没有一列可以放东西。
+
+```
+❯ why does the parser reject this line               │Zeroth v0.21.0
+                                                      │a coding agent that lives in
+● The lexer peeks one token ahead, and the tag it     │your terminal
+  records is the one the parser sees later.           │
+                                                      │session
+                                                      │model deepseek-v4 · openrouter
+                                                      │cwd ~/Projects/zeroth
+                                                      │context ████░░░░ 12.4k/160k
+                                                      │mode manual
+                                                      │
+                                                      │running
+                                                      │▸ add the sidebar
+                                                      │· write its docs
+                                                      │◯ explore: find the callers
+                                                      │⌁ 1 running
+```
+
+**它在右边**，这样对话 —— 以及输入框的光标 —— 从**第 0 列**开始，也就是内联 composer
+和 shell 自己的提示符本来就在的地方。放在左边会把整个 composer 推进三十列：光标停在
+提示符不在的位置，退出后的 shell 提示符也不再和对话对齐。
+
+
+## 三档响应式
+
+这一列遵循每个终端侧栏都守的惯例 —— 宽屏给全尺寸，中间档收窄，对话更需要空间时
+直接消失。宽度是**整列**，连它那一格接缝算在内：
+
+| 终端宽度 | 侧栏 |
+| --- | --- |
+| ≥ 112 列 | 30 列 |
+| 96–111 | 24 列 |
+| < 96 | 不显示 |
+
+这些档位是 [`src/ui/sidebar.rs`](../../src/ui/sidebar.rs) 里的常量
+（`WIDE_SCREEN_COLS`、`MIN_SCREEN_COLS`、`WIDE_COLS`、`NARROW_COLS`），通过一个函数
+（[`ui::sidebar_width`](../../src/ui/sidebar.rs)）读取 —— 画面和对话的换行宽度都调用
+它，所以一列不可能在行没有按它重建的情况下出现。这一点要紧，因为换行宽度是帧缓存的
+键的一部分：一个自己冒出来的侧栏，会把读者正在读的每一行重新折行。
+
+隐藏的侧栏对对话**没有任何代价**：中间档是收窄这一列而不是裁掉它，这正是它存在、
+而不是让一列一路缩到零的理由。
+
+接缝在这一列的**左边**，一条压暗的竖线把它和对话隔开；各小节的行排在剩下的宽度里
+（`SIDEBAR_SEAM_COLS`）。
+
+## 小节是一个注册表
+
+模块化就是重点。一个小节是 `SECTIONS` 里的一条：
+
+```rust
+pub struct Section {
+    /// Stable id — what a settings row, a test or a log names it by.
+    pub id: &'static str,
+    /// The rows for a `width`-column sidebar; empty means "nothing to say".
+    pub rows: fn(&App, u16) -> Vec<Line<'static>>,
+}
+```
+
+堆叠、间距和截断都在一处（[`sidebar::lines`]）；一个小节只回答「我的行是什么」。
+加一个模块 —— 一份 diff 摘要、一个 git 状态、一份 token 账 —— 就是新增一个 `fn`
+加一条注册，永远不用改布局。没什么要说的小节返回空行，并被**整节**丢掉，连标题一起，
+所以这一列永远不会显示一个空标题。
+
+栈按重要程度排序，并按屏幕高度从顶部开始裁剪：品牌是最后才会消失的东西。
+
+## 今天每个小节装什么
+
+- **`brand`** —— 终端能显示图形时是 mascot 的图像（用 banner 自己的 placement，按这一列
+  的尺寸缩放；终端没有图形时宁可丢掉也不降级成乱码），然后是名字、版本、一行 slogan，
+  以及在离线 demo 上 banner 也带的那句 `Connect a model → /login`。
+- **`session`** —— 模型（在 agent 会话视图里是该 agent 自己的）、工作目录、一个带数字的
+  上下文表、权限模式。页脚那条链，竖着读。
+- **`running`** —— 任务清单（进行中 `▸`，等待 `·`，已完成不列）、运行中的子 agent，
+  以及后台 shell 的计数。内联模式挤在状态条和名册里的那些东西。
+
+## 代价
+
+画面在排版任何东西之前先预留这一列，所以对话的换行宽度 —— 因而每一行缓存 —— 都取决于
+它。这就是为什么可见性只是屏幕宽度的纯函数、别无其他：没有会漏按的开关，没有要恢复的
+状态，同一块屏幕永远画出同一列。
+
+侧栏显示时**不再**画 banner：侧栏**就是**那个品牌块，画两遍等于用两倍的行走同一件事。
+对话于是从第 0 行开始，没有 banner 也没有空行（`ui::banner_tail` 对空 banner 原样返回
+它的尾部）。
+
+## 覆盖范围
+
+- `ui::tests::sidebar` —— 三个档位、注册表（小节的缺席不会留下标题）、品牌的措辞、
+  事实行、列内截断、什么算「正在跑」、高度裁剪，以及任务的标记。
+- smoke 阶段 156 —— 驱动一块 140 列的窗格和一块 96 列的，断言接缝和名字在；再驱动
+  一块窄窗格，断言它们不在。

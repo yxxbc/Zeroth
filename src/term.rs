@@ -481,10 +481,18 @@ impl InlineViewport {
             return Ok(());
         }
         let height = height.clamp(1, self.screen.height.max(1));
+        // The live region is the screen **minus the sidebar's column**: the
+        // composer sits in the conversation's width, so a cursor seated
+        // against the full screen would be off by exactly that column
+        // (`docs/ui/sidebar.md`).
+        let live_width = self
+            .screen
+            .width
+            .saturating_sub(crate::ui::sidebar_width(self.screen.width));
         let live = Rect::new(
             0,
             self.screen.height.saturating_sub(height),
-            self.screen.width,
+            live_width,
             height,
         );
         let (x, y) = ui::cursor_position(live, app);
@@ -544,18 +552,52 @@ impl InlineViewport {
         &mut self,
         tail: &[Line<'static>],
         height: u16,
+        scrollbar: &[crate::ui::ScrollbarCell],
         render: impl FnOnce(Rect, &mut Buffer),
         app: &App,
     ) -> io::Result<()> {
         let tail = tail.to_vec();
+        let scrollbar = scrollbar.to_vec();
         self.draw_full(
             height,
             move |area, buf| {
-                let live_h = height.clamp(1, area.height.max(1)).min(area.height);
-                let conv_h = area.height.saturating_sub(live_h);
-                let conv = Rect::new(area.x, area.y, area.width, conv_h);
+                // The sidebar owns the screen's **right** edge when the terminal
+                // is wide enough (`docs/ui/sidebar.md`); `view` already built
+                // the conversation's rows at the width that is left. It sits on
+                // the right so the conversation — and the composer's cursor —
+                // start at column 0, where an inline composer and the shell's
+                // own prompt already put them.
+                let side = crate::ui::sidebar_width(area.width);
+                let rest = if side > 0 {
+                    let side_area = Rect::new(
+                        area.x + area.width.saturating_sub(side),
+                        area.y,
+                        side,
+                        area.height,
+                    );
+                    crate::ui::render_sidebar(side_area, buf, app);
+                    Rect::new(area.x, area.y, area.width.saturating_sub(side), area.height)
+                } else {
+                    area
+                };
+                let live_h = height.clamp(1, rest.height.max(1)).min(rest.height);
+                let conv_h = rest.height.saturating_sub(live_h);
+                // The bar owns the conversation's rightmost column; `view`
+                // built the rows one column narrower, so nothing is painted
+                // over (`docs/ui/full-screen.md`).
+                let bar_cols = crate::ui::SCROLLBAR_COLUMNS.min(rest.width);
+                let conv = Rect::new(rest.x, rest.y, rest.width.saturating_sub(bar_cols), conv_h);
                 paint_full_lines(&tail, conv, buf);
-                let live = Rect::new(area.x, area.y + conv_h, area.width, live_h);
+                if bar_cols > 0 && !scrollbar.is_empty() {
+                    let bar = Rect::new(
+                        rest.x + rest.width.saturating_sub(bar_cols),
+                        rest.y,
+                        bar_cols,
+                        conv_h,
+                    );
+                    crate::ui::render_scrollbar(bar, buf, &scrollbar, 0);
+                }
+                let live = Rect::new(rest.x, rest.y + conv_h, rest.width, live_h);
                 render(live, buf);
             },
             app,
@@ -1208,7 +1250,10 @@ impl InlineViewport {
             return Ok(());
         }
         if self.full {
-            return self.draw_full_with_tail(&tail, height, render, app);
+            // The screen-owning rebuild paints no bar: every full-screen
+            // repaint goes through `draw_conversation`, which draws one from
+            // the scroll state it holds (`docs/ui/full-screen.md`).
+            return self.draw_full_with_tail(&tail, height, &[], render, app);
         }
         let height = height.clamp(1, self.screen.height.max(1));
         // Take, don't clear: `clear` keeps the Vec's high-water capacity for

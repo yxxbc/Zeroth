@@ -67,6 +67,7 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/tool-pulse.md`](ui/tool-pulse.md): The running bullet's blink
 - [`ui/tool-streaming.md`](ui/tool-streaming.md): Live-streaming `bash` output — the running tail + collapsed peek
 - [`ui/tool-view-performance.md`](ui/tool-view-performance.md): Ctrl+O performance: the incremental transcript cache and the atomic switch
+- [`ui/sidebar.md`](ui/sidebar.md): The screen-owning mode's left column — brand, session facts, what is running
 - [`ui/tui-workspace-plan.md`](ui/tui-workspace-plan.md): The full-screen workspace — session switching and background shells (Chinese; plan)
 - [`ui/view-flow.md`](ui/view-flow.md): View flow — long inline-view content flows into scrollback
 - [`ui/workspace.md`](ui/workspace.md): Full-screen session switching

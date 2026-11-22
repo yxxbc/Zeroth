@@ -84,6 +84,7 @@
 - [`ui/tool-pulse.md`](ui/tool-pulse.md)：运行中圆点的闪烁
 - [`ui/tool-streaming.md`](ui/tool-streaming.md)：实时流式输出 `bash` 的输出 —— 运行中的尾巴 + 折叠的窥视行
 - [`ui/tool-view-performance.md`](ui/tool-view-performance.md)：Ctrl+O 的性能：增量 transcript 缓存与原子切换
+- [`ui/sidebar.md`](ui/sidebar.md)：拥有屏幕模式的左侧栏 —— 品牌、会话事实、正在运行的东西
 - [`ui/tui-workspace-plan.md`](ui/tui-workspace-plan.md)：全屏工作窗口 —— 会话切换与后台 Shell（中文；计划）
 - [`ui/view-flow.md`](ui/view-flow.md)：视图流动 —— 过长的内联视图内容流入 scrollback
 - [`ui/workspace.md`](ui/workspace.md): 全屏会话切换

@@ -284,7 +284,9 @@ impl Session<'_> {
             // The turn the window's top sits in is pinned on one reserved row
             // while its whole message has scrolled away, so the question stays
             // with its answer (`docs/ui/conversation-tool-details-and-pin.md`).
-            let width = usize::from(screen.width);
+            // The pinned strip is conversation: it spans the rows' width, not
+            // the screen's — the sidebar and the bar are outside it.
+            let width = usize::from(self.full_text_width());
             let mut pin = pinned_row(&self.full_prompts, start, width, self.full_pin_hover);
             if pin.is_some() && content_h > 1 {
                 content_h -= 1;
@@ -293,6 +295,15 @@ impl Session<'_> {
             } else if content_h <= 1 {
                 pin = None;
             }
+            // The scrollbar: its cell for every row of the conversation,
+            // prepared here so `term` stays a painter (`docs/ui/full-screen.md`).
+            let bar = ui::scrollbar_rows(
+                tail.len(),
+                content_h,
+                start,
+                u16::try_from(content_h).unwrap_or(u16::MAX),
+            )
+            .unwrap_or_default();
             let end = (start + content_h).min(tail.len());
             let mut window: Vec<Line<'static>> = tail[start..end].to_vec();
             self.full_start = start;
@@ -320,6 +331,7 @@ impl Session<'_> {
             self.term.draw_full_with_tail(
                 &painted,
                 height,
+                &bar,
                 |area, buf| {
                     hits = ui::render_workspace_live(area, buf, app, preview.as_deref());
                 },
@@ -338,6 +350,34 @@ impl Session<'_> {
         )
     }
 
+    /// The startup banner for a purge rebuild: the graphic mascot inline (its
+    /// rows are committed to the terminal's scrollback once, where a placement
+    /// is safe), the plain text badge in the screen-owning mode, whose frame
+    /// scrolls and repaints under the image and would leave it behind
+    /// (`ui::header_lines_plain`).
+    fn banner_lines(&self, width: u16) -> Vec<Line<'static>> {
+        if self.term.fullscreen() {
+            ui::header_lines_plain(&self.app, width)
+        } else {
+            ui::header_lines(&self.app, width)
+        }
+    }
+
+    /// The columns the screen-owning conversation may paint into: the screen
+    /// minus the sidebar's column and the scrollbar's, floored at one.
+    ///
+    /// The sidebar decides this before the rows are built, because the wrap
+    /// width is part of the frame cache's key — a column appearing without a
+    /// rebuild would re-wrap every row under the reader
+    /// (`docs/ui/sidebar.md`).
+    fn full_text_width(&self) -> u16 {
+        let screen = self.term.screen().width;
+        screen
+            .saturating_sub(ui::sidebar_width(screen))
+            .saturating_sub(ui::SCROLLBAR_COLUMNS)
+            .max(1)
+    }
+
     /// The screen-owning mode's conversation rows: the startup banner, the
     /// finished history, the in-flight reply, and — inside an agent session
     /// view — that agent's own transcript.
@@ -350,7 +390,7 @@ impl Session<'_> {
     /// at 1,000 turns, 77% of a 60 fps frame, per chunk
     /// (`docs/ui/full-screen.md` *Performance*).
     fn full_tail_lines(&mut self) -> Vec<ratatui::text::Line<'static>> {
-        let width = self.term.screen().width;
+        let width = self.full_text_width();
         let theme = ui::active_theme();
         let agent_id = self.app.viewed_agent().map(|run| run.id.as_str());
         let viewing_agent = agent_id.is_some();
@@ -543,10 +583,21 @@ impl Session<'_> {
                 super::link_cards::spawn(url, self.card_tx.clone());
             }
         }
-        let banner = ui::header_lines(&self.app, width);
+        // The banner is the inline mode's brand block. In the screen-owning
+        // mode the sidebar carries it (`docs/ui/sidebar.md`), so it is left out
+        // rather than printed twice — and its rows are then zero.
+        // …and it is the **plain** banner either way: a graphic mascot is
+        // anchored to the screen's cells, and this frame scrolls and repaints
+        // under it, which leaves the image behind as ghost blocks wherever it
+        // used to sit (`ui::header_lines_plain`).
+        let banner = if ui::sidebar_width(self.term.screen().width) > 0 {
+            Vec::new()
+        } else {
+            ui::header_lines_plain(&self.app, width)
+        };
         // `banner_tail` puts the banner and one blank row above the
         // conversation; the user-message and item offsets follow it.
-        let offset = banner.len() + 1;
+        let offset = banner.len() + usize::from(!banner.is_empty());
         for prompt in &mut prompts {
             prompt.start += offset;
             prompt.end += offset;
@@ -943,7 +994,7 @@ impl Session<'_> {
         );
         // Re-emit the header banner atop the rebuilt tail — it lives outside
         // `history` and would otherwise be lost (docs/ui/header.md).
-        let mut tail = ui::banner_tail(ui::header_lines(&self.app, screen.width), tail);
+        let mut tail = ui::banner_tail(self.banner_lines(screen.width), tail);
         // A screen-tall framed view flows its page top into scrollback: the
         // rows ride the tail's very end, so they land directly above the live
         // region — the page reads whole across the seam. Recomputed here, at
@@ -1014,7 +1065,7 @@ impl Session<'_> {
         if let Some(text) = &streaming {
             tail.extend(self.agent_render.committed_rows(text, screen.width));
         }
-        let mut tail = ui::banner_tail(ui::header_lines(&self.app, screen.width), tail);
+        let mut tail = ui::banner_tail(self.banner_lines(screen.width), tail);
         // A framed view opened from the agent view's own palette renders over
         // it and flows the same way (`docs/ui/view-flow.md`) — the rebuild is
         // this view's, so the flow rides this tail.

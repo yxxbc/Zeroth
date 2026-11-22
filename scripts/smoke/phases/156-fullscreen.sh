@@ -15,6 +15,8 @@ tmux new-session -d -s "$S_FULL" -x 100 -y 32 \
 # Record from before the first frame: the alternate-screen enter happens during
 # startup, so a pipe attached after the prompt appears would miss it.
 tmux pipe-pane -t "$S_FULL" -o "cat >> $RAW156"
+# The composer starts the row: the sidebar is the screen's right edge, so
+# nothing indents the conversation (docs/ui/sidebar.md).
 if ! wait_for 10 "$S_FULL" -E '^❯'; then
 	fail "the full-screen app never came up (no '❯' prompt within 10s)"
 fi
@@ -64,7 +66,10 @@ sleep 0.5
 pinned="$(tmux capture-pane -p -t "$S_FULL")"
 echo "==== Phase 156: captured pane (the prompt pinned above its scrolled reply) ===="
 printf '%s\n' "$pinned" | sed -n '1,6p'
-expect_eq "$(printf '%s\n' "$pinned" | head -1)" "❯ hello" \
+# The row's ink: strip the scrollbar's column and the trailing blanks (the
+# sidebar is on the right, so it never touches this row).
+pinned_row="$(printf '%s\n' "$pinned" | head -1 | sed 's/[│▐ ]*$//')"
+expect_eq "$pinned_row" "❯ hello" \
 	"the user prompt is not pinned at the top of its scrolled reply"
 
 # The pinned row is a **summary**, and a click on it returns to the prompt
@@ -87,7 +92,10 @@ sleep 0.6
 summary="$(tmux capture-pane -p -t "$S_PIN")"
 echo "==== Phase 156: captured pane (the long prompt summarised on the pinned row) ===="
 printf '%s\n' "$summary" | sed -n '1,4p'
-case "$(printf '%s\n' "$summary" | head -1)" in
+# The row's ink, without the scrollbar's column or the trailing blanks.
+strip_chrome() { printf '%s' "$1" | sed 's/[│▐ ]*$//'; }
+summary_row="$(strip_chrome "$(printf '%s\n' "$summary" | head -1)")"
+case "$summary_row" in
 *…) ;; # the summary was cut: what the strip shows
 *)
 	fail "the pinned row is not a summary of the whole prompt (no … on a question wider than the frame)"
@@ -100,7 +108,7 @@ sleep 0.6
 returned="$(tmux capture-pane -p -t "$S_PIN")"
 echo "==== Phase 156: captured pane (after clicking the pinned row — back at the prompt) ===="
 printf '%s\n' "$returned" | sed -n '1,4p'
-first_returned="$(printf '%s\n' "$returned" | head -1)"
+first_returned="$(strip_chrome "$(printf '%s\n' "$returned" | head -1)")"
 case "$first_returned" in
 *…) fail "clicking the pinned row did not return to the prompt (still the summary)" ;;
 esac
@@ -173,6 +181,34 @@ fi
 echo "==== Phase 156: captured pane (a click answered the permission prompt) ===="
 tmux capture-pane -p -t "$S_PERM" | grep -F "User rejected" | head -1
 tmux kill-session -t "$S_PERM"
+
+# The sidebar's three bands (docs/ui/sidebar.md): full column when wide, a
+# narrower one in the middle, and nothing at all when the conversation needs
+# the room. The seam is the mark that says a column is there.
+tmux resize-window -t "$S_FULL" -x 140 -y 30
+sleep 0.6
+wide="$(tmux capture-pane -p -t "$S_FULL")"
+echo "==== Phase 156: captured pane (140 columns — the sidebar) ===="
+printf '%s\n' "$wide" | sed -n '1,3p'
+expect_has "$wide" -F "Zeroth v" "the sidebar's brand block is missing at 140 columns"
+expect_has "$wide" -F "│" "the sidebar's seam is missing at 140 columns"
+# It is the screen's RIGHT edge: the brand sits past the seam, and the
+# conversation's rows start at column 0.
+expect_has "$(printf '%s\n' "$wide" | head -1)" -F "│Zeroth v" \
+	"the sidebar is not on the right edge"
+tmux resize-window -t "$S_FULL" -x 100 -y 30
+sleep 0.6
+middle="$(tmux capture-pane -p -t "$S_FULL")"
+expect_has "$middle" -F "Zeroth v" "the narrowed sidebar is missing at 100 columns"
+tmux resize-window -t "$S_FULL" -x 80 -y 30
+sleep 0.6
+narrow="$(tmux capture-pane -p -t "$S_FULL")"
+if printf '%s\n' "$narrow" | grep -qF "Zeroth v"; then
+	fail "the sidebar did not collapse at 80 columns"
+fi
+# The scrollbar marks the conversation it cannot all show: the thumb glyph is
+# the bar's (`docs/ui/full-screen.md` *The frame's own chrome*).
+expect_has "$narrow" -F "▐" "the conversation's scrollbar is missing while scrolled"
 
 # Quit, then read the recording: entry and exit must both be real
 # alternate-screen switches, so the shell is never stranded on the alt screen.

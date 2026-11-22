@@ -482,10 +482,13 @@ impl Session<'_> {
         if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
             let screen = self.term.screen();
             let height = self.live_region_height();
+            // The composer lives in the conversation's width: the sidebar's
+            // column is not the live region (`docs/ui/sidebar.md`), so a click
+            // there is not a click in the input.
             let live = ratatui::layout::Rect::new(
                 0,
                 screen.height.saturating_sub(height),
-                screen.width,
+                screen.width.saturating_sub(ui::sidebar_width(screen.width)),
                 height.min(screen.height),
             );
             if let Some(cursor) = ui::composer_cursor_at(live, &self.app, mouse.column, mouse.row) {

@@ -258,7 +258,23 @@ pub fn notice_card_lines(heading: &str, body: &str, width: u16) -> Vec<Line<'sta
 /// `insert_before(msg); insert_before(blank)` pattern).
 #[must_use]
 pub fn header_lines(app: &App, width: u16) -> Vec<Line<'static>> {
-    header_lines_for(app, app.mascot(), width)
+    header_lines_art(app, app.mascot(), width, true)
+}
+
+/// [`header_lines`] for a frame that **repaints and scrolls** — the
+/// screen-owning mode.
+///
+/// It draws the **text** badge and never the graphic mascot, and that is not a
+/// cosmetic choice. A terminal image is anchored to the screen's cells, not to
+/// the app's buffer: this mode redraws its whole frame every chunk and scrolls
+/// the conversation under it, so a placement painted once is left behind as
+/// ghost blocks wherever it used to sit — the reported "noise" after
+/// scrolling. The inline viewport has no such problem (its banner is committed
+/// to scrollback once), and the sidebar has none either (a fixed column that
+/// never scrolls), so both keep the art.
+#[must_use]
+pub fn header_lines_plain(app: &App, width: u16) -> Vec<Line<'static>> {
+    header_lines_art(app, app.mascot(), width, false)
 }
 
 /// The banner as it would render with `mascot` — the `/mascot` picker's live
@@ -271,11 +287,33 @@ pub fn header_lines(app: &App, width: u16) -> Vec<Line<'static>> {
 /// badge over the same clamped metadata rows.
 #[must_use]
 pub(super) fn header_lines_for(app: &App, mascot: Mascot, width: u16) -> Vec<Line<'static>> {
+    header_lines_art(app, mascot, width, true)
+}
+
+/// The mascot image a banner of this kind may draw, if any.
+///
+/// The one decision behind [`header_lines_plain`]: `art_allowed` is the
+/// caller's "this frame scrolls", and it wins over everything else — a
+/// placement stamped into a frame that repaints and scrolls is left behind as
+/// ghost blocks wherever it used to sit.
+fn graphic_art(art_allowed: bool, mascot: Mascot) -> Option<String> {
+    if !art_allowed || mascot != Mascot::Crest || !images::graphics_available() {
+        return None;
+    }
+    images::mascot_image_path()
+}
+
+/// The one builder, with the graphic tier switchable — [`header_lines_plain`]
+/// is the same banner without it.
+fn header_lines_art(
+    app: &App,
+    mascot: Mascot,
+    width: u16,
+    art_allowed: bool,
+) -> Vec<Line<'static>> {
     let w = width as usize;
     let meta = meta_rows(app);
-    if mascot == Mascot::Crest
-        && images::graphics_available()
-        && let Some(path) = images::mascot_image_path()
+    if let Some(path) = graphic_art(art_allowed, mascot)
         && let Some(lines) = graphic_mascot_lines(&meta, &path, width)
     {
         return lines;
@@ -387,6 +425,38 @@ fn graphic_mascot_lines_at(
 #[cfg(test)]
 mod graphic_mascot_tests {
     use super::*;
+
+    #[test]
+    fn the_plain_banner_asks_for_no_graphic_at_all() {
+        // The decision itself, whatever this machine's terminal reports: the
+        // frame that repaints and scrolls never gets a placement
+        // (`header_lines_plain`), so it can never be left behind as blocks.
+        assert_eq!(graphic_art(false, Mascot::Crest), None);
+        assert_eq!(graphic_art(false, Mascot::Bloom), None);
+    }
+
+    #[test]
+    fn the_plain_banner_never_stamps_an_image_carrier() {
+        // The screen-owning mode's banner: a terminal image is anchored to the
+        // screen's cells, and that frame scrolls and repaints under it, so a
+        // placement here is what left ghost blocks behind after a scroll (the
+        // reported noise). The art tier must be unreachable through this
+        // builder — whatever the terminal reports.
+        let app = App::new();
+        for width in [40u16, 80, 120, 240] {
+            let lines = header_lines_plain(&app, width);
+            assert!(!lines.is_empty(), "width {width}: no banner at all");
+            for line in &lines {
+                for span in &line.spans {
+                    assert!(
+                        images::carrier_parts(span.style.underline_color.unwrap_or(Color::Reset))
+                            .is_none(),
+                        "width {width}: the plain banner stamped an image carrier"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn graphic_banner_reserves_the_icon_and_seats_metadata_beside_it() {

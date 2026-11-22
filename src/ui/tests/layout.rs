@@ -67,6 +67,28 @@ fn cursor_sits_after_the_prompt_and_input() {
 // --- growing input box: height + re-pin geometry ---
 
 #[test]
+fn the_sidebar_does_not_move_the_cursor() {
+    // The footer and the composer live in the conversation's width, and the
+    // sidebar is the screen's **right** edge (`docs/ui/sidebar.md`) — so the
+    // cursor's x is the same whether the column is there or not. A left-edge
+    // sidebar put the whole composer thirty columns in, and the caret sat
+    // where the prompt was not.
+    let mut app = App::new();
+    app.input = TextArea::from_text("hi");
+    let whole = Rect::new(0, 0, 120, 4);
+    let with_sidebar = Rect::new(0, 0, whole.width - crate::ui::sidebar_width(whole.width), 4);
+    assert!(
+        crate::ui::sidebar_width(whole.width) > 0,
+        "the fixture is wide"
+    );
+    assert_eq!(
+        cursor_position(whole, &app),
+        cursor_position(with_sidebar, &app),
+        "the sidebar's column must not shift the caret"
+    );
+}
+
+#[test]
 fn live_height_is_minimal_for_short_input() {
     // Idle, empty or one-line input → a one-row box framed by two rules
     // (no preview strip) = LIVE_MIN_HEIGHT (3).

@@ -346,6 +346,12 @@ pub fn pinned_prompt_line(text: &str, width: u16, hovered: bool) -> Option<Line<
 /// queued commits flush beneath it.)
 #[must_use]
 pub fn banner_tail(mut banner: Vec<Line<'static>>, tail: Vec<Line<'static>>) -> Vec<Line<'static>> {
+    // No banner means no spacer either: the screen-owning mode drops it when
+    // the sidebar carries the brand (`docs/ui/sidebar.md`), and a stray blank
+    // row there would be the one trace of a block that is not on screen.
+    if banner.is_empty() {
+        return tail;
+    }
     banner.push(Line::default());
     banner.extend(tail);
     banner
