@@ -3,9 +3,9 @@
 日期：2026-11-23
 
 状态：**进行中**。第 1 阶段（`ConversationView`）、第 2 阶段（`Screen` 接缝）和
-第 3 阶段的状态搬移已完成（2026-11-23）：`Session` 持有 23 个字段，
-`Conversation` 63 个，`ConversationView` 29 个。第 3 阶段按区域的方法搬移继续；
-第 4 阶段还等它自己的产品触发条件。本方案所延伸（并且刻意**不**推翻）的决策是
+第 3 阶段已完成（2026-11-23）：`Session` 23 个字段、191 个方法，
+`Conversation` 63 个字段、36 个方法，`ConversationView` 29 个字段。第 4 阶段还等
+它自己的产品触发条件。本方案所延伸（并且刻意**不**推翻）的决策是
 [`core-seam-decision.md`](core-seam-decision.md)。
 
 ## 问题
@@ -133,7 +133,7 @@ enum 需要的东西）、`src/tui/mod.rs`、`src/tui/view.rs`、`src/tui/action
 **怎么回滚**：整块落地；加一个按模式选旧路径的开关，正是决策页禁止的「半截接
 缝」。回归的话整条系列 revert。
 
-### 第 3 阶段 —— `Conversation`（运行时）、`Workspace`（表）—— 状态部分 2026-11-23 落地
+### 第 3 阶段 —— `Conversation`（运行时）、`Workspace`（表）—— 2026-11-23 完成
 
 **做什么**：把 `Session` 里非终端、按对话的字段 —— `models`、九个通道、各注册表
 与 store、各时钟、inflight/reaping 句柄、`cwd`、recorder —— 归进
@@ -150,7 +150,11 @@ enum 需要的东西）、`src/tui/mod.rs`、`src/tui/view.rs`、`src/tui/action
 个 commit）、`src/tui/event_loop.rs`（不绘制的分支借对话，而不是借会话）。**实际
 落地**：63 个按对话的字段（模型、通道、各注册表、store、时钟、inflight 句柄、
 cwd）归 `Conversation`；`Session` 是屏幕、视图、本次运行的终端事实和进程级事实
-—— 23 个字段。处理函数仍经由 `self.conversation` 到达，按区域的方法搬移随后。
+—— 23 个字段。只碰这些状态的 36 个方法也一起搬了过去（ask 时钟、agent 的
+settle/resume、后台 hand-off、diff 打开、无头 idle/settle、`/login` 取消、模型
+picker 与探测、checkpoint 恢复、命令时钟、usage 取消、状态时钟注入、`@` 分派、
+任务表同步）。留在 `Session` 上的是边界：任何读屏幕、视图、帧调度器或进程级事实
+的东西 —— 191 个方法，而重跑分类器已经找不到可搬的了。
 
 **不变量**：借用拆分必须让每个 `select!` future 借**不同字段**（通道字段上的注
 释就是契约）；任何处理函数都不能持有它原本从一个 struct 上拿到的两个可变借用。既

@@ -137,7 +137,7 @@ opening the viewport, running the loop — and everything else lives here:
 | `background.rs` | Background-shell events and `settle_bg_completions` (`docs/tools/background.md`). |
 | `permission.rs` | `PermissionStore` — the gate, its file, this project's key — and the prompt's answers (`docs/state/permissions.md`). |
 | `ask.rs` | The `AskUserQuestion` idle clock's boundary half: `Instant::now()` into the pure `ask::AskTimer` on every key, paste and draw, and the expiry that resolves the waiting questions unanswered (`docs/tools/ask.md`). |
-| `conversation.rs` | `Conversation`: one conversation's runtime — its model, channels, registries, stores, clocks and in-flight turn — beside the screen and the view (`core-host-split.md` Phase 3). |
+| `conversation.rs` | `Conversation`: one conversation's runtime — its model, channels, registries, stores, clocks and in-flight turn — beside the screen and the view, with the 36 methods that touch only that state (`core-host-split.md` Phase 3). |
 | `screen.rs` | The `Screen` seam: inline / full-screen / headless as one enum over the viewport, and the mode questions the loop asks it (`docs/architecture/core-host-split.md` Phase 2). |
 | `view.rs` | Drawing: the draw tick, the overlays, the repaints, `live_region_height`, the injected clocks, and the `ConversationView` state the frame derives from `App` (`core-host-split.md` Phase 1). |
 | `commit.rs` | Scrollback commits — the one place invariant 4 is enforced — and the toast. |

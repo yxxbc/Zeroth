@@ -3,9 +3,9 @@
 Date: 2026-11-23
 
 Status: **in progress**. Phase 1 (`ConversationView`), Phase 2 (the `Screen`
-seam) and Phase 3's state move are done (2026-11-23): `Session` holds 23 fields,
-`Conversation` holds 63, `ConversationView` 29. Phase 3's per-area method moves
-continue; Phase 4 needs its product trigger. The decision this plan extends — and deliberately
+seam) and Phase 3 are done (2026-11-23): `Session` is 23 fields and 191
+methods, `Conversation` 63 fields and 36 methods, `ConversationView` 29 fields.
+Phase 4 needs its product trigger. The decision this plan extends — and deliberately
 does **not** overturn — is [`core-seam-decision.md`](core-seam-decision.md).
 
 ## The question
@@ -153,7 +153,7 @@ permission prompts) and must stay green.
 **Rollback**: land it whole; a per-mode flag to choose the old path is the
 "half-built seam" the decision page forbids. Revert the series if it regresses.
 
-### Phase 3 — `Conversation` (the runtime), `Workspace` (the table) — state landed 2026-11-23
+### Phase 3 — `Conversation` (the runtime), `Workspace` (the table) — done 2026-11-23
 
 **What**: group the non-terminal, per-conversation fields of `Session` —
 `models`, the nine channels, the registries and stores, the clocks, the
@@ -175,8 +175,14 @@ files — moved in batches, per area, each batch its own commit), `src/tui/event
 **As landed**: the 63 per-conversation fields (the model, the channels, the
 registries, stores, clocks, the in-flight handles, the cwd) are
 `Conversation`'s; `Session` is the screen, the view, the run's terminal facts
-and the process-level ones — 23 fields. The handlers still reach through
-`self.conversation`, and the per-area method moves follow.
+and the process-level ones — 23 fields. The 36 methods that touch nothing but
+that state moved with them (ask clock, agent settle/resume, background
+hand-off, diff opener, headless idle/settle, `/login` cancel, model picker and
+probe, checkpoint restore, command clock, usage cancel, status-clock
+injection, `@` dispatch, task-registry sync). What remains on `Session` is the
+boundary: anything reading the screen, the view, the frame scheduler or a
+process-level fact — 191 methods, and a re-run of the classifier finds nothing
+left to move.
 
 **Invariants**: the borrow split must keep every `select!` future borrowing a
 **distinct field** (the comment on the channel fields is the contract); no
