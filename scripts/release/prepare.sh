@@ -6,7 +6,7 @@
 #
 # Rewrites, in place: Cargo.toml's [package] version, Cargo.lock's entry for
 # the crate (exactly what `cargo update --workspace` would write), the
-# README's version badge (URL label and alt text), and CHANGELOG.md — the
+# READMEs' version badges (URL label and alt text), and CHANGELOG.md — the
 # `## [Unreleased]` heading stays, empty, over a new `## [X.Y.Z] - <today>`
 # heading that takes its body, and the link block gains the version's
 # compare link (or the tag link, for a first release) with [Unreleased]
@@ -63,10 +63,14 @@ rewrite "$RELEASE_ROOT/Cargo.lock" awk -v name="$name" -v v="$version" '
 	/^version = / && n == name && !done { print "version = \"" v "\""; done = 1; next }
 	{ print }
 '
-# README.md: the badge's URL label (shields escapes `-` as `--`) and alt text.
-rewrite "$RELEASE_ROOT/README.md" sed \
-	-e "s|img\.shields\.io/badge/Version-$(badge_escape "$current")-|img.shields.io/badge/Version-$(badge_escape "$version")-|" \
-	-e "s|alt=\"Version: $current\"|alt=\"Version: $version\"|"
+# Every README's badge: its URL label (shields escapes `-` as `--`) and alt
+# text. The Chinese twin carries the same badge and drifts otherwise.
+while read -r readme; do
+	[ -f "$RELEASE_ROOT/$readme" ] || continue
+	rewrite "$RELEASE_ROOT/$readme" sed \
+		-e "s|img\.shields\.io/badge/Version-$(badge_escape "$current")-|img.shields.io/badge/Version-$(badge_escape "$version")-|" \
+		-e "s|alt=\"Version: $current\"|alt=\"Version: $version\"|"
+done < <(readme_badge_files)
 # CHANGELOG.md: roll [Unreleased] into the release's section and re-point
 # the links.
 prev="$(changelog_versions | sed -n '1p')"
@@ -82,12 +86,12 @@ rewrite "$(changelog_path)" awk -v v="$version" -v d="$date" -v repo="$repo" -v 
 	{ print }
 '
 
-ok "$name $current → $version ($date) in Cargo.toml, Cargo.lock, README.md and CHANGELOG.md"
+ok "$name $current → $version ($date) in Cargo.toml, Cargo.lock, the READMEs and CHANGELOG.md"
 bash "$RELEASE_LIB_DIR/check.sh"
 cat >&2 <<EOF
 
 Next, from $RELEASE_ROOT:
-  git add Cargo.toml Cargo.lock README.md CHANGELOG.md
+  git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md
   git commit -m "Release $tag"
   git tag -a $tag -m "$name $tag"
   git push origin HEAD $tag          # the tag push runs .github/workflows/release.yml

@@ -45,13 +45,16 @@ else
 	fail "Cargo.lock records $name ${lock:-<none>}, Cargo.toml says $version — run scripts/release.sh prepare, or cargo update --workspace"
 fi
 
-badge="$(readme_badge_version)"
-alt="$(readme_alt_version)"
-if [ "$badge" = "$version" ] && [ "$alt" = "$version" ]; then
-	ok "README.md: version badge $version"
-else
-	fail "README.md: version badge says '${badge:-<none>}' (alt '${alt:-<none>}'), Cargo.toml says $version"
-fi
+while read -r readme; do
+	[ -f "$RELEASE_ROOT/$readme" ] || continue
+	badge="$(readme_badge_version "$RELEASE_ROOT/$readme")"
+	alt="$(readme_alt_version "$RELEASE_ROOT/$readme")"
+	if [ "$badge" = "$version" ] && [ "$alt" = "$version" ]; then
+		ok "$readme: version badge $version"
+	else
+		fail "$readme: version badge says '${badge:-<none>}' (alt '${alt:-<none>}'), Cargo.toml says $version"
+	fi
+done < <(readme_badge_files)
 
 if [ ! -f "$(changelog_path)" ]; then
 	fail "CHANGELOG.md is missing"

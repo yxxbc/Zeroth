@@ -274,9 +274,12 @@ tree, which is how the selftest drives them against fixtures.
    and `+build`); a hyphenated version is a **pre-release**, which `publish`
    flags and never marks latest.
 2. Cargo.lock records the same version for the crate.
-3. The README's version badge agrees — both the URL label (shields.io
+3. Every README's version badge agrees — both the URL label (shields.io
    escapes `-` as `--`, so `0.2.0-rc.1` rides it as `0.2.0--rc.1`) and the
-   alt text.
+   alt text. `README.md` and its Chinese translation `README.zh.md` show the
+   same badge and are held to it together: the docs parity script compares code
+   spans and link targets, so a bumped English badge beside a stale translation
+   would pass it and drift.
 4. `CHANGELOG.md` has `## [X.Y.Z] - YYYY-MM-DD` with a non-empty body and a
    `[X.Y.Z]: url` link reference.
 5. `CHANGELOG.md` keeps `## [Unreleased]` and its link.
@@ -352,8 +355,8 @@ publish X.Y.Z dist` with `gh` signed in (the dry run shows the exact calls).
 ## Cutting a release
 
 ```bash
-scripts/release.sh prepare 0.2.0               # edits Cargo.toml, Cargo.lock, README.md, CHANGELOG.md; runs check
-git add Cargo.toml Cargo.lock README.md CHANGELOG.md
+scripts/release.sh prepare 0.2.0               # edits Cargo.toml, Cargo.lock, the READMEs, CHANGELOG.md; runs check
+git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md
 git commit -m "Release v0.2.0"
 git tag -a v0.2.0 -m "zeroth v0.2.0"
 git push origin HEAD v0.2.0

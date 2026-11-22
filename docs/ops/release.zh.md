@@ -220,8 +220,11 @@ release、一个被篡改的校验和（什么都不安装，而且输出说明�
    `+build`）；带连字符的版本是 **pre-release**，`publish` 会标记它，从不把它
    标成 latest。
 2. Cargo.lock 记录这个 crate 的同一个版本。
-3. README 的版本 badge 一致——URL 标签（shields.io 把 `-` 转义成 `--`，所以
-   `0.2.0-rc.1` 以 `0.2.0--rc.1` 搭过去）和 alt 文字都一致。
+3. 每一个 README 的版本 badge 都一致——URL 标签（shields.io 把 `-` 转义成
+   `--`，所以 `0.2.0-rc.1` 以 `0.2.0--rc.1` 搭过去）和 alt 文字都一致。
+   `README.md` 和它的中文译本 `README.zh.md` 显示同一个 badge，一起受这条约束：
+   文档对照脚本比较的是代码片段和链接目标，所以一个升了英文、却留着旧译本的
+   badge 能通过它，然后漂移。
 4. `CHANGELOG.md` 有 `## [X.Y.Z] - YYYY-MM-DD`，body 非空，并有一条
    `[X.Y.Z]: url` 链接引用。
 5. `CHANGELOG.md` 保留 `## [Unreleased]` 和它的链接。
@@ -246,10 +249,10 @@ selftest 通过把一个宿主二进制以另一个 target 的名字打包，证
 `--verify-tag` 拒绝凭空造 tag：tag 推送才是触发器，而一个仓库里没有 tag 的
 release，是「无物的 release」。
 
-`prepare` 原子地重写四个文件（经临时文件和 `mv`，不用 `sed -i`，GNU 和 BSD 对
+`prepare` 原子地重写这些文件（经临时文件和 `mv`，不用 `sed -i`，GNU 和 BSD 对
 它的参数意见不一）：Cargo.toml 的 `[package]` 版本，别的什么都不改；Cargo.lock
-里这个 crate 的条目（正是 `cargo update --workspace` 会写的东西）；README badge
-的标签和 alt 文字；以及 `CHANGELOG.md`，其中 `## [Unreleased]` 空着留在一个新的
+里这个 crate 的条目（正是 `cargo update --workspace` 会写的东西）；每个 README
+badge 的标签和 alt 文字；以及 `CHANGELOG.md`，其中 `## [Unreleased]` 空着留在一个新的
 `## [X.Y.Z] - <today>` 标题之上，那标题接过它的 body，而链接块得到该版本的
 compare 链接（第一个 release 则是 tag 链接），`[Unreleased]` 重新指向它之后。
 它拒绝一个不是 semver 的、就是当前版本的、已经有小节或有本地 tag 的、或者会让
@@ -287,8 +290,8 @@ publish X.Y.Z dist`（dry run 显示确切的调用）。
 ## 切一个 release
 
 ```bash
-scripts/release.sh prepare 0.2.0               # edits Cargo.toml, Cargo.lock, README.md, CHANGELOG.md; runs check
-git add Cargo.toml Cargo.lock README.md CHANGELOG.md
+scripts/release.sh prepare 0.2.0               # edits Cargo.toml, Cargo.lock, the READMEs, CHANGELOG.md; runs check
+git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md
 git commit -m "Release v0.2.0"
 git tag -a v0.2.0 -m "zeroth v0.2.0"
 git push origin HEAD v0.2.0

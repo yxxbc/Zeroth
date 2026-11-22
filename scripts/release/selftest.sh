@@ -208,6 +208,11 @@ EOF
 <a href="Cargo.toml"><img src="https://img.shields.io/badge/Version-0.4.2-89DCEB?style=for-the-badge&amp;logo=github" alt="Version: 0.4.2" height="32"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-A6E3A1?style=for-the-badge" alt="License: Apache 2.0" height="32"></a>
 EOF
+	cat >"$root/README.zh.md" <<'EOF'
+# 夹具
+
+<a href="Cargo.toml"><img src="https://img.shields.io/badge/Version-0.4.2-89DCEB?style=for-the-badge&amp;logo=github" alt="Version: 0.4.2" height="32"></a>
+EOF
 	cat >"$root/CHANGELOG.md" <<'EOF'
 # Changelog
 
@@ -261,6 +266,9 @@ expect_eq "lock version of the crate (not the crate named 'version')" "0.4.2" "$
 expect_eq "lock version of another package" "8.8.8" "$(lock_version version)"
 expect_eq "README badge label" "0.4.2" "$(readme_badge_version)"
 expect_eq "README alt text" "0.4.2" "$(readme_alt_version)"
+expect_eq "the badge files are both READMEs" "README.md README.zh.md" "$(readme_badge_files | tr '\n' ' ' | sed 's/ $//')"
+expect_eq "the Chinese README's badge reads the same" "0.4.2 0.4.2" \
+	"$(readme_badge_version "$RELEASE_ROOT/README.zh.md") $(readme_alt_version "$RELEASE_ROOT/README.zh.md")"
 mkdir -p "$T/pre"
 sed -e 's/Version-0\.4\.2-/Version-0.5.0--rc.1-/' -e 's/Version: 0\.4\.2/Version: 0.5.0-rc.1/' "$T/fx/README.md" >"$T/pre/README.md"
 RELEASE_ROOT="$T/pre" expect_eq "README badge unescapes -- to -" "0.5.0-rc.1" "$(RELEASE_ROOT="$T/pre" readme_badge_version)"
@@ -315,6 +323,13 @@ expect_contains "…and says so" "$OUT" "Cargo.lock records zeroth 0.4.1"
 
 fixture "$T/bad-readme" && sed 's/0\.4\.2/0.4.1/g' "$T/fx/README.md" >"$T/bad-readme/README.md"
 RELEASE_ROOT="$T/bad-readme" expect_fail "a stale README badge fails" bash "$STEPS/check.sh"
+expect_contains "…naming the file" "$OUT" "README.md: version badge says '0.4.1'"
+
+# The Chinese twin carries the same badge: a bumped English page beside a
+# stale translation is a drift the docs parity script cannot see.
+fixture "$T/bad-readme-zh" && sed 's/0\.4\.2/0.4.1/g' "$T/fx/README.zh.md" >"$T/bad-readme-zh/README.zh.md"
+RELEASE_ROOT="$T/bad-readme-zh" expect_fail "a stale Chinese README badge fails" bash "$STEPS/check.sh"
+expect_contains "…naming the Chinese file" "$OUT" "README.zh.md: version badge says '0.4.1'"
 
 fixture "$T/no-section" && sed '/^## \[0.4.2\]/,/^## \[0.4.1\]/{/^## \[0.4.1\]/!d;}' "$T/fx/CHANGELOG.md" >"$T/no-section/CHANGELOG.md"
 RELEASE_ROOT="$T/no-section" expect_fail "a missing changelog section fails" bash "$STEPS/check.sh"
@@ -682,6 +697,8 @@ expect_eq "…Cargo.toml bumped (dependencies untouched)" "0.5.0 9.9.9" "$(RELEA
 expect_eq "…Cargo.lock's crate entry bumped" "0.5.0" "$(RELEASE_ROOT="$T/prep" lock_version zeroth)"
 expect_eq "…the other lock entries untouched" "8.8.8" "$(RELEASE_ROOT="$T/prep" lock_version version)"
 expect_eq "…README badge bumped" "0.5.0 0.5.0" "$(RELEASE_ROOT="$T/prep" readme_badge_version) $(RELEASE_ROOT="$T/prep" readme_alt_version)"
+expect_eq "…and the Chinese twin's too" "0.5.0 0.5.0" \
+	"$(RELEASE_ROOT="$T/prep" readme_badge_version "$T/prep/README.zh.md") $(RELEASE_ROOT="$T/prep" readme_alt_version "$T/prep/README.zh.md")"
 expect_eq "…the license badge untouched" "1" "$(grep -c 'License-Apache--2.0' "$T/prep/README.md")"
 expect_eq "…changelog heading dated" "2026-10-01" "$(RELEASE_ROOT="$T/prep" changelog_date 0.5.0)"
 expect_eq "…taking the pending body" "### Added
@@ -695,7 +712,7 @@ expect_eq "…older sections intact" "**A fixed thing**
 - A thing that was broken." "$(RELEASE_ROOT="$T/prep" changelog_section 0.4.2)"
 expect_eq "…compare link added" "https://github.com/example/zeroth/compare/v0.4.2...v0.5.0" "$(RELEASE_ROOT="$T/prep" changelog_link 0.5.0)"
 expect_eq "…[Unreleased] re-pointed" "https://github.com/example/zeroth/compare/v0.5.0...HEAD" "$(RELEASE_ROOT="$T/prep" changelog_link Unreleased)"
-expect_contains "…and the commit it prints adds it" "$OUT" "git add Cargo.toml Cargo.lock README.md CHANGELOG.md"
+expect_contains "…and the commit it prints adds it" "$OUT" "git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md"
 RELEASE_ROOT="$T/prep" expect_ok "…and the tree checks out for its tag" bash "$STEPS/check.sh" v0.5.0
 expect_eq "…heading order: Unreleased, 0.5.0, 0.4.2, 0.4.1" "0.5.0 0.4.2 0.4.1" "$(RELEASE_ROOT="$T/prep" changelog_versions | tr '\n' ' ' | sed 's/ $//')"
 

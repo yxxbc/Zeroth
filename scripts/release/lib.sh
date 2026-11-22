@@ -133,11 +133,17 @@ lock_version() {
 # alt text says it plainly. Both are read, and both must agree.
 # ---------------------------------------------------------------------------
 badge_escape() { printf '%s\n' "${1//-/--}"; }
+# The READMEs carrying a version badge, relative to RELEASE_ROOT. The Chinese
+# translation is the English page's twin and shows the same badge, so it is
+# held to the same rule — a bumped English badge beside a stale Chinese one is
+# the drift `scripts/docs/zh_parity.py` cannot see (a badge is neither a code
+# span nor a link target it compares).
+readme_badge_files() { printf '%s\n' README.md README.zh.md; }
 readme_badge_version() {
-	sed -n '/img\.shields\.io\/badge\/Version-/{s/.*img\.shields\.io\/badge\/Version-\(.*\)-[0-9A-Fa-f]\{6\}?style=.*/\1/p;q;}' "$RELEASE_ROOT/README.md" | sed 's/--/-/g'
+	sed -n '/img\.shields\.io\/badge\/Version-/{s/.*img\.shields\.io\/badge\/Version-\(.*\)-[0-9A-Fa-f]\{6\}?style=.*/\1/p;q;}' "${1:-$RELEASE_ROOT/README.md}" | sed 's/--/-/g'
 }
 readme_alt_version() {
-	sed -n '/alt="Version: /{s/.*alt="Version: \([^"]*\)".*/\1/p;q;}' "$RELEASE_ROOT/README.md"
+	sed -n '/alt="Version: /{s/.*alt="Version: \([^"]*\)".*/\1/p;q;}' "${1:-$RELEASE_ROOT/README.md}"
 }
 
 # ---------------------------------------------------------------------------
