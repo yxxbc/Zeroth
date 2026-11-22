@@ -334,7 +334,10 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
             return JobOutcome::failed(began);
         }
     };
-    if !session.models.is_real() && !config::dummy_forced() && config::stall_ms().is_none() {
+    if !session.conversation.models.is_real()
+        && !config::dummy_forced()
+        && config::stall_ms().is_none()
+    {
         let _ = session.shutdown();
         write(&core::not_started(format, NO_MODEL, began.elapsed()));
         return JobOutcome::failed(began);
@@ -342,7 +345,7 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
     session.report_held_for_review();
     let mut reporter = Reporter::new(format, options.verbose);
     let mut interrupted = None;
-    let run_start = session.app.history.len();
+    let run_start = session.conversation.app.history.len();
     let mut emitted = run_start;
     let start = session.run_start_info(resumed);
     write(&reporter.start(&start.as_start()));
@@ -356,7 +359,7 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
     let mut agents_since: Option<Instant> = None;
     let mut stopped_agents: Vec<String> = Vec::new();
     while interrupted.is_none() {
-        if session.inflight.is_none()
+        if session.conversation.inflight.is_none()
             && let Some(prompt) = prompt.take()
         {
             session.submit_startup_prompt(prompt);
@@ -392,13 +395,13 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
             continue;
         }
         tokio::select! {
-            Some(event) = session.reply_rx.recv() => {
+            Some(event) = session.conversation.reply_rx.recv() => {
                 session.on_headless_reply(event, &mut reporter, run_start, &mut emitted);
             }
-            Some(event) = session.bg_rx.recv() => session.on_bg_event(event),
-            Some(event) = session.agent_rx.recv() => session.on_headless_agent_message(event),
-            Some((provider, result)) = session.probe_rx.recv(),
-                if session.models.probe_pending() =>
+            Some(event) = session.conversation.bg_rx.recv() => session.on_bg_event(event),
+            Some(event) = session.conversation.agent_rx.recv() => session.on_headless_agent_message(event),
+            Some((provider, result)) = session.conversation.probe_rx.recv(),
+                if session.conversation.models.probe_pending() =>
             {
                 session.apply_capability_probe(&provider, result);
             }
@@ -409,8 +412,8 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
             () = tokio::time::sleep_until(tokio::time::Instant::from_std(
                 agents_deadline.unwrap_or_else(Instant::now),
             )), if agents_deadline.is_some() => {}
-            Some(done) = session.checkpoint_rx.recv() => session.on_checkpoint_done(done),
-            Some(done) = session.restore_rx.recv() => session.on_restore_done(done),
+            Some(done) = session.conversation.checkpoint_rx.recv() => session.on_checkpoint_done(done),
+            Some(done) = session.conversation.restore_rx.recv() => session.on_restore_done(done),
         }
         // Compaction at the loop bottom only while the run waits on its
         // subagents — the idle boundary a follow-up turn will come out of.
@@ -473,36 +476,41 @@ impl Session<'_> {
         emitted: &mut usize,
     ) {
         let elapsed = self
+            .conversation
             .clocks
             .turn_start
             .map(|start| start.elapsed().as_secs())
             .unwrap_or_default();
-        self.app
-            .set_command_elapsed(self.clocks.command_start.map(|start| start.elapsed()));
-        if let Some((cancel, _)) = self.inflight.as_ref() {
+        self.conversation.app.set_command_elapsed(
+            self.conversation
+                .clocks
+                .command_start
+                .map(|start| start.elapsed()),
+        );
+        if let Some((cancel, _)) = self.conversation.inflight.as_ref() {
             cancel.cancel();
         }
         if let Some(zeroth::app::InterruptedTurn::Kept { agents, .. }) =
-            self.app.interrupt_for_shutdown(elapsed)
+            self.conversation.app.interrupt_for_shutdown(elapsed)
             && let Some(group) = agents
         {
             for entry in group.agents {
-                let _ = self.agent_registry.kill(&entry.id);
+                let _ = self.conversation.agent_registry.kill(&entry.id);
             }
         }
         self.abandon_inflight();
-        self.clocks.command_start = None;
+        self.conversation.clocks.command_start = None;
         self.emit_settled(reporter, run_start, emitted);
     }
 
     /// What a headless run announces as it starts.
     fn run_start_info(&self, resumed: bool) -> StartInfo {
         StartInfo {
-            session_id: self.recorder.conversation_id().to_string(),
-            model: self.models.model_name(),
-            cwd: self.cwd.display().to_string(),
-            cwd_display: self.cwd_display.clone(),
-            permission_mode: self.permissions.mode(),
+            session_id: self.conversation.recorder.conversation_id().to_string(),
+            model: self.conversation.models.model_name(),
+            cwd: self.conversation.cwd.display().to_string(),
+            cwd_display: self.conversation.cwd_display.clone(),
+            permission_mode: self.conversation.permissions.mode(),
             resumed,
         }
     }
@@ -543,7 +551,7 @@ impl Session<'_> {
             ..
         } = &message
         {
-            self.permissions.resolve(
+            self.conversation.permissions.resolve(
                 &request.id,
                 zeroth::permission::PermissionDecision::Deny(None),
             );
@@ -566,14 +574,15 @@ impl Session<'_> {
         // somehow did is refused, never shown.
         match &event {
             StreamEvent::Permission(request) => {
-                self.permissions.resolve(
+                self.conversation.permissions.resolve(
                     &request.id,
                     zeroth::permission::PermissionDecision::Deny(None),
                 );
                 return;
             }
             StreamEvent::AskUser(request) => {
-                self.ask
+                self.conversation
+                    .ask
                     .resolve(&request.id, zeroth::ask::AskDecision::Declined);
                 return;
             }
@@ -598,7 +607,13 @@ impl Session<'_> {
         if blocked {
             // The hook's refusal took the prompt back out of the history and
             // put its notice in: everything before that notice was said.
-            *emitted = self.app.history.len().saturating_sub(1).max(run_start);
+            *emitted = self
+                .conversation
+                .app
+                .history
+                .len()
+                .saturating_sub(1)
+                .max(run_start);
         }
         self.emit_settled(reporter, run_start, emitted);
         if let Some((name, args, arguments)) = started {
@@ -611,12 +626,12 @@ impl Session<'_> {
     /// never what a retried reply attempt could still take back
     /// ([`zeroth::app::App::settled_history_len`]).
     fn emit_settled(&self, reporter: &mut Reporter, run_start: usize, emitted: &mut usize) {
-        let settled = self.app.settled_history_len().max(run_start);
+        let settled = self.conversation.app.settled_history_len().max(run_start);
         if settled < *emitted {
             *emitted = settled;
         }
         if settled > *emitted {
-            write(&reporter.settled(&self.app.history[*emitted..settled]));
+            write(&reporter.settled(&self.conversation.app.history[*emitted..settled]));
             *emitted = settled;
         }
     }
@@ -626,31 +641,41 @@ impl Session<'_> {
     /// a subagent always finishes, and its result starts the next turn).
     /// Background shells do not count — a server started with `&` never ends.
     fn headless_idle(&self) -> bool {
-        self.inflight.is_none()
-            && !self.app.turn_active()
-            && self.app.queued.is_empty()
+        self.conversation.inflight.is_none()
+            && !self.conversation.app.turn_active()
+            && self.conversation.app.queued.is_empty()
             && !self.waiting_on_agents()
             && !self.checkpoint_pending()
     }
 
     fn waiting_on_agents(&self) -> bool {
-        self.app.agents().iter().any(zeroth::herdr::agent_busy)
-            || self.app.has_pending_agent_notices()
+        self.conversation
+            .app
+            .agents()
+            .iter()
+            .any(zeroth::herdr::agent_busy)
+            || self.conversation.app.has_pending_agent_notices()
     }
 
     /// Idle but for subagents still at work — the wait
     /// [`core::agent_wait`] bounds.
     fn idle_on_working_agents(&self) -> bool {
-        self.inflight.is_none()
-            && !self.app.turn_active()
-            && self.app.queued.is_empty()
+        self.conversation.inflight.is_none()
+            && !self.conversation.app.turn_active()
+            && self.conversation.app.queued.is_empty()
             && !self.checkpoint_pending()
-            && self.app.agents().iter().any(zeroth::herdr::agent_busy)
+            && self
+                .conversation
+                .app
+                .agents()
+                .iter()
+                .any(zeroth::herdr::agent_busy)
     }
 
     /// The subagents still at work, by their descriptions.
     fn working_agents(&self) -> Vec<String> {
-        self.app
+        self.conversation
+            .app
             .agents()
             .iter()
             .filter(|run| zeroth::herdr::agent_busy(run))
@@ -668,20 +693,20 @@ impl Session<'_> {
         run_start: usize,
         emitted: &mut usize,
     ) {
-        for _ in 0..self.bg_rx.len() {
-            let Ok(event) = self.bg_rx.try_recv() else {
+        for _ in 0..self.conversation.bg_rx.len() {
+            let Ok(event) = self.conversation.bg_rx.try_recv() else {
                 break;
             };
             self.on_bg_event(event);
         }
-        for _ in 0..self.agent_rx.len() {
-            let Ok(event) = self.agent_rx.try_recv() else {
+        for _ in 0..self.conversation.agent_rx.len() {
+            let Ok(event) = self.conversation.agent_rx.try_recv() else {
                 break;
             };
             self.on_headless_agent_message(event);
         }
-        for _ in 0..self.reply_rx.len() {
-            let Ok(event) = self.reply_rx.try_recv() else {
+        for _ in 0..self.conversation.reply_rx.len() {
+            let Ok(event) = self.conversation.reply_rx.try_recv() else {
                 break;
             };
             self.on_headless_reply(event, reporter, run_start, emitted);
@@ -693,23 +718,28 @@ impl Session<'_> {
     /// compaction itself when `compact` allows it, the rollout, the reaping
     /// — and none of the screen's.
     fn after_headless_iteration(&mut self, compact: bool) {
-        for warning in self.models.credential_warnings() {
+        for warning in self.conversation.models.credential_warnings() {
             write(&[core::warning(&warning)]);
         }
-        self.app
-            .set_tool_definitions(self.models.backend().tool_definitions());
-        self.app.sync_context_used();
+        self.conversation
+            .app
+            .set_tool_definitions(self.conversation.models.backend().tool_definitions());
+        self.conversation.app.sync_context_used();
         if compact
-            && self.inflight.is_none()
+            && self.conversation.inflight.is_none()
             && !self.checkpoint_pending()
-            && !self.models.is_stalled_test_backend()
-            && self.app.should_auto_compact()
+            && !self.conversation.models.is_stalled_test_backend()
+            && self.conversation.app.should_auto_compact()
         {
             self.start_compact_turn(/*auto=*/ true);
         }
-        self.recorder
-            .sync(&self.app.history, self.app.history_generation());
-        self.reaping.retain(|handle| !handle.is_finished());
+        self.conversation.recorder.sync(
+            &self.conversation.app.history,
+            self.conversation.app.history_generation(),
+        );
+        self.conversation
+            .reaping
+            .retain(|handle| !handle.is_finished());
     }
 
     /// The run is over: gather its report, shut the session down the TUI's
@@ -726,6 +756,7 @@ impl Session<'_> {
         stopped_agents: &[String],
     ) -> JobOutcome {
         let denials: Vec<Denial> = self
+            .conversation
             .permissions
             .gate()
             .map(zeroth::permission::PermissionGate::take_unattended_refusals)
@@ -734,25 +765,33 @@ impl Session<'_> {
             .map(Denial::from)
             .collect();
         let stopped: Vec<String> = self
+            .conversation
             .registry
             .running()
             .into_iter()
             .map(|shell| shell.command)
             .collect();
         let budget = self.round_budget.clone().unwrap_or_default();
-        let run: &[HistoryItem] = self.app.history.get(run_start..).unwrap_or_default();
+        let run: &[HistoryItem] = self
+            .conversation
+            .app
+            .history
+            .get(run_start..)
+            .unwrap_or_default();
         let outcome = match interrupted {
             Some(signal) => RunOutcome::Interrupted(signal),
             None => RunOutcome::of(run, budget.spent()),
         };
         let answer = core::final_answer(run);
-        let usage = RunUsage::from(self.app.usage_since_launch());
+        let usage = RunUsage::from(self.conversation.app.usage_since_launch());
         // A run that never got as far as its prompt has nothing recorded.
         let recorded = run.iter().any(
             |item| matches!(item, HistoryItem::Message(message) if message.role == Role::User),
         ) || start.resumed;
-        self.recorder
-            .sync(&self.app.history, self.app.history_generation());
+        self.conversation.recorder.sync(
+            &self.conversation.app.history,
+            self.conversation.app.history_generation(),
+        );
         let _ = self.shutdown();
         let duration = began.elapsed();
         write(&reporter.finish(&RunEnd {

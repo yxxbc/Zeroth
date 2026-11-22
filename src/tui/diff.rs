@@ -19,10 +19,10 @@ impl Session<'_> {
     pub(crate) fn open_diff_review(&mut self) {
         // Stay inline during validation. An unavailable repository should
         // produce a quiet toast without ever flashing the alternate screen.
-        self.diff_generation = self.diff_generation.wrapping_add(1);
-        let generation = self.diff_generation;
-        let tx = self.diff_tx.clone();
-        let cwd = self.cwd.clone();
+        self.conversation.diff_generation = self.conversation.diff_generation.wrapping_add(1);
+        let generation = self.conversation.diff_generation;
+        let tx = self.conversation.diff_tx.clone();
+        let cwd = self.conversation.cwd.clone();
         std::thread::spawn(move || {
             let result = super::git_diff_loader::repository_root(&cwd).map(|_| ());
             let _ = tx.send((generation, DiffUpdate::Repository(result)));
@@ -30,10 +30,10 @@ impl Session<'_> {
     }
 
     pub(crate) fn load_diff_review(&mut self) {
-        self.diff_generation = self.diff_generation.wrapping_add(1);
-        let generation = self.diff_generation;
-        let tx = self.diff_tx.clone();
-        let cwd = self.cwd.clone();
+        self.conversation.diff_generation = self.conversation.diff_generation.wrapping_add(1);
+        let generation = self.conversation.diff_generation;
+        let tx = self.conversation.diff_tx.clone();
+        let cwd = self.conversation.cwd.clone();
         let secrets = self.secrets.clone();
         std::thread::spawn(move || {
             let result = super::git_diff_loader::load(&cwd).map(|mut snapshot| {
@@ -54,17 +54,19 @@ impl Session<'_> {
     }
 
     pub(crate) fn on_diff_result(&mut self, (generation, update): DiffResult) -> io::Result<()> {
-        if generation != self.diff_generation {
+        if generation != self.conversation.diff_generation {
             return Ok(());
         }
         let result = match update {
             DiffUpdate::Repository(result) => {
-                if self.app.view != View::Conversation || self.app.modal_open() {
+                if self.conversation.app.view != View::Conversation
+                    || self.conversation.app.modal_open()
+                {
                     return Ok(());
                 }
                 match result {
                     Ok(()) => {
-                        self.app.open_diff_review();
+                        self.conversation.app.open_diff_review();
                         self.screen.enter_overlay()?;
                         self.load_diff_review();
                         self.draw_diff_review()?;
@@ -76,20 +78,21 @@ impl Session<'_> {
             }
             DiffUpdate::Snapshot(result) => result,
         };
-        if self.app.view != View::DiffReview {
+        if self.conversation.app.view != View::DiffReview {
             return Ok(());
         }
         match result {
-            Ok(snapshot) => self.app.set_diff_snapshot(snapshot),
+            Ok(snapshot) => self.conversation.app.set_diff_snapshot(snapshot),
             Err(error) => {
                 if self
+                    .conversation
                     .app
                     .diff_review()
                     .is_some_and(|review| review.snapshot.is_some())
                 {
-                    self.app.set_diff_error(error);
+                    self.conversation.app.set_diff_error(error);
                 } else {
-                    self.app.close_diff_review();
+                    self.conversation.app.close_diff_review();
                     self.toast(error, ToastKind::Error);
                     self.close_diff_review()?;
                 }
@@ -100,15 +103,16 @@ impl Session<'_> {
     }
 
     pub(crate) fn close_diff_review(&mut self) -> io::Result<()> {
-        self.diff_generation = self.diff_generation.wrapping_add(1);
+        self.conversation.diff_generation = self.conversation.diff_generation.wrapping_add(1);
         self.screen.exit_overlay()?;
         self.overlay_return_repaint()
     }
 
     pub(crate) fn draw_diff_review(&mut self) -> io::Result<()> {
-        self.app
+        self.conversation
+            .app
             .settle_diff_scroll(ui::diff_body_rows(self.screen.screen()));
-        let app = &self.app;
+        let app = &self.conversation.app;
         self.screen
             .draw_overlay(|area, buf| ui::render_diff_view(app, area, buf))
     }

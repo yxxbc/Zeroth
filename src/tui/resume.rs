@@ -270,11 +270,14 @@ impl Session<'_> {
     /// picker on the alternate screen, painted at once (the Ctrl+O
     /// no-black-flash pattern).
     pub(crate) fn open_resume_picker(&mut self) -> std::io::Result<()> {
-        let sessions = list_sessions(self.recorder.root(), self.recorder.active_path());
+        let sessions = list_sessions(
+            self.conversation.recorder.root(),
+            self.conversation.recorder.active_path(),
+        );
         // The picker's cwd seeds its default Cwd filter — the same display
         // formatting the recorder writes into each session's meta line.
-        let cwd = self.cwd.display().to_string();
-        self.app.open_resume_picker(sessions, cwd);
+        let cwd = self.conversation.cwd.display().to_string();
+        self.conversation.app.open_resume_picker(sessions, cwd);
         self.screen.enter_overlay()?;
         self.draw_resume_picker()
     }
@@ -287,7 +290,7 @@ impl Session<'_> {
         // begins, so its `startup` fires now, in the background
         // (docs/tools/hooks.md). A no-op when nothing is queued — a picker opened
         // mid-session closes on a conversation that already began.
-        self.models.fire_session_start();
+        self.conversation.models.fire_session_start();
         self.screen.exit_overlay()?;
         self.overlay_return_repaint()
     }
@@ -301,7 +304,7 @@ impl Session<'_> {
             session::parse_session(&text).map(|(meta, items)| (text, meta, items))
         });
         let Some((text, meta, items)) = loaded else {
-            self.app.close_resume_picker();
+            self.conversation.app.close_resume_picker();
             self.screen.exit_overlay()?;
             self.overlay_return_repaint()?;
             self.commit_error_notice(&format!("Failed to load session: {}", path.display()));
@@ -318,7 +321,7 @@ impl Session<'_> {
         // The conversation being replaced ends for the hooks — SessionEnd
         // (resume), Claude Code's reason for a switch — before anything of it
         // is swapped out, so the event names it (docs/tools/hooks.md).
-        self.models.end_conversation("resume");
+        self.conversation.models.end_conversation("resume");
         // A snapshot from the conversation being replaced is stale.
         self.invalidate_checkpoints();
         // The code reset runs on a worker; `on_restore_done` toasts it.
@@ -326,7 +329,7 @@ impl Session<'_> {
         // The loaded pictures — a paste's size, a file gone since the session
         // was recorded — are looked for by the purge rebuild below, which is
         // what lays the history out (`docs/ui/images.md`).
-        self.app.load_session(items);
+        self.conversation.app.load_session(items);
         // The checklist came back with the conversation (the last task
         // record's snapshot) — the shared registry follows, so the model's
         // next `tasklist` sees the resumed tasks (docs/tools/task-tools.md).
@@ -341,7 +344,7 @@ impl Session<'_> {
         // parsed checkpoints are adopted too so later turns extend the same chain
         // and a backtrack restores against them.
         let torn = !text.is_empty() && !text.ends_with('\n');
-        self.recorder.adopt(
+        self.conversation.recorder.adopt(
             path,
             meta,
             count,
@@ -350,14 +353,14 @@ impl Session<'_> {
             // Each request's usage line stays where it sat
             // (docs/state/rollout-records.md).
             session::parse_usage(&text),
-            self.app.history_generation(),
+            self.conversation.app.history_generation(),
             recorded_model,
             model.honoured,
         );
         self.record_session_model(false);
         // …and the resumed one begins: SessionStart(resume), in the background
         // now that the recorder names its id (docs/tools/hooks.md).
-        self.models.begin_conversation("resume");
+        self.conversation.models.begin_conversation("resume");
         self.screen.exit_overlay()?;
         // A resumed session REPLACES the whole conversation: purge-rebuild
         // (like /clear) so the loaded history fills scrollback — a plain
@@ -367,7 +370,7 @@ impl Session<'_> {
         // main screen is what they land on (the roster keeps its agents). A
         // resize that landed under the picker is consumed by the purge.
         self.overlay_resized = false;
-        self.app.close_agent_view();
+        self.conversation.app.close_agent_view();
         self.repaint_conversation()?;
         // Last, so the actionable failure outranks the confirmation.
         if let Some(failure) = model.failure {
@@ -382,8 +385,9 @@ impl Session<'_> {
     /// first, so the rewind is recoverable through the store's reflog. `false`
     /// when there is nothing to restore to.
     pub(crate) fn restore_checkpoint_at(&mut self, history_len: usize) -> bool {
-        let target = checkpoint::restore_target(self.recorder.checkpoints(), history_len)
-            .map(str::to_string);
+        let target =
+            checkpoint::restore_target(self.conversation.recorder.checkpoints(), history_len)
+                .map(str::to_string);
         self.restore_to(
             target.as_deref(),
             "before backtrack restore",
@@ -427,18 +431,18 @@ impl Session<'_> {
         notice: &'static str,
     ) -> bool {
         let Some(commit) = target
-            .filter(|_| self.checkpoints.is_enabled())
+            .filter(|_| self.conversation.checkpoints.is_enabled())
             .map(str::to_string)
         else {
             return false;
         };
-        if let Some(pending) = self.restore_pending.take() {
+        if let Some(pending) = self.conversation.restore_pending.take() {
             let _ = pending.handle.join();
         }
-        self.restore_token = self.restore_token.wrapping_add(1);
-        let token = self.restore_token;
-        let store = self.checkpoints.clone();
-        let tx = self.restore_tx.clone();
+        self.conversation.restore_token = self.conversation.restore_token.wrapping_add(1);
+        let token = self.conversation.restore_token;
+        let store = self.conversation.checkpoints.clone();
+        let tx = self.conversation.restore_tx.clone();
         let handle = std::thread::spawn(move || {
             let began = Instant::now();
             let backup_succeeded = store.snapshot(label).is_some();
@@ -451,7 +455,7 @@ impl Session<'_> {
                 notice,
             });
         });
-        self.restore_pending = Some(super::turn::PendingRestore {
+        self.conversation.restore_pending = Some(super::turn::PendingRestore {
             token,
             began: Instant::now(),
             handle,
@@ -465,13 +469,14 @@ impl Session<'_> {
     /// (the token is bumped by every request, and the newer one joined this
     /// handle before starting, so at most one is ever in flight).
     pub(crate) fn on_restore_done(&mut self, done: super::turn::RestoreDone) {
-        let Some(pending) = self.restore_pending.as_ref() else {
+        let Some(pending) = self.conversation.restore_pending.as_ref() else {
             return;
         };
-        if pending.token != done.token || done.token != self.restore_token {
+        if pending.token != done.token || done.token != self.conversation.restore_token {
             return;
         }
         let pending = self
+            .conversation
             .restore_pending
             .take()
             .expect("matched pending restore");
@@ -485,9 +490,9 @@ impl Session<'_> {
         } else if done.restored {
             self.toast(done.notice, zeroth::app::ToastKind::Info);
         }
-        if !self.app.turn_active() {
+        if !self.conversation.app.turn_active() {
             self.settle_bg_completions();
-            let unheard = self.registry.take_pending_notices();
+            let unheard = self.conversation.registry.take_pending_notices();
             self.dispatch_after_checkpoint(unheard);
         }
     }

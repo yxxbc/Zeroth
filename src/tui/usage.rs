@@ -41,12 +41,14 @@ impl Session<'_> {
     /// nothing (the `/export` empty rule).
     pub(crate) fn open_usage_page(&mut self) {
         self.cancel_usage_fetch();
-        let (targets, configs) = split(self.models.usage_targets());
-        let Some(round) = self.app.open_usage_page(targets) else {
+        let (targets, configs) = split(self.conversation.models.usage_targets());
+        let Some(round) = self.conversation.app.open_usage_page(targets) else {
             self.toast(USAGE_EMPTY_NOTICE, ToastKind::Info);
             return;
         };
-        self.app.set_usage_now(host::unix_secs_signed());
+        self.conversation
+            .app
+            .set_usage_now(host::unix_secs_signed());
         self.spawn_usage_reads(round, configs);
     }
 
@@ -57,8 +59,8 @@ impl Session<'_> {
     /// keeps, and is dropped there).
     pub(crate) fn refresh_usage_page(&mut self) {
         self.cancel_usage_fetch();
-        let (targets, configs) = split(self.models.usage_targets());
-        if let Some(round) = self.app.begin_usage_round(targets) {
+        let (targets, configs) = split(self.conversation.models.usage_targets());
+        if let Some(round) = self.conversation.app.begin_usage_round(targets) {
             self.spawn_usage_reads(round, configs);
         }
     }
@@ -66,9 +68,15 @@ impl Session<'_> {
     /// One worker per subscription, all on one cancel token.
     fn spawn_usage_reads(&mut self, round: u64, configs: Vec<(String, ModelConfig)>) {
         let cancel = CancelToken::new();
-        self.usage_cancel = Some(cancel.clone());
+        self.conversation.usage_cancel = Some(cancel.clone());
         for (provider, cfg) in configs {
-            spawn_usage_fetch(round, provider, cfg, cancel.clone(), self.usage_tx.clone());
+            spawn_usage_fetch(
+                round,
+                provider,
+                cfg,
+                cancel.clone(),
+                self.conversation.usage_tx.clone(),
+            );
         }
         self.frame.schedule_frame();
     }
@@ -77,7 +85,7 @@ impl Session<'_> {
     /// them, or the app is quitting. Each detached worker exits on the cancel
     /// without sending.
     pub(crate) fn cancel_usage_fetch(&mut self) {
-        if let Some(cancel) = self.usage_cancel.take() {
+        if let Some(cancel) = self.conversation.usage_cancel.take() {
             cancel.cancel();
         }
     }
@@ -85,8 +93,12 @@ impl Session<'_> {
     /// A read landed: hand it to the page, which drops it unless it names the
     /// page's own round, and repaint.
     pub(crate) fn on_usage_result(&mut self, (round, provider, result): UsageResult) {
-        self.app
-            .finish_usage_fetch(round, &provider, result, host::unix_secs_signed());
+        self.conversation.app.finish_usage_fetch(
+            round,
+            &provider,
+            result,
+            host::unix_secs_signed(),
+        );
         self.frame.schedule_frame();
     }
 
@@ -96,13 +108,13 @@ impl Session<'_> {
     /// countdowns and the freshness move with no other event. Nothing at all
     /// while the page is closed.
     pub(crate) fn tick_usage_page(&mut self) {
-        if self.app.usage_page.is_none() {
+        if self.conversation.app.usage_page.is_none() {
             return;
         }
-        if self.app.usage_refresh_due() {
+        if self.conversation.app.usage_refresh_due() {
             self.refresh_usage_page();
         }
-        if !self.app.view.is_overlay() {
+        if !self.conversation.app.view.is_overlay() {
             self.frame.schedule_frame_in(USAGE_TICK_INTERVAL);
         }
     }

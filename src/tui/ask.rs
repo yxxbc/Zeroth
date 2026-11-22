@@ -33,7 +33,7 @@ impl Session<'_> {
     /// starts over — wherever the key lands, an overlay over the modal
     /// included.
     pub(crate) fn note_user_activity(&mut self) {
-        self.ask_timer.touch(Instant::now());
+        self.conversation.ask_timer.touch(Instant::now());
     }
 
     /// The draw tick's half, run before the paint. Past the wait, every
@@ -44,17 +44,20 @@ impl Session<'_> {
     /// under an overlay — where the status chain stops re-arming, and an idle
     /// overlay is exactly where a user leaves a question waiting.
     pub(crate) fn tick_ask_clock(&mut self) {
-        let clock = self.ask_timer.tick(
-            self.app.has_pending_asks(),
-            self.app.ask().map(|prompt| prompt.request.id.as_str()),
-            self.app.settings().ask_timeout(),
+        let clock = self.conversation.ask_timer.tick(
+            self.conversation.app.has_pending_asks(),
+            self.conversation
+                .app
+                .ask()
+                .map(|prompt| prompt.request.id.as_str()),
+            self.conversation.app.settings().ask_timeout(),
             Instant::now(),
         );
         match clock {
-            AskClock::Idle => self.app.set_ask_remaining(None),
+            AskClock::Idle => self.conversation.app.set_ask_remaining(None),
             AskClock::Running(left) => {
-                self.app.set_ask_remaining(Some(left));
-                let next = if self.app.view.is_overlay() {
+                self.conversation.app.set_ask_remaining(Some(left));
+                let next = if self.conversation.app.view.is_overlay() {
                     left.min(ASK_OVERLAY_TICK_MAX)
                 } else {
                     left.min(ASK_TICK_INTERVAL)
@@ -62,8 +65,8 @@ impl Session<'_> {
                 self.frame.schedule_frame_in(next);
             }
             AskClock::Expired(after) => {
-                for (id, decision) in self.app.expire_asks(after) {
-                    self.ask.resolve(&id, decision);
+                for (id, decision) in self.conversation.app.expire_asks(after) {
+                    self.conversation.ask.resolve(&id, decision);
                 }
             }
         }

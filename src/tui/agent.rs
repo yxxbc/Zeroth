@@ -71,14 +71,19 @@ impl Session<'_> {
         let width = self.screen.screen().width;
         let on_screen = self.viewing_agent(id);
         let recorded = self.begin_local_agent_settle(id, width);
-        if self.app.stop_agent_by_lead(id) {
+        if self.conversation.app.stop_agent_by_lead(id) {
             if on_screen {
                 self.commit_agent_tail(recorded, width);
             }
-            self.agent_clocks.remove(id);
-            self.agent_thinking_clocks.remove(id);
-            let linger = self.app.agent(id).map_or(AGENT_LINGER, |run| run.linger());
-            self.agent_expiry
+            self.conversation.agent_clocks.remove(id);
+            self.conversation.agent_thinking_clocks.remove(id);
+            let linger = self
+                .conversation
+                .app
+                .agent(id)
+                .map_or(AGENT_LINGER, |run| run.linger());
+            self.conversation
+                .agent_expiry
                 .insert(id.to_string(), Instant::now() + linger);
         }
     }
@@ -87,9 +92,13 @@ impl Session<'_> {
     /// lingering, stays — and its clock starts over for the continuation,
     /// whose first round announces the message (`docs/agents/agent-tools.md`).
     fn on_agent_resumed(&mut self, id: &str, description: &str, agent_type: &str, prompt: &str) {
-        self.app.resume_agent(id, description, agent_type, prompt);
-        self.agent_clocks.insert(id.to_string(), Instant::now());
-        self.agent_expiry.remove(id);
+        self.conversation
+            .app
+            .resume_agent(id, description, agent_type, prompt);
+        self.conversation
+            .agent_clocks
+            .insert(id.to_string(), Instant::now());
+        self.conversation.agent_expiry.remove(id);
     }
 
     /// Fold one subagent event into its roster entry, committing to the screen
@@ -115,7 +124,7 @@ impl Session<'_> {
             // the viewed agent's own batch from another conversation's
             // (`docs/state/permissions.md`).
             request.agent_id = Some(id.to_string());
-            self.app.open_permission(request);
+            self.conversation.app.open_permission(request);
             return;
         }
         // A subagent's request is paid for by this conversation too: its
@@ -124,8 +133,8 @@ impl Session<'_> {
         // late one included, since the provider billed it either way
         // (docs/state/rollout-records.md).
         if let StreamEvent::Usage(usage) = &event {
-            self.recorder.record_usage(RequestUsage {
-                after: self.app.history.len(),
+            self.conversation.recorder.record_usage(RequestUsage {
+                after: self.conversation.app.history.len(),
                 usage: *usage,
                 agent: Some(id.to_string()),
                 compact: false,
@@ -141,8 +150,8 @@ impl Session<'_> {
         // runtime alone: the status verb moves only with a drawn frame, so a
         // settling turn's summary names the verb its view last showed
         // (docs/ui/status-indicator.md).
-        if let Some(elapsed) = self.agent_clocks.get(id).map(Instant::elapsed) {
-            self.app.freeze_agent_runtime(id, elapsed);
+        if let Some(elapsed) = self.conversation.agent_clocks.get(id).map(Instant::elapsed) {
+            self.conversation.app.freeze_agent_runtime(id, elapsed);
         }
         // A thinking phase opens: start its clock, and — with the display on
         // (`/settings` **Hide thinking**, read per phase like the main
@@ -150,9 +159,10 @@ impl Session<'_> {
         // whole gate. See `docs/agents/agent-view-streaming.md`.
         let opening = matches!(event, StreamEvent::ThinkingStart) && self.show_thinking();
         if matches!(event, StreamEvent::ThinkingStart) {
-            self.agent_thinking_clocks
+            self.conversation
+                .agent_thinking_clocks
                 .insert(id.to_string(), Instant::now());
-            self.app.set_agent_thinking(id, Duration::ZERO);
+            self.conversation.app.set_agent_thinking(id, Duration::ZERO);
         }
         // The command clock — the main turn's `StatusClocks::command_start`,
         // per agent: started at the call's `ToolStart` and injected each
@@ -162,9 +172,12 @@ impl Session<'_> {
         // tick (`tick_agent_roster`), so no resolution path has to remember
         // it (`docs/agents/agent-view-streaming.md`).
         if matches!(event, StreamEvent::ToolStart { .. }) {
-            self.agent_command_clocks
+            self.conversation
+                .agent_command_clocks
                 .insert(id.to_string(), Instant::now());
-            self.app.set_agent_command_elapsed(id, Duration::ZERO);
+            self.conversation
+                .app
+                .set_agent_command_elapsed(id, Duration::ZERO);
         }
         // A retry voids the agent's failed attempt (docs/providers/offline.md *A
         // connection lost mid-reply*): withdrawn here, ahead of the fold, to
@@ -173,9 +186,9 @@ impl Session<'_> {
         // settling, so its clock stops; the view's render starts the next
         // attempt clean, and is rebuilt below once the fold has run.
         let retracted = if matches!(event, StreamEvent::Retrying { .. }) {
-            self.agent_thinking_clocks.remove(id);
+            self.conversation.agent_thinking_clocks.remove(id);
             let shown = viewing && self.view.agent_render.has_committed();
-            let withdrawn = self.app.withdraw_agent_attempt(id);
+            let withdrawn = self.conversation.app.withdraw_agent_attempt(id);
             if viewing {
                 self.view.agent_render.reset();
             }
@@ -218,10 +231,12 @@ impl Session<'_> {
         if viewing
             && (opening
                 || self
+                    .conversation
                     .app
                     .agent(id)
                     .is_some_and(|run| run.will_flush_segment(&event)))
             && let Some(text) = self
+                .conversation
                 .app
                 .viewed_agent()
                 .and_then(|run| run.streaming.clone())
@@ -234,15 +249,25 @@ impl Session<'_> {
         // `● Thinking…` header sits under the same blank spacer the settled
         // cell will take (`docs/ui/thinking-stream.md`).
         if opening {
-            self.app.begin_agent_reasoning(id);
+            self.conversation.app.begin_agent_reasoning(id);
         }
         // What the fold appends to the agent's transcript is what the screen
         // owes it — see `commit_agent_view_event`.
-        let recorded = self.app.agent(id).map_or(0, |run| run.history.len());
-        let was_final = self.app.agent(id).is_some_and(|run| run.status.is_final());
-        let mut settled =
-            self.app
-                .apply_agent_settled(id, &event, matches!(settle, Some((true, _))));
+        let recorded = self
+            .conversation
+            .app
+            .agent(id)
+            .map_or(0, |run| run.history.len());
+        let was_final = self
+            .conversation
+            .app
+            .agent(id)
+            .is_some_and(|run| run.status.is_final());
+        let mut settled = self.conversation.app.apply_agent_settled(
+            id,
+            &event,
+            matches!(settle, Some((true, _))),
+        );
         if viewing {
             self.commit_agent_view_event(&event, width, recorded);
         }
@@ -262,9 +287,17 @@ impl Session<'_> {
         // `agentsend`, or a message typed in the settle window
         // (docs/input/queue.md) — so the continuation's runtime counts from now,
         // and its row stops counting down to the sweep.
-        if was_final && self.app.agent(id).is_some_and(|run| !run.status.is_final()) {
-            self.agent_clocks.insert(id.to_string(), Instant::now());
-            self.agent_expiry.remove(id);
+        if was_final
+            && self
+                .conversation
+                .app
+                .agent(id)
+                .is_some_and(|run| !run.status.is_final())
+        {
+            self.conversation
+                .agent_clocks
+                .insert(id.to_string(), Instant::now());
+            self.conversation.agent_expiry.remove(id);
         }
         // A background agent completed on its own: the model-facing note
         // goes on the shared board (from_model — its untaken presence at a
@@ -277,14 +310,16 @@ impl Session<'_> {
         let mut seq = None;
         if let Some((false, run)) = settle {
             let context = settled.as_ref().map(AgentNotice::context_text);
-            match self
-                .agent_registry
-                .post_notice(id, run, &self.registry, context)
-            {
+            match self.conversation.agent_registry.post_notice(
+                id,
+                run,
+                &self.conversation.registry,
+                context,
+            ) {
                 zeroth::agents::NoticePost::Posted(posted) => seq = posted,
                 zeroth::agents::NoticePost::Covered => {
                     if let Some(notice) = settled.take() {
-                        self.app.settle_agent_completion(&notice);
+                        self.conversation.app.settle_agent_completion(&notice);
                     }
                 }
             }
@@ -297,16 +332,18 @@ impl Session<'_> {
         // Held until the lead reads the note (`StreamEvent::NoticeDelivered`),
         // so its cell lands where the lead heard it (docs/tools/background.md).
         if let Some(notice) = settled {
-            self.app.defer_agent_notice(notice, seq);
+            self.conversation.app.defer_agent_notice(notice, seq);
         }
         if let Some(linger) = self
+            .conversation
             .app
             .agent(id)
             .filter(|run| run.status.is_final())
             .map(|run| run.linger())
         {
-            self.agent_clocks.remove(id);
-            self.agent_expiry
+            self.conversation.agent_clocks.remove(id);
+            self.conversation
+                .agent_expiry
                 .insert(id.to_string(), Instant::now() + linger);
         }
     }
@@ -331,13 +368,20 @@ impl Session<'_> {
     fn hold_agent_note(&mut self, notice: AgentNotice, id: &str, run: Option<u64>) {
         let context = notice.context_text();
         let posted = if notice.resumed {
-            self.agent_registry
-                .post_resume_notice(id, &self.registry, context)
+            self.conversation.agent_registry.post_resume_notice(
+                id,
+                &self.conversation.registry,
+                context,
+            )
         } else {
-            Some(self.registry.post_agent_notice(context, id, run))
+            Some(
+                self.conversation
+                    .registry
+                    .post_agent_notice(context, id, run),
+            )
         };
         if let Some(seq) = posted {
-            self.app.defer_agent_notice(notice, Some(seq));
+            self.conversation.app.defer_agent_notice(notice, Some(seq));
         }
     }
 
@@ -384,6 +428,7 @@ impl Session<'_> {
         self.settle_agent_reasoning(id, on_screen, width);
         if on_screen
             && let Some(text) = self
+                .conversation
                 .app
                 .agent(id)
                 .and_then(|run| run.streaming.clone())
@@ -391,7 +436,10 @@ impl Session<'_> {
         {
             self.flush_agent_segment(&text, width);
         }
-        self.app.agent(id).map_or(0, |run| run.history.len())
+        self.conversation
+            .app
+            .agent(id)
+            .map_or(0, |run| run.history.len())
     }
 
     /// The viewed agent when the turn is about to settle it *locally* — it is
@@ -406,15 +454,16 @@ impl Session<'_> {
         // `interrupt_turn` return early otherwise, and a pre-fold flush with
         // no settle behind it would reset the render while the buffer still
         // held its text, re-committing the whole reply on the next chunk.
-        if !self.app.is_streaming() && !self.app.turn_active() {
+        if !self.conversation.app.is_streaming() && !self.conversation.app.turn_active() {
             return None;
         }
-        let id = self.app.agent_view.clone()?;
-        let live = self.app.agent_group()?;
+        let id = self.conversation.app.agent_view.clone()?;
+        let live = self.conversation.app.agent_group()?;
         if !live.ids.contains(&id) {
             return None;
         }
-        self.app
+        self.conversation
+            .app
             .agent(&id)
             .filter(|run| !run.status.is_final())
             .map(|_| id)
@@ -446,7 +495,7 @@ impl Session<'_> {
     /// read per phase — so flipping it mid-session takes effect on the very
     /// next one, exactly as the main session reads it (`docs/state/settings.md`).
     fn show_thinking(&self) -> bool {
-        self.app.settings().show_thinking()
+        self.conversation.app.settings().show_thinking()
     }
 
     /// Close one subagent's thinking phase: record its `Thought for … · …
@@ -465,10 +514,11 @@ impl Session<'_> {
     /// bottom. See `docs/agents/agent-view-streaming.md`.
     fn settle_agent_reasoning(&mut self, id: &str, viewing: bool, width: u16) {
         let secs = self
+            .conversation
             .agent_thinking_clocks
             .remove(id)
             .map_or(0, |start| start.elapsed().as_secs());
-        let Some(reasoning) = self.app.finish_agent_reasoning(id, secs) else {
+        let Some(reasoning) = self.conversation.app.finish_agent_reasoning(id, secs) else {
             return;
         };
         if !viewing {
@@ -487,8 +537,8 @@ impl Session<'_> {
     /// its palette, `docs/ui/view-flow.md`) — the flow-exit rebuild regenerates
     /// the transcript from its history, exactly like the view's own returns.
     fn viewing_agent(&self, id: &str) -> bool {
-        self.app.view == View::Conversation
-            && self.app.agent_view.as_deref() == Some(id)
+        self.conversation.app.view == View::Conversation
+            && self.conversation.app.agent_view.as_deref() == Some(id)
             && self.flowed_view.is_none()
     }
 
@@ -510,10 +560,10 @@ impl Session<'_> {
     /// [`Session::settle_agent_reasoning`], and a hook note is invisible
     /// inline by design (`docs/tools/hooks.md`).
     fn commit_agent_tail(&mut self, recorded: usize, width: u16) {
-        let Some(run) = self.app.viewed_agent() else {
+        let Some(run) = self.conversation.app.viewed_agent() else {
             return;
         };
-        let paths = self.app.path_display();
+        let paths = self.conversation.app.path_display();
         // **Every** item past `recorded`, not only the last: a settle resolves
         // a whole batch at once — the running call and each `⎿ Waiting…`
         // sibling behind it (`AgentRun::interrupt`, `docs/input/interrupt.md`) — and
@@ -582,6 +632,7 @@ impl Session<'_> {
     fn commit_agent_view_event(&mut self, event: &StreamEvent, width: u16, recorded: usize) {
         if matches!(event, StreamEvent::Chunk(_)) {
             if let Some(text) = self
+                .conversation
                 .app
                 .viewed_agent()
                 .and_then(|run| run.streaming.as_deref())
@@ -611,7 +662,7 @@ impl Session<'_> {
     /// A chat continuation's start drains it for the same reason — the run it
     /// follows has ended in the registry, so its end is already enqueued.
     pub(crate) fn drain_agent_events(&mut self) {
-        while let Ok(message) = self.agent_rx.try_recv() {
+        while let Ok(message) = self.conversation.agent_rx.try_recv() {
             self.handle_agent_message(message);
         }
     }
@@ -621,17 +672,21 @@ impl Session<'_> {
     pub(crate) fn settle_group_members(&mut self, ids: Vec<String>) {
         let now = Instant::now();
         for id in ids {
-            self.agent_clocks.remove(&id);
+            self.conversation.agent_clocks.remove(&id);
             // `or_insert`: a member the user already stopped is counting down
             // its own (longer) linger — the group's resolution must not
             // restart it, let alone shorten it to the natural one.
             if let Some(linger) = self
+                .conversation
                 .app
                 .agent(&id)
                 .filter(|run| run.status.is_final())
                 .map(|run| run.linger())
             {
-                self.agent_expiry.entry(id).or_insert(now + linger);
+                self.conversation
+                    .agent_expiry
+                    .entry(id)
+                    .or_insert(now + linger);
             }
         }
     }
@@ -650,7 +705,7 @@ impl Session<'_> {
         // Deliberately looser than `viewing_agent`: a *clear* must take the
         // screen back even from under a framed view's flow, since the view it
         // covers is about to stop existing.
-        let viewing = self.app.agent_view.as_deref() == Some(id);
+        let viewing = self.conversation.app.agent_view.as_deref() == Some(id);
         // The stop resolves the agent's running call **locally** — no event
         // follows to carry its cell — so the session view commits what the
         // stop recorded, exactly as the fold does
@@ -658,33 +713,38 @@ impl Session<'_> {
         let width = self.screen.screen().width;
         let on_screen = self.viewing_agent(id);
         let recorded = self.begin_local_agent_settle(id, width);
-        match self.app.stop_agent(id) {
+        match self.conversation.app.stop_agent(id) {
             Some(AgentStop::Stopped(notice)) => {
                 if on_screen {
                     self.commit_agent_tail(recorded, width);
                 }
-                let stop = self.agent_registry.kill(id);
-                self.agent_clocks.remove(id);
+                let stop = self.conversation.agent_registry.kill(id);
+                self.conversation.agent_clocks.remove(id);
                 // The open thought settled above, through the same helper the
                 // event path uses — this only makes sure no clock survives to
                 // re-arm the phase on the next roster tick.
-                self.agent_thinking_clocks.remove(id);
-                let linger = self.app.agent(id).map_or(AGENT_LINGER, |run| run.linger());
-                self.agent_expiry
+                self.conversation.agent_thinking_clocks.remove(id);
+                let linger = self
+                    .conversation
+                    .app
+                    .agent(id)
+                    .map_or(AGENT_LINGER, |run| run.linger());
+                self.conversation
+                    .agent_expiry
                     .insert(id.to_string(), Instant::now() + linger);
                 if let Some(notice) = notice {
                     if stop.watched {
                         // An `agentoutput` waiting on it reports the stop
                         // itself — the lead must not hear it twice
                         // (docs/agents/agent-tools.md *One notice per answer*).
-                        self.app.settle_agent_completion(&notice);
+                        self.conversation.app.settle_agent_completion(&notice);
                     } else {
                         // Tagged with the agent and the run it stopped, like
                         // every completion of its: an `agentoutput` that
                         // reports the stop first takes the note back
                         // (docs/agents/agent-tools.md *One notice per answer*).
                         self.hold_agent_note(notice, id, Some(stop.run));
-                        if !self.app.turn_active() {
+                        if !self.conversation.app.turn_active() {
                             self.dispatch_after_turn();
                         }
                     }
@@ -694,8 +754,10 @@ impl Session<'_> {
             // now so the sweep (which also unregisters it) collects it on the
             // next tick, deferring only while its session view is open.
             Some(AgentStop::Cleared) => {
-                self.agent_clocks.remove(id);
-                self.agent_expiry.insert(id.to_string(), Instant::now());
+                self.conversation.agent_clocks.remove(id);
+                self.conversation
+                    .agent_expiry
+                    .insert(id.to_string(), Instant::now());
                 // The cleared agent was the session on screen — `App` closed
                 // the view with the row, so take the screen back to the main
                 // conversation (the Esc-from-the-view repaint).
@@ -745,10 +807,15 @@ impl Session<'_> {
     ///   lead's next round, or recorded at once when it is idle — so the
     ///   lead stops acting on "the agent failed" (docs/agents/agent-tools.md).
     pub(crate) fn agent_chat(&mut self, id: &str, text: &str) {
-        match self.models.backend().spawn_agent_chat(id, text) {
+        match self
+            .conversation
+            .models
+            .backend()
+            .spawn_agent_chat(id, text)
+        {
             AgentChatDelivery::Queued => {
-                self.app.queue_agent_chat(id, text);
-                self.agent_expiry.remove(id);
+                self.conversation.app.queue_agent_chat(id, text);
+                self.conversation.agent_expiry.remove(id);
             }
             AgentChatDelivery::Started => {
                 // The registry restarted a settled run, whose terminal event
@@ -759,7 +826,7 @@ impl Session<'_> {
                 // reopens for this run instead of settling under it, which
                 // would drop the run's events and its notice.
                 self.drain_agent_events();
-                let resumed = self.app.agent_chat(id, text);
+                let resumed = self.conversation.app.agent_chat(id, text);
                 let width = self.screen.screen().width;
                 if self.viewing_agent(id) {
                     let height = self.live_region_height();
@@ -768,17 +835,20 @@ impl Session<'_> {
                         .insert_before(ui::message_lines(Role::User, text, width));
                     self.screen.insert_before(vec![Line::default()]);
                 }
-                self.agent_clocks
+                self.conversation
+                    .agent_clocks
                     .entry(id.to_string())
                     .or_insert_with(Instant::now);
-                self.agent_expiry.remove(id);
+                self.conversation.agent_expiry.remove(id);
                 if let Some(notice) = resumed {
                     self.hold_agent_note(notice, id, None);
                 }
                 // Idle: settle what is held now — the resume, which starts no
                 // turn of its own, and any end the drain folded — as the
                 // agent channel's own branch does (`on_agent_message`).
-                if !self.app.turn_active() && self.app.has_pending_agent_notices() {
+                if !self.conversation.app.turn_active()
+                    && self.conversation.app.has_pending_agent_notices()
+                {
                     self.dispatch_after_turn();
                 }
             }
@@ -806,11 +876,11 @@ impl Session<'_> {
     /// the slot is gone (a killed agent already dropped its follow-ups), so
     /// the entry is spent either way and nothing loops.
     fn dispatch_agent_followups(&mut self) {
-        for id in self.app.agents_awaiting_followup() {
-            if !self.models.backend().agent_ready_for_turn(&id) {
+        for id in self.conversation.app.agents_awaiting_followup() {
+            if !self.conversation.models.backend().agent_ready_for_turn(&id) {
                 continue;
             }
-            let Some(text) = self.app.take_agent_followup(&id) else {
+            let Some(text) = self.conversation.app.take_agent_followup(&id) else {
                 continue;
             };
             self.agent_chat(&id, &text);
@@ -828,19 +898,24 @@ impl Session<'_> {
         // the linger sweep below, which would otherwise drop the row (and the
         // queue with it) out from under a message the user is watching.
         self.dispatch_agent_followups();
-        for (id, started) in &self.agent_clocks {
-            self.app.set_agent_runtime(id, started.elapsed());
+        for (id, started) in &self.conversation.agent_clocks {
+            self.conversation
+                .app
+                .set_agent_runtime(id, started.elapsed());
         }
         // The open thinking phases' elapsed, the same injection: cleared
         // first, so an agent whose phase ended (its clock is gone) drops the
         // `Thinking for Ns` clause instead of freezing it
         // (`docs/agents/agent-view-streaming.md`).
-        self.app.clear_agent_thinking();
-        for (id, started) in &self.agent_thinking_clocks {
-            self.app.set_agent_thinking(id, started.elapsed());
+        self.conversation.app.clear_agent_thinking();
+        for (id, started) in &self.conversation.agent_thinking_clocks {
+            self.conversation
+                .app
+                .set_agent_thinking(id, started.elapsed());
         }
         let now = Instant::now();
         let settled: Vec<(String, std::time::Duration)> = self
+            .conversation
             .app
             .agents()
             .iter()
@@ -848,7 +923,10 @@ impl Session<'_> {
             .map(|run| (run.id.clone(), run.linger()))
             .collect();
         for (id, linger) in settled {
-            self.agent_expiry.entry(id).or_insert(now + linger);
+            self.conversation
+                .agent_expiry
+                .entry(id)
+                .or_insert(now + linger);
         }
         // Sweep finished agents whose linger expired — deferred while the user is
         // inside that agent's session view (the deadline pushes forward, so
@@ -856,12 +934,12 @@ impl Session<'_> {
         // chat continuation) is dropped. Only the **row** goes: the registry
         // keeps the agent's conversation and the roster retires its entry, so
         // the lead can still resume it (docs/agents/agent-tools.md *Retention*).
-        let Session {
+        let super::conversation::Conversation {
             agent_expiry,
             app,
             agent_thinking_clocks,
             ..
-        } = self;
+        } = &mut self.conversation;
         agent_expiry.retain(|id, deadline| {
             if app.agent(id).is_none_or(|run| !run.status.is_final()) {
                 return false;
@@ -887,17 +965,19 @@ impl Session<'_> {
         // helper to hang its removal on; a command has no such single
         // point). A resolved command's `(Ns)` thus drops rather than
         // freezes, and the next call's `ToolStart` starts from zero.
-        self.app.clear_agent_command_elapsed();
-        let app = &self.app;
-        self.agent_command_clocks.retain(|id, _| {
+        self.conversation.app.clear_agent_command_elapsed();
+        let app = &self.conversation.app;
+        self.conversation.agent_command_clocks.retain(|id, _| {
             app.agent(id).is_some_and(|run| {
                 run.tool_queue
                     .front()
                     .is_some_and(|call| call.status == ToolStatus::Running)
             })
         });
-        for (id, started) in &self.agent_command_clocks {
-            self.app.set_agent_command_elapsed(id, started.elapsed());
+        for (id, started) in &self.conversation.agent_command_clocks {
+            self.conversation
+                .app
+                .set_agent_command_elapsed(id, started.elapsed());
         }
     }
 }
@@ -909,7 +989,8 @@ impl Session<'_> {
     /// pattern).
     pub(crate) fn on_agent_message(&mut self, message: AgentEvent) {
         self.handle_agent_message(message);
-        if !self.app.turn_active() && self.app.has_pending_agent_notices() {
+        if !self.conversation.app.turn_active() && self.conversation.app.has_pending_agent_notices()
+        {
             self.dispatch_after_turn();
         }
         self.frame.schedule_frame();

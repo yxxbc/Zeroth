@@ -54,7 +54,7 @@ impl Session<'_> {
     /// tearing it, so it waits in history for the flow-exit rebuild
     /// (`docs/ui/view-flow.md`).
     pub(crate) fn commits_allowed(&self) -> bool {
-        self.app.agent_view.is_none() && self.flowed_view.is_none()
+        self.conversation.app.agent_view.is_none() && self.flowed_view.is_none()
     }
 
     /// Raise a transient toast and arm its expiry: set the text, stamp the
@@ -72,8 +72,8 @@ impl Session<'_> {
             super::headless::write(line.as_slice());
             return;
         }
-        self.app.show_toast(text, kind);
-        self.toast_deadline = Some(Instant::now() + TOAST_TTL);
+        self.conversation.app.show_toast(text, kind);
+        self.conversation.toast_deadline = Some(Instant::now() + TOAST_TTL);
         self.frame.schedule_frame_in(TOAST_TTL);
     }
 
@@ -95,7 +95,7 @@ impl Session<'_> {
     /// otherwise flush against the stale strip-inflated height and scroll the
     /// box off the bottom (invariant 3).
     pub(crate) fn commit_tool_cell(&mut self, committing: bool, width: u16) -> bool {
-        match self.app.place_resolved_tool() {
+        match self.conversation.app.place_resolved_tool() {
             ToolPlacement::Held => return false,
             ToolPlacement::Commit { closed } => {
                 if let Some(range) = closed {
@@ -104,10 +104,10 @@ impl Session<'_> {
             }
         }
         let Some(lines) = ui::tool_commit_lines(
-            &self.app.history,
-            self.app.tool_queue(),
+            &self.conversation.app.history,
+            self.conversation.app.tool_queue(),
             width,
-            self.app.path_display(),
+            self.conversation.app.path_display(),
         ) else {
             return false;
         };
@@ -127,7 +127,7 @@ impl Session<'_> {
     /// (`docs/ui/tool-groups.md`). A no-op with no group open, so every site
     /// that records something calls it unconditionally.
     pub(crate) fn close_tool_group(&mut self, committing: bool, width: u16) {
-        if let Some(range) = self.app.close_tool_group() {
+        if let Some(range) = self.conversation.app.close_tool_group() {
             self.commit_tool_group(range, committing, width);
         }
     }
@@ -139,7 +139,11 @@ impl Session<'_> {
         if !committing {
             return;
         }
-        let lines = ui::tool_group_lines(&self.app.history[range], width, self.app.path_display());
+        let lines = ui::tool_group_lines(
+            &self.conversation.app.history[range],
+            width,
+            self.conversation.app.path_display(),
+        );
         // The group's live cell leaves the strip as its line commits, so the
         // viewport is reseated first (invariant 3).
         let height = self.live_region_height();
@@ -168,7 +172,7 @@ impl Session<'_> {
         if cell.is_some() {
             self.close_tool_group(committing, width);
         }
-        self.app.record_hook_note(label, text, report);
+        self.conversation.app.record_hook_note(label, text, report);
         if committing && let Some(lines) = cell {
             let height = self.live_region_height();
             self.screen.set_view_height(height);
@@ -188,7 +192,7 @@ impl Session<'_> {
         let committing = self.commits_allowed();
         // A notice is no part of an open read/search group (docs/ui/tool-groups.md).
         self.close_tool_group(committing, width);
-        if let Some(segment) = self.app.flush_streaming_segment()
+        if let Some(segment) = self.conversation.app.flush_streaming_segment()
             && committing
         {
             self.screen
@@ -196,7 +200,7 @@ impl Session<'_> {
             self.screen.insert_before(vec![Line::default()]);
             self.view.render.reset();
         }
-        record(&mut self.app, text);
+        record(&mut self.conversation.app, text);
         if committing {
             self.screen
                 .insert_before(ui::message_lines(role, text, width));
@@ -264,10 +268,10 @@ impl Session<'_> {
         // behind them, so the history no longer ends at a cell. The viewport
         // was reseated just above.
         let lines = ui::resolved_tools_commit_lines(
-            &self.app.history,
+            &self.conversation.app.history,
             tools.len(),
             width,
-            self.app.path_display(),
+            self.conversation.app.path_display(),
         );
         if !lines.is_empty() {
             self.screen.insert_before(lines);
@@ -293,14 +297,14 @@ impl Session<'_> {
     /// (`docs/input/interrupt.md`). The caller settles the turn's held background
     /// completions first, so they land above it (`docs/tools/background.md`).
     pub(crate) fn commit_turn_summary(&mut self, summary: TurnSummary) {
-        self.app.record_turn_summary(summary);
+        self.conversation.app.record_turn_summary(summary);
         if self.commits_allowed() {
             let width = self.screen.screen().width;
             self.screen.insert_before(ui::review_turn_summary_lines(
-                &self.app.history,
-                self.app.history.len() - 1,
+                &self.conversation.app.history,
+                self.conversation.app.history.len() - 1,
                 width,
-                self.app.path_display(),
+                self.conversation.app.path_display(),
             ));
             self.screen.insert_before(vec![Line::default()]);
         }

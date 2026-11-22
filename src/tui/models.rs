@@ -1931,37 +1931,46 @@ impl Session<'_> {
     /// the system prompts the Ctrl+D view shows, and the context-window gauge.
     /// Run after any switch that changes which model answers.
     pub(crate) fn sync_backend_info(&mut self) {
-        let name = self.models.model_name();
-        let offline = !self.models.is_real_backend();
+        let name = self.conversation.models.model_name();
+        let offline = !self.conversation.models.is_real_backend();
         // The dummy fallback can still remember a saved provider selection;
         // the footer's bracket names who answers, so the demo has none.
         let provider = if offline {
             String::new()
         } else {
-            self.models
+            self.conversation
+                .models
                 .active_provider()
                 .unwrap_or_default()
                 .to_string()
         };
-        self.app.set_session_info(name, self.cwd_display.clone());
-        self.app.set_session_provider(provider);
-        self.app.set_offline_demo(offline);
+        self.conversation
+            .app
+            .set_session_info(name, self.conversation.cwd_display.clone());
+        self.conversation.app.set_session_provider(provider);
+        self.conversation.app.set_offline_demo(offline);
         // The backend's system prompt rides into App so the Ctrl+D view shows the
         // whole context window (docs/architecture/context.md). None for the dummy. The
         // subagent variant (the main prompt + the subagent note) rides beside it
         // so an agent session view's Ctrl+D shows what a launched agent is
         // actually sent (docs/agents/agent-tool.md).
-        let prompt = self.models.backend().system_prompt();
-        self.app.set_system_prompt(prompt);
+        let prompt = self.conversation.models.backend().system_prompt();
+        self.conversation.app.set_system_prompt(prompt);
         // The classifier's rubric rides beside it for the Ctrl+D classifier
         // page (docs/state/permissions.md). None for the dummy, which has no
         // classifier.
-        let classifier_prompt = self.models.backend().classifier_system_prompt();
-        self.app.set_classifier_system_prompt(classifier_prompt);
+        let classifier_prompt = self
+            .conversation
+            .models
+            .backend()
+            .classifier_system_prompt();
+        self.conversation
+            .app
+            .set_classifier_system_prompt(classifier_prompt);
         self.sync_agent_view_context();
         // The footer gauge + auto-compact window (docs/architecture/compact.md).
-        let window = self.models.context_window();
-        self.app.set_context_window(window);
+        let window = self.conversation.models.context_window();
+        self.conversation.app.set_context_window(window);
         // The skill listing is budgeted off that same window (1% of it, in
         // characters), so it is re-rendered here rather than once at startup:
         // a `/model` switch to a roomier model widens the listing with it.
@@ -1980,22 +1989,33 @@ impl Session<'_> {
     /// nothing — so a single startup read would show the wrong pair for every
     /// other type.
     pub(crate) fn sync_agent_view_context(&mut self) {
-        let agent_type = self.app.viewed_agent().map_or_else(
+        let agent_type = self.conversation.app.viewed_agent().map_or_else(
             || zeroth::agents::GENERAL_PURPOSE.to_string(),
             |agent| agent.agent_type.clone(),
         );
-        let prompt = self.models.backend().agent_system_prompt(&agent_type);
-        let briefing = self.models.backend().agent_system_reminder(&agent_type);
-        self.app.set_agent_system_prompt(prompt);
-        self.app.set_agent_system_reminder(briefing);
+        let prompt = self
+            .conversation
+            .models
+            .backend()
+            .agent_system_prompt(&agent_type);
+        let briefing = self
+            .conversation
+            .models
+            .backend()
+            .agent_system_reminder(&agent_type);
+        self.conversation.app.set_agent_system_prompt(prompt);
+        self.conversation.app.set_agent_system_reminder(briefing);
         // The view's footer, too, is the viewed type's: the model it runs on
         // when its definition pins one, and the window its context gauge runs
         // against — the session's for an inheriting type, unknown (no gauge)
         // for a pinned one (`docs/agents/agent-context-gauge.md`).
-        let pinned = self.models.backend().agent_model(&agent_type);
-        let window = self.models.agent_context_window(pinned.is_none());
-        self.app.set_agent_context_window(window);
-        self.app.set_agent_model(pinned);
+        let pinned = self.conversation.models.backend().agent_model(&agent_type);
+        let window = self
+            .conversation
+            .models
+            .agent_context_window(pinned.is_none());
+        self.conversation.app.set_agent_context_window(window);
+        self.conversation.app.set_agent_model(pinned);
     }
 
     /// Render the session's `<system-reminder>` **listing sections** into
@@ -2030,18 +2050,20 @@ impl Session<'_> {
         // budget for the whole reminder, spent skills-first and the remainder
         // to the agents (`subagents::agent_budget`) — one fragment, one 1%.
         let window = self
+            .conversation
             .models
             .context_window()
             .and_then(|w| usize::try_from(w).ok());
         let budget = zeroth::skills::listing_budget(window);
-        let skills_offered = self.app.settings().skills_offered();
+        let skills_offered = self.conversation.app.settings().skills_offered();
         let skills = if skills_offered {
-            self.skill_registry.listing(budget)
+            self.conversation.skill_registry.listing(budget)
         } else {
             String::new()
         };
-        let agents = if self.models.agents_offered() {
-            self.subagents
+        let agents = if self.conversation.models.agents_offered() {
+            self.conversation
+                .subagents
                 .listing(zeroth::subagents::agent_budget(budget, &skills))
         } else {
             String::new()
@@ -2050,7 +2072,7 @@ impl Session<'_> {
         // often, and every section behind a changed one re-renders into the
         // prompt cache. Gated on Tools — a placeholder only ever becomes a
         // value inside a tool call.
-        let secrets = if self.app.settings().tools {
+        let secrets = if self.conversation.app.settings().tools {
             self.secrets.listing()
         } else {
             String::new()
@@ -2059,10 +2081,11 @@ impl Session<'_> {
             &zeroth::subagents::listing_sections(&skills, &agents),
             &zeroth::secrets::secret_section(&secrets),
         ]);
-        self.app
+        self.conversation
+            .app
             .set_listings((!listings.is_empty()).then_some(listings));
-        self.app.set_skills(if skills_offered {
-            self.skill_registry.enabled()
+        self.conversation.app.set_skills(if skills_offered {
+            self.conversation.skill_registry.enabled()
         } else {
             Vec::new()
         });
@@ -2090,7 +2113,7 @@ impl Session<'_> {
     /// `/login`'s lists and `/model`'s fetch — and say what is wrong with it
     /// (`docs/providers/user-providers.md`).
     pub(crate) fn reload_providers(&mut self) {
-        let issues = self.models.reload_providers();
+        let issues = self.conversation.models.reload_providers();
         self.report_provider_issues(&issues);
     }
 
@@ -2102,21 +2125,25 @@ impl Session<'_> {
     /// so a provider added since startup is fetched too.
     pub(crate) fn open_model_picker(&mut self) {
         self.reload_providers();
-        let current = self.models.active_model().to_string();
-        self.app.open_model_picker(current);
-        if let Some(provider) = self.models.active_provider() {
-            self.app.set_active_provider(provider);
+        let current = self.conversation.models.active_model().to_string();
+        self.conversation.app.open_model_picker(current);
+        if let Some(provider) = self.conversation.models.active_provider() {
+            self.conversation.app.set_active_provider(provider);
         }
-        match self.models.begin_model_fetch(&self.model_tx) {
-            0 => self.app.set_models_needs_login(),
-            providers => self.app.begin_model_load(providers),
+        match self
+            .conversation
+            .models
+            .begin_model_fetch(&self.conversation.model_tx)
+        {
+            0 => self.conversation.app.set_models_needs_login(),
+            providers => self.conversation.app.begin_model_load(providers),
         }
     }
 
     /// Esc/Ctrl+C dismissed the inline picker: cancel a pending fetch and let the
     /// region collapse back to the composer on the next draw.
     pub(crate) fn close_model_picker(&mut self) {
-        self.models.cancel_model_fetch();
+        self.conversation.models.cancel_model_fetch();
     }
 
     /// Enter on a picker row: rebuild the backend for the chosen provider/model
@@ -2133,14 +2160,14 @@ impl Session<'_> {
         context: Option<u64>,
         service_tiers: Vec<ServiceTier>,
     ) {
-        self.models.cancel_model_fetch();
+        self.conversation.models.cancel_model_fetch();
         // The picked entry's reasoning support seeds the Ctrl+T cycle at its
         // default mode (medium where offered) — docs/providers/reasoning.md.
         let thinking = reasoning.map(|support| {
             let mode = support.default_mode();
             (support, mode)
         });
-        if self.models.switch_to(
+        if self.conversation.models.switch_to(
             provider,
             id,
             thinking.as_ref(),
@@ -2149,10 +2176,10 @@ impl Session<'_> {
             service_tiers,
         ) {
             self.sync_backend_info();
-            self.app.set_thinking(thinking);
+            self.conversation.app.set_thinking(thinking);
             // …and its listed speed tiers seed /fast (docs/providers/fast-mode.md).
-            let speed = self.models.speed_state();
-            self.app.set_speed(speed);
+            let speed = self.conversation.models.speed_state();
+            self.conversation.app.set_speed(speed);
             // The pick is this conversation's model from here on — its
             // rollout records it (docs/state/session-model.md).
             self.record_session_model(true);
@@ -2170,10 +2197,13 @@ impl Session<'_> {
     /// that does not exist (`docs/providers/copilot.md`). A host-configured provider
     /// never lands here: no key, no refusal.
     fn login_fix(&self, provider: &str) -> String {
-        if self.models.is_subscription(provider) {
+        if self.conversation.models.is_subscription(provider) {
             "run /login and sign in".to_string()
         } else {
-            format!("run /login to set {}", self.models.key_env(provider))
+            format!(
+                "run /login to set {}",
+                self.conversation.models.key_env(provider)
+            )
         }
     }
 
@@ -2184,12 +2214,12 @@ impl Session<'_> {
     /// flushes a changed selection as the rollout's next `model` line at the
     /// loop bottom.
     pub(crate) fn record_session_model(&mut self, chosen: bool) {
-        let name = self.models.model_name();
-        let selection = self.models.session_selection().cloned();
+        let name = self.conversation.models.model_name();
+        let selection = self.conversation.models.session_selection().cloned();
         if chosen {
-            self.recorder.pick_model(&name, selection);
+            self.conversation.recorder.pick_model(&name, selection);
         } else {
-            self.recorder.set_model(&name, selection);
+            self.conversation.recorder.set_model(&name, selection);
         }
     }
 
@@ -2209,14 +2239,14 @@ impl Session<'_> {
                 failure: None,
             };
         };
-        match self.models.restore(recorded) {
+        match self.conversation.models.restore(recorded) {
             Restore::Restored(thinking) => {
                 self.sync_backend_info();
-                self.app.set_thinking(thinking);
+                self.conversation.app.set_thinking(thinking);
                 // …and the tier it was running, so the footer and `/fast`
                 // agree with the request (docs/providers/fast-mode.md).
-                let speed = self.models.speed_state();
-                self.app.set_speed(speed);
+                let speed = self.conversation.models.speed_state();
+                self.conversation.app.set_speed(speed);
                 self.spawn_pending_probe();
                 ModelRestore {
                     honoured: true,
@@ -2247,8 +2277,13 @@ impl Session<'_> {
     /// never learned (`docs/state/session-model.md`). Its answer lands on
     /// `probe_rx`, gated by `probe_pending`.
     pub(crate) fn spawn_pending_probe(&mut self) {
-        if let Some((provider, cfg)) = self.models.take_probe() {
-            spawn_model_fetch(provider, cfg, CancelToken::new(), self.probe_tx.clone());
+        if let Some((provider, cfg)) = self.conversation.models.take_probe() {
+            spawn_model_fetch(
+                provider,
+                cfg,
+                CancelToken::new(),
+                self.conversation.probe_tx.clone(),
+            );
         }
     }
 
@@ -2258,13 +2293,14 @@ impl Session<'_> {
     /// `/model` pattern), persist the choice beside the model selection, and
     /// confirm with a transient toast.
     pub(crate) fn set_thinking(&mut self, mode: ThinkingMode) {
-        self.models.rebind_thinking(mode);
+        self.conversation.models.rebind_thinking(mode);
         let thinking = self
+            .conversation
             .app
             .thinking
             .as_ref()
             .map(|t| (t.support.clone(), t.mode));
-        self.models.persist(thinking.as_ref());
+        self.conversation.models.persist(thinking.as_ref());
         self.record_session_model(false);
         self.toast(format!("Thinking: {}", mode.label()), ToastKind::Info);
     }
@@ -2278,14 +2314,16 @@ impl Session<'_> {
     /// increased usage` — since the price of the speed is worth saying where
     /// it is bought.
     pub(crate) fn set_speed(&mut self, tier: Option<ServiceTier>) {
-        self.models
+        self.conversation
+            .models
             .rebind_speed(tier.as_ref().map(|t| t.id.clone()));
         let thinking = self
+            .conversation
             .app
             .thinking
             .as_ref()
             .map(|t| (t.support.clone(), t.mode));
-        self.models.persist(thinking.as_ref());
+        self.conversation.models.persist(thinking.as_ref());
         let text = match &tier {
             Some(tier) if !tier.description.is_empty() => {
                 format!("Speed: {} — {}", tier.label(), tier.description)
@@ -2300,7 +2338,11 @@ impl Session<'_> {
     /// be written. The in-memory copy refreshes with it, so the next `/model`
     /// fetch or switch resolves it immediately.
     pub(crate) fn save_api_key(&mut self, provider: &str, env_var: &str, key: &str) {
-        match self.models.save_connection(provider, env_var, key) {
+        match self
+            .conversation
+            .models
+            .save_connection(provider, env_var, key)
+        {
             Ok(()) => self.toast(
                 format!("Saved {env_var} — run /model to use {provider}"),
                 ToastKind::Info,
@@ -2321,16 +2363,16 @@ impl Session<'_> {
         provider: &str,
         result: Result<Vec<ModelEntry>, String>,
     ) {
-        self.models.settle_probe();
+        self.conversation.models.settle_probe();
         if let Ok(entries) = result
-            && let Some(thinking) = self.models.apply_probe(provider, &entries)
+            && let Some(thinking) = self.conversation.models.apply_probe(provider, &entries)
         {
-            self.app.set_thinking(thinking);
+            self.conversation.app.set_thinking(thinking);
             // The listed speed tiers, for /fast (docs/providers/fast-mode.md).
-            let speed = self.models.speed_state();
-            self.app.set_speed(speed);
-            let window = self.models.context_window();
-            self.app.set_context_window(window);
+            let speed = self.conversation.models.speed_state();
+            self.conversation.app.set_speed(speed);
+            let window = self.conversation.models.context_window();
+            self.conversation.app.set_context_window(window);
             // An inheriting subagent's gauge shares that window
             // (`docs/agents/agent-context-gauge.md`).
             self.sync_agent_view_context();
@@ -2353,8 +2395,8 @@ impl Session<'_> {
         result: Result<Vec<ModelEntry>, String>,
     ) {
         match result {
-            Ok(models) => self.app.add_models(models),
-            Err(reason) => self.app.add_model_error(label, reason),
+            Ok(models) => self.conversation.app.add_models(models),
+            Err(reason) => self.conversation.app.add_model_error(label, reason),
         }
         self.frame.schedule_frame();
     }

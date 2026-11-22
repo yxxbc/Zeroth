@@ -57,37 +57,40 @@ impl Session<'_> {
                 from_model,
                 origin,
             } => {
-                self.bg_clocks.insert(id.clone(), Instant::now());
-                self.app
+                self.conversation
+                    .bg_clocks
+                    .insert(id.clone(), Instant::now());
+                self.conversation
+                    .app
                     .bg_started(&id, &command, description, from_model, origin);
             }
-            BgEvent::Output { id, chunk } => self.app.bg_output(&id, &chunk),
-            BgEvent::Screen { id, text } => self.app.bg_screen(&id, &text),
+            BgEvent::Output { id, chunk } => self.conversation.app.bg_output(&id, &chunk),
+            BgEvent::Screen { id, text } => self.conversation.app.bg_screen(&id, &text),
             // An exit the model already read — a `bash_session` call reported
             // it (docs/tools/interactive-shell.md): the shell leaves the list, and
             // no notice is owed to anyone.
             BgEvent::Exited {
                 id, observed: true, ..
             } => {
-                self.bg_clocks.remove(&id);
-                let _ = self.app.bg_exited(&id, None, false);
+                self.conversation.bg_clocks.remove(&id);
+                let _ = self.conversation.app.bg_exited(&id, None, false);
             }
             BgEvent::Exited {
                 id, code, killed, ..
             } => {
-                self.bg_clocks.remove(&id);
-                match self.app.bg_exited(&id, code, killed) {
+                self.conversation.bg_clocks.remove(&id);
+                match self.conversation.app.bg_exited(&id, code, killed) {
                     Some(completion) => self.report_bg_completion(completion),
                     // Already swept (`/clear`): no note is owed, so the
                     // registry need not keep the exit claimable.
-                    None => self.registry.forget_exit(&id),
+                    None => self.conversation.registry.forget_exit(&id),
                 }
             }
             // A session nobody waits on stopped to ask for input
             // (docs/tools/bash-tools.md): reported the way an exit is, while the
             // shell keeps running and keeps its row.
             BgEvent::Waiting { id } => {
-                if let Some(waiting) = self.app.bg_waiting(&id) {
+                if let Some(waiting) = self.conversation.app.bg_waiting(&id) {
                     self.report_bg_completion(waiting);
                 }
             }
@@ -120,12 +123,12 @@ impl Session<'_> {
         // that under its own lock, atomically with the claim.
         let note = completion.context_text();
         let routed = match &completion.origin {
-            Some(origin) => match self.agent_registry.route_shell_note(
+            Some(origin) => match self.conversation.agent_registry.route_shell_note(
                 &origin.agent_id,
                 &completion.id,
                 &note,
                 completion.waiting,
-                &self.registry,
+                &self.conversation.registry,
             ) {
                 zeroth::agents::Route::Covered => return,
                 zeroth::agents::Route::Routed(seq) => Some(seq),
@@ -140,11 +143,17 @@ impl Session<'_> {
             Some(seq) => seq,
             None => {
                 let posted = if completion.waiting {
-                    self.registry
-                        .post_waiting_notice(&completion.id, note, completion.from_model)
+                    self.conversation.registry.post_waiting_notice(
+                        &completion.id,
+                        note,
+                        completion.from_model,
+                    )
                 } else {
-                    self.registry
-                        .post_exit_notice(&completion.id, note, completion.from_model)
+                    self.conversation.registry.post_exit_notice(
+                        &completion.id,
+                        note,
+                        completion.from_model,
+                    )
                 };
                 let Some(seq) = posted else {
                     return;
@@ -152,8 +161,10 @@ impl Session<'_> {
                 seq
             }
         };
-        self.app.defer_bg_completion(completion, Some(seq));
-        if !self.app.turn_active() {
+        self.conversation
+            .app
+            .defer_bg_completion(completion, Some(seq));
+        if !self.conversation.app.turn_active() {
             self.dispatch_after_turn();
         }
     }
@@ -161,7 +172,7 @@ impl Session<'_> {
     /// `x` in the ↓ manager: stop the task. The registry's `Exited` event then
     /// removes the row and commits the stopped notice.
     pub(crate) fn kill_background(&self, id: &str) {
-        self.registry.kill(id);
+        self.conversation.registry.kill(id);
     }
 
     /// Ctrl+B on a running command: raise the latch the runner's poll loop
@@ -171,9 +182,9 @@ impl Session<'_> {
     /// leaves it alone; with no such cell (the agent group's wait, the `!`
     /// shell) the latch is global, as it always was.
     pub(crate) fn move_to_background(&self) {
-        match self.app.background_target() {
-            Some(call_id) => self.registry.request_background_for(call_id),
-            None => self.registry.request_background(),
+        match self.conversation.app.background_target() {
+            Some(call_id) => self.conversation.registry.request_background_for(call_id),
+            None => self.conversation.registry.request_background(),
         }
     }
 
@@ -184,9 +195,9 @@ impl Session<'_> {
     /// wire did (`docs/tools/background.md`). A note nobody holds a cell for (one
     /// whose cell already settled) changes nothing.
     pub(crate) fn settle_delivered_notice(&mut self, seq: u64) {
-        if let Some(completion) = self.app.take_delivered_bg_completion(seq) {
+        if let Some(completion) = self.conversation.app.take_delivered_bg_completion(seq) {
             self.settle_bg_completion(&completion);
-        } else if let Some(notice) = self.app.take_delivered_agent_notice(seq) {
+        } else if let Some(notice) = self.conversation.app.take_delivered_agent_notice(seq) {
             self.settle_agent_notice(&notice);
         }
     }
@@ -198,7 +209,7 @@ impl Session<'_> {
     /// from there. A note a report took back off the board before any model
     /// read it owes no cell (`docs/agents/agent-tools.md` *One notice per answer*).
     pub(crate) fn settle_bg_completions(&mut self) {
-        for held in self.app.take_pending_bg_completions() {
+        for held in self.conversation.app.take_pending_bg_completions() {
             if !self.retracted(held.seq) {
                 self.settle_bg_completion(&held.notice);
             }
@@ -207,12 +218,12 @@ impl Session<'_> {
         // green `● Agent "…" finished` / red stopped cell — and update the
         // recorded group entry so the Ctrl+O cell shows the final response
         // (docs/agents/agent-tool.md).
-        for held in self.app.take_pending_agent_notices() {
+        for held in self.conversation.app.take_pending_agent_notices() {
             if self.retracted(held.seq) {
                 // An `agentoutput` report took the note back before the lead
                 // read it: the cell would record a notice nobody sent — but
                 // the recorded group entry still learns the final state.
-                self.app.settle_agent_completion(&held.notice);
+                self.conversation.app.settle_agent_completion(&held.notice);
                 continue;
             }
             self.settle_agent_notice(&held.notice);
@@ -221,7 +232,7 @@ impl Session<'_> {
 
     /// Was held note `seq` taken back off the board unread?
     fn retracted(&self, seq: Option<u64>) -> bool {
-        seq.is_some_and(|seq| self.registry.take_retracted(seq))
+        seq.is_some_and(|seq| self.conversation.registry.take_retracted(seq))
     }
 
     /// Record + commit one shell's notice cell — commits are view-gated
@@ -232,7 +243,7 @@ impl Session<'_> {
         // (docs/ui/tool-groups.md).
         let committing = self.commits_allowed();
         self.close_tool_group(committing, self.screen.screen().width);
-        let notice = self.app.record_background_notice(completion);
+        let notice = self.conversation.app.record_background_notice(completion);
         if committing {
             let width = self.screen.screen().width;
             // A completion can settle right after a turn whose strip just
@@ -254,8 +265,8 @@ impl Session<'_> {
     fn settle_agent_notice(&mut self, notice: &zeroth::app::AgentNotice) {
         let committing = self.commits_allowed();
         self.close_tool_group(committing, self.screen.screen().width);
-        self.app.settle_agent_completion(notice);
-        self.app.record_agent_notice(notice);
+        self.conversation.app.settle_agent_completion(notice);
+        self.conversation.app.record_agent_notice(notice);
         if committing {
             let width = self.screen.screen().width;
             let height = self.live_region_height();

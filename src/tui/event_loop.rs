@@ -79,49 +79,49 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             // 2. A streamed reply event. App state is always updated; lines are
             //    only committed to scrollback in the conversation view (in an
             //    overlay we hold off and repaint on return).
-            Some(event) = session.reply_rx.recv() => session.on_reply_event(event),
+            Some(event) = session.conversation.reply_rx.recv() => session.on_reply_event(event),
 
             // 3. A coalesced draw tick: refresh the injected times, then paint.
             Some(()) = session.draw_rx.recv() => session.on_draw_tick()?,
 
             // 4. A file-search result for the open `@` picker.
-            Some(result) = session.file_rx.recv() => session.on_file_matches(result),
+            Some(result) = session.conversation.file_rx.recv() => session.on_file_matches(result),
 
             // 5. A finished Ctrl+V clipboard read.
-            Some(result) = session.img_rx.recv() => session.on_image_paste(result),
-            Some(result) = session.diff_rx.recv() => session.on_diff_result(result)?,
+            Some(result) = session.conversation.img_rx.recv() => session.on_image_paste(result),
+            Some(result) = session.conversation.diff_rx.recv() => session.on_diff_result(result)?,
 
             // 5b. The `/login` device flow's worker: the code to show, then
             //     the sign-in's verdict (`docs/providers/copilot.md`).
-            Some(event) = session.device_rx.recv() => session.on_device_event(event),
+            Some(event) = session.conversation.device_rx.recv() => session.on_device_event(event),
 
             // 5c. One subscription's `/usage` read (docs/providers/usage.md).
-            Some(result) = session.usage_rx.recv() => session.on_usage_result(result),
+            Some(result) = session.conversation.usage_rx.recv() => session.on_usage_result(result),
 
             // 6. A finished `/model` fetch from one provider's worker thread.
-            Some((label, result)) = session.model_rx.recv() => {
+            Some((label, result)) = session.conversation.model_rx.recv() => {
                 session.on_model_fetch(label, result);
             }
 
             // 6b. A link preview card fetched for a lone URL
             //     (`docs/ui/rich-links.md`).
-            Some((url, card)) = session.card_rx.recv() => session.on_card(url, card),
+            Some((url, card)) = session.conversation.card_rx.recv() => session.on_card(url, card),
 
             // 7. The startup capability probe answered. Guarded so a `/model`
             //    switch that raced it (and already knows its support first-hand)
             //    wins.
-            Some((provider, result)) = session.probe_rx.recv(),
-                if session.models.probe_pending() =>
+            Some((provider, result)) = session.conversation.probe_rx.recv(),
+                if session.conversation.models.probe_pending() =>
             {
                 session.apply_capability_probe(&provider, result);
             }
 
             // 8. A background-shell event from the registry's monitors.
-            Some(event) = session.bg_rx.recv() => session.on_bg_event(event),
+            Some(event) = session.conversation.bg_rx.recv() => session.on_bg_event(event),
 
             // 9. A subagent event — its own stream, its settle, or the lead's
             //    stop or resume of it (docs/agents/agent-tools.md).
-            Some(event) = session.agent_rx.recv() => session.on_agent_message(event),
+            Some(event) = session.conversation.agent_rx.recv() => session.on_agent_message(event),
 
             // 12. The update check answered: record what it found and, if
             //     newer, announce it once the session is idle (docs/ops/update.md).
@@ -130,11 +130,11 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             // 13. A turn-end checkpoint snapshot finished on its worker
             //     thread: record it, then dispatch the turn-end work that
             //     waited for it (docs/state/checkpoint.md).
-            Some(done) = session.checkpoint_rx.recv() => session.on_checkpoint_done(done),
+            Some(done) = session.conversation.checkpoint_rx.recv() => session.on_checkpoint_done(done),
 
             // 14. A backtrack's or a `/resume`'s code reset finished on its
             //     worker thread: report it (docs/state/checkpoint.md).
-            Some(done) = session.restore_rx.recv() => session.on_restore_done(done),
+            Some(done) = session.conversation.restore_rx.recv() => session.on_restore_done(done),
         }
         session.after_iteration();
     }

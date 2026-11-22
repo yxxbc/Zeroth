@@ -211,7 +211,7 @@ impl Session<'_> {
             // only remember once it woke). Option 2 is a standing, per-project
             // rule: it persists, mirrors an edit prompt's mode switch onto the
             // footer segment, and confirms with a toast.
-            self.permissions.remember(request);
+            self.conversation.permissions.remember(request);
             let toast = match request.kind {
                 PermissionKind::Bash => format!(
                     "Won't ask again for {} in this project",
@@ -221,19 +221,23 @@ impl Session<'_> {
                 // (docs/tools/interactive-shell.md).
                 PermissionKind::Session => "Won't ask again for input to this session".to_string(),
                 PermissionKind::Write | PermissionKind::Edit => {
-                    self.app.set_permission_mode(Some(PermissionMode::Edit));
+                    self.conversation
+                        .app
+                        .set_permission_mode(Some(PermissionMode::Edit));
                     "Mode: edit — file edits run without asking (shift+tab to switch back)"
                         .to_string()
                 }
             };
             self.toast(toast, ToastKind::Info);
         }
-        self.permissions.resolve(&request.id, decision);
+        self.conversation.permissions.resolve(&request.id, decision);
         // Parallel agents ask before any of them is answered, so "don't ask
         // again" has to reach the requests already queued behind this one — else
         // three agents running the same command ask three times after you said
         // not to.
-        self.permissions.approve_covered(&mut self.app);
+        self.conversation
+            .permissions
+            .approve_covered(&mut self.conversation.app);
         self.frame.schedule_frame();
     }
 
@@ -243,8 +247,10 @@ impl Session<'_> {
     /// the looser mode now covers (parallel agents' file changes waiting behind a
     /// prompt), and persist this project's entry. See `docs/state/permissions.md`.
     pub(crate) fn set_permission_mode(&mut self, mode: PermissionMode) {
-        self.permissions.set_mode(mode);
-        self.permissions.approve_covered(&mut self.app);
+        self.conversation.permissions.set_mode(mode);
+        self.conversation
+            .permissions
+            .approve_covered(&mut self.conversation.app);
         self.toast(
             match mode {
                 PermissionMode::Edit => {

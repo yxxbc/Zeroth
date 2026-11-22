@@ -405,7 +405,7 @@ impl Session<'_> {
     /// post-stream commit can reserve that same idle height before flushing the
     /// final lines (see `InlineViewport::set_view_height`).
     pub(crate) fn live_region_height(&self) -> u16 {
-        live_region_height(&self.app, self.screen.screen())
+        live_region_height(&self.conversation.app, self.screen.screen())
     }
 
     /// Write the live status's times onto `App` before a draw: how long the turn
@@ -415,35 +415,47 @@ impl Session<'_> {
     /// the already-computed values. No-op when no turn is in flight.
     pub(crate) fn update_status_times(&mut self) {
         let elapsed = self
+            .conversation
             .clocks
             .turn_start
             .map_or(std::time::Duration::ZERO, |start| start.elapsed());
-        let thinking = self.clocks.thinking_start.map(|start| start.elapsed());
-        self.app.set_status_times(elapsed, thinking);
+        let thinking = self
+            .conversation
+            .clocks
+            .thinking_start
+            .map(|start| start.elapsed());
+        self.conversation.app.set_status_times(elapsed, thinking);
         // The current running command's own elapsed (None when none is
         // running): the `(Ns)` its cell displays (docs/ui/tool-streaming.md) and,
         // masked, the delayed Ctrl+B hint's gate (docs/tools/background.md).
-        self.app
-            .set_command_elapsed(self.clocks.command_start.map(|start| start.elapsed()));
+        self.conversation.app.set_command_elapsed(
+            self.conversation
+                .clocks
+                .command_start
+                .map(|start| start.elapsed()),
+        );
         // The animation phase for the live region's pulsing bullets — a phase,
         // not a measurement: nothing displays it (docs/ui/tool-pulse.md).
-        let now = self.clocks.loop_start.elapsed();
-        self.app.set_pulse(now);
+        let now = self.conversation.clocks.loop_start.elapsed();
+        self.conversation.app.set_pulse(now);
         // The open read/search group's `⎿` row steps through its calls on
         // the same clock, each value held long enough to read
         // (docs/ui/tool-groups.md *The hint row*).
-        self.app.advance_group_hint(now);
+        self.conversation.app.advance_group_hint(now);
         // The `/usage` page's countdowns run on the wall clock
         // (docs/providers/usage.md).
-        if self.app.usage_page.is_some() {
-            self.app.set_usage_now(super::host::unix_secs_signed());
+        if self.conversation.app.usage_page.is_some() {
+            self.conversation
+                .app
+                .set_usage_now(super::host::unix_secs_signed());
         }
         // How long a `/login` device code has left, when one is on screen
         // (docs/providers/copilot.md).
-        if self.app.device_login_active() {
+        if self.conversation.app.device_login_active() {
             let now = Instant::now();
-            self.app.set_device_remaining(
-                self.device_expires
+            self.conversation.app.set_device_remaining(
+                self.conversation
+                    .device_expires
                     .map(|at| at.saturating_duration_since(now)),
             );
         }
@@ -481,7 +493,7 @@ impl Session<'_> {
     pub(crate) fn current_view_flow(&self) -> Option<ui::ViewFlow> {
         let screen = self.screen.screen();
         ui::view_flow(
-            &self.app,
+            &self.conversation.app,
             screen.width,
             screen.height,
             RESIZE_REFLOW_MAX_ROWS,
@@ -497,7 +509,7 @@ impl Session<'_> {
     pub(crate) fn view_flow_stale(&self) -> bool {
         let screen = self.screen.screen();
         ui::view_flow_signature(
-            &self.app,
+            &self.conversation.app,
             screen.width,
             screen.height,
             RESIZE_REFLOW_MAX_ROWS,
@@ -512,7 +524,7 @@ impl Session<'_> {
     /// heights — see the draw tick's rebuild arm and `docs/state/permissions.md`).
     pub(crate) fn modal_rebuild_due(&self) -> bool {
         ui::modal_needs_rebuild(
-            ui::region_is_modal(&self.app),
+            ui::region_is_modal(&self.conversation.app),
             self.screen.modal_scrolled(),
             self.screen.painted_bottom(),
             self.screen.view_top(),
@@ -548,8 +560,9 @@ impl Session<'_> {
     /// strip (`docs/agents/agent-view-streaming.md`).
     fn stream_preview_lines(&mut self) -> Option<Vec<Line<'static>>> {
         let screen = self.screen.screen();
-        let max_rows = ui::stream_preview_max_rows(&self.app, screen.width, screen.height);
-        let preview = match self.app.viewed_agent() {
+        let max_rows =
+            ui::stream_preview_max_rows(&self.conversation.app, screen.width, screen.height);
+        let preview = match self.conversation.app.viewed_agent() {
             Some(run) => run
                 .streaming
                 .clone()
@@ -559,14 +572,16 @@ impl Session<'_> {
                         .agent_render
                         .preview(&text, screen.width, max_rows)
                 }),
-            None => match self.app.streaming_text() {
-                Some(text) if !text.is_empty() && self.app.current_tool().is_none() => {
+            None => match self.conversation.app.streaming_text() {
+                Some(text)
+                    if !text.is_empty() && self.conversation.app.current_tool().is_none() =>
+                {
                     Some(self.view.render.preview(text, screen.width, max_rows))
                 }
                 _ => None,
             },
         };
-        self.app.set_stream_preview_rows(
+        self.conversation.app.set_stream_preview_rows(
             preview
                 .as_ref()
                 .map_or(1, |p| u16::try_from(p.len()).unwrap_or(u16::MAX)),
@@ -596,7 +611,7 @@ impl Session<'_> {
         // (which renders the last line again).
         let full = self.screen.is_full();
         let preview = if full {
-            self.app.set_stream_preview_rows(0);
+            self.conversation.app.set_stream_preview_rows(0);
             Some(Vec::new())
         } else {
             self.stream_preview_lines()
@@ -679,7 +694,7 @@ impl Session<'_> {
                 painted.push(pin.line);
             }
             painted.extend(window);
-            let app = &self.app;
+            let app = &self.conversation.app;
             let mut hits = ui::SessionBarHits::default();
             self.screen.draw_frame(
                 &painted,
@@ -693,7 +708,7 @@ impl Session<'_> {
             self.view.full_tab_hits = hits;
             return Ok(());
         }
-        let app = &self.app;
+        let app = &self.conversation.app;
         // `term` places the cursor from the final (content-anchored) viewport
         // via `ui::cursor_position`, which mirrors render_live's layout exactly.
         self.screen.draw_region(
@@ -710,9 +725,9 @@ impl Session<'_> {
     /// (`ui::header_lines_plain`).
     fn banner_lines(&self, width: u16) -> Vec<Line<'static>> {
         if self.screen.is_full() {
-            ui::header_lines_plain(&self.app, width)
+            ui::header_lines_plain(&self.conversation.app, width)
         } else {
-            ui::header_lines(&self.app, width)
+            ui::header_lines(&self.conversation.app, width)
         }
     }
 
@@ -726,7 +741,7 @@ impl Session<'_> {
     fn full_text_width(&self) -> u16 {
         let screen = self.screen.screen().width;
         screen
-            .saturating_sub(ui::sidebar_columns(&self.app, screen))
+            .saturating_sub(ui::sidebar_columns(&self.conversation.app, screen))
             .saturating_sub(ui::SCROLLBAR_COLUMNS)
             .max(1)
     }
@@ -745,12 +760,12 @@ impl Session<'_> {
     fn full_tail_lines(&mut self) -> Vec<ratatui::text::Line<'static>> {
         let width = self.full_text_width();
         frame_history(
-            &self.app,
+            &self.conversation.app,
             &mut self.view,
             width,
             self.screen.screen().width,
             self.link_cards,
-            &self.card_tx,
+            &self.conversation.card_tx,
         );
         self.tailed_with_stream(width)
     }
@@ -770,6 +785,7 @@ impl Session<'_> {
             .map(|tail| tail.lines.clone())
             .unwrap_or_default();
         let streaming = self
+            .conversation
             .app
             .viewed_agent()
             .and_then(|run| run.streaming.as_deref().filter(|text| !text.is_empty()))
@@ -777,8 +793,9 @@ impl Session<'_> {
         let streaming = match streaming {
             Some(text) => Some(text),
             None => {
-                if self.app.viewed_agent().is_none() {
-                    self.app
+                if self.conversation.app.viewed_agent().is_none() {
+                    self.conversation
+                        .app
                         .streaming_text()
                         .filter(|text| !text.is_empty())
                         .map(str::to_string)
@@ -789,14 +806,14 @@ impl Session<'_> {
         };
         let mut stream = Vec::new();
         if let Some(text) = streaming {
-            stream.extend(if self.app.viewed_agent().is_some() {
+            stream.extend(if self.conversation.app.viewed_agent().is_some() {
                 self.view.agent_render.committed_rows(&text, width)
             } else {
                 ui::message_lines_with_paths(
                     Role::Assistant,
                     &text,
                     width,
-                    Some(self.app.path_display()),
+                    Some(self.conversation.app.path_display()),
                 )
             });
         }
@@ -806,7 +823,7 @@ impl Session<'_> {
         // and scroll with it — the strip above the composer keeps only the
         // status line and its tip. Empty inline and in an agent session view,
         // whose strip keeps its preview.
-        stream.extend(ui::conversation_live_lines(&self.app, width));
+        stream.extend(ui::conversation_live_lines(&self.conversation.app, width));
         // A framed view opened over this screen flows its page the same way
         // the inline rebuild does (`docs/ui/view-flow.md`).
         let flow = self.current_view_flow();
@@ -901,10 +918,10 @@ impl Session<'_> {
         // An agent session view's Ctrl+O shows the *viewed agent's* transcript —
         // a fresh, bounded build (docs/agents/agent-tool.md); the main cache below is
         // untouched, so the ordinary open stays warm.
-        if let Some(lines) = ui::agent_transcript_lines(&self.app, screen.width) {
+        if let Some(lines) = ui::agent_transcript_lines(&self.conversation.app, screen.width) {
             let max = ui::tool_view_max_scroll_for(lines.len(), screen.height);
-            self.app.settle_tool_scroll(max);
-            let app = &self.app;
+            self.conversation.app.settle_tool_scroll(max);
+            let app = &self.conversation.app;
             return self
                 .screen
                 .draw_overlay(|area, buf| ui::render_tool_view(area, buf, app, &lines));
@@ -912,12 +929,17 @@ impl Session<'_> {
         // A backtrack preview open/step requested a scroll to its highlighted
         // message (docs/input/backtrack.md): apply the pure decision once — consumed,
         // so it never fights the user's own scrolling — before the normal clamp.
-        if self.app.take_backtrack_scroll() {
-            let selection = self.view.transcript.selection(&self.app, screen.width);
-            if let Some(scroll) =
-                ui::backtrack_scroll_for(selection, self.app.tool_scroll, screen.height)
-            {
-                self.app.apply_backtrack_scroll(scroll);
+        if self.conversation.app.take_backtrack_scroll() {
+            let selection = self
+                .view
+                .transcript
+                .selection(&self.conversation.app, screen.width);
+            if let Some(scroll) = ui::backtrack_scroll_for(
+                selection,
+                self.conversation.app.tool_scroll,
+                screen.height,
+            ) {
+                self.conversation.app.apply_backtrack_scroll(scroll);
             }
         }
         // Build the transcript at most once here (the cache skips even that
@@ -925,11 +947,13 @@ impl Session<'_> {
         // the render, so a scroll keypress no longer re-highlights all of
         // history (twice).
         let max = ui::tool_view_max_scroll_for(
-            self.view.transcript.line_count(&self.app, screen.width),
+            self.view
+                .transcript
+                .line_count(&self.conversation.app, screen.width),
             screen.height,
         );
-        self.app.settle_tool_scroll(max);
-        let app = &self.app;
+        self.conversation.app.settle_tool_scroll(max);
+        let app = &self.conversation.app;
         let transcript = &mut self.view.transcript;
         self.screen
             .draw_overlay(|area, buf| transcript.render(area, buf, app))
@@ -938,7 +962,7 @@ impl Session<'_> {
     /// Render the full-screen `/resume` session picker onto the alternate screen
     /// (the transcript overlay's twin). See `docs/state/resume.md`.
     pub(crate) fn draw_resume_picker(&mut self) -> io::Result<()> {
-        let app = &self.app;
+        let app = &self.conversation.app;
         self.screen
             .draw_overlay(|area, buf| ui::render_resume_picker(area, buf, app))
     }
@@ -955,17 +979,17 @@ impl Session<'_> {
         // Tab's other page is a different body under the same chrome, and it
         // is built fresh from the backend rather than served from the cache
         // (`docs/state/permissions.md`).
-        if self.app.debug_page == DebugPage::Classifier {
+        if self.conversation.app.debug_page == DebugPage::Classifier {
             return self.draw_classifier_page();
         }
         let screen = self.screen.screen();
-        let body = self.view.context.body(&self.app, screen.width);
+        let body = self.view.context.body(&self.conversation.app, screen.width);
         let max = ui::tool_view_max_scroll_for(body.lines.len(), screen.height);
         // A ←/→ press lands against the page as built — its width, its
         // wrapping — before the settle clamps it.
-        self.app.resolve_debug_jump(&body.headers, max);
-        self.app.settle_debug_scroll(max);
-        let app = &self.app;
+        self.conversation.app.resolve_debug_jump(&body.headers, max);
+        self.conversation.app.settle_debug_scroll(max);
+        let app = &self.conversation.app;
         self.screen
             .draw_overlay(|area, buf| ui::render_context_view(area, buf, app, body))
     }
@@ -990,24 +1014,24 @@ impl Session<'_> {
         // no longer holds yields `None`, which renders as the page's empty
         // placeholder rather than silently falling back to the lead.
         // See `docs/state/permissions.md` / `docs/agents/agent-tool.md`.
-        let context = match self.app.agent_view.as_deref() {
-            Some(id) => self.agent_registry.classifier_context(id),
-            None => self.models.backend().classifier_context(),
+        let context = match self.conversation.app.agent_view.as_deref() {
+            Some(id) => self.conversation.agent_registry.classifier_context(id),
+            None => self.conversation.models.backend().classifier_context(),
         };
-        self.app.set_classifier_context(context);
+        self.conversation.app.set_classifier_context(context);
         let screen = self.screen.screen();
-        let body = ui::classifier_body(&self.app, screen.width);
+        let body = ui::classifier_body(&self.conversation.app, screen.width);
         let max = ui::tool_view_max_scroll_for(body.lines.len(), screen.height);
-        self.app.resolve_debug_jump(&body.headers, max);
-        self.app.settle_classifier_scroll(max);
-        let app = &self.app;
+        self.conversation.app.resolve_debug_jump(&body.headers, max);
+        self.conversation.app.settle_classifier_scroll(max);
+        let app = &self.conversation.app;
         self.screen
             .draw_overlay(|area, buf| ui::render_context_view(area, buf, app, &body))
     }
 
     /// Paint whichever view is current — the draw tick's whole body.
     pub(crate) fn draw_active_view(&mut self) -> io::Result<()> {
-        match self.app.view {
+        match self.conversation.app.view {
             // The modal (permission-prompt) region needs a purge rebuild
             // instead of an in-place paint — two cases, one pure decision
             // (`ui::modal_needs_rebuild`, `docs/state/permissions.md`). The prompt
@@ -1052,7 +1076,7 @@ impl Session<'_> {
     /// else the main conversation. The shared resize / rewind repaint
     /// (`docs/agents/agent-tool.md`).
     pub(crate) fn repaint_active_view(&mut self) -> io::Result<()> {
-        if self.app.agent_view.is_some() {
+        if self.conversation.app.agent_view.is_some() {
             self.repaint_agent_view()
         } else {
             self.repaint_conversation()
@@ -1079,7 +1103,7 @@ impl Session<'_> {
     /// which always rebuilds from its own transcript (`docs/agents/agent-tool.md`;
     /// its purge drops the queue, whose lines its history regenerates).
     pub(crate) fn overlay_return_repaint(&mut self) -> io::Result<()> {
-        if std::mem::take(&mut self.overlay_resized) || self.app.agent_view.is_some() {
+        if std::mem::take(&mut self.overlay_resized) || self.conversation.app.agent_view.is_some() {
             self.repaint_active_view()
         } else {
             self.draw_conversation()
@@ -1113,10 +1137,14 @@ impl Session<'_> {
         // The purge takes the encoded pictures with it, so a picture whose
         // file has gone since it was drawn — or since the conversation was
         // recorded — must not reserve its rows again (`docs/ui/images.md`).
-        let held = self.app.tool_group_range().map(|range| range.start);
+        let held = self
+            .conversation
+            .app
+            .tool_group_range()
+            .map(|range| range.start);
         recheck_pictures(ui::committed_history(
-            &self.app.history,
-            self.app.tool_queue(),
+            &self.conversation.app.history,
+            self.conversation.app.tool_queue(),
             held,
         ));
         // The purge drops every committed row (screen and scrollback alike),
@@ -1132,13 +1160,17 @@ impl Session<'_> {
             // Only what has actually reached scrollback: the open read/search
             // group has cells recorded but held, and the strip is showing
             // them (`docs/ui/tool-groups.md`).
-            ui::committed_history(&self.app.history, self.app.tool_queue(), held),
-            self.app.streaming_text(),
+            ui::committed_history(
+                &self.conversation.app.history,
+                self.conversation.app.tool_queue(),
+                held,
+            ),
+            self.conversation.app.streaming_text(),
             &mut self.view.render,
             screen.width,
             RESIZE_REFLOW_MAX_ROWS,
-            self.app.path_display(),
-            self.app.settings().verbose,
+            self.conversation.app.path_display(),
+            self.conversation.app.settings().verbose,
         );
         // Re-emit the header banner atop the rebuilt tail — it lives outside
         // `history` and would otherwise be lost (docs/ui/header.md).
@@ -1155,7 +1187,7 @@ impl Session<'_> {
         if let Some(flow) = flow {
             tail.extend(flow.lines);
         }
-        let app = &self.app;
+        let app = &self.conversation.app;
         self.screen.reflow(
             tail,
             height,
@@ -1170,7 +1202,11 @@ impl Session<'_> {
         // partial stays in the streaming buffer and the first un-flowed
         // rebuild re-commits it whole.
         if self.flowed_view.is_none()
-            && let Some(text) = self.app.streaming_text().filter(|text| !text.is_empty())
+            && let Some(text) = self
+                .conversation
+                .app
+                .streaming_text()
+                .filter(|text| !text.is_empty())
         {
             let lines = self.view.render.commit(text, screen.width);
             self.screen.insert_before(lines);
@@ -1190,7 +1226,7 @@ impl Session<'_> {
         }
         let screen = self.screen.screen();
         self.view.agent_render.reset();
-        let Some(run) = self.app.viewed_agent() else {
+        let Some(run) = self.conversation.app.viewed_agent() else {
             return Ok(());
         };
         // Only the agent's committed cells, the main view's rule
@@ -1208,8 +1244,12 @@ impl Session<'_> {
         let height = self.live_region_height();
         // An agent's session view keeps a cell per call: its commits are
         // keyed on the records its own run makes (docs/ui/tool-groups.md).
-        let mut tail =
-            ui::conversation_lines(&history, screen.width, self.app.path_display(), true);
+        let mut tail = ui::conversation_lines(
+            &history,
+            screen.width,
+            self.conversation.app.path_display(),
+            true,
+        );
         if let Some(text) = &streaming {
             tail.extend(self.view.agent_render.committed_rows(text, screen.width));
         }
@@ -1222,7 +1262,7 @@ impl Session<'_> {
         if let Some(flow) = flow {
             tail.extend(flow.lines);
         }
-        let app = &self.app;
+        let app = &self.conversation.app;
         self.screen.reflow(
             tail,
             height,
@@ -1426,7 +1466,7 @@ impl Session<'_> {
     /// next Ctrl+O instant, and the loop-bottom `transcript.warm` keeps appending
     /// to it as items commit.
     pub(crate) fn toggle_tool_view(&mut self) -> io::Result<()> {
-        if self.app.view == View::ToolOutput {
+        if self.conversation.app.view == View::ToolOutput {
             self.screen.enter_overlay()?;
             // Paint the overlay now rather than on the next tick — the
             // freshly-cleared alt screen would show as a black flash for a frame
@@ -1448,7 +1488,7 @@ impl Session<'_> {
     /// Ctrl+D: the raw-context view — the same overlay dance as Ctrl+O
     /// (`docs/architecture/context.md`).
     pub(crate) fn toggle_context_debug(&mut self) -> io::Result<()> {
-        if self.app.view == View::ContextDebug {
+        if self.conversation.app.view == View::ContextDebug {
             self.screen.enter_overlay()?;
             self.draw_context_view()
         } else {
@@ -1459,7 +1499,7 @@ impl Session<'_> {
             self.view.context.release();
             // …and the classifier page's injected block, which the next open
             // refreshes from the backend anyway.
-            self.app.set_classifier_context(None);
+            self.conversation.app.set_classifier_context(None);
             self.screen.exit_overlay()?;
             self.overlay_return_repaint()
         }
@@ -1477,8 +1517,10 @@ impl Session<'_> {
         self.update_status_times();
         // Inject each background shell's runtime (the boundary owns the started
         // clocks — docs/tools/background.md), so the manager's details view ticks.
-        for (id, started) in &self.bg_clocks {
-            self.app.set_background_runtime(id, started.elapsed());
+        for (id, started) in &self.conversation.bg_clocks {
+            self.conversation
+                .app
+                .set_background_runtime(id, started.elapsed());
         }
         // …and each running agent's, plus the linger sweep (docs/agents/agent-tool.md).
         self.tick_agent_roster();
@@ -1498,7 +1540,7 @@ impl Session<'_> {
         // costs the user their text selection ([`App::wants_animation_frames`],
         // `docs/ui/overlay-repaint.md`); the chain re-seeds on the first draw after
         // the return.
-        if self.app.wants_animation_frames() {
+        if self.conversation.app.wants_animation_frames() {
             self.frame.schedule_frame_in(STATUS_FRAME_INTERVAL);
         }
         // The `/login` device page keeps its own, much slower chain. Its only
@@ -1507,7 +1549,7 @@ impl Session<'_> {
         // Hide plus a re-seat, which at the status chain's thirty a second is
         // what a terminal with a cursor-trail animation renders as a permanent
         // shimmer over the page (`docs/providers/copilot.md`).
-        if self.app.device_login_active() {
+        if self.conversation.app.device_login_active() {
             self.frame.schedule_frame_in(DEVICE_TICK_INTERVAL);
         }
         Ok(())
@@ -1519,11 +1561,11 @@ impl Session<'_> {
     /// [`Session::toast`] scheduled, so re-arming here guarantees the clear fires.
     /// See `docs/ui/toast.md`.
     fn expire_toast(&mut self) {
-        if let Some(deadline) = self.toast_deadline {
+        if let Some(deadline) = self.conversation.toast_deadline {
             let now = std::time::Instant::now();
             if now >= deadline {
-                self.app.clear_toast();
-                self.toast_deadline = None;
+                self.conversation.app.clear_toast();
+                self.conversation.toast_deadline = None;
             } else {
                 self.frame.schedule_frame_in(deadline - now);
             }

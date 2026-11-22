@@ -664,14 +664,19 @@ impl Session<'_> {
     /// boundary's own record, so an unchanged query (or a non-edit key) sends
     /// nothing.
     pub(crate) fn dispatch_file_search(&mut self) {
-        dispatch_file_search(&self.app, &self.file_req_tx, &mut self.last_file_query);
+        dispatch_file_search(
+            &self.conversation.app,
+            &self.conversation.file_req_tx,
+            &mut self.conversation.last_file_query,
+        );
     }
 
     /// A file-search result from the worker: feed it into the open `@` picker
     /// (stale results — the token moved on — are dropped by `set_file_matches`),
     /// then repaint. See `docs/input/file-search.md`.
     pub(crate) fn on_file_matches(&mut self, result: FileSearchResult) {
-        self.app
+        self.conversation
+            .app
             .set_file_matches(&result.query, result.matches, result.truncated);
         self.frame.schedule_frame();
     }
@@ -683,12 +688,12 @@ impl Session<'_> {
     pub(crate) fn on_image_paste(&mut self, result: Result<PathBuf, String>) {
         match result {
             Ok(path) => {
-                self.app.attach_image(path);
+                self.conversation.app.attach_image(path);
                 // A known non-vision model can't see the paste: warn at once with
                 // a toast — the attachment still rides the request as a text note
                 // the model reads, so it can tell the user too (docs/tools/tools.md).
-                if self.models.is_blind() {
-                    let model = self.models.active_model().to_string();
+                if self.conversation.models.is_blind() {
+                    let model = self.conversation.models.active_model().to_string();
                     self.toast(
                         format!("{model} does not support image input"),
                         ToastKind::Error,
@@ -700,7 +705,7 @@ impl Session<'_> {
                 if self.commits_allowed() {
                     self.commit_error_notice(&text);
                 } else {
-                    self.app.record_error_message(&text);
+                    self.conversation.app.record_error_message(&text);
                 }
             }
         }

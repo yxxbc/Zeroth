@@ -53,8 +53,11 @@ impl Session<'_> {
         let Some(herdr) = self.herdr.as_mut() else {
             return;
         };
-        let activity = herdr::activity(&self.app);
-        if let Some(report) = herdr.tracker.update(&activity, self.recorder.session_id()) {
+        let activity = herdr::activity(&self.conversation.app);
+        if let Some(report) = herdr
+            .tracker
+            .update(&activity, self.conversation.recorder.session_id())
+        {
             herdr.reporter.post(report);
         }
     }
@@ -65,7 +68,9 @@ impl Session<'_> {
     /// or rewound.
     pub(crate) fn herdr_turn_failed(&mut self, error: &str) {
         if let Some(herdr) = self.herdr.as_mut() {
-            herdr.tracker.fail(error, self.app.history_generation());
+            herdr
+                .tracker
+                .fail(error, self.conversation.app.history_generation());
         }
     }
 }

@@ -55,7 +55,7 @@ impl Session<'_> {
                 // A key says the user is here: a waiting question's idle
                 // clock starts over (docs/tools/ask.md).
                 self.note_user_activity();
-                let action = self.app.on_key(key);
+                let action = self.conversation.app.on_key(key);
                 // A send that masked a typed secret's value says so — first,
                 // so the action's own toast (a refusal) is the one left
                 // showing (docs/state/secrets.md).
@@ -93,7 +93,7 @@ impl Session<'_> {
     /// Perform the I/O an `Action` asks for. One arm per variant; the work lives
     /// in the module that owns the feature (see the module doc).
     fn on_action(&mut self, action: Action) -> std::io::Result<Flow> {
-        if self.restore_pending.is_some()
+        if self.conversation.restore_pending.is_some()
             && matches!(
                 action,
                 Action::Clear
@@ -118,7 +118,7 @@ impl Session<'_> {
                 // restore() lands on the stale live status strip
                 // ("Working… (… tokens)") instead of the committed
                 // "Done for Ns" summary.
-                if self.app.view != View::Conversation {
+                if self.conversation.app.view != View::Conversation {
                     self.screen.exit_overlay()?;
                     self.overlay_return_repaint()?;
                 }
@@ -131,7 +131,7 @@ impl Session<'_> {
                 // Drain any Ctrl+V-attached images staged by the submit
                 // (docs/input/image-paste.md) to deliver them on the turn's typed
                 // image channel.
-                let images = self.app.take_submission_images();
+                let images = self.conversation.app.take_submission_images();
                 self.start_turn(TurnInput {
                     texts: vec![text],
                     images,
@@ -144,7 +144,10 @@ impl Session<'_> {
                 // freeze the status animations and swallow keystrokes if run
                 // inline. The result arrives on the image channel, which attaches
                 // it or commits the red notice.
-                workers::spawn_image_paste(self.paste_dir.clone(), self.img_tx.clone());
+                workers::spawn_image_paste(
+                    self.conversation.paste_dir.clone(),
+                    self.conversation.img_tx.clone(),
+                );
             }
             Action::RunShell(command) => {
                 // `!command` from an idle composer: echo it, then run it locally
@@ -158,24 +161,24 @@ impl Session<'_> {
             // pushing it here is what puts it in front of the backend, which
             // takes it at its next round boundary and answers with
             // `StreamEvent::Steered`.
-            Action::Steer(text) => self.steer.push(&text),
+            Action::Steer(text) => self.conversation.steer.push(&text),
             // Alt+Up reaching past an empty follow-up queue to the messages
             // handed to the running turn: only the shared queue knows whether
             // the turn has read one yet, so it answers. Still waiting → back
             // to the composer. Already read → there is nothing to edit; the
             // fallback finds the queue empty (that is why this arm ran) and
             // does nothing, which is the honest outcome.
-            Action::ReclaimSteered => match self.steer.take_last() {
-                Some(text) => self.app.recall_steered(&text),
-                None => self.app.recall_last_queued(),
+            Action::ReclaimSteered => match self.conversation.steer.take_last() {
+                Some(text) => self.conversation.app.recall_steered(&text),
+                None => self.conversation.app.recall_last_queued(),
             },
             // The same pull-back inside an agent session view, over that
             // agent's own loop (docs/input/queue.md). No `recall_last_queued`
             // fallback: the key arm already tried that agent's follow-ups and
             // must never reach the main session's backlog from here.
             Action::ReclaimAgentChat { id } => {
-                if let Some(text) = self.models.backend().reclaim_agent_input(&id) {
-                    self.app.recall_agent_chat(&id, &text);
+                if let Some(text) = self.conversation.models.backend().reclaim_agent_input(&id) {
+                    self.conversation.app.recall_agent_chat(&id, &text);
                 }
             }
             Action::Interrupt => self.interrupt_turn()?,
@@ -216,7 +219,7 @@ impl Session<'_> {
                 // Post the user's answers (or decline/chat) on the ask gate,
                 // waking the tool thread parked on it — the modal is already
                 // closed and the composer draft restored (docs/tools/ask.md).
-                self.ask.resolve(&id, decision);
+                self.conversation.ask.resolve(&id, decision);
                 self.frame.schedule_frame();
             }
             Action::SetPermissionMode(mode) => self.set_permission_mode(mode),
@@ -378,7 +381,7 @@ impl Session<'_> {
     fn after_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) {
         self.schedule_for_key(key);
         self.dispatch_file_search();
-        for path in self.app.take_discarded_images() {
+        for path in self.conversation.app.take_discarded_images() {
             let _ = std::fs::remove_file(path);
         }
     }
@@ -438,17 +441,17 @@ impl Session<'_> {
         // The permission prompt takes the pointer before anything else: it is
         // the one modal whose answer a click can give, and a click must never
         // reach the conversation through it (`docs/state/permissions.md`).
-        if self.app.permission().is_some() {
+        if self.conversation.app.permission().is_some() {
             self.view.full_bar_drag = None;
             return self.on_permission_mouse(mouse);
         }
         // The `/resume` picker is a page of rows, so a click picks one
         // (`docs/state/resume.md`).
-        if self.app.view == View::ResumePicker {
+        if self.conversation.app.view == View::ResumePicker {
             self.view.full_bar_drag = None;
             return self.on_resume_mouse(mouse);
         }
-        if self.app.view != View::Conversation || self.app.modal_open() {
+        if self.conversation.app.view != View::Conversation || self.conversation.app.modal_open() {
             self.view.full_bar_drag = None;
             return Ok(());
         }
@@ -511,7 +514,7 @@ impl Session<'_> {
             .view
             .full_tab_hits
             .tab_at(mouse.column, mouse.row)
-            .filter(|_| self.app.session_tabs_available());
+            .filter(|_| self.conversation.app.session_tabs_available());
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
                 self.view.full_tab_press = tab.map(|id| id.map(str::to_string));
@@ -526,7 +529,7 @@ impl Session<'_> {
             MouseEventKind::Up(MouseButton::Left) => {
                 if let Some(pressed) = self.view.full_tab_press.take() {
                     if tab == Some(pressed.as_deref()) {
-                        let action = self.app.select_session_tab(pressed.as_deref());
+                        let action = self.conversation.app.select_session_tab(pressed.as_deref());
                         self.on_action(action)?;
                     }
                     self.frame.schedule_frame();
@@ -548,16 +551,18 @@ impl Session<'_> {
                 screen.height.saturating_sub(height),
                 screen
                     .width
-                    .saturating_sub(ui::sidebar_columns(&self.app, screen.width)),
+                    .saturating_sub(ui::sidebar_columns(&self.conversation.app, screen.width)),
                 height.min(screen.height),
             );
-            if let Some(path) = ui::composer_image_at(live, &self.app, mouse.column, mouse.row) {
+            if let Some(path) =
+                ui::composer_image_at(live, &self.conversation.app, mouse.column, mouse.row)
+            {
                 // A pasted picture's placeholder is the one composer cell a
                 // click *opens* rather than seats the caret in
                 // (`docs/input/image-paste.md`).
                 let url = path
                     .to_str()
-                    .and_then(|path| self.app.path_display().file_url(path));
+                    .and_then(|path| self.conversation.app.path_display().file_url(path));
                 match url {
                     Some(url) => self.open_full_link(&url),
                     None => {
@@ -569,9 +574,11 @@ impl Session<'_> {
                 self.frame.schedule_frame();
                 return Ok(());
             }
-            if let Some(cursor) = ui::composer_cursor_at(live, &self.app, mouse.column, mouse.row) {
-                self.app.focus_workspace_composer();
-                self.app.input.set_cursor(cursor);
+            if let Some(cursor) =
+                ui::composer_cursor_at(live, &self.conversation.app, mouse.column, mouse.row)
+            {
+                self.conversation.app.focus_workspace_composer();
+                self.conversation.app.input.set_cursor(cursor);
                 self.view.full_press = None;
                 self.view.full_select = None;
                 self.frame.schedule_frame();
@@ -724,7 +731,7 @@ impl Session<'_> {
         let screen = self.screen.screen();
         let rest = screen
             .width
-            .saturating_sub(ui::sidebar_columns(&self.app, screen.width));
+            .saturating_sub(ui::sidebar_columns(&self.conversation.app, screen.width));
         if rest <= ui::SCROLLBAR_COLUMNS {
             return None;
         }
@@ -788,10 +795,11 @@ impl Session<'_> {
         }
         let screen = self.screen.screen();
         let area = ratatui::layout::Rect::new(0, 0, screen.width, screen.height);
-        let Some(index) = ui::resume_row_at(&self.app, area, mouse.row, mouse.column) else {
+        let Some(index) = ui::resume_row_at(&self.conversation.app, area, mouse.row, mouse.column)
+        else {
             return Ok(());
         };
-        let action = self.app.click_resume_row(index);
+        let action = self.conversation.app.click_resume_row(index);
         self.on_action(action).map(|_| ())
     }
 
@@ -814,7 +822,7 @@ impl Session<'_> {
         let Some(index) = self.view.full_tab_hits.permission_option_at(mouse.row) else {
             return Ok(());
         };
-        let action = self.app.click_permission_option(index);
+        let action = self.conversation.app.click_permission_option(index);
         // A resolved prompt answers on another thread; the flow only says
         // whether the app should quit, which answering never does.
         self.on_action(action).map(|_| ())
@@ -870,14 +878,19 @@ impl Session<'_> {
         // The turn's clock, read before `abandon_inflight` stops it: a kept
         // turn's receipt says how long the turn ran (docs/input/interrupt.md).
         let elapsed = self
+            .conversation
             .clocks
             .turn_start
             .map_or(0, |start| start.elapsed().as_secs());
         // The running command's own clock, read now rather than at the last
         // draw: the call the interrupt resolves records how long it ran
         // (docs/state/rollout-records.md).
-        self.app
-            .set_command_elapsed(self.clocks.command_start.map(|start| start.elapsed()));
+        self.conversation.app.set_command_elapsed(
+            self.conversation
+                .clocks
+                .command_start
+                .map(|start| start.elapsed()),
+        );
         // A thinking phase caught mid-thought settles first, so its
         // `Thought for …` cell sits ahead of everything the interrupt keeps.
         // Recording it is also what makes this a *Kept* interrupt: real work
@@ -902,7 +915,7 @@ impl Session<'_> {
         let owed = self.begin_turn_agent_settle(width);
         // Interrupt only arises in the conversation view (overlay Esc returns
         // instead), so nothing here touches the alternate screen.
-        let interrupted = self.app.interrupt_turn(elapsed);
+        let interrupted = self.conversation.app.interrupt_turn(elapsed);
         self.finish_turn_agent_settle(owed, width);
         match interrupted {
             Some(zeroth::app::InterruptedTurn::Undone) => {
@@ -937,8 +950,8 @@ impl Session<'_> {
                 // AFTER it, never before.
                 if let Some(group) = &agents {
                     for entry in &group.agents {
-                        let _ = self.agent_registry.kill(&entry.id);
-                        self.agent_clocks.remove(&entry.id);
+                        let _ = self.conversation.agent_registry.kill(&entry.id);
+                        self.conversation.agent_clocks.remove(&entry.id);
                     }
                 }
                 self.commit_turn_failure(partial, &tools, agents, notice);
@@ -987,20 +1000,20 @@ impl Session<'_> {
         // notice — docs/tools/background.md). Notes already posted for the wiped
         // conversation are dropped with it, else the next turn end would start a
         // phantom follow-up turn about them.
-        self.registry.kill_all();
-        self.registry.clear_notices();
+        self.conversation.registry.kill_all();
+        self.conversation.registry.clear_notices();
         // …and the mid-turn queue: `App::clear_conversation` dropped the rows,
         // so the handle the dying backend was about to drain must go too, or
         // the next turn would open by reading a message from the conversation
         // that was just wiped (docs/input/queue.md).
-        let _ = self.steer.take();
+        let _ = self.conversation.steer.take();
         // …and the subagents (docs/agents/agent-tool.md): the wiped roster drops their
         // late events, and the registry forgets them — the conversation that
         // knew their ids is gone, so nothing may list or resume them
         // (docs/agents/agent-tools.md).
-        self.agent_registry.clear();
-        self.agent_clocks.clear();
-        self.agent_expiry.clear();
+        self.conversation.agent_registry.clear();
+        self.conversation.agent_clocks.clear();
+        self.conversation.agent_expiry.clear();
         self.view.full_reading.clear();
         self.view.full_tail = None;
         self.view.full_top = None;
@@ -1014,8 +1027,8 @@ impl Session<'_> {
         // cancelled threads reap themselves, so no unclaimed decision may linger
         // for the next turn (docs/state/permissions.md). The ask gate's board goes
         // the same way (docs/tools/ask.md).
-        self.permissions.clear();
-        self.ask.clear();
+        self.conversation.permissions.clear();
+        self.conversation.ask.clear();
         // …and the task list: `clear_conversation` wiped App's snapshot; the
         // shared registry follows so the model's next `tasklist` agrees
         // (docs/tools/task-tools.md).
@@ -1025,17 +1038,18 @@ impl Session<'_> {
         // moves on, so it names the conversation that ended, and bounded, so
         // /clear cannot hang — and SessionStart(clear) in the background once
         // the new conversation has its id.
-        self.models.end_conversation("clear");
+        self.conversation.models.end_conversation("clear");
         // A cleared conversation starts a fresh session file (codex's /new); the
         // old one keeps what it had (docs/state/resume.md). Re-seed the checkpoint chain
         // with a pristine snapshot of the current tree so a backtrack in the new
         // session can restore its starting point (docs/state/checkpoint.md).
-        self.recorder.start_new();
+        self.conversation.recorder.start_new();
         // A snapshot still running describes the conversation just wiped.
         self.invalidate_checkpoints();
-        self.models.begin_conversation("clear");
-        if let Some(commit) = self.checkpoints.snapshot("session start") {
-            self.recorder
+        self.conversation.models.begin_conversation("clear");
+        if let Some(commit) = self.conversation.checkpoints.snapshot("session start") {
+            self.conversation
+                .recorder
                 .record_checkpoint(checkpoint::Checkpoint { after: 0, commit });
         }
         // Purge scrollback + clear the screen (codex's /clear), not just blank
@@ -1055,7 +1069,7 @@ impl Session<'_> {
     /// just redraws at the new size (reflowing would write the alternate screen).
     fn on_resize(&mut self, width: u16, height: u16) -> std::io::Result<()> {
         let size_changed = self.screen.resized(width, height);
-        if size_changed && self.app.view == View::Conversation {
+        if size_changed && self.conversation.app.view == View::Conversation {
             self.view.full_tab_press = None;
             // A resize under an open permission prompt reseats it with this
             // purge; the reflow notes it itself (`term.take_modal_scrolled`) so
@@ -1083,51 +1097,51 @@ impl Session<'_> {
     /// type-to-search accepts pastes too (codex normalizes them into the query);
     /// only the overlays ignore them, like typing there.
     fn on_paste(&mut self, pasted: &str) {
-        match self.app.view {
+        match self.conversation.app.view {
             // The ask modal owns every key, so it owns pastes too: the live
             // entry field takes them (placeholder-collapsed over the
             // threshold), the option pages swallow them (docs/tools/ask.md).
-            View::Conversation if self.app.ask().is_some() => {
-                self.app.paste_into_ask(pasted);
+            View::Conversation if self.conversation.app.ask().is_some() => {
+                self.conversation.app.paste_into_ask(pasted);
             }
-            View::Conversation if self.app.key_onboarding.is_some() => {
-                self.app.paste_into_key_onboarding(pasted);
+            View::Conversation if self.conversation.app.key_onboarding.is_some() => {
+                self.conversation.app.paste_into_key_onboarding(pasted);
             }
-            View::Conversation if self.app.model_picker.is_some() => {
-                self.app.paste_into_model_filter(pasted);
+            View::Conversation if self.conversation.app.model_picker.is_some() => {
+                self.conversation.app.paste_into_model_filter(pasted);
             }
             // The `/settings` menu has a search field too, but nothing anyone
             // pastes is a setting name — swallow it rather than letting it
             // reach the composer draft underneath (docs/state/settings.md).
-            View::Conversation if self.app.settings_picker.is_some() => {}
+            View::Conversation if self.conversation.app.settings_picker.is_some() => {}
             // …and neither is a mascot name (docs/ui/mascot.md)…
-            View::Conversation if self.app.mascot_picker.is_some() => {}
+            View::Conversation if self.conversation.app.mascot_picker.is_some() => {}
             // …nor a spinner style (docs/ui/spinner.md).
-            View::Conversation if self.app.spinner_picker.is_some() => {}
+            View::Conversation if self.conversation.app.spinner_picker.is_some() => {}
             // …nor a theme name (docs/ui/theme.md)…
-            View::Conversation if self.app.theme_picker.is_some() => {}
+            View::Conversation if self.conversation.app.theme_picker.is_some() => {}
             // …and the read-only `/donate` page has no field at all
             // (docs/ui/donate.md)…
-            View::Conversation if self.app.donate_picker.is_some() => {}
+            View::Conversation if self.conversation.app.donate_picker.is_some() => {}
             // …nor does the `/export` page, its sibling (docs/ui/export.md)…
-            View::Conversation if self.app.export_picker.is_some() => {}
+            View::Conversation if self.conversation.app.export_picker.is_some() => {}
             // …nor the `/context` page (docs/architecture/context-usage.md).
-            View::Conversation if self.app.context_usage.is_some() => {}
+            View::Conversation if self.conversation.app.context_usage.is_some() => {}
             // …nor the `/usage` page (docs/providers/usage.md).
-            View::Conversation if self.app.usage_page.is_some() => {}
+            View::Conversation if self.conversation.app.usage_page.is_some() => {}
             // The `/secrets` form takes pastes — a credential is pasted far
             // more often than typed — into its focused field, never the
             // composer draft underneath (docs/state/secrets.md).
-            View::Conversation if self.app.secrets_page.is_some() => {
-                self.app.on_paste(pasted);
+            View::Conversation if self.conversation.app.secrets_page.is_some() => {
+                self.conversation.app.on_paste(pasted);
             }
             View::Conversation => {
-                self.app.on_paste(pasted);
+                self.conversation.app.on_paste(pasted);
                 // The paste may have changed the active `@token`.
                 self.dispatch_file_search();
             }
-            View::ResumePicker => self.app.paste_into_resume_search(pasted),
-            View::DiffReview => self.app.paste_into_diff_search(pasted),
+            View::ResumePicker => self.conversation.app.paste_into_resume_search(pasted),
+            View::DiffReview => self.conversation.app.paste_into_diff_search(pasted),
             View::ToolOutput | View::ContextDebug => {}
         }
         self.burst.reset();
@@ -1148,7 +1162,7 @@ impl Session<'_> {
         self.invalidate_checkpoints();
         // The reset runs on a worker (docs/state/checkpoint.md); its outcome is
         // toasted when it lands, so this path does not wait for `git`.
-        let _restoring = self.restore_checkpoint_at(self.app.history.len());
+        let _restoring = self.restore_checkpoint_at(self.conversation.app.history.len());
         // `App::confirm_backtrack` already rewound the checklist to the
         // snapshot at the cut; the shared registry follows
         // (docs/tools/task-tools.md).
@@ -1176,7 +1190,9 @@ impl Session<'_> {
     /// call *starts* at the registry and reaches `App` on its `TaskCall`
     /// event.
     pub(crate) fn sync_task_registry(&self) {
-        self.task_registry.replace(self.app.tasks().clone());
+        self.conversation
+            .task_registry
+            .replace(self.conversation.app.tasks().clone());
     }
 }
 

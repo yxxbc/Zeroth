@@ -120,7 +120,9 @@ impl Session<'_> {
         // just-ended state before this turn edits anything
         // (`docs/state/checkpoint.md`). The checkpoint result dispatches it.
         if self.checkpoint_pending() {
-            self.app.queue_messages(input.texts, input.images);
+            self.conversation
+                .app
+                .queue_messages(input.texts, input.images);
             return;
         }
         let TurnInput { texts, images } = input;
@@ -142,7 +144,8 @@ impl Session<'_> {
         // (invariant 4).
         let committing = self.commits_allowed();
         for (text, attached) in texts.iter().zip(&mut per_text) {
-            self.app
+            self.conversation
+                .app
                 .record_user_message_with_images(text, std::mem::take(attached));
             if committing {
                 self.screen
@@ -150,25 +153,25 @@ impl Session<'_> {
                 // A Ctrl+V-pasted screenshot draws under its own bubble, the
                 // rows taken from the item just recorded so the commit and the
                 // rebuild agree (`docs/ui/images.md`).
-                if let Some(item) = self.app.history.last() {
+                if let Some(item) = self.conversation.app.history.last() {
                     self.screen
                         .insert_before(ui::image_block_lines(item, width));
                 }
                 self.screen.insert_before(vec![Line::default()]);
             }
         }
-        self.app.begin_stream();
+        self.conversation.app.begin_stream();
         // Count the user's uploaded input into the tally (arrow ↑) so the status
         // shows `↑ N tokens` during the backend's pre-stream pause, before its
         // first chunk flips the arrow back to ↓. Any Ctrl+V-attached images add
         // to the same ↑ tally (docs/input/image-paste.md).
         let prompt = texts.join("\n");
-        self.app.count_user_input(&prompt);
-        self.app.count_input_images(image_count);
+        self.conversation.app.count_user_input(&prompt);
+        self.conversation.app.count_input_images(image_count);
         self.view.render.reset();
         // Start the turn clock; the draw branch keeps the status animated from
         // here.
-        self.clocks.start_turn();
+        self.conversation.clocks.start_turn();
         // Refresh the project's AGENTS.md instructions right before the context
         // derives (docs/state/project-doc.md): the turn that just ended may have
         // written the guide (`/init`'s whole point), and this turn must already
@@ -177,10 +180,11 @@ impl Session<'_> {
         // **Project docs** knob can withhold them entirely — `apply_setting`
         // already cleared them, so there is simply nothing to refresh
         // (docs/state/settings.md).
-        if self.app.settings().project_docs
+        if self.conversation.app.settings().project_docs
             && let Ok(cwd) = std::env::current_dir()
         {
-            self.app
+            self.conversation
+                .app
                 .set_user_instructions(project_doc::load_user_instructions(&cwd));
         }
         // …and re-walk the skill roots for the same reason (docs/tools/skills.md):
@@ -202,20 +206,22 @@ impl Session<'_> {
         // original typed channel (codex's `UserInput::LocalImage`). See
         // docs/architecture/context.md.
         let context = context::context_messages_full(
-            self.app.user_instructions.as_deref(),
-            self.app.listings.as_deref(),
-            &self.app.history,
+            self.conversation.app.user_instructions.as_deref(),
+            self.conversation.app.listings.as_deref(),
+            &self.conversation.app.history,
         );
         // The rollout exists before the turn's thread does (codex's rule: the
         // file exists before the hook runs), so the turn's first hook — its
         // `UserPromptSubmit` — already names the transcript instead of racing
         // the loop-bottom sync that would otherwise create it, which then has
         // nothing left to write (docs/tools/hooks.md).
-        self.recorder
-            .sync(&self.app.history, self.app.history_generation());
+        self.conversation.recorder.sync(
+            &self.conversation.app.history,
+            self.conversation.app.history_generation(),
+        );
         // A real prompt is the user's, whatever a loop-initiated turn left
         // marked (docs/tools/hooks.md).
-        self.models.clear_synthetic_turn();
+        self.conversation.models.clear_synthetic_turn();
         self.spawn_reply(prompt, paths, context);
     }
 
@@ -229,12 +235,12 @@ impl Session<'_> {
     /// `--continue`/`--resume` load's transcript sits above the new bubble
     /// and the turn appends to the adopted rollout file.
     pub(crate) fn submit_startup_prompt(&mut self, prompt: String) {
-        let prompt = self.app.redact_typed(prompt);
+        let prompt = self.conversation.app.redact_typed(prompt);
         self.toast_masked_secrets();
         // A headless run's prompt is a script's, not something the user
         // typed: ↑ in the TUI never walks through it (docs/cli/headless.md).
         if !self.screen.is_headless() {
-            self.app.input_history.record(&prompt);
+            self.conversation.app.input_history.record(&prompt);
         }
         self.start_turn(TurnInput {
             texts: vec![prompt],
@@ -254,7 +260,7 @@ impl Session<'_> {
         // See `start_turn`: a `!` command is a turn too, and must not run
         // while the turn-end snapshot is still reading the tree.
         if self.checkpoint_pending() {
-            self.app.queue_shell_command(command);
+            self.conversation.app.queue_shell_command(command);
             return;
         }
         let width = self.screen.screen().width;
@@ -264,24 +270,24 @@ impl Session<'_> {
         // codex-style exec cell (docs/input/shell-command.md). Suppressed under an
         // agent session view — and an active view flow — like every main
         // commit (docs/agents/agent-tool.md, docs/ui/view-flow.md).
-        self.app.begin_shell(&command);
+        self.conversation.app.begin_shell(&command);
         if self.commits_allowed() {
             self.screen
                 .insert_before(ui::message_lines(Role::Shell, &command, width));
         }
         self.view.render.reset();
-        self.clocks.start_turn();
+        self.conversation.clocks.start_turn();
         // The `!` shell run IS the command (no separate ToolStart), so start its
         // Ctrl+B-hint clock here — a quick `!` command never flashes the hint.
-        self.clocks.command_start = Some(Instant::now());
+        self.conversation.clocks.command_start = Some(Instant::now());
         let cancel = CancelToken::new();
         let handle = spawn_shell_command(
             command,
-            self.tx.clone(),
+            self.conversation.tx.clone(),
             cancel.clone(),
-            self.registry.clone(),
+            self.conversation.registry.clone(),
         );
-        self.inflight = Some((cancel, handle));
+        self.conversation.inflight = Some((cancel, handle));
     }
 
     /// Start the automatic follow-up turn for background completions the model
@@ -295,26 +301,26 @@ impl Session<'_> {
         // A loop-initiated turn: its prompt is synthesized from the notice
         // board, so the UserPromptSubmit hook must not fire for it
         // (docs/tools/hooks.md).
-        self.models.mark_synthetic_turn();
-        self.app.begin_stream();
+        self.conversation.models.mark_synthetic_turn();
+        self.conversation.app.begin_stream();
         let prompt = notices
             .iter()
             .map(|note| note.context.as_str())
             .collect::<Vec<_>>()
             .join("\n\n");
-        self.app.count_user_input(&prompt);
+        self.conversation.app.count_user_input(&prompt);
         self.view.render.reset();
         // A follow-up turn about background completions — text, no command yet.
-        self.clocks.start_turn();
+        self.conversation.clocks.start_turn();
         // The agent that just finished in the background may have written a
         // skill; this turn is a real model turn, so it re-walks like any other
         // (docs/tools/skills.md).
         self.rescan_skills();
         self.rescan_agents();
         let context = context::context_messages_full(
-            self.app.user_instructions.as_deref(),
-            self.app.listings.as_deref(),
-            &self.app.history,
+            self.conversation.app.user_instructions.as_deref(),
+            self.conversation.app.listings.as_deref(),
+            &self.conversation.app.history,
         );
         self.spawn_reply(prompt, Vec::new(), context);
     }
@@ -329,13 +335,16 @@ impl Session<'_> {
     /// for it). Spawns on the **tools-free** one-off backend when one resolved,
     /// else the session backend.
     pub(crate) fn start_compact_turn(&mut self, auto: bool) {
-        let compact_backend = self
-            .models
-            .compact_backend(self.app.thinking.as_ref().map(|t| t.mode), auto);
-        self.app.begin_compact(auto);
-        self.app.count_user_input(context::SUMMARIZATION_PROMPT);
+        let compact_backend = self.conversation.models.compact_backend(
+            self.conversation.app.thinking.as_ref().map(|t| t.mode),
+            auto,
+        );
+        self.conversation.app.begin_compact(auto);
+        self.conversation
+            .app
+            .count_user_input(context::SUMMARIZATION_PROMPT);
         self.view.render.reset();
-        self.clocks.start_turn();
+        self.conversation.clocks.start_turn();
         let cancel = CancelToken::new();
         // The summarizer reads the same window the model does — the AGENTS.md
         // instructions in front (codex's compact request keeps its initial
@@ -346,9 +355,9 @@ impl Session<'_> {
         // the handoff summary has no use for the roster either
         // (`docs/tools/skills.md`).
         let mut compact_context = context::context_messages_full(
-            self.app.user_instructions.as_deref(),
+            self.conversation.app.user_instructions.as_deref(),
             None,
-            &self.app.history,
+            &self.conversation.app.history,
         );
         compact_context.push(context::ContextMessage::new(
             context::ContextRole::User,
@@ -356,16 +365,16 @@ impl Session<'_> {
         ));
         let spawn_on: &dyn ReplySource = match compact_backend.as_ref() {
             Some(one_off) => one_off,
-            None => self.models.backend(),
+            None => self.conversation.models.backend(),
         };
         let handle = spawn_on.spawn(
             context::SUMMARIZATION_PROMPT.to_string(),
             Vec::new(),
             compact_context,
-            self.tx.clone(),
+            self.conversation.tx.clone(),
             cancel.clone(),
         );
-        self.inflight = Some((cancel, handle));
+        self.conversation.inflight = Some((cancel, handle));
     }
 
     /// Spawn the session backend on `prompt` and hold the turn's cancel token +
@@ -378,11 +387,14 @@ impl Session<'_> {
         context: Vec<context::ContextMessage>,
     ) {
         let cancel = CancelToken::new();
-        let handle =
-            self.models
-                .backend()
-                .spawn(prompt, images, context, self.tx.clone(), cancel.clone());
-        self.inflight = Some((cancel, handle));
+        let handle = self.conversation.models.backend().spawn(
+            prompt,
+            images,
+            context,
+            self.conversation.tx.clone(),
+            cancel.clone(),
+        );
+        self.conversation.inflight = Some((cancel, handle));
     }
 
     /// The every-turn-end dispatch (`docs/tools/background.md`, `docs/input/queue.md`):
@@ -401,7 +413,7 @@ impl Session<'_> {
     pub(crate) fn dispatch_after_turn(&mut self) {
         // A background completion can reach the idle session during restore.
         // Leave its notices on the board until the tree has stopped moving.
-        if self.restore_pending.is_some() {
+        if self.conversation.restore_pending.is_some() {
             return;
         }
         let _timing = super::timing::TimingGuard::new("turn-end");
@@ -423,22 +435,22 @@ impl Session<'_> {
         // genuinely new plan instead of appending to the old ticks. The
         // shared registry follows, so its next `tasklist` agrees with the
         // strip (docs/tools/task-tools.md).
-        if self.app.retire_finished_tasks() {
+        if self.conversation.app.retire_finished_tasks() {
             self.sync_task_registry();
         }
-        let unheard = self.registry.take_pending_notices();
+        let unheard = self.conversation.registry.take_pending_notices();
         // A message the turn never reached a round boundary to read — it
         // simply answered — becomes the next turn instead of being dropped
         // (docs/input/queue.md). Taken from the shared handle first so the backend
         // can't read it after the fact, then off the strip and onto the front
         // of the follow-up queue, which `flush_next_queued` dispatches below.
-        let _ = self.steer.take();
-        self.app.reclaim_steered();
+        let _ = self.conversation.steer.take();
+        self.conversation.app.reclaim_steered();
         // The finished turn's handle is spent; whatever dispatches below takes
         // its place (and nothing dispatching leaves the loop idle).
-        self.inflight = None;
+        self.conversation.inflight = None;
         if snapshotting {
-            if let Some(pending) = self.checkpoint_pending.as_mut() {
+            if let Some(pending) = self.conversation.checkpoint_pending.as_mut() {
                 pending.dispatch = Some(unheard);
             }
             return;
@@ -466,7 +478,7 @@ impl Session<'_> {
     /// Shared by every turn-end drain site (`StreamDone`/`Error` — in the overlay
     /// too — and an Esc interrupt) so they can't drift. See `docs/input/queue.md`.
     fn flush_next_queued(&mut self) -> bool {
-        match self.app.drain_next_batch() {
+        match self.conversation.app.drain_next_batch() {
             // The batch's Ctrl+V attachments dispatch with it — the whole
             // (placeholder, path) pairs, so start_turn can record each path on
             // the message carrying its placeholder (docs/input/image-paste.md).
@@ -489,13 +501,15 @@ impl Session<'_> {
     /// (the TUI never dies for a checkpoint); the recorded line flushes with
     /// the loop's next `recorder.sync`.
     fn start_checkpoint_snapshot(&mut self) -> bool {
-        if !self.checkpoints.is_enabled() || self.checkpoint_pending.is_some() {
+        if !self.conversation.checkpoints.is_enabled()
+            || self.conversation.checkpoint_pending.is_some()
+        {
             return false;
         }
-        let after = self.app.history.len();
-        let epoch = self.checkpoint_epoch;
-        let store = self.checkpoints.clone();
-        let tx = self.checkpoint_tx.clone();
+        let after = self.conversation.app.history.len();
+        let epoch = self.conversation.checkpoint_epoch;
+        let store = self.conversation.checkpoints.clone();
+        let tx = self.conversation.checkpoint_tx.clone();
         let message = format!("checkpoint after {after} items");
         let handle = std::thread::spawn(move || {
             let began = Instant::now();
@@ -507,7 +521,7 @@ impl Session<'_> {
                 commit,
             });
         });
-        self.checkpoint_pending = Some(PendingCheckpoint {
+        self.conversation.checkpoint_pending = Some(PendingCheckpoint {
             after,
             epoch,
             began: Instant::now(),
@@ -522,23 +536,25 @@ impl Session<'_> {
     /// that started before a rewind (`checkpoint_epoch`) or whose history
     /// position no longer exists is dropped.
     pub(crate) fn on_checkpoint_done(&mut self, done: CheckpointDone) {
-        let Some(pending) = self.checkpoint_pending.take() else {
+        let Some(pending) = self.conversation.checkpoint_pending.take() else {
             return;
         };
         super::timing::record("checkpoint.dispatch-wait", pending.began.elapsed());
         if !checkpoint_applies(
             &pending,
             &done,
-            self.checkpoint_epoch,
-            self.app.history.len(),
+            self.conversation.checkpoint_epoch,
+            self.conversation.app.history.len(),
         ) {
             return;
         }
         if let Some(commit) = done.commit {
-            self.recorder.record_checkpoint(checkpoint::Checkpoint {
-                after: done.after,
-                commit,
-            });
+            self.conversation
+                .recorder
+                .record_checkpoint(checkpoint::Checkpoint {
+                    after: done.after,
+                    commit,
+                });
         }
         if let Some(unheard) = pending.dispatch {
             self.dispatch_after_checkpoint(unheard);
@@ -551,16 +567,17 @@ impl Session<'_> {
     pub(crate) fn invalidate_checkpoints(&mut self) {
         // Join first: the restore that follows rewinds the same private git
         // store, and two git processes must not hold its index at once.
-        if let Some(pending) = self.checkpoint_pending.take() {
+        if let Some(pending) = self.conversation.checkpoint_pending.take() {
             let _ = pending.handle.join();
         }
-        self.checkpoint_epoch = self.checkpoint_epoch.wrapping_add(1);
+        self.conversation.checkpoint_epoch = self.conversation.checkpoint_epoch.wrapping_add(1);
     }
 
     /// Whether a snapshot or restore still owns the work tree — the headless
     /// idle rule and the input queue's gate.
     pub(crate) fn checkpoint_pending(&self) -> bool {
-        self.checkpoint_pending.is_some() || self.restore_pending.is_some()
+        self.conversation.checkpoint_pending.is_some()
+            || self.conversation.restore_pending.is_some()
     }
 
     /// Drain a snapshot still in flight before the session ends, recording it
@@ -568,30 +585,33 @@ impl Session<'_> {
     /// turn: the session is closing. Bounded, so a stuck `git` cannot hold
     /// the process past `grace`.
     pub(crate) async fn settle_checkpoint_quietly(&mut self, grace: std::time::Duration) {
-        if self.checkpoint_pending.is_none() {
+        if self.conversation.checkpoint_pending.is_none() {
             return;
         }
         let deadline = tokio::time::Instant::now() + grace;
-        while self.checkpoint_pending.is_some() {
-            let received = tokio::time::timeout_at(deadline, self.checkpoint_rx.recv()).await;
+        while self.conversation.checkpoint_pending.is_some() {
+            let received =
+                tokio::time::timeout_at(deadline, self.conversation.checkpoint_rx.recv()).await;
             let Ok(Some(done)) = received else {
-                self.checkpoint_pending = None;
+                self.conversation.checkpoint_pending = None;
                 return;
             };
-            let Some(pending) = self.checkpoint_pending.take() else {
+            let Some(pending) = self.conversation.checkpoint_pending.take() else {
                 return;
             };
             if checkpoint_applies(
                 &pending,
                 &done,
-                self.checkpoint_epoch,
-                self.app.history.len(),
+                self.conversation.checkpoint_epoch,
+                self.conversation.app.history.len(),
             ) && let Some(commit) = done.commit
             {
-                self.recorder.record_checkpoint(checkpoint::Checkpoint {
-                    after: done.after,
-                    commit,
-                });
+                self.conversation
+                    .recorder
+                    .record_checkpoint(checkpoint::Checkpoint {
+                        after: done.after,
+                        commit,
+                    });
             }
         }
     }
@@ -615,14 +635,14 @@ impl Session<'_> {
     /// nothing further and returns within one op-timeout). See
     /// `docs/input/interrupt.md`.
     pub(crate) fn abandon_inflight(&mut self) {
-        if let Some((cancel, handle)) = self.inflight.take() {
+        if let Some((cancel, handle)) = self.conversation.inflight.take() {
             cancel.cancel();
-            self.reaping.push(handle);
+            self.conversation.reaping.push(handle);
         }
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.tx = tx;
-        self.reply_rx = rx;
-        self.clocks.end_turn();
+        self.conversation.tx = tx;
+        self.conversation.reply_rx = rx;
+        self.conversation.clocks.end_turn();
     }
 }
 

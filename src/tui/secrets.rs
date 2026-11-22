@@ -39,7 +39,7 @@ impl Session<'_> {
     /// so a refusal that action answers with (a subagent declining a chat)
     /// is the toast left showing (docs/state/secrets.md *What the user types*).
     pub(crate) fn toast_masked_secrets(&mut self) {
-        if let Some(notice) = masked_notice(&self.app.take_masked_secrets()) {
+        if let Some(notice) = masked_notice(&self.conversation.app.take_masked_secrets()) {
             self.toast(notice, ToastKind::Info);
         }
     }
@@ -48,7 +48,7 @@ impl Session<'_> {
     /// into `App`, and re-render the reminder's listing sections, whose last
     /// section names the secrets (`Session::sync_listings`).
     pub(crate) fn sync_secrets(&mut self) {
-        self.app.set_secret_metas(self.secrets.metas());
+        self.conversation.app.set_secret_metas(self.secrets.metas());
         self.sync_listings();
     }
 
@@ -74,10 +74,10 @@ impl Session<'_> {
         let result = self.change_secrets(|store| store.apply(draft).map_err(|e| e.to_string()));
         match result {
             Ok(name) => {
-                self.app.secret_saved(&name);
+                self.conversation.app.secret_saved(&name);
                 self.toast(format!("Saved {}", placeholder(&name)), ToastKind::Info);
             }
-            Err(error) => self.app.secret_save_failed(&error),
+            Err(error) => self.conversation.app.secret_save_failed(&error),
         }
     }
 

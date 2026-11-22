@@ -55,28 +55,17 @@
 //! | [`workers`] | The off-thread file-search / clipboard / model-list / usage jobs. |
 //! | [`host`] | Clocks, dates, the OS string, ids — the raw impurities. |
 
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::thread::JoinHandle;
 use std::time::Instant;
 
 use ratatui::crossterm::event::EventStream;
 
-use zeroth::agents::{AgentEvent, AgentRegistry};
-use zeroth::app::App;
-use zeroth::background::{BackgroundRegistry, BgEvent};
-use zeroth::checkpoint::CheckpointStore;
 use zeroth::clipboard::ClipboardLease;
 use zeroth::frame::FrameRequester;
 use zeroth::paste::PasteBurst;
-use zeroth::stream::{CancelToken, StreamEvent};
 
 use self::history_store::InputHistoryStore;
-use self::models::ModelSession;
-use self::permission::PermissionStore;
-use self::recorder::SessionRecorder;
 use self::view::ConversationView;
-use self::workers::{DeviceEvent, FileSearchResult, ModelFetch};
 
 pub(crate) mod actions;
 pub(crate) mod agent;
@@ -87,6 +76,7 @@ pub(crate) mod bootstrap;
 pub(crate) mod commit;
 pub(crate) mod config;
 pub(crate) mod context_usage;
+pub(crate) mod conversation;
 pub(crate) mod diff;
 pub(crate) mod donate;
 pub(crate) mod event_loop;
@@ -132,56 +122,22 @@ pub(crate) struct Session<'t> {
     /// The one screen: the viewport plus which contract it is painting
     /// through (`docs/architecture/core-host-split.md` Phase 2).
     screen: screen::Screen<'t>,
-    /// The pure conversation state — the only thing that *decides* anything.
-    app: App,
-    /// Who replies, and how (`docs/providers/llm.md`).
-    models: ModelSession,
     /// The screen's own state — renderers, the frame cache, the scroll anchor,
     /// the hit map, the pointer and the expanded set, all derived from `App`
     /// plus a size (`docs/architecture/core-host-split.md` Phase 1).
     view: ConversationView,
+    /// The conversation's runtime: its pure model, the channels its turn and
+    /// workers report on, its registries, stores and clocks
+    /// (`docs/architecture/core-host-split.md` Phase 3).
+    conversation: conversation::Conversation,
 
     // ----- the view's channels: link-card fetches and paste bursts -----
-    card_tx: tokio::sync::mpsc::UnboundedSender<(String, Option<zeroth::link_card::LinkCard>)>,
-    card_rx: tokio::sync::mpsc::UnboundedReceiver<(String, Option<zeroth::link_card::LinkCard>)>,
     /// Whether previews are on for this process (`ZEROTH_LINK_CARDS`).
     link_cards: bool,
     /// Detects a paste / fast-type burst so its redraws coalesce.
     burst: PasteBurst,
 
     // ----- the boundary's clocks and deadlines (the set_status_times pattern) -----
-    /// The live status indicator's clocks.
-    clocks: StatusClocks,
-    /// When the transient toast above the box should self-clear (`docs/ui/toast.md`).
-    toast_deadline: Option<Instant>,
-    /// The `AskUserQuestion` idle clock (`docs/tools/ask.md`): read by the draw
-    /// tick, started over by every key or paste, resolving the waiting
-    /// questions unanswered on [`Self::ask`] when it runs out — on this
-    /// thread, so an answer and the expiry can never race.
-    ask_timer: zeroth::ask::AskTimer,
-    /// When each background shell started, so the manager's Runtime ticks
-    /// (`docs/tools/background.md`).
-    bg_clocks: HashMap<String, Instant>,
-    /// When each running subagent started, so the roster's elapsed ticks.
-    agent_clocks: HashMap<String, Instant>,
-    /// When each subagent's **open thinking phase** started — the per-agent
-    /// sibling of `StatusClocks::thinking_start`, so its session view's
-    /// status line shows `Thinking for Ns` and the settle knows the phase's
-    /// wall-clock. An entry exists only while that agent is thinking
-    /// (`docs/agents/agent-view-streaming.md`).
-    agent_thinking_clocks: HashMap<String, Instant>,
-    /// When each subagent's **current running command** started — the
-    /// per-agent sibling of `StatusClocks::command_start`, injected each
-    /// frame as `AgentRun::command_elapsed` so its session view's `bash`
-    /// tail counts its `+N lines (Ns · wait …)` clock row from the call's own
-    /// `ToolStart`, never from the agent's runtime. Inserted at that
-    /// `ToolStart`; **pruned by the roster tick** from the run's own queue —
-    /// an agent without a running front call loses its entry — rather than
-    /// removed at each resolution path (`docs/agents/agent-view-streaming.md`).
-    agent_command_clocks: HashMap<String, Instant>,
-    /// When each finished subagent's row should sweep off the roster
-    /// (`docs/agents/agent-tool.md`).
-    agent_expiry: HashMap<String, Instant>,
 
     // ----- the loop's own channels: what wakes it, and what it sends on -----
     //
@@ -207,57 +163,6 @@ pub(crate) struct Session<'t> {
     /// draw ticks coming back.
     frame: FrameRequester,
     draw_rx: tokio::sync::mpsc::UnboundedReceiver<()>,
-    /// The reply channel a turn streams on. Both ends are swapped wholesale by
-    /// [`Session::abandon_inflight`] so a detached backend can't reach the next
-    /// turn (`docs/input/interrupt.md`).
-    tx: tokio::sync::mpsc::UnboundedSender<StreamEvent>,
-    reply_rx: tokio::sync::mpsc::UnboundedReceiver<StreamEvent>,
-    /// Queries for the `@` file-search worker and its ranked matches, plus the
-    /// last query sent — the dedupe that keeps an unchanged token from
-    /// re-walking the tree (`docs/input/file-search.md`).
-    file_req_tx: std::sync::mpsc::Sender<String>,
-    file_rx: tokio::sync::mpsc::UnboundedReceiver<FileSearchResult>,
-    last_file_query: Option<String>,
-    /// Where this session's pasted images are saved —
-    /// `{config_home}/image-cache/{session}`, numbered in paste order
-    /// (`docs/input/image-paste.md`). Handed to each paste worker, which creates it.
-    paste_dir: PathBuf,
-    /// A Ctrl+V clipboard read's result channel (`docs/input/image-paste.md`).
-    img_tx: tokio::sync::mpsc::UnboundedSender<Result<PathBuf, String>>,
-    img_rx: tokio::sync::mpsc::UnboundedReceiver<Result<PathBuf, String>>,
-    /// Git review workers report by generation so closed reviews cannot reopen.
-    diff_tx: tokio::sync::mpsc::UnboundedSender<diff::DiffResult>,
-    diff_rx: tokio::sync::mpsc::UnboundedReceiver<diff::DiffResult>,
-    diff_generation: u64,
-    /// The `/login` workers' channel — a sign-in's device flow
-    /// (`docs/providers/copilot.md`) or a local server's connection test
-    /// (`docs/providers/local-models.md`), one at a time — the `CancelToken` Esc reaps
-    /// either with, and when the shown code expires — the countdown the page
-    /// ticks, injected per draw like every other clock.
-    device_tx: tokio::sync::mpsc::UnboundedSender<DeviceEvent>,
-    device_rx: tokio::sync::mpsc::UnboundedReceiver<DeviceEvent>,
-    device_cancel: Option<CancelToken>,
-    device_expires: Option<Instant>,
-    /// The `/model` picker's fetch results (`docs/providers/llm.md`), and the startup
-    /// capability probe's own channel — separate so a concurrently-open picker
-    /// can't confuse the results (`docs/providers/reasoning.md`).
-    model_tx: tokio::sync::mpsc::UnboundedSender<ModelFetch>,
-    model_rx: tokio::sync::mpsc::UnboundedReceiver<ModelFetch>,
-    /// The `/usage` page's reads (`docs/providers/usage.md`): one worker per signed-in
-    /// subscription reports here, and the token a closed page or a newer
-    /// round cancels them with.
-    usage_tx: tokio::sync::mpsc::UnboundedSender<usage::UsageResult>,
-    usage_rx: tokio::sync::mpsc::UnboundedReceiver<usage::UsageResult>,
-    usage_cancel: Option<CancelToken>,
-    /// The probe's sender is kept because a probe is spawned more than
-    /// once: at bootstrap, and by a resume whose recorded model has facts
-    /// this session never learned (`docs/state/session-model.md`).
-    probe_tx: tokio::sync::mpsc::UnboundedSender<ModelFetch>,
-    probe_rx: tokio::sync::mpsc::UnboundedReceiver<ModelFetch>,
-    /// Background shells (`docs/tools/background.md`) and subagents
-    /// (`docs/agents/agent-tool.md`) — never swapped, because both outlive turns.
-    bg_rx: tokio::sync::mpsc::UnboundedReceiver<BgEvent>,
-    agent_rx: tokio::sync::mpsc::UnboundedReceiver<AgentEvent>,
     /// The update check worker's report (`docs/ops/update.md`): the newest
     /// release it found, which the **loop** then records in `update.json`
     /// and announces.
@@ -275,49 +180,8 @@ pub(crate) struct Session<'t> {
     /// socket. `None` outside herdr — and until bootstrap starts it after
     /// the first frame, so a slow socket can never delay that frame.
     herdr: Option<herdr::HerdrReporter>,
-    /// The `@` file-search worker's handle, kept so the thread's lifetime is
-    /// tied to the session's. Never joined.
-    _file_worker: JoinHandle<()>,
 
     // ----- registries, the gate, the stores -----
-    /// Background shells: the `run_in_background` launches, Ctrl+B hand-offs,
-    /// and the shared notice board (`docs/tools/background.md`).
-    registry: BackgroundRegistry,
-    /// Subagents: the `agent` tool's roster and its threads
-    /// (`docs/agents/agent-tool.md`).
-    agent_registry: AgentRegistry,
-    /// The **mid-turn message queue** (`docs/input/queue.md`): what the user
-    /// submitted while a turn was already running, waiting for that turn's
-    /// next round boundary. This side pushes; the backend thread drains.
-    /// `App::steered` is the mirror the strip renders — and the one that
-    /// survives a turn that ended without reading them, which is why the
-    /// reclaim at every turn end goes through both.
-    steer: zeroth::steer::SteerQueue,
-    /// The tool-permission gate and this project's saved rules
-    /// (`docs/state/permissions.md`).
-    permissions: PermissionStore,
-    /// The `AskUserQuestion` gate the modal's answers post on
-    /// (`docs/tools/ask.md`) — always present (asking is not a permission), shared
-    /// by every backend build.
-    ask: zeroth::ask::AskGate,
-    /// The shared task list the task tools operate on
-    /// (`docs/tools/task-tools.md`) — the loop syncs it to `App::tasks` after every
-    /// history rewind so the model's next `tasklist` agrees with the strip.
-    task_registry: zeroth::tasks::TaskRegistry,
-    /// The skills on disk (`docs/tools/skills.md`) — the set every backend build
-    /// offers the `skill` tool over, and the source of the
-    /// `<system-reminder>` listing the derived context leads with. Re-walked
-    /// at every turn start ([`Session::rescan_skills`]), so a skill added
-    /// mid-session — or written by the agent itself — is live on the next
-    /// turn instead of waiting for a restart.
-    skill_registry: zeroth::skills::SkillRegistry,
-    /// The subagent definitions on disk (`docs/agents/subagents.md`) — the
-    /// `agents/*.md` types a launch resolves `subagent_type` against, and the
-    /// source of the agent half of the `<system-reminder>`. Re-walked at
-    /// every turn start ([`Session::rescan_agents`]) beside the skills, so a
-    /// type added mid-session — or written by the agent itself — is
-    /// launchable on the next turn.
-    subagents: zeroth::subagents::SubagentRegistry,
     /// The user's secrets (`docs/state/secrets.md`) — the one store the `/secrets`
     /// page edits, the reminder lists and every tool call expands and
     /// redacts with. The same handle the shell registry carries to the
@@ -329,47 +193,8 @@ pub(crate) struct Session<'t> {
     /// toggle records through it, and the hooks the session runs are
     /// its trusted share.
     trust: trust::TrustState,
-    /// A `[PROMPT]` from the command line, held while the startup review
-    /// asks what may run, so the first turn starts with its answers
-    /// (`docs/state/config-review.md`).
-    held_prompt: Option<String>,
-    /// The `SKILL.md` files whose parse failure has already been raised as a
-    /// toast, so the rescan doesn't repeat itself every turn. Re-seeded from
-    /// each walk's errors, so a file that is fixed and broken again reports
-    /// again (`zeroth::skills::unreported_errors`).
-    reported_skill_errors: std::collections::BTreeSet<std::path::PathBuf>,
-    /// The agent definition files whose parse failure has already been raised
-    /// as a toast — [`reported_skill_errors`](Self::reported_skill_errors)'s
-    /// twin, one feature over (`zeroth::subagents::unreported_errors`).
-    reported_agent_errors: std::collections::BTreeSet<std::path::PathBuf>,
-    /// Mirrors history to the `/resume` rollout file (`docs/state/resume.md`).
-    recorder: SessionRecorder,
     /// The cross-session input history (`docs/input/history-persistence.md`).
     hist_store: InputHistoryStore,
-    /// Per-turn working-directory snapshots (`docs/state/checkpoint.md`).
-    checkpoints: CheckpointStore,
-    /// The turn-end snapshot runs on its own thread; both ends of its result
-    /// channel live here, so the loop records the commit without waiting for
-    /// `git`.
-    checkpoint_tx: tokio::sync::mpsc::UnboundedSender<turn::CheckpointDone>,
-    checkpoint_rx: tokio::sync::mpsc::UnboundedReceiver<turn::CheckpointDone>,
-    /// The snapshot in flight, with the turn-end dispatch deferred behind it
-    /// (a queued follow-up must not edit before the just-ended state is
-    /// captured).
-    checkpoint_pending: Option<turn::PendingCheckpoint>,
-    /// Bumped whenever history is replaced or rewound: a snapshot that
-    /// started before the rewind is dropped when it lands.
-    checkpoint_epoch: u64,
-    /// The checkpoint **restore** runs on its own thread too — a backtrack or a
-    /// `/resume` resets the work tree with `git reset --hard` + `git clean`,
-    /// which measured 1.5 s on a large tree (`docs/state/checkpoint.md`). Both
-    /// ends of its result channel live here, so the loop keeps painting and
-    /// reports the outcome when it lands.
-    restore_tx: tokio::sync::mpsc::UnboundedSender<turn::RestoreDone>,
-    restore_rx: tokio::sync::mpsc::UnboundedReceiver<turn::RestoreDone>,
-    /// The restore in flight, and the token the next one takes.
-    restore_pending: Option<turn::PendingRestore>,
-    restore_token: u64,
     /// Where the `/settings` knobs persist (`settings.json`, this directory's
     /// entry — `docs/state/per-directory-state.md`); `None` disables persistence,
     /// like `config.json`'s path (`docs/state/settings.md`). The live values
@@ -385,12 +210,6 @@ pub(crate) struct Session<'t> {
     tips_saved: Option<usize>,
 
     // ----- the in-flight turn -----
-    /// The streaming reply's cancel token + thread handle; `None` when idle.
-    inflight: Option<(CancelToken, JoinHandle<()>)>,
-    /// Backend threads whose turn was interrupted or `/clear`ed: cancelled and
-    /// **detached**, swept here when finished. Never joined on the loop — that
-    /// was the interrupt-lag freeze (`docs/input/interrupt.md`).
-    reaping: Vec<JoinHandle<()>>,
 
     // ----- odds and ends the boundary has to remember -----
     /// Keeps the last `/copy`'s native clipboard selection alive (Linux/arboard
@@ -411,11 +230,6 @@ pub(crate) struct Session<'t> {
     /// clears) the flow; while it is `Some`, scrollback commits pause
     /// ([`Session::commits_allowed`]) so nothing tears the flowed page.
     flowed_view: Option<u64>,
-    /// The working directory: the tasks root, the permissions project key, the
-    /// checkpoint store, the `/resume` filter, and the footer's `~`-relative
-    /// form all key off it.
-    cwd: PathBuf,
-    cwd_display: String,
 }
 
 /// The live status indicator's clocks, bundled (the impurity kept at the

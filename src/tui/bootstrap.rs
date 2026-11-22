@@ -566,26 +566,14 @@ impl<'t> Session<'t> {
         agent_render.set_paths(Some(app.path_display().clone()));
         let mut session = Self {
             screen: super::screen::Screen::new(term),
-            app,
-            models,
             view: super::view::ConversationView {
                 render,
                 agent_render,
                 cards,
                 ..super::view::ConversationView::default()
             },
-            card_tx,
-            card_rx,
             link_cards,
             burst: PasteBurst::new(),
-            clocks: StatusClocks::started_now(),
-            toast_deadline: None,
-            ask_timer: zeroth::ask::AskTimer::new(),
-            bg_clocks: HashMap::new(),
-            agent_clocks: HashMap::new(),
-            agent_thinking_clocks: HashMap::new(),
-            agent_command_clocks: HashMap::new(),
-            agent_expiry: HashMap::new(),
             // Invariant 1: the `EventStream` is created HERE — after
             // `InlineViewport::init` (in `main`) queried the cursor position over
             // stdin, synchronously — so it is the sole stdin reader from now on.
@@ -596,77 +584,91 @@ impl<'t> Session<'t> {
             round_budget,
             frame,
             draw_rx,
-            tx,
-            reply_rx,
-            file_req_tx,
-            file_rx,
-            last_file_query: None,
-            img_tx,
-            img_rx,
-            diff_tx,
-            diff_rx,
-            diff_generation: 0,
-            paste_dir,
-            device_tx,
-            device_rx,
-            device_cancel: None,
-            device_expires: None,
-            model_tx,
-            model_rx,
-            usage_tx,
-            usage_rx,
-            usage_cancel: None,
-            probe_tx,
-            probe_rx,
-            bg_rx,
-            agent_rx,
             update_tx,
             update_rx,
             update_attempted: None,
             update_notice_pending: None,
             herdr: None,
-            _file_worker: file_worker,
-            registry,
-            agent_registry,
-            steer,
-            permissions,
-            ask,
-            task_registry,
-            skill_registry,
-            subagents,
             secrets,
             trust,
-            held_prompt: None,
-            // Seeded with the startup walk's failures, so the first turn's
-            // rescan doesn't re-toast what the banner already said.
-            reported_skill_errors: skill_errors
-                .iter()
-                .map(|error| error.path.clone())
-                .collect(),
-            reported_agent_errors: agent_errors
-                .iter()
-                .map(|error| error.path.clone())
-                .collect(),
-            recorder,
             hist_store,
-            checkpoints,
-            checkpoint_tx,
-            checkpoint_rx,
-            checkpoint_pending: None,
-            checkpoint_epoch: 0,
-            restore_tx,
-            restore_rx,
-            restore_pending: None,
-            restore_token: 0,
             settings_path,
             tips_saved: Some(tips_next),
-            inflight: None,
-            reaping: Vec::new(),
             clipboard_lease: None,
             overlay_resized: false,
             flowed_view: None,
-            cwd,
-            cwd_display,
+            conversation: super::conversation::Conversation {
+                app,
+                models,
+                card_tx,
+                card_rx,
+                clocks: StatusClocks::started_now(),
+                toast_deadline: None,
+                ask_timer: zeroth::ask::AskTimer::new(),
+                bg_clocks: HashMap::new(),
+                agent_clocks: HashMap::new(),
+                agent_thinking_clocks: HashMap::new(),
+                agent_command_clocks: HashMap::new(),
+                agent_expiry: HashMap::new(),
+                tx,
+                reply_rx,
+                file_req_tx,
+                file_rx,
+                last_file_query: None,
+                img_tx,
+                img_rx,
+                diff_tx,
+                diff_rx,
+                diff_generation: 0,
+                paste_dir,
+                device_tx,
+                device_rx,
+                device_cancel: None,
+                device_expires: None,
+                model_tx,
+                model_rx,
+                usage_tx,
+                usage_rx,
+                usage_cancel: None,
+                probe_tx,
+                probe_rx,
+                bg_rx,
+                agent_rx,
+                _file_worker: file_worker,
+                registry,
+                agent_registry,
+                steer,
+                permissions,
+                ask,
+                task_registry,
+                skill_registry,
+                subagents,
+                held_prompt: None,
+                // Seeded with the startup walk's failures, so the first turn's
+                // rescan doesn't re-toast what the banner already said.
+                reported_skill_errors: skill_errors
+                    .iter()
+                    .map(|error| error.path.clone())
+                    .collect(),
+                reported_agent_errors: agent_errors
+                    .iter()
+                    .map(|error| error.path.clone())
+                    .collect(),
+                recorder,
+                checkpoints,
+                checkpoint_tx,
+                checkpoint_rx,
+                checkpoint_pending: None,
+                checkpoint_epoch: 0,
+                restore_tx,
+                restore_rx,
+                restore_pending: None,
+                restore_token: 0,
+                inflight: None,
+                reaping: Vec::new(),
+                cwd,
+                cwd_display,
+            },
         };
         session.seed_app(settings);
         session.seed_checkpoints(refusal, checkpoints_wanted)?;
@@ -688,7 +690,7 @@ impl<'t> Session<'t> {
         // leave the session on a model it was not meant to run
         // (docs/providers/user-providers.md). A later toast can still cover it, which
         // is why `/login` and `/model` say it again whenever they open.
-        let provider_issues = session.models.take_provider_issues();
+        let provider_issues = session.conversation.models.take_provider_issues();
         session.report_provider_issues(&provider_issues);
         let picker = session.apply_startup(startup);
         // The capability probe for whatever model the session ended up on —
@@ -700,7 +702,7 @@ impl<'t> Session<'t> {
         // no herdr pane. SessionStart fires as the session opens, as in the
         // TUI, and the headless loop submits the prompt.
         if headless {
-            session.models.fire_session_start();
+            session.conversation.models.fire_session_start();
             return Ok(session);
         }
         // The startup review (docs/state/config-review.md), open on the very first
@@ -727,7 +729,7 @@ impl<'t> Session<'t> {
         // whose pick is the conversation that begins (dismissed, the fresh
         // one does — `Session::close_resume_picker`).
         if !picker {
-            session.models.fire_session_start();
+            session.conversation.models.fire_session_start();
         }
         // The day's update check (docs/ops/update.md), after the first frame
         // so it can never delay it: a known newer release is announced under
@@ -743,7 +745,7 @@ impl<'t> Session<'t> {
         // answers, so the first turn starts with them.
         if let Some(prompt) = prompt {
             if reviewing {
-                session.held_prompt = Some(prompt);
+                session.conversation.held_prompt = Some(prompt);
             } else {
                 session.submit_startup_prompt(prompt);
             }
@@ -766,18 +768,20 @@ impl<'t> Session<'t> {
     fn seed_app(&mut self, settings: zeroth::settings::SessionSettings) {
         // The `/settings` knobs (docs/state/settings.md), plus what this host can
         // actually run — so an unavailable row says so from the first frame.
-        *self.app.settings_mut() = settings;
+        *self.conversation.app.settings_mut() = settings;
         self.sync_setting_availability();
         // What the `/secrets` page may know of the secrets loaded above —
         // names and context — before the reminder below names them
         // (docs/state/secrets.md).
-        self.app.set_secret_metas(self.secrets.metas());
+        self.conversation.app.set_secret_metas(self.secrets.metas());
         // …and their redacting half, before anything the user types can be
         // sent — a [PROMPT] included: a stored value the user types reaches
         // the conversation as its placeholder. It shares the store, so a
         // save or delete on the page needs nothing more (docs/state/secrets.md
         // *What the user types*).
-        self.app.set_secret_redactor(self.secrets.redactor());
+        self.conversation
+            .app
+            .set_secret_redactor(self.secrets.redactor());
         // Publish the image policy before the first line is built: the row
         // reservation is pure and reads it, so a picture drawn on the very
         // first frame (a `/resume`d conversation's image read) is already the
@@ -789,19 +793,19 @@ impl<'t> Session<'t> {
         self.sync_backend_info();
         // The thinking state `config.json` recorded for this exact selection, so
         // the Ctrl+T cycle starts where it left off (docs/providers/reasoning.md).
-        let thinking = self.models.take_thinking_seed();
-        self.app.set_thinking(thinking);
+        let thinking = self.conversation.models.take_thinking_seed();
+        self.conversation.app.set_thinking(thinking);
         // The speed tiers + /fast choice it recorded for that same selection,
         // so the tier rides the first request too (docs/providers/fast-mode.md).
-        let speed = self.models.speed_state();
-        self.app.set_speed(speed);
+        let speed = self.conversation.models.speed_state();
+        self.conversation.app.set_speed(speed);
         // The footer's right-edge permission segment (docs/state/permissions.md):
         // seeded from the gate (which just took the session's starting mode —
         // the run's seed, else this project's saved mode, else auto), or
         // hidden entirely when permissions are disabled — nothing asks, so a mode
         // would be a lie.
-        let mode = self.permissions.mode();
-        self.app.set_permission_mode(mode);
+        let mode = self.conversation.permissions.mode();
+        self.conversation.app.set_permission_mode(mode);
         // The project's AGENTS.md instructions (codex's project doc,
         // docs/state/project-doc.md): discovered root→cwd and injected like the system
         // prompt — the context derivation prepends them, the Ctrl+D view and the
@@ -810,12 +814,13 @@ impl<'t> Session<'t> {
         // The **Project docs** knob can withhold them entirely
         // (docs/state/settings.md).
         let instructions = self
+            .conversation
             .app
             .settings()
             .project_docs
-            .then(|| project_doc::load_user_instructions(&self.cwd))
+            .then(|| project_doc::load_user_instructions(&self.conversation.cwd))
             .flatten();
-        self.app.set_user_instructions(instructions);
+        self.conversation.app.set_user_instructions(instructions);
     }
 
     /// Snapshot the pristine tree (history length 0) so a backtrack to the very
@@ -839,7 +844,7 @@ impl<'t> Session<'t> {
         scoped_out: Option<CheckpointRefusal>,
         wanted: bool,
     ) -> io::Result<()> {
-        if self.checkpoints.init().is_err() {
+        if self.conversation.checkpoints.init().is_err() {
             return Ok(());
         }
         // Bind the probe's cost instead of feeding it straight into
@@ -849,9 +854,14 @@ impl<'t> Session<'t> {
         let cost = if scoped_out.is_some() {
             checkpoint::SnapshotCost::default()
         } else {
-            self.checkpoints.probe(&config::checkpoint_budget())
+            self.conversation
+                .checkpoints
+                .probe(&config::checkpoint_budget())
         };
-        let refusal = scoped_out.or_else(|| cost.refusal().inspect(|_| self.checkpoints.disable()));
+        let refusal = scoped_out.or_else(|| {
+            cost.refusal()
+                .inspect(|_| self.conversation.checkpoints.disable())
+        });
         if let Some(reason) = refusal {
             // The `/settings` **Checkpoints** row was seeded from the store's
             // capability a moment ago; a probe refusal changes that answer.
@@ -877,8 +887,9 @@ impl<'t> Session<'t> {
                 .insert_before(ui::startup_notice_lines(&notice, width));
             self.draw_conversation()?;
         }
-        if let Some(commit) = self.checkpoints.snapshot("session start") {
-            self.recorder
+        if let Some(commit) = self.conversation.checkpoints.snapshot("session start") {
+            self.conversation
+                .recorder
                 .record_checkpoint(checkpoint::Checkpoint { after: 0, commit });
         }
         Ok(())
@@ -973,13 +984,13 @@ impl<'t> Session<'t> {
                 let _restoring = !self.screen.is_headless()
                     && self.restore_final_checkpoint(&session_checkpoints);
                 let count = items.len();
-                self.app.load_session(items);
+                self.conversation.app.load_session(items);
                 // `paint_first_frame` commits the loaded transcript with no
                 // rebuild to look for its pictures, so look now: a paste gets
                 // its size back, and a picture whose file is gone — a `/tmp`
                 // screenshot after a reboot — reserves no rows
                 // (`docs/ui/images.md`).
-                super::view::recheck_pictures(&self.app.history);
+                super::view::recheck_pictures(&self.conversation.app.history);
                 // The checklist came back with the conversation — the shared
                 // registry follows, exactly like the `/resume` picker's load
                 // (docs/tools/task-tools.md).
@@ -990,7 +1001,7 @@ impl<'t> Session<'t> {
                 // that record is what the session now runs.
                 let model = self.restore_session_model(recorded_model.as_ref());
                 let torn = !text.is_empty() && !text.ends_with('\n');
-                self.recorder.adopt(
+                self.conversation.recorder.adopt(
                     path,
                     meta,
                     count,
@@ -999,7 +1010,7 @@ impl<'t> Session<'t> {
                     // Each request's usage line stays where it sat
                     // (docs/state/rollout-records.md).
                     session::parse_usage(&text),
-                    self.app.history_generation(),
+                    self.conversation.app.history_generation(),
                     recorded_model,
                     model.honoured,
                 );
@@ -1007,7 +1018,7 @@ impl<'t> Session<'t> {
                 // A --continue/--resume boot is a *resume* boundary, not a
                 // startup one: swap the seeded source so the SessionStart
                 // hooks hear what actually happened (docs/tools/hooks.md).
-                self.models.set_session_source("resume");
+                self.conversation.models.set_session_source("resume");
                 // Last, so the actionable failure outranks the confirmation.
                 if let Some(failure) = model.failure {
                     self.toast(failure, ToastKind::Error);
@@ -1031,20 +1042,20 @@ impl<'t> Session<'t> {
         // (the next draw writes it above the box in one synchronized frame).
         let width = self.screen.screen().width;
         self.screen
-            .insert_before(ui::header_lines(&self.app, width));
+            .insert_before(ui::header_lines(&self.conversation.app, width));
         self.screen.insert_before(vec![Line::default()]);
         // A --continue/--resume load commits the loaded conversation under the
         // banner through the same pipeline (docs/cli/cli.md) — insert_before, never a
         // Purge: a fresh launch must not wipe the user's terminal scrollback (the
         // picker's mid-session purge exists to drop the *previous* conversation's
         // rows; at startup there are none). Capped like every full rebuild.
-        if !self.app.history.is_empty() {
+        if !self.conversation.app.history.is_empty() {
             let lines: Vec<Line<'static>> = ui::repaint_lines(
-                &self.app.history,
+                &self.conversation.app.history,
                 width,
                 RESIZE_REFLOW_MAX_ROWS,
-                self.app.path_display(),
-                self.app.settings().verbose,
+                self.conversation.app.path_display(),
+                self.conversation.app.settings().verbose,
             );
             self.screen.insert_before(lines);
         }
@@ -1067,9 +1078,11 @@ impl<'t> Session<'t> {
     pub(crate) fn shutdown(mut self) -> Option<String> {
         // The quit arms break before the loop-bottom sync — catch the last
         // change.
-        self.recorder
-            .sync(&self.app.history, self.app.history_generation());
-        let inputs = self.app.take_unpersisted_inputs();
+        self.conversation.recorder.sync(
+            &self.conversation.app.history,
+            self.conversation.app.history_generation(),
+        );
+        let inputs = self.conversation.app.take_unpersisted_inputs();
         self.hist_store.append(&inputs);
         // …and the tip walk's position, for a quit that drew a tip on its way
         // out (docs/ui/tips.md).
@@ -1079,7 +1092,7 @@ impl<'t> Session<'t> {
         // interrupt-lag freeze, on the quit path). The process exits right after
         // `term.restore()`, reaping any detached thread — the backend's and its
         // transport thread alike.
-        if let Some((cancel, handle)) = self.inflight.take() {
+        if let Some((cancel, handle)) = self.conversation.inflight.take() {
             cancel.cancel();
             // A `!` shell turn's child is a separate PROCESS: the runner thread
             // dies with this process before its 20ms cancel poll can run, so the
@@ -1089,7 +1102,12 @@ impl<'t> Session<'t> {
             // child. A backend network thread is still never joined — the wait
             // applies only to the local shell runner, and it is bounded so a
             // wedged kill can't stall the quit.
-            if self.app.status().is_some_and(|status| status.shell) {
+            if self
+                .conversation
+                .app
+                .status()
+                .is_some_and(|status| status.shell)
+            {
                 let deadline = std::time::Instant::now() + SHELL_QUIT_KILL_WINDOW;
                 while !handle.is_finished() && std::time::Instant::now() < deadline {
                     std::thread::sleep(SHELL_POLL_INTERVAL / 2);
@@ -1098,25 +1116,27 @@ impl<'t> Session<'t> {
         }
         // Cancel a dangling /model fetch (its detached worker exits on the
         // cancel), and the /usage page's reads likewise.
-        self.models.cancel_model_fetch();
+        self.conversation.models.cancel_model_fetch();
         self.cancel_usage_fetch();
         // Kill every background shell on the way out — the sweep is synchronous
         // (direct process-group kills), so quitting can't orphan a `ping`
         // (docs/tools/background.md) — and cancel every subagent (their threads observe
         // the token and die with the process either way; the cancel stops their
         // in-flight requests promptly — docs/agents/agent-tool.md).
-        self.registry.kill_all();
-        self.agent_registry.kill_all();
+        self.conversation.registry.kill_all();
+        self.conversation.agent_registry.kill_all();
         // SessionEnd (docs/tools/hooks.md): after the turn and the agents were
         // cancelled above, so none of their hooks can land after the
         // session's end — and under the sink's own 2 s budget, so a quit
         // never hangs on a hook. Claude Code's reason for an interactive
         // quit is `prompt_input_exit`; a headless run's end is `other`.
-        self.models.end_conversation(if self.screen.is_headless() {
-            "other"
-        } else {
-            "prompt_input_exit"
-        });
+        self.conversation
+            .models
+            .end_conversation(if self.screen.is_headless() {
+                "other"
+            } else {
+                "prompt_input_exit"
+            });
         // Hand the herdr pane back (docs/architecture/herdr.md) — last, once nothing of
         // the session is left running: the release replaces any report not
         // yet written, and the wait for it is bounded, so a wedged socket
@@ -1129,8 +1149,8 @@ impl<'t> Session<'t> {
         // id (deferred create), and a `/clear`ed-then-idle one no history, so
         // neither prints a hint. Read after the final sync above, which is what
         // materializes the file for a quit that raced the loop-bottom sync.
-        (!self.app.history.is_empty())
-            .then(|| self.recorder.session_id().map(str::to_string))
+        (!self.conversation.app.history.is_empty())
+            .then(|| self.conversation.recorder.session_id().map(str::to_string))
             .flatten()
     }
 
@@ -1140,7 +1160,7 @@ impl<'t> Session<'t> {
     /// position), the herdr pane's state, the transcript pre-render, and the
     /// detached-thread sweep.
     pub(crate) fn after_iteration(&mut self) {
-        for warning in self.models.credential_warnings() {
+        for warning in self.conversation.models.credential_warnings() {
             self.toast(warning, zeroth::app::ToastKind::Error);
         }
         // The context gauge (docs/architecture/token-estimate.md): whatever this iteration
@@ -1152,9 +1172,10 @@ impl<'t> Session<'t> {
         // check, which reads it. The tool set first: every request carries its
         // schemas, and a set that changed (the Tools knob or a skills rescan)
         // re-reads the gauge — a pointer compare when it did not.
-        self.app
-            .set_tool_definitions(self.models.backend().tool_definitions());
-        self.app.sync_context_used();
+        self.conversation
+            .app
+            .set_tool_definitions(self.conversation.models.backend().tool_definitions());
+        self.conversation.app.sync_context_used();
         // Auto-compact (docs/architecture/compact.md): past codex's 90%-of-window threshold,
         // start the summarization turn on our own at this idle boundary — the loop
         // bottom sees every turn end and gauge change. `should_auto_compact`
@@ -1162,10 +1183,10 @@ impl<'t> Session<'t> {
         // has passed), it can't fire mid-turn, and one attempt per user turn means
         // an Esc'd or failed compaction never loops. The StallAi test backend opts
         // out (it ignores the script).
-        if self.inflight.is_none()
+        if self.conversation.inflight.is_none()
             && !self.checkpoint_pending()
-            && !self.models.is_stalled_test_backend()
-            && self.app.should_auto_compact()
+            && !self.conversation.models.is_stalled_test_backend()
+            && self.conversation.app.should_auto_compact()
         {
             self.start_compact_turn(/*auto=*/ true);
             self.frame.schedule_frame();
@@ -1177,23 +1198,31 @@ impl<'t> Session<'t> {
         // `/clear`): the tool thread parked on it would otherwise wait for a
         // decision that is never coming — a cancelled turn's reaps itself, but a
         // background agent's has nothing to cancel it (docs/state/permissions.md).
-        self.permissions.release_abandoned(&mut self.app);
+        self.conversation
+            .permissions
+            .release_abandoned(&mut self.conversation.app);
         // …and mark the prompt now open as on screen, which is when its
         // `Notification` hook fires — never for one settled while it queued
         // behind another (docs/tools/hooks.md).
-        self.permissions.mark_shown(&self.app);
+        self.conversation
+            .permissions
+            .mark_shown(&self.conversation.app);
         // …and any ask request dropped the same way, resolved as a decline so
         // the blocked thread wakes with the stop-and-wait result rather than
         // parking forever (docs/tools/ask.md).
-        for id in self.app.take_abandoned_asks() {
-            self.ask.resolve(&id, zeroth::ask::AskDecision::Declined);
+        for id in self.conversation.app.take_abandoned_asks() {
+            self.conversation
+                .ask
+                .resolve(&id, zeroth::ask::AskDecision::Declined);
         }
         // Mirror the finished history to the session file (docs/state/resume.md):
         // append what this iteration added, rewrite on a backtrack truncation,
         // nothing when unchanged — so streaming chunks (which never touch history)
         // cost no I/O.
-        self.recorder
-            .sync(&self.app.history, self.app.history_generation());
+        self.conversation.recorder.sync(
+            &self.conversation.app.history,
+            self.conversation.app.history_generation(),
+        );
         // Tell the herdr pane what the session is doing now (docs/architecture/herdr.md) —
         // after the recorder sync, so a conversation's first message reports
         // the session id its file was just created under. A compare when
@@ -1202,7 +1231,7 @@ impl<'t> Session<'t> {
         // Flush any inputs recorded this iteration to the persistent history file
         // (docs/input/history-persistence.md) — the drain is empty on iterations that
         // recorded nothing, so streaming ticks cost no I/O.
-        let inputs = self.app.take_unpersisted_inputs();
+        let inputs = self.conversation.app.take_unpersisted_inputs();
         self.hist_store.append(&inputs);
         // The spinner tip walk's position (docs/ui/tips.md) — likewise nothing
         // on the iterations that drew no tip.
@@ -1218,12 +1247,14 @@ impl<'t> Session<'t> {
         // it here, at the boundary, is what makes the Ctrl+O keypress itself
         // O(live tail): the overlay never opens cold.
         let width = self.screen.screen().width;
-        self.view.transcript.warm(&self.app, width);
+        self.view.transcript.warm(&self.conversation.app, width);
         // Reap detached backend threads (interrupt / `/clear` abandonments) that
         // have finished. `is_finished()` never blocks, so this can't stall the
         // loop; a thread still parked in its final network read is left until it
         // exits on its own. See `Session::abandon_inflight` / docs/input/interrupt.md.
-        self.reaping.retain(|handle| !handle.is_finished());
+        self.conversation
+            .reaping
+            .retain(|handle| !handle.is_finished());
     }
 
     /// Write the spinner tip walk's position back to the per-user
@@ -1232,7 +1263,7 @@ impl<'t> Session<'t> {
     /// shown. An integer compare and no I/O whenever it hasn't; the write is
     /// a read-modify-write, so a switch another session flipped survives.
     fn sync_tip_cursor(&mut self) {
-        let cursor = self.app.tip_cursor();
+        let cursor = self.conversation.app.tip_cursor();
         if cursor == self.tips_saved {
             return;
         }

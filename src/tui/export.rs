@@ -35,7 +35,7 @@ impl Session<'_> {
     /// it there, then say what happened. The page is already closed (the
     /// pick is the whole point of it), so the toast lands over the composer.
     pub(crate) fn export_conversation(&mut self, target: ExportTarget) {
-        let text = ui::export_text(&self.app, self.screen.screen().width);
+        let text = ui::export_text(&self.conversation.app, self.screen.screen().width);
         match target {
             ExportTarget::Clipboard => match clipboard::copy_to_clipboard(&text) {
                 Ok(lease) => {
@@ -46,7 +46,7 @@ impl Session<'_> {
                 }
                 Err(reason) => self.toast(format!("Copy failed: {reason}"), ToastKind::Error),
             },
-            ExportTarget::File => match write_export_file(&self.cwd, &text) {
+            ExportTarget::File => match write_export_file(&self.conversation.cwd, &text) {
                 Ok(path) => {
                     let name = path.file_name().map_or_else(
                         || path.display().to_string(),

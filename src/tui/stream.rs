@@ -45,12 +45,13 @@ impl Session<'_> {
     /// Ctrl+B hint keeps waiting on the batch's own elapsed.
     fn stop_command_clock_if_idle(&mut self) {
         if !self
+            .conversation
             .app
             .tool_queue()
             .iter()
             .any(|tool| tool.status == ToolStatus::Running)
         {
-            self.clocks.command_start = None;
+            self.conversation.clocks.command_start = None;
         }
     }
 
@@ -62,7 +63,7 @@ impl Session<'_> {
         // Where the reply attempt now streaming began — what a `Retrying`
         // withdraws back to (docs/providers/offline.md *A connection lost mid-reply*).
         // Every event, before it is folded.
-        self.app.track_attempt(&event);
+        self.conversation.app.track_attempt(&event);
         let width = self.screen.screen().width;
         let committing = self.commits_allowed();
         match event {
@@ -76,11 +77,11 @@ impl Session<'_> {
                 self.close_tool_group(committing, width);
                 self.flush_segment(committing, width);
                 self.view.render.reset();
-                self.app.start_agent_group(background, &agents);
+                self.conversation.app.start_agent_group(background, &agents);
                 // The delayed Ctrl+B hint clock — a foreground group can be moved
                 // to the background like a running command (docs/tools/background.md).
                 if !background {
-                    self.clocks.command_start = Some(std::time::Instant::now());
+                    self.conversation.clocks.command_start = Some(std::time::Instant::now());
                 }
                 false
             }
@@ -93,7 +94,10 @@ impl Session<'_> {
                 // close keeps the tree cell's record and commit together even
                 // so (docs/ui/tool-groups.md).
                 self.close_tool_group(committing, width);
-                let group = self.app.finish_agent_group(background, &agents);
+                let group = self
+                    .conversation
+                    .app
+                    .finish_agent_group(background, &agents);
                 if committing {
                     let height = self.live_region_height();
                     self.screen.set_view_height(height);
@@ -101,22 +105,23 @@ impl Session<'_> {
                         .insert_before(ui::agent_group_lines(&group, width));
                     self.screen.insert_before(vec![Line::default()]);
                 }
-                self.clocks.command_start = None;
+                self.conversation.clocks.command_start = None;
                 false
             }
             StreamEvent::Chunk(chunk) => {
-                self.app.push_chunk(&chunk);
+                self.conversation.app.push_chunk(&chunk);
                 // A reply that says something ends the open read/search group
                 // — its line lands above the reply's first row. Whitespace
                 // records nothing, so it ends nothing (docs/ui/tool-groups.md).
                 if self
+                    .conversation
                     .app
                     .streaming_text()
                     .is_some_and(|text| !text.trim().is_empty())
                 {
                     self.close_tool_group(committing, width);
                 }
-                if committing && let Some(text) = self.app.streaming_text() {
+                if committing && let Some(text) = self.conversation.app.streaming_text() {
                     let lines = self.view.render.commit(text, width);
                     self.screen.insert_before(lines);
                 }
@@ -126,7 +131,7 @@ impl Session<'_> {
                 // The round's wire identity (docs/providers/prompt-caching.md): opened
                 // before its cells arrive, so each record they resolve into
                 // is stamped with the provider's id. No paint of its own.
-                self.app.open_round(calls);
+                self.conversation.app.open_round(calls);
                 false
             }
             StreamEvent::ToolBatch(items) => {
@@ -140,7 +145,7 @@ impl Session<'_> {
                 // `docs/tools/parallel-tools.md`.
                 self.flush_segment(committing, width);
                 self.view.render.reset();
-                self.app.start_tool_batch(&items);
+                self.conversation.app.start_tool_batch(&items);
                 // A batch led by a call that is no read closes the open
                 // read/search group; one led by a read joins it
                 // (docs/ui/tool-groups.md).
@@ -164,8 +169,12 @@ impl Session<'_> {
                 // call (dummy/shell, no batch) pushes a fresh running call.
                 self.flush_segment(committing, width);
                 self.view.render.reset();
-                self.app
-                    .start_tool_for(call_id.as_deref(), &name, &args, arguments.as_deref());
+                self.conversation.app.start_tool_for(
+                    call_id.as_deref(),
+                    &name,
+                    &args,
+                    arguments.as_deref(),
+                );
                 // A call that is no read closes the open read/search group
                 // before it runs, so the group's line sits above its cell
                 // (docs/ui/tool-groups.md).
@@ -175,7 +184,8 @@ impl Session<'_> {
                 // that starts deep into a turn can't inherit the turn's elapsed).
                 // A batch's second worker does not restart it: its calls began
                 // together, and the clock is the batch's own elapsed.
-                self.clocks
+                self.conversation
+                    .clocks
                     .command_start
                     .get_or_insert_with(std::time::Instant::now);
                 false
@@ -191,12 +201,16 @@ impl Session<'_> {
                 // runner; mark the running tool so its expanded cell appends a `…`
                 // marker (before end_tool takes it). `output` is the retained head.
                 if truncated {
-                    self.app.set_tool_truncated_for(call_id.as_deref());
+                    self.conversation
+                        .app
+                        .set_tool_truncated_for(call_id.as_deref());
                 }
                 // How the call ran rides into its record, and from there the
                 // rollout's `tool` line — on every resolution below too
                 // (docs/state/rollout-records.md).
-                self.app.set_tool_run_for(call_id.as_deref(), run);
+                self.conversation
+                    .app
+                    .set_tool_run_for(call_id.as_deref(), run);
                 // Commit the finished tool *collapsed* (green/red) to scrollback;
                 // its full (retained) output lives in the Ctrl+O view. A
                 // completion that landed while the call ran (often a `kill`
@@ -204,6 +218,7 @@ impl Session<'_> {
                 // results, where the agent reads it (`NoticeDelivered`,
                 // docs/tools/background.md).
                 if self
+                    .conversation
                     .app
                     .end_tool_for(call_id.as_deref(), &output, ok)
                     .is_some()
@@ -223,7 +238,9 @@ impl Session<'_> {
                 truncated,
                 run,
             } => {
-                self.app.set_tool_run_for(call_id.as_deref(), run);
+                self.conversation
+                    .app
+                    .set_tool_run_for(call_id.as_deref(), run);
                 // The user refused the call at the permission prompt: commit the
                 // red cell with the short `display` (Tab's instructions on its
                 // second line) while `result` — the longer text the model read —
@@ -231,9 +248,12 @@ impl Session<'_> {
                 // every later turn (docs/state/permissions.md). Mirrors the ToolEnd
                 // commit dance; nothing ran, so there is no truncation to mark.
                 if truncated {
-                    self.app.set_tool_truncated_for(call_id.as_deref());
+                    self.conversation
+                        .app
+                        .set_tool_truncated_for(call_id.as_deref());
                 }
                 if self
+                    .conversation
                     .app
                     .reject_tool_for(call_id.as_deref(), &display, &result)
                     .is_some()
@@ -250,15 +270,20 @@ impl Session<'_> {
                 truncated,
                 run,
             } => {
-                self.app.set_tool_run_for(call_id.as_deref(), run);
+                self.conversation
+                    .app
+                    .set_tool_run_for(call_id.as_deref(), run);
                 // The user answered the `AskUserQuestion` call: commit the green
                 // cell with the `· Q → A` display while `result` — the answers
                 // JSON the model read — rides the recorded call, the
                 // ToolRejected dance in green (docs/tools/ask.md).
                 if truncated {
-                    self.app.set_tool_truncated_for(call_id.as_deref());
+                    self.conversation
+                        .app
+                        .set_tool_truncated_for(call_id.as_deref());
                 }
                 if self
+                    .conversation
                     .app
                     .answer_tool_for(call_id.as_deref(), &display, &result)
                     .is_some()
@@ -274,13 +299,16 @@ impl Session<'_> {
                 output,
                 run,
             } => {
-                self.app.set_tool_run_for(call_id.as_deref(), run);
+                self.conversation
+                    .app
+                    .set_tool_run_for(call_id.as_deref(), run);
                 // The call resolved by moving to the background: commit its cell
                 // with the fixed `⎿ Running in the background (↓ to manage)` row
                 // (the stored output is the model-facing launch text). The process
                 // itself now reports through the background channel. Mirrors the
                 // ToolEnd commit dance (docs/tools/background.md).
                 if self
+                    .conversation
                     .app
                     .background_tool_for(call_id.as_deref(), &output)
                     .is_some()
@@ -308,7 +336,8 @@ impl Session<'_> {
                 // under the status line is its whole display.
                 self.flush_segment(committing, width);
                 self.view.render.reset();
-                self.app
+                self.conversation
+                    .app
                     .record_task_call(&name, &args, &arguments, &output, ok, tasks);
                 false
             }
@@ -317,7 +346,9 @@ impl Session<'_> {
                 // tails it (docs/ui/tool-streaming.md). No scrollback commit — the
                 // tail is live-only until the ToolEnd commits the finished cell;
                 // the next draw tick repaints the preview with the grown output.
-                self.app.push_tool_output_for(call_id.as_deref(), &chunk);
+                self.conversation
+                    .app
+                    .push_tool_output_for(call_id.as_deref(), &chunk);
                 false
             }
             StreamEvent::ToolScreen {
@@ -329,14 +360,17 @@ impl Session<'_> {
                 // the live rows replace the last ones — a progress bar
                 // redraws in place (docs/tools/interactive-shell.md). Live-only,
                 // like ToolOutput.
-                self.app
+                self.conversation
+                    .app
                     .push_tool_screen_for(call_id.as_deref(), &settled, &live);
                 false
             }
             StreamEvent::ToolTitle { call_id, title } => {
                 // The executor's refined header — a `bash_session` call's
                 // session command beside its keys.
-                self.app.set_tool_title_for(call_id.as_deref(), &title);
+                self.conversation
+                    .app
+                    .set_tool_title_for(call_id.as_deref(), &title);
                 false
             }
             StreamEvent::HookNote {
@@ -355,7 +389,7 @@ impl Session<'_> {
                 // the summarization request, and their text must not enter
                 // the conversation's own record — their cell alone does, the
                 // compact hooks' trace above the `Context compacted` line.
-                if self.app.is_compacting() {
+                if self.conversation.app.is_compacting() {
                     if report.is_some() {
                         self.commit_hook_note(&label, "", report, committing, width);
                     }
@@ -381,7 +415,7 @@ impl Session<'_> {
                 self.flush_segment(committing, width);
                 self.close_tool_group(committing, width);
                 self.view.render.reset();
-                self.app.deliver_steered(&text);
+                self.conversation.app.deliver_steered(&text);
                 if committing {
                     // The strip loses the pending row as the bubble lands, so
                     // reseat before committing (invariant 3).
@@ -410,7 +444,7 @@ impl Session<'_> {
                 // with everything else. It stays held and settles after the
                 // marker at the turn's end, so the next context still carries
                 // it (the HookNote rule).
-                if !self.app.is_compacting() {
+                if !self.conversation.app.is_compacting() {
                     self.flush_segment(committing, width);
                     self.view.render.reset();
                     self.settle_delivered_notice(seq);
@@ -430,7 +464,9 @@ impl Session<'_> {
                 // provenance note on it so the resolved cell appends the dim
                 // `⎿ Allowed by auto mode classifier` row (docs/state/permissions.md).
                 // No commit — the note rides the call into its ToolEnd.
-                self.app.set_tool_note_for(call_id.as_deref(), &note);
+                self.conversation
+                    .app
+                    .set_tool_note_for(call_id.as_deref(), &note);
                 false
             }
             StreamEvent::Permission(request) => {
@@ -446,7 +482,7 @@ impl Session<'_> {
                 if request.agent_id.is_none() {
                     self.close_group_unless_the_front_reads(committing, width);
                 }
-                self.app.open_permission(request);
+                self.conversation.app.open_permission(request);
                 false
             }
             StreamEvent::AskUser(request) => {
@@ -456,7 +492,7 @@ impl Session<'_> {
                 // `Action::ResolveAsk` answers it — or, with the user away,
                 // the idle clock the next draw starts runs out and resolves
                 // it unanswered. See docs/tools/ask.md.
-                self.app.open_ask(request);
+                self.conversation.app.open_ask(request);
                 false
             }
             StreamEvent::ThinkingStart => {
@@ -465,11 +501,11 @@ impl Session<'_> {
                 // (it is live-only) — but with the display on, open the
                 // reasoning buffer so the strip previews the chain-of-thought
                 // as it streams (docs/ui/thinking-stream.md).
-                self.clocks.thinking_start = Some(std::time::Instant::now());
+                self.conversation.clocks.thinking_start = Some(std::time::Instant::now());
                 // The `/settings` **Hide thinking** knob, read per phase — so
                 // flipping it mid-session takes effect on the very next one
                 // (docs/state/settings.md).
-                if self.app.settings().show_thinking() {
+                if self.conversation.app.settings().show_thinking() {
                     // Flush before you interleave (the module's first rule):
                     // the live block is a cell like a tool's, so the run of
                     // assistant text before it is finalised **here**, as the
@@ -486,7 +522,7 @@ impl Session<'_> {
                     // (`llm::backend`).
                     self.flush_segment(committing, width);
                     self.view.render.reset();
-                    self.app.begin_reasoning();
+                    self.conversation.app.begin_reasoning();
                 }
                 false
             }
@@ -494,7 +530,7 @@ impl Session<'_> {
                 // Reasoning delta: counted into the token tally, and — while a
                 // phase is open — accumulated for the live block. Never
                 // committed: only the collapsed cell at the phase's end is.
-                self.app.push_thinking(&chunk);
+                self.conversation.app.push_thinking(&chunk);
                 false
             }
             StreamEvent::ToolCallDelta(piece) => {
@@ -509,7 +545,7 @@ impl Session<'_> {
                 // run of text before it is finalised **now** — committed with
                 // its withheld last line — and the cell sits under it, under
                 // the blank spacer the committed cell will keep.
-                if self.app.push_tool_call_fragment(&piece) {
+                if self.conversation.app.push_tool_call_fragment(&piece) {
                     self.flush_segment(committing, width);
                     self.view.render.reset();
                 }
@@ -517,7 +553,7 @@ impl Session<'_> {
                 // of the group (docs/ui/tool-groups.md *Scratchpad edits*), so
                 // the group closes above the write's cell only once its path
                 // says it writes somewhere else.
-                if self.app.draft_ends_group() {
+                if self.conversation.app.draft_ends_group() {
                     self.close_tool_group(committing, width);
                 }
                 false
@@ -541,16 +577,16 @@ impl Session<'_> {
                 // settling, so its clock stops, and rows it had committed are
                 // rebuilt away — then the retry shows live in the status line.
                 let shown = self.view.render.has_committed();
-                let withdrawn = self.app.withdraw_attempt();
+                let withdrawn = self.conversation.app.withdraw_attempt();
                 self.view.render.reset();
-                self.clocks.thinking_start = None;
-                self.app.set_retry(attempt, max);
+                self.conversation.clocks.thinking_start = None;
+                self.conversation.app.set_retry(attempt, max);
                 // Said only where it was seen: inside an agent's session view
                 // the main reply is not on screen, and a toast there would
                 // blame the agent's (`tui::agent` says so for its own). Raised
                 // before the rebuild below, which paints the live region at
                 // once — so the frame that takes the text away says why.
-                if withdrawn.anything() && self.app.agent_view.is_none() {
+                if withdrawn.anything() && self.conversation.app.agent_view.is_none() {
                     self.toast(CONNECTION_LOST_NOTICE, ToastKind::Info);
                 }
                 if shown || withdrawn.records > 0 {
@@ -565,7 +601,7 @@ impl Session<'_> {
                 // wears `Waiting for internet…` over the row naming the host,
                 // off the turn clock this draw tick already injects — nothing
                 // commits, and the next content takes it down.
-                self.app.set_offline(&host, attempts);
+                self.conversation.app.set_offline(&host, attempts);
                 false
             }
             StreamEvent::Usage(usage) => {
@@ -575,15 +611,15 @@ impl Session<'_> {
                 // at StreamDone (docs/providers/prompt-caching.md) — and recorded: the
                 // request's own `usage` line, where it finished, among the
                 // items recorded so far (docs/state/rollout-records.md).
-                self.app.apply_usage(&usage);
-                self.recorder.record_usage(RequestUsage {
-                    after: self.app.history.len(),
+                self.conversation.app.apply_usage(&usage);
+                self.conversation.recorder.record_usage(RequestUsage {
+                    after: self.conversation.app.history.len(),
                     usage,
                     agent: None,
                     // A summarization request says so: it is part of no
                     // turn's `summary` (its marker lands at StreamDone, so
                     // the turn is still compacting here).
-                    compact: self.app.is_compacting(),
+                    compact: self.conversation.app.is_compacting(),
                 });
                 false
             }
@@ -604,9 +640,13 @@ impl Session<'_> {
                 let owed = self.begin_turn_agent_settle(width);
                 // The running command's clock, read now: a headless run draws
                 // no frame to have injected it (docs/state/rollout-records.md).
-                self.app
-                    .set_command_elapsed(self.clocks.command_start.map(|start| start.elapsed()));
-                let failed = self.app.fail_stream(&message);
+                self.conversation.app.set_command_elapsed(
+                    self.conversation
+                        .clocks
+                        .command_start
+                        .map(|start| start.elapsed()),
+                );
+                let failed = self.conversation.app.fail_stream(&message);
                 self.finish_turn_agent_settle(owed, width);
                 if let Some(failure) = failed {
                     // The herdr pane shows the turn as needing attention, not
@@ -618,7 +658,7 @@ impl Session<'_> {
                     // backend already resolved. See docs/agents/agent-tool.md.
                     if let Some(group) = &failure.agents {
                         for entry in &group.agents {
-                            let _ = self.agent_registry.kill(&entry.id);
+                            let _ = self.conversation.agent_registry.kill(&entry.id);
                         }
                     }
                     if committing {
@@ -635,7 +675,7 @@ impl Session<'_> {
                     }
                 }
                 self.view.render.reset();
-                self.clocks.end_turn();
+                self.conversation.clocks.end_turn();
                 true
             }
         }
@@ -656,8 +696,9 @@ impl Session<'_> {
         // like any turn end, so a batch queued mid-compact goes out over the
         // freshly compacted context. The turn's wall-clock rides the marker so
         // the cell shows how long the compaction worked.
-        if let Some(compaction) = self.app.finish_compact(
-            self.clocks
+        if let Some(compaction) = self.conversation.app.finish_compact(
+            self.conversation
+                .clocks
                 .turn_start
                 .map_or(0, |start| start.elapsed().as_secs()),
         ) {
@@ -670,11 +711,12 @@ impl Session<'_> {
             }
             self.settle_bg_completions();
             self.view.render.reset();
-            self.clocks.end_turn();
+            self.conversation.clocks.end_turn();
             return true;
         }
-        let final_text = self.app.finish_stream();
+        let final_text = self.conversation.app.finish_stream();
         let elapsed = self
+            .conversation
             .clocks
             .turn_start
             .map_or(0, |start| start.elapsed().as_secs());
@@ -688,7 +730,7 @@ impl Session<'_> {
         // the held completions, THEN record + commit the summary. The common
         // case (nothing pending) is unchanged — `settle_bg_completions` is
         // then a no-op. See `docs/tools/background.md`.
-        let summary = self.app.take_turn_summary(elapsed);
+        let summary = self.conversation.app.take_turn_summary(elapsed);
         if committing {
             // The reply just ended, so the streaming strip (preview + gap +
             // status, drawn *above* the box) is gone. Reseat the viewport to its
@@ -711,7 +753,7 @@ impl Session<'_> {
             self.commit_turn_summary(summary);
         }
         self.view.render.reset();
-        self.clocks.end_turn();
+        self.conversation.clocks.end_turn();
         true
     }
 
@@ -740,20 +782,22 @@ impl Session<'_> {
     /// (invariant 3).
     pub(crate) fn settle_reasoning(&mut self) {
         let secs = self
+            .conversation
             .clocks
             .thinking_start
             .map_or(0, |start| start.elapsed().as_secs());
-        self.clocks.thinking_start = None;
+        self.conversation.clocks.thinking_start = None;
         // Nothing was thought — no phase open (the display is off), or one that
         // streamed no text. Drop it and leave the reply alone: flushing its
         // segment would split the paragraph in two for a cell that will never
         // be recorded.
         if self
+            .conversation
             .app
             .reasoning()
             .is_none_or(|text| text.trim().is_empty())
         {
-            self.app.finish_reasoning(secs);
+            self.conversation.app.finish_reasoning(secs);
             return;
         }
         let width = self.screen.screen().width;
@@ -767,14 +811,14 @@ impl Session<'_> {
         // Esc/error mid-phase, and for a phase whose block never showed.
         self.flush_segment(committing, width);
         self.view.render.reset();
-        let Some(reasoning) = self.app.finish_reasoning(secs) else {
+        let Some(reasoning) = self.conversation.app.finish_reasoning(secs) else {
             return;
         };
         // A thought settled inside an open read/search group is held with it:
         // part of the work its line stands for, which commits alone when the
         // group closes — the thought shows only in Ctrl+O
         // (docs/ui/tool-groups.md *Thoughts*).
-        if self.app.tool_group_range().is_some() {
+        if self.conversation.app.tool_group_range().is_some() {
             return;
         }
         if committing {
@@ -795,13 +839,14 @@ impl Session<'_> {
         // Text is no part of an open read/search group: the group closes
         // before the text is recorded behind it (docs/ui/tool-groups.md).
         if self
+            .conversation
             .app
             .streaming_text()
             .is_some_and(|text| !text.trim().is_empty())
         {
             self.close_tool_group(committing, width);
         }
-        if let Some(segment) = self.app.flush_streaming_segment()
+        if let Some(segment) = self.conversation.app.flush_streaming_segment()
             && committing
         {
             self.screen
@@ -819,10 +864,11 @@ impl Session<'_> {
     /// the group closes: whatever comes next is no read.
     fn close_group_unless_the_front_reads(&mut self, committing: bool, width: u16) {
         let joins = self
+            .conversation
             .app
             .tool_queue()
             .front()
-            .is_some_and(|call| group_kind(call, self.app.path_display()).is_some());
+            .is_some_and(|call| group_kind(call, self.conversation.app.path_display()).is_some());
         if !joins {
             self.close_tool_group(committing, width);
         }
@@ -842,7 +888,8 @@ impl Session<'_> {
         // owns the clocks — docs/agents/agent-tool.md).
         if let StreamEvent::AgentBatch { agents, .. } = &event {
             for spec in agents {
-                self.agent_clocks
+                self.conversation
+                    .agent_clocks
                     .insert(spec.id.clone(), std::time::Instant::now());
             }
         }
@@ -892,15 +939,15 @@ impl Session<'_> {
     /// it. The caller returns `true` from the event arm, so
     /// `dispatch_after_turn` still snapshots and drains the queue.
     fn prompt_blocked(&mut self, reason: &str) {
-        self.app.block_prompt(reason);
+        self.conversation.app.block_prompt(reason);
         self.view.render.reset();
-        self.clocks.command_start = None;
+        self.conversation.clocks.command_start = None;
         // The hook answers on the backend thread, so the block can land while
         // an alternate-screen overlay covers the inline view (the user hit
         // Ctrl+O right after Enter): a reflow now would write onto the alt
         // screen, so defer — the flag makes the overlay's return take the
         // purge-rebuild this rollback needs (history shrank).
-        if self.app.view != zeroth::app::View::Conversation {
+        if self.conversation.app.view != zeroth::app::View::Conversation {
             self.overlay_resized = true;
             return;
         }
@@ -919,11 +966,11 @@ impl Session<'_> {
     /// view open the main conversation is not on screen at all — leaving the
     /// view rebuilds it.
     fn retract_withdrawn_rows(&mut self) {
-        if self.app.view != View::Conversation {
+        if self.conversation.app.view != View::Conversation {
             self.overlay_resized = true;
             return;
         }
-        if self.app.agent_view.is_some() {
+        if self.conversation.app.agent_view.is_some() {
             return;
         }
         // Best-effort, `prompt_blocked`'s rule.

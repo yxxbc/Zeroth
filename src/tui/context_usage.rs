@@ -17,23 +17,28 @@ impl Session<'_> {
     /// pointer copy and a few hashes when nothing changed, nothing at all
     /// while the page is closed.
     pub(crate) fn sync_context_usage(&mut self) {
-        if self.app.context_usage.is_none() {
+        if self.conversation.app.context_usage.is_none() {
             return;
         }
         match self
+            .conversation
             .app
             .viewed_agent()
             .map(|agent| agent.agent_type.clone())
         {
             Some(agent_type) => {
-                let tools = self.models.backend().agent_tool_definitions(&agent_type);
-                self.app.set_agent_tool_definitions(tools);
+                let tools = self
+                    .conversation
+                    .models
+                    .backend()
+                    .agent_tool_definitions(&agent_type);
+                self.conversation.app.set_agent_tool_definitions(tools);
             }
             None => {
-                let tools = self.models.backend().tool_definitions();
-                self.app.set_tool_definitions(tools);
+                let tools = self.conversation.models.backend().tool_definitions();
+                self.conversation.app.set_tool_definitions(tools);
             }
         }
-        self.app.refresh_context_usage();
+        self.conversation.app.refresh_context_usage();
     }
 }

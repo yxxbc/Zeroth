@@ -43,7 +43,7 @@ impl Session<'_> {
     /// a failing request within one session.
     pub(crate) fn update_day_check(&mut self) {
         // A headless run has no card to show a newer release on.
-        if self.screen.is_headless() || !self.app.settings().update_check_active() {
+        if self.screen.is_headless() || !self.conversation.app.settings().update_check_active() {
             return;
         }
         if self.update_attempted.as_deref() == Some(host::utc_day().as_str()) {
@@ -55,7 +55,7 @@ impl Session<'_> {
     /// The `/settings` **Update check** row moved: record the choice in
     /// `update.json` and, if it was just turned on, take today's step.
     pub(crate) fn apply_update_setting(&mut self) {
-        let enabled = self.app.settings().update_check;
+        let enabled = self.conversation.app.settings().update_check;
         config::update_update_file(config::update_json_path().as_deref(), |file| {
             file.enabled = enabled;
         });
@@ -81,8 +81,8 @@ impl Session<'_> {
     /// loop bottom, so a card deferred by a running turn lands right after it.
     pub(crate) fn flush_pending_update_notice(&mut self) {
         if self.update_notice_pending.is_none()
-            || self.inflight.is_some()
-            || self.app.is_streaming()
+            || self.conversation.inflight.is_some()
+            || self.conversation.app.is_streaming()
             || !self.commits_allowed()
         {
             return;
@@ -111,7 +111,7 @@ impl Session<'_> {
     /// row — goes through here. Silent and side-effect-free when the check
     /// is not active, so the callers need no guard of their own.
     fn update_tick(&mut self) {
-        if !self.app.settings().update_check_active() {
+        if !self.conversation.app.settings().update_check_active() {
             return;
         }
         let Some(path) = config::update_json_path() else {

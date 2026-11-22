@@ -322,7 +322,7 @@ impl Session<'_> {
         let home = std::env::var_os("HOME").map(PathBuf::from);
         let mut pages = Vec::new();
         if hooks
-            && self.models.hooks_enabled()
+            && self.conversation.models.hooks_enabled()
             && let Some(page) = self.trust.hooks_page(home.as_deref())
         {
             pages.push(page);
@@ -335,10 +335,10 @@ impl Session<'_> {
     /// opened — the caller holds a `[PROMPT]` the same way.
     pub(crate) fn open_startup_review(&mut self) -> bool {
         let pages = self.review_pages(true);
-        self.app.open_config_review(pages);
-        let open = self.app.config_review.is_some();
+        self.conversation.app.open_config_review(pages);
+        let open = self.conversation.app.config_review.is_some();
         if open {
-            self.models.hold_session_start();
+            self.conversation.models.hold_session_start();
         }
         open
     }
@@ -347,7 +347,7 @@ impl Session<'_> {
     /// over hooks that wait for trust.
     pub(crate) fn open_hooks_review(&mut self) {
         let pages = self.review_pages(true);
-        self.app.open_requested_review(pages);
+        self.conversation.app.open_requested_review(pages);
     }
 
     /// Apply one page's answer (`docs/state/config-review.md`), then — once the
@@ -359,7 +359,7 @@ impl Session<'_> {
         if let Err(error) = result {
             self.toast(error, ToastKind::Error);
         }
-        if self.app.config_review.is_none() {
+        if self.conversation.app.config_review.is_none() {
             self.finish_review();
         }
         self.frame.schedule_frame();
@@ -387,15 +387,17 @@ impl Session<'_> {
                 result = Err(error);
             }
         }
-        self.models.set_hooks_file(self.trust.runner_hooks());
+        self.conversation
+            .models
+            .set_hooks_file(self.trust.runner_hooks());
         result
     }
 
     /// The review has closed: fire the held `SessionStart` with the hooks it
     /// trusted, and submit a held `[PROMPT]` with those hooks active.
     fn finish_review(&mut self) {
-        self.models.release_session_start();
-        if let Some(prompt) = self.held_prompt.take() {
+        self.conversation.models.release_session_start();
+        if let Some(prompt) = self.conversation.held_prompt.take() {
             self.submit_startup_prompt(prompt);
         }
     }
@@ -409,7 +411,9 @@ impl Session<'_> {
             (Vec::new(), vec![identity])
         };
         let result = self.trust.record_hooks(source, &trust, &distrust);
-        self.models.set_hooks_file(self.trust.runner_hooks());
+        self.conversation
+            .models
+            .set_hooks_file(self.trust.runner_hooks());
         match result {
             Err(error) => self.toast(error, ToastKind::Error),
             Ok(()) if trusted => self.toast("Hook trusted — it runs from now on", ToastKind::Info),

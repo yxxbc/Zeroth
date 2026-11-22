@@ -25,27 +25,33 @@ impl Session<'_> {
     /// row already (`docs/providers/user-providers.md`).
     pub(crate) fn open_key_onboarding(&mut self) {
         self.reload_providers();
-        let providers = self.models.provider_choices();
-        let subscriptions = self.models.subscription_choices();
-        let locals = self.models.local_choices();
-        let env_path = self.models.env_path_display().to_string();
-        self.app
+        let providers = self.conversation.models.provider_choices();
+        let subscriptions = self.conversation.models.subscription_choices();
+        let locals = self.conversation.models.local_choices();
+        let env_path = self.conversation.models.env_path_display().to_string();
+        self.conversation
+            .app
             .open_key_onboarding(providers, subscriptions, locals, env_path);
     }
 
     pub(crate) fn open_logout(&mut self) {
         self.cancel_device_login();
         self.open_key_onboarding();
-        self.app
-            .open_connection_manager(self.models.connection_choices());
+        self.conversation
+            .app
+            .open_connection_manager(self.conversation.models.connection_choices());
     }
 
     pub(crate) fn logout_provider(&mut self, provider: &str) -> std::io::Result<()> {
         let active = self
+            .conversation
             .models
             .active_provider()
-            .is_some_and(|active| self.models.key_env(active) == self.models.key_env(provider));
-        let (name, tokens) = match self.models.disconnect_provider(provider) {
+            .is_some_and(|active| {
+                self.conversation.models.key_env(active)
+                    == self.conversation.models.key_env(provider)
+            });
+        let (name, tokens) = match self.conversation.models.disconnect_provider(provider) {
             Ok(result) => result,
             Err(reason) => {
                 self.toast(reason, ToastKind::Error);
@@ -57,14 +63,14 @@ impl Session<'_> {
             forget_auth(&token);
         }
         if active {
-            self.agent_registry.kill_all();
-            self.registry.kill_all();
-            self.registry.clear_notices();
-            if self.app.turn_active() {
+            self.conversation.agent_registry.kill_all();
+            self.conversation.registry.kill_all();
+            self.conversation.registry.clear_notices();
+            if self.conversation.app.turn_active() {
                 self.interrupt_for_logout()?;
             }
         }
-        self.app.close_key_onboarding();
+        self.conversation.app.close_key_onboarding();
         self.sync_backend_info();
         self.toast(
             format!("Disconnected {name} — run /login to reconnect"),
@@ -79,7 +85,9 @@ impl Session<'_> {
     /// once, with no request made. See `docs/providers/local-models.md`.
     pub(crate) fn test_local_server(&mut self, provider: &str, test: ServerTest) {
         self.cancel_device_login();
-        let Some((name, example, cfg)) = self.models.local_test_config(provider, &test) else {
+        let Some((name, example, cfg)) =
+            self.conversation.models.local_test_config(provider, &test)
+        else {
             let verdict =
                 llm::local::Verdict::Failed(format!("{provider} is no longer a provider."));
             self.finish_server_test(&test, verdict);
@@ -91,8 +99,15 @@ impl Session<'_> {
             return;
         };
         let cancel = CancelToken::new();
-        self.device_cancel = Some(cancel.clone());
-        spawn_server_test(cfg, name, label, test, cancel, self.device_tx.clone());
+        self.conversation.device_cancel = Some(cancel.clone());
+        spawn_server_test(
+            cfg,
+            name,
+            label,
+            test,
+            cancel,
+            self.conversation.device_tx.clone(),
+        );
     }
 
     /// A connection test's verdict reached the page. A pass closes the flow
@@ -105,12 +120,12 @@ impl Session<'_> {
         // a test has no ticking chain of its own, unlike a sign-in's
         // countdown.
         self.frame.schedule_frame();
-        let Some(save) = self.app.finish_server_test(test, verdict) else {
+        let Some(save) = self.conversation.app.finish_server_test(test, verdict) else {
             return;
         };
         self.cancel_device_login();
         for (var, value) in &save.env {
-            if let Err(reason) = self.models.save_api_key(var, value) {
+            if let Err(reason) = self.conversation.models.save_api_key(var, value) {
                 self.toast(reason, ToastKind::Error);
                 return;
             }
@@ -121,7 +136,11 @@ impl Session<'_> {
         let overridden: Vec<String> = save
             .env
             .iter()
-            .filter(|(var, value)| self.models.exported_overrides(&save.provider, var, value))
+            .filter(|(var, value)| {
+                self.conversation
+                    .models
+                    .exported_overrides(&save.provider, var, value)
+            })
             .map(|(var, _)| var.clone())
             .collect();
         match save.overridden_notice(&overridden) {
@@ -140,13 +159,14 @@ impl Session<'_> {
         // The row's auth scheme decides which sign-in runs: a row's id is
         // whatever the provider file named it, and two rows can share one
         // sign-in.
-        let Some(auth) = self.models.subscription_auth(provider) else {
-            self.app
+        let Some(auth) = self.conversation.models.subscription_auth(provider) else {
+            self.conversation
+                .app
                 .fail_device_login(format!("{provider} has no subscription sign-in."));
             return;
         };
         let cancel = CancelToken::new();
-        self.device_cancel = Some(cancel.clone());
+        self.conversation.device_cancel = Some(cancel.clone());
         // Name any ambient variable that would hijack the credential, if
         // there is one (`docs/providers/antigravity.md`). The reachability
         // probe is NOT run here: it is a blocking HTTP request, and this is
@@ -155,7 +175,7 @@ impl Session<'_> {
         // The sign-in worker runs it before it opens the browser page and
         // reports an unreachable Google as `Done(Err(..))`, which paints the
         // reason on the page the core already opened.
-        if self.models.subscription_auth(provider)
+        if self.conversation.models.subscription_auth(provider)
             == Some(zeroth::llm::config::AuthScheme::GoogleAntigravity)
         {
             let ambient = llm::antigravity::ambient_google_keys_present();
@@ -171,17 +191,27 @@ impl Session<'_> {
         }
         // The Antigravity sign-in sets the account up on the provider's own
         // host; every other flow ignores it.
-        let base = self.models.subscription_base(provider).unwrap_or_default();
-        spawn_signin(auth, kind, base, cancel, self.device_tx.clone());
+        let base = self
+            .conversation
+            .models
+            .subscription_base(provider)
+            .unwrap_or_default();
+        spawn_signin(
+            auth,
+            kind,
+            base,
+            cancel,
+            self.conversation.device_tx.clone(),
+        );
     }
 
     /// Reap a running device flow's worker, if any. Idempotent — Esc, Ctrl+C
     /// and a completed flow all land here.
     pub(crate) fn cancel_device_login(&mut self) {
-        if let Some(cancel) = self.device_cancel.take() {
+        if let Some(cancel) = self.conversation.device_cancel.take() {
             cancel.cancel();
         }
-        self.device_expires = None;
+        self.conversation.device_expires = None;
     }
 
     /// `c` on the device page: copy the one-time code, and say so. The
@@ -208,15 +238,17 @@ impl Session<'_> {
                 user_code,
                 expires_at,
             } => {
-                self.device_expires = Some(expires_at);
-                self.app.set_device_code(&verification_uri, &user_code);
+                self.conversation.device_expires = Some(expires_at);
+                self.conversation
+                    .app
+                    .set_device_code(&verification_uri, &user_code);
             }
             DeviceEvent::Done(Ok((token, plan))) => {
                 self.finish_device_login(&token, plan.as_deref());
             }
             DeviceEvent::Done(Err(reason)) => {
                 self.cancel_device_login();
-                self.app.fail_device_login(reason);
+                self.conversation.app.fail_device_login(reason);
             }
             DeviceEvent::Tested { test, verdict } => self.finish_server_test(&test, verdict),
         }
@@ -229,6 +261,7 @@ impl Session<'_> {
     fn finish_device_login(&mut self, token: &str, plan: Option<&str>) {
         self.cancel_device_login();
         let Some(provider) = self
+            .conversation
             .app
             .key_onboarding
             .as_ref()
@@ -241,7 +274,7 @@ impl Session<'_> {
             return;
         };
         let (id, name) = provider;
-        let env_var = self.models.key_env(&id);
+        let env_var = self.conversation.models.key_env(&id);
         // Signing in again with the same account is how a user recovers from a
         // credential the provider has stopped honouring, so drop the cached one
         // rather than handing the next request the exact token they just
@@ -252,9 +285,13 @@ impl Session<'_> {
         llm::claude::forget(token);
         llm::cline::forget(token);
         llm::antigravity::forget(token);
-        match self.models.save_connection(&id, &env_var, token) {
+        match self
+            .conversation
+            .models
+            .save_connection(&id, &env_var, token)
+        {
             Ok(()) => {
-                self.app.close_key_onboarding();
+                self.conversation.app.close_key_onboarding();
                 // Name the seat when the exchange did: "Signed in ✓" leaves
                 // open the one thing the user wants to know, and a metered
                 // free seat's remaining quota is better said now than met as
@@ -267,7 +304,7 @@ impl Session<'_> {
             }
             // The sign-in worked but the store didn't: say so on the page,
             // which is still the only place the failure makes sense.
-            Err(reason) => self.app.fail_device_login(reason),
+            Err(reason) => self.conversation.app.fail_device_login(reason),
         }
     }
 }

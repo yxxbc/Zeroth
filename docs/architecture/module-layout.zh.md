@@ -133,6 +133,7 @@
 | `background.rs` | 后台 shell 事件与 `settle_bg_completions`（`docs/tools/background.md`）。 |
 | `permission.rs` | `PermissionStore` —— permission gate、它的文件、本项目的键 —— 以及 prompt 的答案（`docs/state/permissions.md`）。 |
 | `ask.rs` | `AskUserQuestion` 空闲时钟的边界一半：每次按键、粘贴和绘制都把 `Instant::now()` 送进纯的 `ask::AskTimer`，以及使等待中的问题以未作答状态结束的到期（`docs/tools/ask.md`）。 |
+| `conversation.rs` | `Conversation`：一个对话的运行时 —— 模型、通道、注册表、store、时钟和运行中的回合 —— 在屏幕和视图旁边（`core-host-split.md` 第 3 阶段）。 |
 | `screen.rs` | `Screen` 接缝：inline / 全屏 / 无头是同一个 viewport 之上的一个 enum，以及循环问它的那些模式问题（`docs/architecture/core-host-split.md` 第 2 阶段）。 |
 | `view.rs` | 绘制：draw tick、各 overlay、各次重绘、`live_region_height`、注入的时钟，以及帧从 `App` 推导出的 `ConversationView` 状态（`core-host-split.md` 第 1 阶段）。 |
 | `commit.rs` | Scrollback 提交 —— invariant 4 唯一被强制执行的地方 —— 以及 toast。 |

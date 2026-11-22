@@ -2,9 +2,10 @@
 
 Date: 2026-11-23
 
-Status: **in progress**. Phase 1 (`ConversationView`) and Phase 2 (the `Screen`
-seam) are done (2026-11-23). Phase 3 waits on the user's go-ahead; Phase 4 also
-needs its product trigger. The decision this plan extends — and deliberately
+Status: **in progress**. Phase 1 (`ConversationView`), Phase 2 (the `Screen`
+seam) and Phase 3's state move are done (2026-11-23): `Session` holds 23 fields,
+`Conversation` holds 63, `ConversationView` 29. Phase 3's per-area method moves
+continue; Phase 4 needs its product trigger. The decision this plan extends — and deliberately
 does **not** overturn — is [`core-seam-decision.md`](core-seam-decision.md).
 
 ## The question
@@ -152,7 +153,7 @@ permission prompts) and must stay green.
 **Rollback**: land it whole; a per-mode flag to choose the old path is the
 "half-built seam" the decision page forbids. Revert the series if it regresses.
 
-### Phase 3 — `Conversation` (the runtime), `Workspace` (the table)
+### Phase 3 — `Conversation` (the runtime), `Workspace` (the table) — state landed 2026-11-23
 
 **What**: group the non-terminal, per-conversation fields of `Session` —
 `models`, the nine channels, the registries and stores, the clocks, the
@@ -171,6 +172,11 @@ terminal by accident.
 owns an `impl Session` block whose methods touch only conversation state (29
 files — moved in batches, per area, each batch its own commit), `src/tui/event_loop.rs`
 (the loop borrows the conversation, not the session, for arms that do not draw).
+**As landed**: the 63 per-conversation fields (the model, the channels, the
+registries, stores, clocks, the in-flight handles, the cwd) are
+`Conversation`'s; `Session` is the screen, the view, the run's terminal facts
+and the process-level ones — 23 fields. The handlers still reach through
+`self.conversation`, and the per-area method moves follow.
 
 **Invariants**: the borrow split must keep every `select!` future borrowing a
 **distinct field** (the comment on the channel fields is the contract); no

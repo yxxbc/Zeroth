@@ -25,7 +25,7 @@ impl Session<'_> {
     pub(crate) fn select_spinner(&mut self, spinner: Spinner) {
         config::save_look(
             config::spinner_json_path().as_deref(),
-            &self.cwd.display().to_string(),
+            &self.conversation.cwd.display().to_string(),
             spinner,
         );
         self.toast(format!("Spinner: {}", spinner.name()), ToastKind::Info);

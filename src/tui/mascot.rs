@@ -28,7 +28,7 @@ impl Session<'_> {
     pub(crate) fn select_mascot(&mut self, mascot: Mascot) -> io::Result<()> {
         config::save_look(
             config::mascot_json_path().as_deref(),
-            &self.cwd.display().to_string(),
+            &self.conversation.cwd.display().to_string(),
             mascot,
         );
         self.toast(format!("Mascot: {}", mascot.name()), ToastKind::Info);

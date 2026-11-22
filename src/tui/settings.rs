@@ -48,7 +48,7 @@ impl Session<'_> {
     /// at all).
     pub(crate) fn open_settings(&mut self) {
         self.sync_setting_availability();
-        self.app.open_settings();
+        self.conversation.app.open_settings();
     }
 
     /// `/hooks`: open the hooks browser (`docs/tools/hooks-menu.md`). The pure
@@ -60,7 +60,7 @@ impl Session<'_> {
     pub(crate) fn open_hooks_menu(&mut self) {
         let overview = zeroth::hooks::HooksOverview::from_file(&self.trust.configured_hooks())
             .with_trust(&|source, identity| self.trust.is_hook_trusted(source, identity));
-        let enabled = self.models.hooks_enabled();
+        let enabled = self.conversation.models.hooks_enabled();
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
         let mut source = zeroth::llm::hooks::hooks_file_path(config::config_home().as_deref())
             .map(|path| zeroth::ui::display_cwd(&path, home.as_deref()));
@@ -79,7 +79,9 @@ impl Session<'_> {
                 None => project,
             });
         }
-        self.app.open_hooks_menu(overview, source, enabled);
+        self.conversation
+            .app
+            .open_hooks_menu(overview, source, enabled);
     }
 
     /// `/skills`: open the inline skills browser (`docs/tools/skills.md`). The same
@@ -97,15 +99,17 @@ impl Session<'_> {
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
         // The same resolver the startup walk used, so the menu can only ever
         // name directories that were actually read.
-        let roots =
-            zeroth::llm::skill::resolved_skill_roots(&self.cwd, config::config_home().as_deref())
-                .iter()
-                .map(|root| zeroth::ui::display_cwd(root, home.as_deref()))
-                .collect();
-        self.app.open_skills_menu(
-            self.skill_registry.snapshot(),
-            self.skill_registry.disabled(),
-            self.app.settings().skills_active(),
+        let roots = zeroth::llm::skill::resolved_skill_roots(
+            &self.conversation.cwd,
+            config::config_home().as_deref(),
+        )
+        .iter()
+        .map(|root| zeroth::ui::display_cwd(root, home.as_deref()))
+        .collect();
+        self.conversation.app.open_skills_menu(
+            self.conversation.skill_registry.snapshot(),
+            self.conversation.skill_registry.disabled(),
+            self.conversation.app.settings().skills_active(),
             roots,
         );
     }
@@ -133,17 +137,21 @@ impl Session<'_> {
     /// skill appeared still carried no `<system-reminder>` — the listing
     /// arrived a turn late, which reads exactly like the rescan not working.
     pub(crate) fn rescan_skills(&mut self) {
-        let (skills, errors) =
-            zeroth::llm::skill::load_skills(&self.cwd, config::config_home().as_deref());
-        self.skill_registry.replace(skills);
+        let (skills, errors) = zeroth::llm::skill::load_skills(
+            &self.conversation.cwd,
+            config::config_home().as_deref(),
+        );
+        self.conversation.skill_registry.replace(skills);
         self.sync_setting_availability();
         self.sync_listings();
-        self.models.refresh_skills();
+        self.conversation.models.refresh_skills();
         // A `SKILL.md` that stopped parsing says so — once. Silence here is
         // what makes "the model ignores my skill" and "I typo'd the
         // frontmatter" read as two unrelated problems.
-        let fresh = zeroth::skills::unreported_errors(&self.reported_skill_errors, &errors);
-        self.reported_skill_errors = errors.iter().map(|error| error.path.clone()).collect();
+        let fresh =
+            zeroth::skills::unreported_errors(&self.conversation.reported_skill_errors, &errors);
+        self.conversation.reported_skill_errors =
+            errors.iter().map(|error| error.path.clone()).collect();
         self.report_skill_errors(&fresh);
     }
 
@@ -162,14 +170,16 @@ impl Session<'_> {
     pub(crate) fn rescan_agents(&mut self) {
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
         let (agents, errors) = zeroth::llm::subagent::load_agents(
-            &self.cwd,
+            &self.conversation.cwd,
             config::config_home().as_deref(),
             home.as_deref(),
         );
-        self.subagents.replace(agents);
+        self.conversation.subagents.replace(agents);
         self.sync_listings();
-        let fresh = zeroth::subagents::unreported_errors(&self.reported_agent_errors, &errors);
-        self.reported_agent_errors = errors.iter().map(|error| error.path.clone()).collect();
+        let fresh =
+            zeroth::subagents::unreported_errors(&self.conversation.reported_agent_errors, &errors);
+        self.conversation.reported_agent_errors =
+            errors.iter().map(|error| error.path.clone()).collect();
         self.report_agent_errors(&fresh);
     }
 
@@ -185,20 +195,22 @@ impl Session<'_> {
     pub(crate) fn apply_skill_toggle(&mut self, name: &str, enabled: bool) {
         // Set rather than flip: the menu already decided, and re-deriving the
         // state here is how the two copies would come to disagree.
-        let mut disabled = self.skill_registry.disabled();
+        let mut disabled = self.conversation.skill_registry.disabled();
         if enabled {
             disabled.remove(name);
         } else {
             disabled.insert(name.to_string());
         }
-        self.skill_registry.set_disabled(disabled.clone());
+        self.conversation
+            .skill_registry
+            .set_disabled(disabled.clone());
         self.sync_listings();
         // The tool set is decided at attach time, so the rebuild is what
         // withdraws (or restores) the spec when the last skill goes off/on.
-        self.models.refresh_skills();
+        self.conversation.models.refresh_skills();
         config::save_skills_file(
             config::skills_json_path().as_deref(),
-            &self.cwd.display().to_string(),
+            &self.conversation.cwd.display().to_string(),
             &disabled,
         );
         let state = if enabled { "enabled" } else { "disabled" };
@@ -209,22 +221,24 @@ impl Session<'_> {
     /// pattern), so an unavailable row says so instead of offering a toggle
     /// that does nothing.
     pub(crate) fn sync_setting_availability(&mut self) {
-        self.app.set_setting_availability(SettingAvailability {
-            checkpoints: self.checkpoints.is_capable(),
-            // Anything configured, trusted or not: the row is what lets the
-            // trusted ones run and the untrusted ones be asked about
-            // (`docs/state/config-review.md`).
-            hooks: !self.trust.configured_hooks().is_empty(),
-            // Nothing to toggle when no `SKILL.md` loaded (`docs/tools/skills.md`).
-            skills: !self.skill_registry.is_empty(),
-            // Whether this terminal can draw a picture (`docs/ui/images.md`).
-            images: self.screen.image_capability().0,
-            // Nowhere to remember the day without a config home — and
-            // nothing to turn on when the environment forbade it
-            // (`docs/ops/update.md`).
-            update_check: config::update_json_path().is_some()
-                && !config::update_check_forbidden_by_env(),
-        });
+        self.conversation
+            .app
+            .set_setting_availability(SettingAvailability {
+                checkpoints: self.conversation.checkpoints.is_capable(),
+                // Anything configured, trusted or not: the row is what lets the
+                // trusted ones run and the untrusted ones be asked about
+                // (`docs/state/config-review.md`).
+                hooks: !self.trust.configured_hooks().is_empty(),
+                // Nothing to toggle when no `SKILL.md` loaded (`docs/tools/skills.md`).
+                skills: !self.conversation.skill_registry.is_empty(),
+                // Whether this terminal can draw a picture (`docs/ui/images.md`).
+                images: self.screen.image_capability().0,
+                // Nowhere to remember the day without a config home — and
+                // nothing to turn on when the environment forbade it
+                // (`docs/ops/update.md`).
+                update_check: config::update_json_path().is_some()
+                    && !config::update_check_forbidden_by_env(),
+            });
     }
 
     /// Publish the session's image policy — the three `/settings` rows over
@@ -239,7 +253,7 @@ impl Session<'_> {
     /// downscale before uploading.
     pub(crate) fn sync_image_policy(&mut self) {
         let (available, font, protocol) = self.screen.image_capability();
-        let settings = self.app.settings();
+        let settings = self.conversation.app.settings();
         images::set_policy(ImagePolicy {
             show: settings.show_images,
             max_cols: settings.image_width,
@@ -264,7 +278,7 @@ impl Session<'_> {
     /// A rebuild here rebinds the **next** turn's backend — the running one
     /// streams on its own thread, untouched (the `/model` switch's rule).
     pub(crate) fn apply_setting(&mut self, key: SettingKey) -> io::Result<()> {
-        let settings = *self.app.settings();
+        let settings = *self.conversation.app.settings();
         // The two display rows change how many rows every committed picture
         // occupies, so the conversation has to be rebuilt from history for
         // the change to be visible at all — the `/mascot` switch's rule, and
@@ -279,34 +293,45 @@ impl Session<'_> {
             // `<system-reminder>` that names it leaves the model hunting for
             // a tool it was told it had (`docs/tools/skills.md`).
             SettingKey::Tools => {
-                self.models.set_tools(settings.tools);
+                self.conversation.models.set_tools(settings.tools);
                 self.sync_listings();
             }
             // The retry budget rides every round of every turn — the main
             // one's and a subagent's.
-            SettingKey::ErrorRetry => self.models.set_max_retries(settings.error_retry),
-            SettingKey::Temperature => self.models.set_temperature(settings.temperature),
+            SettingKey::ErrorRetry => self
+                .conversation
+                .models
+                .set_max_retries(settings.error_retry),
+            SettingKey::Temperature => self
+                .conversation
+                .models
+                .set_temperature(settings.temperature),
             // The tool-round ceiling a turn runs under (0 = none).
-            SettingKey::MaxToolCalls => self.models.set_max_tool_calls(settings.max_tool_calls),
+            SettingKey::MaxToolCalls => self
+                .conversation
+                .models
+                .set_max_tool_calls(settings.max_tool_calls),
             // The store keeps its own enabled flag (it can only ever turn a
             // *capable* store on or off — docs/state/checkpoint.md).
             SettingKey::Checkpoints => {
-                self.checkpoints.set_enabled(settings.checkpoints_active());
+                self.conversation
+                    .checkpoints
+                    .set_enabled(settings.checkpoints_active());
             }
             // Reload (or drop) the project's AGENTS.md right away, so Ctrl+D
             // shows the change before the next turn re-reads it.
             SettingKey::ProjectDocs => {
                 let instructions = settings
                     .project_docs
-                    .then(|| project_doc::load_user_instructions(&self.cwd))
+                    .then(|| project_doc::load_user_instructions(&self.conversation.cwd))
                     .flatten();
-                self.app.set_user_instructions(instructions);
+                self.conversation.app.set_user_instructions(instructions);
             }
             // The hook sink is attached per backend build, so flipping the
             // row rebuilds — the next turn genuinely stops (or starts)
             // consulting them (docs/tools/hooks.md).
             SettingKey::Hooks => {
-                self.models.set_hooks(settings.hooks_active());
+                self.conversation.models.set_hooks(settings.hooks_active());
                 // Turned on over hooks that wait for trust: ask now, rather
                 // than leaving them silent until the next launch
                 // (`docs/state/config-review.md`).
@@ -318,7 +343,9 @@ impl Session<'_> {
             // context, so flipping the row does both — the next turn genuinely
             // stops (or starts) knowing about skills (`docs/tools/skills.md`).
             SettingKey::Skills => {
-                self.models.set_skills(settings.skills_active());
+                self.conversation
+                    .models
+                    .set_skills(settings.skills_active());
                 self.sync_listings();
             }
             // The picture geometry: republish the policy, drop the encoded
@@ -331,7 +358,7 @@ impl Session<'_> {
                 // without changing history — so a warm cache would keep
                 // serving rows that still reserve a picture the inline view
                 // just dropped (`docs/ui/images.md`).
-                self.app.invalidate_rendered_history();
+                self.conversation.app.invalidate_rendered_history();
                 rebuild = true;
             }
             // Read by the `read` executor per call — nothing to redraw, since
@@ -374,12 +401,12 @@ impl Session<'_> {
         if !matches!(key, SettingKey::Tips) {
             config::save_setting(
                 self.settings_path.as_deref(),
-                &self.cwd.display().to_string(),
+                &self.conversation.cwd.display().to_string(),
                 key,
                 &settings,
             );
         }
-        let value = settings.value_text(key, self.app.permission_mode());
+        let value = settings.value_text(key, self.conversation.app.permission_mode());
         self.toast(format!("{}: {value}", key.label()), ToastKind::Info);
         // After the toast, so the rebuilt frame already carries it (the
         // `/mascot` switch's ordering).
