@@ -60,7 +60,9 @@ impl Session<'_> {
                 description,
                 agent_type,
                 prompt,
-            } => self.on_agent_resumed(&id, &description, &agent_type, &prompt),
+            } => self
+                .conversation
+                .on_agent_resumed(&id, &description, &agent_type, &prompt),
         }
     }
 
@@ -86,19 +88,6 @@ impl Session<'_> {
                 .agent_expiry
                 .insert(id.to_string(), Instant::now() + linger);
         }
-    }
-
-    /// The lead resumed `id` with `agentsend`: its row comes back — or, still
-    /// lingering, stays — and its clock starts over for the continuation,
-    /// whose first round announces the message (`docs/agents/agent-tools.md`).
-    fn on_agent_resumed(&mut self, id: &str, description: &str, agent_type: &str, prompt: &str) {
-        self.conversation
-            .app
-            .resume_agent(id, description, agent_type, prompt);
-        self.conversation
-            .agent_clocks
-            .insert(id.to_string(), Instant::now());
-        self.conversation.agent_expiry.remove(id);
     }
 
     /// Fold one subagent event into its roster entry, committing to the screen
@@ -157,7 +146,8 @@ impl Session<'_> {
         // (`/settings` **Hide thinking**, read per phase like the main
         // session's) — open the agent's reasoning buffer below, which is the
         // whole gate. See `docs/agents/agent-view-streaming.md`.
-        let opening = matches!(event, StreamEvent::ThinkingStart) && self.show_thinking();
+        let opening =
+            matches!(event, StreamEvent::ThinkingStart) && self.conversation.show_thinking();
         if matches!(event, StreamEvent::ThinkingStart) {
             self.conversation
                 .agent_thinking_clocks
@@ -327,7 +317,7 @@ impl Session<'_> {
             // The user's queued message starting a settled agent again, which
             // the lead hears too (docs/agents/agent-tools.md) — not a run's end,
             // which arrives as its settle, naming the run.
-            self.hold_agent_note(notice, id, None);
+            self.conversation.hold_agent_note(notice, id, None);
         }
         // Held until the lead reads the note (`StreamEvent::NoticeDelivered`),
         // so its cell lands where the lead heard it (docs/tools/background.md).
@@ -345,43 +335,6 @@ impl Session<'_> {
             self.conversation
                 .agent_expiry
                 .insert(id.to_string(), Instant::now() + linger);
-        }
-    }
-
-    /// Put `notice` on the shared board for the lead, tagged with agent `id`
-    /// so a report of its answer can take it back, and hold its cell until
-    /// the lead reads it (docs/tools/background.md *Where a notice lands*). A
-    /// completion is a note whose unread presence at a turn's end starts the
-    /// follow-up turn; a [`resumed`](AgentNotice::resumed) one is not — the
-    /// run it announces has nothing to answer yet, and its own completion
-    /// notice brings that turn — and the registry posts it only while that
-    /// run is going: one already over, or stopped by the lead, owes neither
-    /// the note nor its cell (docs/agents/agent-tools.md *A resume is news when it
-    /// starts*).
-    ///
-    /// A completion is tagged with `run`, the run it ended — for the user's
-    /// stop, the run `kill` reported — never with whichever run is going when
-    /// it posts (docs/agents/agent-tools.md *A report covers one run*). An end that reached
-    /// the loop without its settle, which no backend sends, goes untagged: a
-    /// report never takes it back, so the lead may read that answer twice,
-    /// but never under another run's number.
-    fn hold_agent_note(&mut self, notice: AgentNotice, id: &str, run: Option<u64>) {
-        let context = notice.context_text();
-        let posted = if notice.resumed {
-            self.conversation.agent_registry.post_resume_notice(
-                id,
-                &self.conversation.registry,
-                context,
-            )
-        } else {
-            Some(
-                self.conversation
-                    .registry
-                    .post_agent_notice(context, id, run),
-            )
-        };
-        if let Some(seq) = posted {
-            self.conversation.app.defer_agent_notice(notice, Some(seq));
         }
     }
 
@@ -442,40 +395,13 @@ impl Session<'_> {
             .map_or(0, |run| run.history.len())
     }
 
-    /// The viewed agent when the turn is about to settle it *locally* — it is
-    /// a member of the live foreground group `App::resolve_live_agent_group`
-    /// interrupts on a backend error or an Esc. `None` whenever no agent view
-    /// is open, the viewed agent is not in that group, or it has already
-    /// settled: nothing is being taken from under the screen, so the view
-    /// owes nothing.
-    fn viewed_agent_losing_its_turn(&self) -> Option<String> {
-        // Only a turn that is actually in flight reaches
-        // `App::resolve_live_agent_group` — both `fail_stream` and
-        // `interrupt_turn` return early otherwise, and a pre-fold flush with
-        // no settle behind it would reset the render while the buffer still
-        // held its text, re-committing the whole reply on the next chunk.
-        if !self.conversation.app.is_streaming() && !self.conversation.app.turn_active() {
-            return None;
-        }
-        let id = self.conversation.app.agent_view.clone()?;
-        let live = self.conversation.app.agent_group()?;
-        if !live.ids.contains(&id) {
-            return None;
-        }
-        self.conversation
-            .app
-            .agent(&id)
-            .filter(|run| !run.status.is_final())
-            .map(|_| id)
-    }
-
     /// [`begin_local_agent_settle`](Session::begin_local_agent_settle) for the
     /// viewed agent when a turn-level resolution is about to take its group
     /// down — the backend `Error` arm and the Esc interrupt. Returns what the
     /// matching [`Session::finish_turn_agent_settle`] needs, or `None` when
     /// nothing on screen is being settled.
     pub(crate) fn begin_turn_agent_settle(&mut self, width: u16) -> Option<(String, usize)> {
-        let id = self.viewed_agent_losing_its_turn()?;
+        let id = self.conversation.viewed_agent_losing_its_turn()?;
         let recorded = self.begin_local_agent_settle(&id, width);
         Some((id, recorded))
     }
@@ -489,13 +415,6 @@ impl Session<'_> {
         {
             self.commit_agent_tail(recorded, width);
         }
-    }
-
-    /// Is the thinking display on? The `/settings` **Hide thinking** knob,
-    /// read per phase — so flipping it mid-session takes effect on the very
-    /// next one, exactly as the main session reads it (`docs/state/settings.md`).
-    fn show_thinking(&self) -> bool {
-        self.conversation.app.settings().show_thinking()
     }
 
     /// Close one subagent's thinking phase: record its `Thought for … · …
@@ -667,30 +586,6 @@ impl Session<'_> {
         }
     }
 
-    /// A foreground group's members are settled — arm their linger sweeps (a
-    /// background group's keep running).
-    pub(crate) fn settle_group_members(&mut self, ids: Vec<String>) {
-        let now = Instant::now();
-        for id in ids {
-            self.conversation.agent_clocks.remove(&id);
-            // `or_insert`: a member the user already stopped is counting down
-            // its own (longer) linger — the group's resolution must not
-            // restart it, let alone shorten it to the natural one.
-            if let Some(linger) = self
-                .conversation
-                .app
-                .agent(&id)
-                .filter(|run| run.status.is_final())
-                .map(|run| run.linger())
-            {
-                self.conversation
-                    .agent_expiry
-                    .entry(id)
-                    .or_insert(now + linger);
-            }
-        }
-    }
-
     /// `x` on a roster row — the stop, then the clear (`docs/agents/agent-tool.md`).
     ///
     /// The **first** `x` cancels the subagent thread and settles the entry as
@@ -743,7 +638,8 @@ impl Session<'_> {
                         // every completion of its: an `agentoutput` that
                         // reports the stop first takes the note back
                         // (docs/agents/agent-tools.md *One notice per answer*).
-                        self.hold_agent_note(notice, id, Some(stop.run));
+                        self.conversation
+                            .hold_agent_note(notice, id, Some(stop.run));
                         if !self.conversation.app.turn_active() {
                             self.dispatch_after_turn();
                         }
@@ -778,7 +674,7 @@ impl Session<'_> {
         // `agents/*.md` body replaces the persona per type, and its `tools:`
         // decides whether it was briefed at all — so both are resolved on
         // entry rather than once at startup (`docs/agents/subagents.md`).
-        self.sync_agent_view_context();
+        self.conversation.sync_agent_view_context();
         self.repaint_agent_view()
     }
 
@@ -841,7 +737,7 @@ impl Session<'_> {
                     .or_insert_with(Instant::now);
                 self.conversation.agent_expiry.remove(id);
                 if let Some(notice) = resumed {
-                    self.hold_agent_note(notice, id, None);
+                    self.conversation.hold_agent_note(notice, id, None);
                 }
                 // Idle: settle what is held now — the resume, which starts no
                 // turn of its own, and any end the drain folded — as the
@@ -994,5 +890,99 @@ impl Session<'_> {
             self.dispatch_after_turn();
         }
         self.frame.schedule_frame();
+    }
+}
+
+impl super::conversation::Conversation {
+    /// A foreground group's members are settled — arm their linger sweeps (a
+    /// background group's keep running).
+    pub(crate) fn settle_group_members(&mut self, ids: Vec<String>) {
+        let now = Instant::now();
+        for id in ids {
+            self.agent_clocks.remove(&id);
+            // `or_insert`: a member the user already stopped is counting down
+            // its own (longer) linger — the group's resolution must not
+            // restart it, let alone shorten it to the natural one.
+            if let Some(linger) = self
+                .app
+                .agent(&id)
+                .filter(|run| run.status.is_final())
+                .map(|run| run.linger())
+            {
+                self.agent_expiry.entry(id).or_insert(now + linger);
+            }
+        }
+    }
+
+    /// Is the thinking display on? The `/settings` **Hide thinking** knob,
+    /// read per phase — so flipping it mid-session takes effect on the very
+    /// next one, exactly as the main session reads it (`docs/state/settings.md`).
+    fn show_thinking(&self) -> bool {
+        self.app.settings().show_thinking()
+    }
+
+    /// The viewed agent when the turn is about to settle it *locally* — it is
+    /// a member of the live foreground group `App::resolve_live_agent_group`
+    /// interrupts on a backend error or an Esc. `None` whenever no agent view
+    /// is open, the viewed agent is not in that group, or it has already
+    /// settled: nothing is being taken from under the screen, so the view
+    /// owes nothing.
+    fn viewed_agent_losing_its_turn(&self) -> Option<String> {
+        // Only a turn that is actually in flight reaches
+        // `App::resolve_live_agent_group` — both `fail_stream` and
+        // `interrupt_turn` return early otherwise, and a pre-fold flush with
+        // no settle behind it would reset the render while the buffer still
+        // held its text, re-committing the whole reply on the next chunk.
+        if !self.app.is_streaming() && !self.app.turn_active() {
+            return None;
+        }
+        let id = self.app.agent_view.clone()?;
+        let live = self.app.agent_group()?;
+        if !live.ids.contains(&id) {
+            return None;
+        }
+        self.app
+            .agent(&id)
+            .filter(|run| !run.status.is_final())
+            .map(|_| id)
+    }
+
+    /// Put `notice` on the shared board for the lead, tagged with agent `id`
+    /// so a report of its answer can take it back, and hold its cell until
+    /// the lead reads it (docs/tools/background.md *Where a notice lands*). A
+    /// completion is a note whose unread presence at a turn's end starts the
+    /// follow-up turn; a [`resumed`](AgentNotice::resumed) one is not — the
+    /// run it announces has nothing to answer yet, and its own completion
+    /// notice brings that turn — and the registry posts it only while that
+    /// run is going: one already over, or stopped by the lead, owes neither
+    /// the note nor its cell (docs/agents/agent-tools.md *A resume is news when it
+    /// starts*).
+    ///
+    /// A completion is tagged with `run`, the run it ended — for the user's
+    /// stop, the run `kill` reported — never with whichever run is going when
+    /// it posts (docs/agents/agent-tools.md *A report covers one run*). An end that reached
+    /// the loop without its settle, which no backend sends, goes untagged: a
+    /// report never takes it back, so the lead may read that answer twice,
+    /// but never under another run's number.
+    fn hold_agent_note(&mut self, notice: AgentNotice, id: &str, run: Option<u64>) {
+        let context = notice.context_text();
+        let posted = if notice.resumed {
+            self.agent_registry
+                .post_resume_notice(id, &self.registry, context)
+        } else {
+            Some(self.registry.post_agent_notice(context, id, run))
+        };
+        if let Some(seq) = posted {
+            self.app.defer_agent_notice(notice, Some(seq));
+        }
+    }
+
+    /// The lead resumed `id` with `agentsend`: its row comes back — or, still
+    /// lingering, stays — and its clock starts over for the continuation,
+    /// whose first round announces the message (`docs/agents/agent-tools.md`).
+    fn on_agent_resumed(&mut self, id: &str, description: &str, agent_type: &str, prompt: &str) {
+        self.app.resume_agent(id, description, agent_type, prompt);
+        self.agent_clocks.insert(id.to_string(), Instant::now());
+        self.agent_expiry.remove(id);
     }
 }

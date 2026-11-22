@@ -2,7 +2,7 @@
 //! instants the pure [`AskTimer`] is read with, and what its readings do.
 //!
 //! A question waits on the user, and the user may be away. Every key press or
-//! paste starts the wait over ([`Session::note_user_activity`]); the draw tick
+//! paste starts the wait over ([`super::conversation::Conversation::note_user_activity`]); the draw tick
 //! reads the clock before the paint ([`Session::tick_ask_clock`]) and, once
 //! the wait runs out, resolves every waiting question unanswered
 //! ([`App::expire_asks`]) and posts the decisions on the gate, so the parked
@@ -29,13 +29,6 @@ const ASK_TICK_INTERVAL: Duration = Duration::from_secs(1);
 const ASK_OVERLAY_TICK_MAX: Duration = Duration::from_secs(60 * 60);
 
 impl Session<'_> {
-    /// A key press or a paste: the user is here, so a waiting question's wait
-    /// starts over — wherever the key lands, an overlay over the modal
-    /// included.
-    pub(crate) fn note_user_activity(&mut self) {
-        self.conversation.ask_timer.touch(Instant::now());
-    }
-
     /// The draw tick's half, run before the paint. Past the wait, every
     /// waiting question resolves unanswered and its decision goes up on the
     /// gate — this very frame paints the modal closed. Before it, the open
@@ -70,5 +63,14 @@ impl Session<'_> {
                 }
             }
         }
+    }
+}
+
+impl super::conversation::Conversation {
+    /// A key press or a paste: the user is here, so a waiting question's wait
+    /// starts over — wherever the key lands, an overlay over the modal
+    /// included.
+    pub(crate) fn note_user_activity(&mut self) {
+        self.ask_timer.touch(Instant::now());
     }
 }

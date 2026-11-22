@@ -323,9 +323,11 @@ impl Session<'_> {
         // is swapped out, so the event names it (docs/tools/hooks.md).
         self.conversation.models.end_conversation("resume");
         // A snapshot from the conversation being replaced is stale.
-        self.invalidate_checkpoints();
+        self.conversation.invalidate_checkpoints();
         // The code reset runs on a worker; `on_restore_done` toasts it.
-        let _restoring = self.restore_final_checkpoint(&session_checkpoints);
+        let _restoring = self
+            .conversation
+            .restore_final_checkpoint(&session_checkpoints);
         // The loaded pictures — a paste's size, a file gone since the session
         // was recorded — are looked for by the purge rebuild below, which is
         // what lays the history out (`docs/ui/images.md`).
@@ -333,7 +335,7 @@ impl Session<'_> {
         // The checklist came back with the conversation (the last task
         // record's snapshot) — the shared registry follows, so the model's
         // next `tasklist` sees the resumed tasks (docs/tools/task-tools.md).
-        self.sync_task_registry();
+        self.conversation.sync_task_registry();
         // The model side of the resume (docs/state/session-model.md): the
         // conversation comes back on the model its file records — before the
         // recorder adopts the file, which is told whether that record is
@@ -357,7 +359,7 @@ impl Session<'_> {
             recorded_model,
             model.honoured,
         );
-        self.record_session_model(false);
+        self.conversation.record_session_model(false);
         // …and the resumed one begins: SessionStart(resume), in the background
         // now that the recorder names its id (docs/tools/hooks.md).
         self.conversation.models.begin_conversation("resume");
@@ -377,90 +379,6 @@ impl Session<'_> {
             self.toast(failure, ToastKind::Error);
         }
         Ok(())
-    }
-
-    /// Restore the working directory to the latest checkpoint at or before
-    /// `history_len` — the Esc-Esc backtrack's code reset, against the chain this
-    /// session recorded (`docs/state/checkpoint.md`). The current tree is snapshotted
-    /// first, so the rewind is recoverable through the store's reflog. `false`
-    /// when there is nothing to restore to.
-    pub(crate) fn restore_checkpoint_at(&mut self, history_len: usize) -> bool {
-        let target =
-            checkpoint::restore_target(self.conversation.recorder.checkpoints(), history_len)
-                .map(str::to_string);
-        self.restore_to(
-            target.as_deref(),
-            "before backtrack restore",
-            CHECKPOINT_REWOUND_NOTICE,
-        )
-    }
-
-    /// Restore the working directory to a loaded session's **final** checkpoint —
-    /// the `/resume` code reset, against the chain parsed out of that file.
-    pub(crate) fn restore_final_checkpoint(
-        &mut self,
-        checkpoints: &[checkpoint::Checkpoint],
-    ) -> bool {
-        self.restore_to(
-            checkpoint::restore_target(checkpoints, usize::MAX),
-            "before resume restore",
-            CHECKPOINT_RESTORED_NOTICE,
-        )
-    }
-
-    /// Back up the current tree under `label`, then restore `target` **on a
-    /// worker thread**. A missing target, an unknown commit, or a disabled store
-    /// all leave the working directory untouched.
-    ///
-    /// The reset is `git reset --hard` plus `git clean -fdq` over the whole work
-    /// tree — measured 1.5 s on a dirty 20 000-file tree
-    /// (`docs/state/checkpoint.md`) — so running it inline froze the loop for
-    /// that long at a backtrack and at a `/resume`. History is already rewound,
-    /// but new turns wait in the input queue until [`Session::restore_rx`]
-    /// reports completion. [`Session::on_restore_done`] then dispatches them
-    /// and toasts the outcome. Returns whether a
-    /// restore started, so a caller can skip its own "nothing to do" notice.
-    ///
-    /// Any restore still in flight is joined first: two `git` processes must not
-    /// hold the store's index lock at once (the reason
-    /// [`Session::invalidate_checkpoints`] joins the snapshot).
-    fn restore_to(
-        &mut self,
-        target: Option<&str>,
-        label: &'static str,
-        notice: &'static str,
-    ) -> bool {
-        let Some(commit) = target
-            .filter(|_| self.conversation.checkpoints.is_enabled())
-            .map(str::to_string)
-        else {
-            return false;
-        };
-        if let Some(pending) = self.conversation.restore_pending.take() {
-            let _ = pending.handle.join();
-        }
-        self.conversation.restore_token = self.conversation.restore_token.wrapping_add(1);
-        let token = self.conversation.restore_token;
-        let store = self.conversation.checkpoints.clone();
-        let tx = self.conversation.restore_tx.clone();
-        let handle = std::thread::spawn(move || {
-            let began = Instant::now();
-            let backup_succeeded = store.snapshot(label).is_some();
-            let restored = restore_only_after_backup(backup_succeeded, || store.restore(&commit));
-            super::timing::record("checkpoint.restore", began.elapsed());
-            let _ = tx.send(super::turn::RestoreDone {
-                token,
-                restored,
-                backup_succeeded,
-                notice,
-            });
-        });
-        self.conversation.restore_pending = Some(super::turn::PendingRestore {
-            token,
-            began: Instant::now(),
-            handle,
-        });
-        true
     }
 
     /// A restore landed. Applies only when it is the newest one asked for and
@@ -506,6 +424,91 @@ fn restore_only_after_backup(
         return false;
     }
     restore().unwrap_or(false)
+}
+
+impl super::conversation::Conversation {
+    /// Back up the current tree under `label`, then restore `target` **on a
+    /// worker thread**. A missing target, an unknown commit, or a disabled store
+    /// all leave the working directory untouched.
+    ///
+    /// The reset is `git reset --hard` plus `git clean -fdq` over the whole work
+    /// tree — measured 1.5 s on a dirty 20 000-file tree
+    /// (`docs/state/checkpoint.md`) — so running it inline froze the loop for
+    /// that long at a backtrack and at a `/resume`. History is already rewound,
+    /// but new turns wait in the input queue until [`Session::restore_rx`]
+    /// reports completion. [`Session::on_restore_done`] then dispatches them
+    /// and toasts the outcome. Returns whether a
+    /// restore started, so a caller can skip its own "nothing to do" notice.
+    ///
+    /// Any restore still in flight is joined first: two `git` processes must not
+    /// hold the store's index lock at once (the reason
+    /// [`super::conversation::Conversation::invalidate_checkpoints`] joins the snapshot).
+    fn restore_to(
+        &mut self,
+        target: Option<&str>,
+        label: &'static str,
+        notice: &'static str,
+    ) -> bool {
+        let Some(commit) = target
+            .filter(|_| self.checkpoints.is_enabled())
+            .map(str::to_string)
+        else {
+            return false;
+        };
+        if let Some(pending) = self.restore_pending.take() {
+            let _ = pending.handle.join();
+        }
+        self.restore_token = self.restore_token.wrapping_add(1);
+        let token = self.restore_token;
+        let store = self.checkpoints.clone();
+        let tx = self.restore_tx.clone();
+        let handle = std::thread::spawn(move || {
+            let began = Instant::now();
+            let backup_succeeded = store.snapshot(label).is_some();
+            let restored = restore_only_after_backup(backup_succeeded, || store.restore(&commit));
+            super::timing::record("checkpoint.restore", began.elapsed());
+            let _ = tx.send(super::turn::RestoreDone {
+                token,
+                restored,
+                backup_succeeded,
+                notice,
+            });
+        });
+        self.restore_pending = Some(super::turn::PendingRestore {
+            token,
+            began: Instant::now(),
+            handle,
+        });
+        true
+    }
+
+    /// Restore the working directory to a loaded session's **final** checkpoint —
+    /// the `/resume` code reset, against the chain parsed out of that file.
+    pub(crate) fn restore_final_checkpoint(
+        &mut self,
+        checkpoints: &[checkpoint::Checkpoint],
+    ) -> bool {
+        self.restore_to(
+            checkpoint::restore_target(checkpoints, usize::MAX),
+            "before resume restore",
+            CHECKPOINT_RESTORED_NOTICE,
+        )
+    }
+
+    /// Restore the working directory to the latest checkpoint at or before
+    /// `history_len` — the Esc-Esc backtrack's code reset, against the chain this
+    /// session recorded (`docs/state/checkpoint.md`). The current tree is snapshotted
+    /// first, so the rewind is recoverable through the store's reflog. `false`
+    /// when there is nothing to restore to.
+    pub(crate) fn restore_checkpoint_at(&mut self, history_len: usize) -> bool {
+        let target = checkpoint::restore_target(self.recorder.checkpoints(), history_len)
+            .map(str::to_string);
+        self.restore_to(
+            target.as_deref(),
+            "before backtrack restore",
+            CHECKPOINT_REWOUND_NOTICE,
+        )
+    }
 }
 
 #[cfg(test)]

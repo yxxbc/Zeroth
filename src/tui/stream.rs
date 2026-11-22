@@ -40,21 +40,6 @@ use zeroth::ui;
 use super::Session;
 
 impl Session<'_> {
-    /// Stop the per-command clock once no call is still `Running`: a batch's
-    /// other cells keep it counting after one resolves, and the delayed
-    /// Ctrl+B hint keeps waiting on the batch's own elapsed.
-    fn stop_command_clock_if_idle(&mut self) {
-        if !self
-            .conversation
-            .app
-            .tool_queue()
-            .iter()
-            .any(|tool| tool.status == ToolStatus::Running)
-        {
-            self.conversation.clocks.command_start = None;
-        }
-    }
-
     /// Apply one streamed reply event, committing finished lines to scrollback in
     /// the conversation view. Returns whether the stream just **ended**
     /// (`StreamDone`/`Error`), so the caller can run the turn-end dispatch. The
@@ -228,7 +213,7 @@ impl Session<'_> {
                 // The command resolved — stop its Ctrl+B-hint clock once no
                 // sibling of the batch is still running (the turn may continue
                 // with more text/tools).
-                self.stop_command_clock_if_idle();
+                self.conversation.stop_command_clock_if_idle();
                 false
             }
             StreamEvent::ToolRejected {
@@ -260,7 +245,7 @@ impl Session<'_> {
                 {
                     self.commit_tool_cell(committing, width);
                 }
-                self.stop_command_clock_if_idle();
+                self.conversation.stop_command_clock_if_idle();
                 false
             }
             StreamEvent::ToolAnswered {
@@ -290,7 +275,7 @@ impl Session<'_> {
                 {
                     self.commit_tool_cell(committing, width);
                 }
-                self.stop_command_clock_if_idle();
+                self.conversation.stop_command_clock_if_idle();
                 false
             }
             StreamEvent::ToolBackgrounded {
@@ -316,7 +301,7 @@ impl Session<'_> {
                     self.commit_tool_cell(committing, width);
                 }
                 // The command moved to the background — stop its hint clock.
-                self.stop_command_clock_if_idle();
+                self.conversation.stop_command_clock_if_idle();
                 false
             }
             StreamEvent::TaskCall {
@@ -906,7 +891,7 @@ impl Session<'_> {
         // A foreground group's members are settled now — arm their linger sweeps
         // (a background group's keep running).
         if let Some(ids) = group_done_ids {
-            self.settle_group_members(ids);
+            self.conversation.settle_group_members(ids);
         }
         if resolved {
             // The stream ended. Settle any background completions still held
@@ -975,5 +960,21 @@ impl Session<'_> {
         }
         // Best-effort, `prompt_blocked`'s rule.
         let _ = self.repaint_conversation();
+    }
+}
+
+impl super::conversation::Conversation {
+    /// Stop the per-command clock once no call is still `Running`: a batch's
+    /// other cells keep it counting after one resolves, and the delayed
+    /// Ctrl+B hint keeps waiting on the batch's own elapsed.
+    fn stop_command_clock_if_idle(&mut self) {
+        if !self
+            .app
+            .tool_queue()
+            .iter()
+            .any(|tool| tool.status == ToolStatus::Running)
+        {
+            self.clocks.command_start = None;
+        }
     }
 }

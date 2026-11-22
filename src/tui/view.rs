@@ -26,7 +26,7 @@
 //! drops every encoded picture with the scrollback, so each rebuild first
 //! looks again for the pictures' files ([`recheck_pictures`]).
 //!
-//! The clock injections live here too ([`Session::update_status_times`]): time
+//! The clock injections live here too ([`super::conversation::Conversation::update_status_times`]): time
 //! is impure, so the pure `App`/`ui` only ever see already-computed durations.
 
 use std::io;
@@ -406,59 +406,6 @@ impl Session<'_> {
     /// final lines (see `InlineViewport::set_view_height`).
     pub(crate) fn live_region_height(&self) -> u16 {
         live_region_height(&self.conversation.app, self.screen.screen())
-    }
-
-    /// Write the live status's times onto `App` before a draw: how long the turn
-    /// has run (whole seconds for display; sub-second for the shimmer phase) and
-    /// the current thinking-phase duration (`Some` while thinking). Time is
-    /// impure, so this is the boundary's job — the pure `App`/`ui` only ever see
-    /// the already-computed values. No-op when no turn is in flight.
-    pub(crate) fn update_status_times(&mut self) {
-        let elapsed = self
-            .conversation
-            .clocks
-            .turn_start
-            .map_or(std::time::Duration::ZERO, |start| start.elapsed());
-        let thinking = self
-            .conversation
-            .clocks
-            .thinking_start
-            .map(|start| start.elapsed());
-        self.conversation.app.set_status_times(elapsed, thinking);
-        // The current running command's own elapsed (None when none is
-        // running): the `(Ns)` its cell displays (docs/ui/tool-streaming.md) and,
-        // masked, the delayed Ctrl+B hint's gate (docs/tools/background.md).
-        self.conversation.app.set_command_elapsed(
-            self.conversation
-                .clocks
-                .command_start
-                .map(|start| start.elapsed()),
-        );
-        // The animation phase for the live region's pulsing bullets — a phase,
-        // not a measurement: nothing displays it (docs/ui/tool-pulse.md).
-        let now = self.conversation.clocks.loop_start.elapsed();
-        self.conversation.app.set_pulse(now);
-        // The open read/search group's `⎿` row steps through its calls on
-        // the same clock, each value held long enough to read
-        // (docs/ui/tool-groups.md *The hint row*).
-        self.conversation.app.advance_group_hint(now);
-        // The `/usage` page's countdowns run on the wall clock
-        // (docs/providers/usage.md).
-        if self.conversation.app.usage_page.is_some() {
-            self.conversation
-                .app
-                .set_usage_now(super::host::unix_secs_signed());
-        }
-        // How long a `/login` device code has left, when one is on screen
-        // (docs/providers/copilot.md).
-        if self.conversation.app.device_login_active() {
-            let now = Instant::now();
-            self.conversation.app.set_device_remaining(
-                self.conversation
-                    .device_expires
-                    .map(|at| at.saturating_duration_since(now)),
-            );
-        }
     }
 
     /// Schedule the redraw for a just-handled key. A plain typed character that
@@ -1514,7 +1461,7 @@ impl Session<'_> {
     /// a thinking pause). The chain seeds from the Submit keypress and stops by
     /// itself on the first draw after the turn ends.
     pub(crate) fn on_draw_tick(&mut self) -> io::Result<()> {
-        self.update_status_times();
+        self.conversation.update_status_times();
         // Inject each background shell's runtime (the boundary owns the started
         // clocks — docs/tools/background.md), so the manager's details view ticks.
         for (id, started) in &self.conversation.bg_clocks {
@@ -1569,6 +1516,49 @@ impl Session<'_> {
             } else {
                 self.frame.schedule_frame_in(deadline - now);
             }
+        }
+    }
+}
+
+impl super::conversation::Conversation {
+    /// Write the live status's times onto `App` before a draw: how long the turn
+    /// has run (whole seconds for display; sub-second for the shimmer phase) and
+    /// the current thinking-phase duration (`Some` while thinking). Time is
+    /// impure, so this is the boundary's job — the pure `App`/`ui` only ever see
+    /// the already-computed values. No-op when no turn is in flight.
+    pub(crate) fn update_status_times(&mut self) {
+        let elapsed = self
+            .clocks
+            .turn_start
+            .map_or(std::time::Duration::ZERO, |start| start.elapsed());
+        let thinking = self.clocks.thinking_start.map(|start| start.elapsed());
+        self.app.set_status_times(elapsed, thinking);
+        // The current running command's own elapsed (None when none is
+        // running): the `(Ns)` its cell displays (docs/ui/tool-streaming.md) and,
+        // masked, the delayed Ctrl+B hint's gate (docs/tools/background.md).
+        self.app
+            .set_command_elapsed(self.clocks.command_start.map(|start| start.elapsed()));
+        // The animation phase for the live region's pulsing bullets — a phase,
+        // not a measurement: nothing displays it (docs/ui/tool-pulse.md).
+        let now = self.clocks.loop_start.elapsed();
+        self.app.set_pulse(now);
+        // The open read/search group's `⎿` row steps through its calls on
+        // the same clock, each value held long enough to read
+        // (docs/ui/tool-groups.md *The hint row*).
+        self.app.advance_group_hint(now);
+        // The `/usage` page's countdowns run on the wall clock
+        // (docs/providers/usage.md).
+        if self.app.usage_page.is_some() {
+            self.app.set_usage_now(super::host::unix_secs_signed());
+        }
+        // How long a `/login` device code has left, when one is on screen
+        // (docs/providers/copilot.md).
+        if self.app.device_login_active() {
+            let now = Instant::now();
+            self.app.set_device_remaining(
+                self.device_expires
+                    .map(|at| at.saturating_duration_since(now)),
+            );
         }
     }
 }

@@ -1967,7 +1967,7 @@ impl Session<'_> {
         self.conversation
             .app
             .set_classifier_system_prompt(classifier_prompt);
-        self.sync_agent_view_context();
+        self.conversation.sync_agent_view_context();
         // The footer gauge + auto-compact window (docs/architecture/compact.md).
         let window = self.conversation.models.context_window();
         self.conversation.app.set_context_window(window);
@@ -1975,47 +1975,6 @@ impl Session<'_> {
         // characters), so it is re-rendered here rather than once at startup:
         // a `/model` switch to a roomier model widens the listing with it.
         self.sync_listings();
-    }
-
-    /// Push the **viewed** subagent type's system prompt *and its briefing*
-    /// into `App`, so an agent session view's Ctrl+D shows what *that* agent
-    /// was sent — its definition's own body when it has one, and the skills
-    /// `<system-reminder>` its fresh context opened on (`docs/agents/subagents.md`).
-    /// With no view open the default type answers, which is what a launch
-    /// with no `subagent_type` gets.
-    ///
-    /// Run beside every `sync_backend_info` and on entering a view: both are
-    /// per type — a type whose `tools:` withholds `Skill` is briefed with
-    /// nothing — so a single startup read would show the wrong pair for every
-    /// other type.
-    pub(crate) fn sync_agent_view_context(&mut self) {
-        let agent_type = self.conversation.app.viewed_agent().map_or_else(
-            || zeroth::agents::GENERAL_PURPOSE.to_string(),
-            |agent| agent.agent_type.clone(),
-        );
-        let prompt = self
-            .conversation
-            .models
-            .backend()
-            .agent_system_prompt(&agent_type);
-        let briefing = self
-            .conversation
-            .models
-            .backend()
-            .agent_system_reminder(&agent_type);
-        self.conversation.app.set_agent_system_prompt(prompt);
-        self.conversation.app.set_agent_system_reminder(briefing);
-        // The view's footer, too, is the viewed type's: the model it runs on
-        // when its definition pins one, and the window its context gauge runs
-        // against — the session's for an inheriting type, unknown (no gauge)
-        // for a pinned one (`docs/agents/agent-context-gauge.md`).
-        let pinned = self.conversation.models.backend().agent_model(&agent_type);
-        let window = self
-            .conversation
-            .models
-            .agent_context_window(pinned.is_none());
-        self.conversation.app.set_agent_context_window(window);
-        self.conversation.app.set_agent_model(pinned);
     }
 
     /// Render the session's `<system-reminder>` **listing sections** into
@@ -2140,12 +2099,6 @@ impl Session<'_> {
         }
     }
 
-    /// Esc/Ctrl+C dismissed the inline picker: cancel a pending fetch and let the
-    /// region collapse back to the composer on the next draw.
-    pub(crate) fn close_model_picker(&mut self) {
-        self.conversation.models.cancel_model_fetch();
-    }
-
     /// Enter on a picker row: rebuild the backend for the chosen provider/model
     /// (`docs/providers/llm.md`). The picker is already closed (`on_key` did it); cancel any
     /// pending fetch, then switch if the config is usable (has a key), else keep
@@ -2182,44 +2135,11 @@ impl Session<'_> {
             self.conversation.app.set_speed(speed);
             // The pick is this conversation's model from here on — its
             // rollout records it (docs/state/session-model.md).
-            self.record_session_model(true);
+            self.conversation.record_session_model(true);
             self.toast(format!("Switched model to {id}"), ToastKind::Info);
         } else {
-            let fix = self.login_fix(provider);
+            let fix = self.conversation.login_fix(provider);
             self.toast(format!("Can't switch to {id}: {fix}"), ToastKind::Error);
-        }
-    }
-
-    /// The `/login` step that would make `provider` usable — the wording a
-    /// refused `/model` pick and a refused resume share. A subscription has
-    /// no env var to "set" — you sign in to it, and naming
-    /// GITHUB_COPILOT_TOKEN would send the user looking for a key to paste
-    /// that does not exist (`docs/providers/copilot.md`). A host-configured provider
-    /// never lands here: no key, no refusal.
-    fn login_fix(&self, provider: &str) -> String {
-        if self.conversation.models.is_subscription(provider) {
-            "run /login and sign in".to_string()
-        } else {
-            format!(
-                "run /login to set {}",
-                self.conversation.models.key_env(provider)
-            )
-        }
-    }
-
-    /// Mirror the session's model selection into the recorder
-    /// (`docs/state/session-model.md`), after every site that moves it or learns
-    /// about it: a `/model` pick (`chosen`, which also overrides a kept
-    /// record), a Ctrl+T cycle, the probe's answer, a resume. The recorder
-    /// flushes a changed selection as the rollout's next `model` line at the
-    /// loop bottom.
-    pub(crate) fn record_session_model(&mut self, chosen: bool) {
-        let name = self.conversation.models.model_name();
-        let selection = self.conversation.models.session_selection().cloned();
-        if chosen {
-            self.conversation.recorder.pick_model(&name, selection);
-        } else {
-            self.conversation.recorder.set_model(&name, selection);
         }
     }
 
@@ -2247,7 +2167,7 @@ impl Session<'_> {
                 // agree with the request (docs/providers/fast-mode.md).
                 let speed = self.conversation.models.speed_state();
                 self.conversation.app.set_speed(speed);
-                self.spawn_pending_probe();
+                self.conversation.spawn_pending_probe();
                 ModelRestore {
                     honoured: true,
                     failure: None,
@@ -2266,24 +2186,9 @@ impl Session<'_> {
                 failure: Some(format!(
                     "Can't resume on {}: {}",
                     recorded.model,
-                    self.login_fix(&recorded.provider)
+                    self.conversation.login_fix(&recorded.provider)
                 )),
             },
-        }
-    }
-
-    /// Spawn the capability probe [`ModelSession`] has queued, if any — at
-    /// bootstrap, and after a resume onto a model whose facts the record
-    /// never learned (`docs/state/session-model.md`). Its answer lands on
-    /// `probe_rx`, gated by `probe_pending`.
-    pub(crate) fn spawn_pending_probe(&mut self) {
-        if let Some((provider, cfg)) = self.conversation.models.take_probe() {
-            spawn_model_fetch(
-                provider,
-                cfg,
-                CancelToken::new(),
-                self.conversation.probe_tx.clone(),
-            );
         }
     }
 
@@ -2301,7 +2206,7 @@ impl Session<'_> {
             .as_ref()
             .map(|t| (t.support.clone(), t.mode));
         self.conversation.models.persist(thinking.as_ref());
-        self.record_session_model(false);
+        self.conversation.record_session_model(false);
         self.toast(format!("Thinking: {}", mode.label()), ToastKind::Info);
     }
 
@@ -2375,10 +2280,10 @@ impl Session<'_> {
             self.conversation.app.set_context_window(window);
             // An inheriting subagent's gauge shares that window
             // (`docs/agents/agent-context-gauge.md`).
-            self.sync_agent_view_context();
+            self.conversation.sync_agent_view_context();
             // …and the session's record learns the same facts
             // (docs/state/session-model.md).
-            self.record_session_model(false);
+            self.conversation.record_session_model(false);
             self.frame.schedule_frame();
         }
     }
@@ -2399,5 +2304,83 @@ impl Session<'_> {
             Err(reason) => self.conversation.app.add_model_error(label, reason),
         }
         self.frame.schedule_frame();
+    }
+}
+
+impl super::conversation::Conversation {
+    /// Spawn the capability probe [`ModelSession`] has queued, if any — at
+    /// bootstrap, and after a resume onto a model whose facts the record
+    /// never learned (`docs/state/session-model.md`). Its answer lands on
+    /// `probe_rx`, gated by `probe_pending`.
+    pub(crate) fn spawn_pending_probe(&mut self) {
+        if let Some((provider, cfg)) = self.models.take_probe() {
+            spawn_model_fetch(provider, cfg, CancelToken::new(), self.probe_tx.clone());
+        }
+    }
+
+    /// Mirror the session's model selection into the recorder
+    /// (`docs/state/session-model.md`), after every site that moves it or learns
+    /// about it: a `/model` pick (`chosen`, which also overrides a kept
+    /// record), a Ctrl+T cycle, the probe's answer, a resume. The recorder
+    /// flushes a changed selection as the rollout's next `model` line at the
+    /// loop bottom.
+    pub(crate) fn record_session_model(&mut self, chosen: bool) {
+        let name = self.models.model_name();
+        let selection = self.models.session_selection().cloned();
+        if chosen {
+            self.recorder.pick_model(&name, selection);
+        } else {
+            self.recorder.set_model(&name, selection);
+        }
+    }
+
+    /// The `/login` step that would make `provider` usable — the wording a
+    /// refused `/model` pick and a refused resume share. A subscription has
+    /// no env var to "set" — you sign in to it, and naming
+    /// GITHUB_COPILOT_TOKEN would send the user looking for a key to paste
+    /// that does not exist (`docs/providers/copilot.md`). A host-configured provider
+    /// never lands here: no key, no refusal.
+    fn login_fix(&self, provider: &str) -> String {
+        if self.models.is_subscription(provider) {
+            "run /login and sign in".to_string()
+        } else {
+            format!("run /login to set {}", self.models.key_env(provider))
+        }
+    }
+
+    /// Esc/Ctrl+C dismissed the inline picker: cancel a pending fetch and let the
+    /// region collapse back to the composer on the next draw.
+    pub(crate) fn close_model_picker(&mut self) {
+        self.models.cancel_model_fetch();
+    }
+
+    /// Push the **viewed** subagent type's system prompt *and its briefing*
+    /// into `App`, so an agent session view's Ctrl+D shows what *that* agent
+    /// was sent — its definition's own body when it has one, and the skills
+    /// `<system-reminder>` its fresh context opened on (`docs/agents/subagents.md`).
+    /// With no view open the default type answers, which is what a launch
+    /// with no `subagent_type` gets.
+    ///
+    /// Run beside every `sync_backend_info` and on entering a view: both are
+    /// per type — a type whose `tools:` withholds `Skill` is briefed with
+    /// nothing — so a single startup read would show the wrong pair for every
+    /// other type.
+    pub(crate) fn sync_agent_view_context(&mut self) {
+        let agent_type = self.app.viewed_agent().map_or_else(
+            || zeroth::agents::GENERAL_PURPOSE.to_string(),
+            |agent| agent.agent_type.clone(),
+        );
+        let prompt = self.models.backend().agent_system_prompt(&agent_type);
+        let briefing = self.models.backend().agent_system_reminder(&agent_type);
+        self.app.set_agent_system_prompt(prompt);
+        self.app.set_agent_system_reminder(briefing);
+        // The view's footer, too, is the viewed type's: the model it runs on
+        // when its definition pins one, and the window its context gauge runs
+        // against — the session's for an inheriting type, unknown (no gauge)
+        // for a pinned one (`docs/agents/agent-context-gauge.md`).
+        let pinned = self.models.backend().agent_model(&agent_type);
+        let window = self.models.agent_context_window(pinned.is_none());
+        self.app.set_agent_context_window(window);
+        self.app.set_agent_model(pinned);
     }
 }

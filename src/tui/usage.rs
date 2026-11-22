@@ -40,7 +40,7 @@ impl Session<'_> {
     /// each one — or, with none signed in, say so in a toast and open
     /// nothing (the `/export` empty rule).
     pub(crate) fn open_usage_page(&mut self) {
-        self.cancel_usage_fetch();
+        self.conversation.cancel_usage_fetch();
         let (targets, configs) = split(self.conversation.models.usage_targets());
         let Some(round) = self.conversation.app.open_usage_page(targets) else {
             self.toast(USAGE_EMPTY_NOTICE, ToastKind::Info);
@@ -58,7 +58,7 @@ impl Session<'_> {
     /// cancelled (a result it sends anyway names a round the page no longer
     /// keeps, and is dropped there).
     pub(crate) fn refresh_usage_page(&mut self) {
-        self.cancel_usage_fetch();
+        self.conversation.cancel_usage_fetch();
         let (targets, configs) = split(self.conversation.models.usage_targets());
         if let Some(round) = self.conversation.app.begin_usage_round(targets) {
             self.spawn_usage_reads(round, configs);
@@ -79,15 +79,6 @@ impl Session<'_> {
             );
         }
         self.frame.schedule_frame();
-    }
-
-    /// Cancel the reads in flight — the page closed, a newer round replaced
-    /// them, or the app is quitting. Each detached worker exits on the cancel
-    /// without sending.
-    pub(crate) fn cancel_usage_fetch(&mut self) {
-        if let Some(cancel) = self.conversation.usage_cancel.take() {
-            cancel.cancel();
-        }
     }
 
     /// A read landed: hand it to the page, which drops it unless it names the
@@ -142,4 +133,15 @@ fn split(found: Vec<(UsageTarget, ModelConfig)>) -> (Vec<UsageTarget>, Vec<(Stri
             (target, (provider, cfg))
         })
         .unzip()
+}
+
+impl super::conversation::Conversation {
+    /// Cancel the reads in flight — the page closed, a newer round replaced
+    /// them, or the app is quitting. Each detached worker exits on the cancel
+    /// without sending.
+    pub(crate) fn cancel_usage_fetch(&mut self) {
+        if let Some(cancel) = self.usage_cancel.take() {
+            cancel.cancel();
+        }
+    }
 }

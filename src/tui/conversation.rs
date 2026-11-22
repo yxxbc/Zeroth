@@ -79,7 +79,7 @@ pub(crate) struct Conversation {
     /// (`docs/agents/agent-tool.md`).
     pub(crate) agent_expiry: HashMap<String, Instant>,
     /// The reply channel a turn streams on. Both ends are swapped wholesale by
-    /// [`Session::abandon_inflight`] so a detached backend can't reach the next
+    /// [`Conversation::abandon_inflight`] so a detached backend can't reach the next
     /// turn (`docs/input/interrupt.md`).
     pub(crate) tx: tokio::sync::mpsc::UnboundedSender<StreamEvent>,
     pub(crate) reply_rx: tokio::sync::mpsc::UnboundedReceiver<StreamEvent>,

@@ -695,7 +695,7 @@ impl<'t> Session<'t> {
         let picker = session.apply_startup(startup);
         // The capability probe for whatever model the session ended up on —
         // the directory's entry, or a resumed conversation's own.
-        session.spawn_pending_probe();
+        session.conversation.spawn_pending_probe();
         // A headless run stops here (docs/cli/headless.md): no startup review
         // (nobody to ask — what waits for trust stays off, and the headless
         // loop says so), no first frame, no update check,
@@ -982,7 +982,9 @@ impl<'t> Session<'t> {
                 // The code reset runs on a worker (docs/state/checkpoint.md);
                 // `on_restore_done` reports it, ahead of the first paint.
                 let _restoring = !self.screen.is_headless()
-                    && self.restore_final_checkpoint(&session_checkpoints);
+                    && self
+                        .conversation
+                        .restore_final_checkpoint(&session_checkpoints);
                 let count = items.len();
                 self.conversation.app.load_session(items);
                 // `paint_first_frame` commits the loaded transcript with no
@@ -994,7 +996,7 @@ impl<'t> Session<'t> {
                 // The checklist came back with the conversation — the shared
                 // registry follows, exactly like the `/resume` picker's load
                 // (docs/tools/task-tools.md).
-                self.sync_task_registry();
+                self.conversation.sync_task_registry();
                 // The model side of the resume (docs/state/session-model.md): the
                 // conversation comes back on the model its file records —
                 // before the recorder adopts the file, which is told whether
@@ -1014,7 +1016,7 @@ impl<'t> Session<'t> {
                     recorded_model,
                     model.honoured,
                 );
-                self.record_session_model(false);
+                self.conversation.record_session_model(false);
                 // A --continue/--resume boot is a *resume* boundary, not a
                 // startup one: swap the seeded source so the SessionStart
                 // hooks hear what actually happened (docs/tools/hooks.md).
@@ -1117,7 +1119,7 @@ impl<'t> Session<'t> {
         // Cancel a dangling /model fetch (its detached worker exits on the
         // cancel), and the /usage page's reads likewise.
         self.conversation.models.cancel_model_fetch();
-        self.cancel_usage_fetch();
+        self.conversation.cancel_usage_fetch();
         // Kill every background shell on the way out — the sweep is synchronous
         // (direct process-group kills), so quitting can't orphan a `ping`
         // (docs/tools/background.md) — and cancel every subagent (their threads observe
@@ -1184,7 +1186,7 @@ impl<'t> Session<'t> {
         // an Esc'd or failed compaction never loops. The StallAi test backend opts
         // out (it ignores the script).
         if self.conversation.inflight.is_none()
-            && !self.checkpoint_pending()
+            && !self.conversation.checkpoint_pending()
             && !self.conversation.models.is_stalled_test_backend()
             && self.conversation.app.should_auto_compact()
         {
@@ -1239,7 +1241,7 @@ impl<'t> Session<'t> {
         // An open `/context` page re-counts whatever this iteration changed
         // under it — a tool round landing, a server connecting
         // (docs/architecture/context-usage.md). Nothing at all while the page is closed.
-        self.sync_context_usage();
+        self.conversation.sync_context_usage();
         // Pre-render whatever this iteration committed into the Ctrl+O transcript
         // cache (docs/ui/tool-view-performance.md) — a few integer compares when
         // nothing did, one grammar-highlight per new item when something did, the

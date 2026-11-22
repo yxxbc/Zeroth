@@ -169,25 +169,6 @@ impl Session<'_> {
         }
     }
 
-    /// `x` in the ↓ manager: stop the task. The registry's `Exited` event then
-    /// removes the row and commits the stopped notice.
-    pub(crate) fn kill_background(&self, id: &str) {
-        self.conversation.registry.kill(id);
-    }
-
-    /// Ctrl+B on a running command: raise the latch the runner's poll loop
-    /// consumes to hand its child off. When several commands run at once
-    /// (a parallel batch) the latch names the call the hint was drawn under
-    /// — the first running cell offering the hand-off — so a sibling runner
-    /// leaves it alone; with no such cell (the agent group's wait, the `!`
-    /// shell) the latch is global, as it always was.
-    pub(crate) fn move_to_background(&self) {
-        match self.conversation.app.background_target() {
-            Some(call_id) => self.conversation.registry.request_background_for(call_id),
-            None => self.conversation.registry.request_background(),
-        }
-    }
-
     /// Settle the notice the in-flight agent just read — board note `seq`
     /// (`StreamEvent::NoticeDelivered`): record + commit its held cell **here**,
     /// at the round boundary the model's request went out from, so history,
@@ -210,7 +191,7 @@ impl Session<'_> {
     /// read it owes no cell (`docs/agents/agent-tools.md` *One notice per answer*).
     pub(crate) fn settle_bg_completions(&mut self) {
         for held in self.conversation.app.take_pending_bg_completions() {
-            if !self.retracted(held.seq) {
+            if !self.conversation.retracted(held.seq) {
                 self.settle_bg_completion(&held.notice);
             }
         }
@@ -219,7 +200,7 @@ impl Session<'_> {
         // recorded group entry so the Ctrl+O cell shows the final response
         // (docs/agents/agent-tool.md).
         for held in self.conversation.app.take_pending_agent_notices() {
-            if self.retracted(held.seq) {
+            if self.conversation.retracted(held.seq) {
                 // An `agentoutput` report took the note back before the lead
                 // read it: the cell would record a notice nobody sent — but
                 // the recorded group entry still learns the final state.
@@ -228,11 +209,6 @@ impl Session<'_> {
             }
             self.settle_agent_notice(&held.notice);
         }
-    }
-
-    /// Was held note `seq` taken back off the board unread?
-    fn retracted(&self, seq: Option<u64>) -> bool {
-        seq.is_some_and(|seq| self.conversation.registry.take_retracted(seq))
     }
 
     /// Record + commit one shell's notice cell — commits are view-gated
@@ -275,5 +251,31 @@ impl Session<'_> {
                 .insert_before(ui::agent_notice_lines(notice, width));
             self.screen.insert_before(vec![Line::default()]);
         }
+    }
+}
+
+impl super::conversation::Conversation {
+    /// Was held note `seq` taken back off the board unread?
+    fn retracted(&self, seq: Option<u64>) -> bool {
+        seq.is_some_and(|seq| self.registry.take_retracted(seq))
+    }
+
+    /// Ctrl+B on a running command: raise the latch the runner's poll loop
+    /// consumes to hand its child off. When several commands run at once
+    /// (a parallel batch) the latch names the call the hint was drawn under
+    /// — the first running cell offering the hand-off — so a sibling runner
+    /// leaves it alone; with no such cell (the agent group's wait, the `!`
+    /// shell) the latch is global, as it always was.
+    pub(crate) fn move_to_background(&self) {
+        match self.app.background_target() {
+            Some(call_id) => self.registry.request_background_for(call_id),
+            None => self.registry.request_background(),
+        }
+    }
+
+    /// `x` in the ↓ manager: stop the task. The registry's `Exited` event then
+    /// removes the row and commits the stopped notice.
+    pub(crate) fn kill_background(&self, id: &str) {
+        self.registry.kill(id);
     }
 }

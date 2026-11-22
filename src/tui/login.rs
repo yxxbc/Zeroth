@@ -35,7 +35,7 @@ impl Session<'_> {
     }
 
     pub(crate) fn open_logout(&mut self) {
-        self.cancel_device_login();
+        self.conversation.cancel_device_login();
         self.open_key_onboarding();
         self.conversation
             .app
@@ -58,7 +58,7 @@ impl Session<'_> {
                 return Ok(());
             }
         };
-        self.cancel_device_login();
+        self.conversation.cancel_device_login();
         for token in tokens {
             forget_auth(&token);
         }
@@ -84,7 +84,7 @@ impl Session<'_> {
     /// anything is saved. An address that is no URL at all is answered at
     /// once, with no request made. See `docs/providers/local-models.md`.
     pub(crate) fn test_local_server(&mut self, provider: &str, test: ServerTest) {
-        self.cancel_device_login();
+        self.conversation.cancel_device_login();
         let Some((name, example, cfg)) =
             self.conversation.models.local_test_config(provider, &test)
         else {
@@ -123,7 +123,7 @@ impl Session<'_> {
         let Some(save) = self.conversation.app.finish_server_test(test, verdict) else {
             return;
         };
-        self.cancel_device_login();
+        self.conversation.cancel_device_login();
         for (var, value) in &save.env {
             if let Err(reason) = self.conversation.models.save_api_key(var, value) {
                 self.toast(reason, ToastKind::Error);
@@ -155,7 +155,7 @@ impl Session<'_> {
     /// sign-in one reports on the page rather than silently doing nothing —
     /// the row could only come from a provider file we misread.
     pub(crate) fn start_device_login(&mut self, provider: &str, kind: SigninKind) {
-        self.cancel_device_login();
+        self.conversation.cancel_device_login();
         // The row's auth scheme decides which sign-in runs: a row's id is
         // whatever the provider file named it, and two rows can share one
         // sign-in.
@@ -205,15 +205,6 @@ impl Session<'_> {
         );
     }
 
-    /// Reap a running device flow's worker, if any. Idempotent — Esc, Ctrl+C
-    /// and a completed flow all land here.
-    pub(crate) fn cancel_device_login(&mut self) {
-        if let Some(cancel) = self.conversation.device_cancel.take() {
-            cancel.cancel();
-        }
-        self.conversation.device_expires = None;
-    }
-
     /// `c` on the device page: copy the one-time code, and say so. The
     /// clipboard I/O is `/copy`'s (`docs/ui/copy.md`); only the confirmation
     /// differs, because "Copied last message" would be a lie here.
@@ -247,7 +238,7 @@ impl Session<'_> {
                 self.finish_device_login(&token, plan.as_deref());
             }
             DeviceEvent::Done(Err(reason)) => {
-                self.cancel_device_login();
+                self.conversation.cancel_device_login();
                 self.conversation.app.fail_device_login(reason);
             }
             DeviceEvent::Tested { test, verdict } => self.finish_server_test(&test, verdict),
@@ -259,7 +250,7 @@ impl Session<'_> {
     /// the `/model` picker's ✓ and the next launch all pick it up with no
     /// second mechanism — then close the flow with a confirmation.
     fn finish_device_login(&mut self, token: &str, plan: Option<&str>) {
-        self.cancel_device_login();
+        self.conversation.cancel_device_login();
         let Some(provider) = self
             .conversation
             .app
@@ -316,4 +307,15 @@ fn forget_auth(token: &str) {
     llm::claude::forget(token);
     llm::cline::forget(token);
     llm::antigravity::forget(token);
+}
+
+impl super::conversation::Conversation {
+    /// Reap a running device flow's worker, if any. Idempotent — Esc, Ctrl+C
+    /// and a completed flow all land here.
+    pub(crate) fn cancel_device_login(&mut self) {
+        if let Some(cancel) = self.device_cancel.take() {
+            cancel.cancel();
+        }
+        self.device_expires = None;
+    }
 }

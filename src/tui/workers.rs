@@ -659,18 +659,6 @@ pub(crate) fn spawn_usage_fetch(
 }
 
 impl Session<'_> {
-    /// Kick off a file search when the active `@token` query changed — codex's
-    /// `StartFileSearch` on every token change. The last query sent is the
-    /// boundary's own record, so an unchanged query (or a non-edit key) sends
-    /// nothing.
-    pub(crate) fn dispatch_file_search(&mut self) {
-        dispatch_file_search(
-            &self.conversation.app,
-            &self.conversation.file_req_tx,
-            &mut self.conversation.last_file_query,
-        );
-    }
-
     /// A file-search result from the worker: feed it into the open `@` picker
     /// (stale results — the token moved on — are dropped by `set_file_matches`),
     /// then repaint. See `docs/input/file-search.md`.
@@ -711,7 +699,7 @@ impl Session<'_> {
         }
         // The inserted placeholder may sit in an `@token` — re-derive the picker
         // like any other composer edit.
-        self.dispatch_file_search();
+        self.conversation.dispatch_file_search();
         self.frame.schedule_frame();
     }
 }
@@ -725,6 +713,16 @@ pub(crate) fn image_dimensions(path: &std::path::Path) -> Option<(u32, u32)> {
         .ok()?
         .into_dimensions()
         .ok()
+}
+
+impl super::conversation::Conversation {
+    /// Kick off a file search when the active `@token` query changed — codex's
+    /// `StartFileSearch` on every token change. The last query sent is the
+    /// boundary's own record, so an unchanged query (or a non-edit key) sends
+    /// nothing.
+    pub(crate) fn dispatch_file_search(&mut self) {
+        dispatch_file_search(&self.app, &self.file_req_tx, &mut self.last_file_query);
+    }
 }
 
 #[cfg(test)]

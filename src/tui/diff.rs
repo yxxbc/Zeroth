@@ -16,19 +16,6 @@ pub(crate) enum DiffUpdate {
 }
 
 impl Session<'_> {
-    pub(crate) fn open_diff_review(&mut self) {
-        // Stay inline during validation. An unavailable repository should
-        // produce a quiet toast without ever flashing the alternate screen.
-        self.conversation.diff_generation = self.conversation.diff_generation.wrapping_add(1);
-        let generation = self.conversation.diff_generation;
-        let tx = self.conversation.diff_tx.clone();
-        let cwd = self.conversation.cwd.clone();
-        std::thread::spawn(move || {
-            let result = super::git_diff_loader::repository_root(&cwd).map(|_| ());
-            let _ = tx.send((generation, DiffUpdate::Repository(result)));
-        });
-    }
-
     pub(crate) fn load_diff_review(&mut self) {
         self.conversation.diff_generation = self.conversation.diff_generation.wrapping_add(1);
         let generation = self.conversation.diff_generation;
@@ -115,5 +102,20 @@ impl Session<'_> {
         let app = &self.conversation.app;
         self.screen
             .draw_overlay(|area, buf| ui::render_diff_view(app, area, buf))
+    }
+}
+
+impl super::conversation::Conversation {
+    pub(crate) fn open_diff_review(&mut self) {
+        // Stay inline during validation. An unavailable repository should
+        // produce a quiet toast without ever flashing the alternate screen.
+        self.diff_generation = self.diff_generation.wrapping_add(1);
+        let generation = self.diff_generation;
+        let tx = self.diff_tx.clone();
+        let cwd = self.cwd.clone();
+        std::thread::spawn(move || {
+            let result = super::git_diff_loader::repository_root(&cwd).map(|_| ());
+            let _ = tx.send((generation, DiffUpdate::Repository(result)));
+        });
     }
 }

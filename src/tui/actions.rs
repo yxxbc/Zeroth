@@ -54,7 +54,7 @@ impl Session<'_> {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
                 // A key says the user is here: a waiting question's idle
                 // clock starts over (docs/tools/ask.md).
-                self.note_user_activity();
+                self.conversation.note_user_activity();
                 let action = self.conversation.app.on_key(key);
                 // A send that masked a typed secret's value says so — first,
                 // so the action's own toast (a refusal) is the one left
@@ -75,7 +75,7 @@ impl Session<'_> {
             // collapses to a `[Pasted Content N chars]` placeholder in the
             // composer, expanded back on send — docs/input/paste.md.
             Event::Paste(pasted) => {
-                self.note_user_activity();
+                self.conversation.note_user_activity();
                 self.on_paste(&pasted);
                 Ok(Flow::Continue)
             }
@@ -124,7 +124,7 @@ impl Session<'_> {
                 }
                 // A `/login` device flow's worker parks on a poll for minutes;
                 // cancel it so the process can actually exit (`docs/providers/copilot.md`).
-                self.cancel_device_login();
+                self.conversation.cancel_device_login();
                 return Ok(Flow::Quit);
             }
             Action::Submit(text) => {
@@ -193,8 +193,8 @@ impl Session<'_> {
                 self.start_compact_turn(/*auto=*/ false);
             }
             Action::Clear => self.clear_conversation()?,
-            Action::KillBackground(id) => self.kill_background(&id),
-            Action::MoveToBackground => self.move_to_background(),
+            Action::KillBackground(id) => self.conversation.kill_background(&id),
+            Action::MoveToBackground => self.conversation.move_to_background(),
             Action::ScrollPageUp => self.scroll_full(Scroll::PageUp),
             Action::ScrollPageDown => self.scroll_full(Scroll::PageDown),
             Action::ScrollTop => self.scroll_full(Scroll::Top),
@@ -204,7 +204,7 @@ impl Session<'_> {
             Action::LeaveAgentView => self.leave_agent_view()?,
             Action::AgentChat { id, text } => self.agent_chat(&id, &text),
             Action::ToggleToolView => self.toggle_tool_view()?,
-            Action::OpenDiffReview => self.open_diff_review(),
+            Action::OpenDiffReview => self.conversation.open_diff_review(),
             Action::RefreshDiffReview => self.load_diff_review(),
             Action::CloseDiffReview => self.close_diff_review()?,
             Action::ToggleContextDebug => self.toggle_context_debug()?,
@@ -224,7 +224,7 @@ impl Session<'_> {
             }
             Action::SetPermissionMode(mode) => self.set_permission_mode(mode),
             Action::OpenModelPicker => self.open_model_picker(),
-            Action::CloseModelPicker => self.close_model_picker(),
+            Action::CloseModelPicker => self.conversation.close_model_picker(),
             Action::SelectModel {
                 provider,
                 id,
@@ -252,11 +252,11 @@ impl Session<'_> {
             Action::StartDeviceLogin { provider, kind } => {
                 self.start_device_login(&provider, kind);
             }
-            Action::CancelDeviceLogin => self.cancel_device_login(),
+            Action::CancelDeviceLogin => self.conversation.cancel_device_login(),
             Action::TestLocalServer { provider, test } => self.test_local_server(&provider, test),
             // Esc (or Ctrl+C) while a connection test runs: the page already
             // stopped waiting; the worker's answer must never arrive.
-            Action::CancelServerTest => self.cancel_device_login(),
+            Action::CancelServerTest => self.conversation.cancel_device_login(),
             Action::CopyDeviceCode(code) => self.copy_device_code(&code),
             Action::OpenSettings => self.open_settings(),
             Action::CloseSettings => {
@@ -315,14 +315,14 @@ impl Session<'_> {
             // The pure open already counted the window; the boundary hands
             // it the backend's tool set before the first frame
             // (docs/architecture/context-usage.md).
-            Action::OpenContextUsage => self.sync_context_usage(),
+            Action::OpenContextUsage => self.conversation.sync_context_usage(),
             // Only the boundary knows which subscriptions are signed in, so
             // it opens the usage page over them and reads each one — or
             // toasts that none is — and reads them again on `r`
             // (docs/providers/usage.md).
             Action::OpenUsagePage => self.open_usage_page(),
             Action::RefreshUsagePage => self.refresh_usage_page(),
-            Action::CloseUsagePage => self.cancel_usage_fetch(),
+            Action::CloseUsagePage => self.conversation.cancel_usage_fetch(),
             Action::CopyUsageLink(url) => self.copy_usage_link(&url),
             Action::CloseContextUsage => {
                 // Esc/Ctrl+C dismissed the page: nothing to reap; the region
@@ -380,7 +380,7 @@ impl Session<'_> {
     /// file I/O lives here (`docs/input/image-paste.md`).
     fn after_key(&mut self, key: &ratatui::crossterm::event::KeyEvent) {
         self.schedule_for_key(key);
-        self.dispatch_file_search();
+        self.conversation.dispatch_file_search();
         for path in self.conversation.app.take_discarded_images() {
             let _ = std::fs::remove_file(path);
         }
@@ -861,7 +861,7 @@ impl Session<'_> {
     /// pre-first-token pause) for up to one op-timeout before it observes the
     /// cancel; join()ing there froze the whole UI — spinner, timer, composer —
     /// for that long (the interrupt-lag bug). Instead
-    /// [`Session::abandon_inflight`] cancels + detaches the thread and swaps in a
+    /// [`super::conversation::Conversation::abandon_inflight`] cancels + detaches the thread and swaps in a
     /// fresh reply channel, so any stale event it still emits (a final chunk, or a
     /// ToolStart that would otherwise wedge a phantom running tool) lands on the
     /// dropped receiver and can't reach the next turn. See `docs/input/interrupt.md`.
@@ -906,7 +906,7 @@ impl Session<'_> {
         // (docs/ui/tool-groups.md).
         let committing = self.commits_allowed();
         self.close_tool_group(committing, self.screen.screen().width);
-        self.abandon_inflight();
+        self.conversation.abandon_inflight();
         // The interrupt takes a live foreground agent group down with it, and
         // a member may be the conversation on screen — the `Error` arm's rule
         // (`docs/agents/agent-view-streaming.md`). A no-op with no agent view open,
@@ -990,7 +990,7 @@ impl Session<'_> {
         // any stale chunk or ToolStart the dying thread still emits lands on the
         // dropped receiver, so it can't repopulate the cleared state. See
         // docs/input/interrupt.md.
-        self.abandon_inflight();
+        self.conversation.abandon_inflight();
         self.view.render.reset();
         // …and the pictures the wiped conversation kept encoded for the wire
         // (`docs/architecture/memory.md`): nothing re-sends them now.
@@ -1032,7 +1032,7 @@ impl Session<'_> {
         // …and the task list: `clear_conversation` wiped App's snapshot; the
         // shared registry follows so the model's next `tasklist` agrees
         // (docs/tools/task-tools.md).
-        self.sync_task_registry();
+        self.conversation.sync_task_registry();
         // The session boundary for the hooks (docs/tools/hooks.md), Claude Code's
         // pair for its /clear: SessionEnd(clear) now — before the recorder
         // moves on, so it names the conversation that ended, and bounded, so
@@ -1045,7 +1045,7 @@ impl Session<'_> {
         // session can restore its starting point (docs/state/checkpoint.md).
         self.conversation.recorder.start_new();
         // A snapshot still running describes the conversation just wiped.
-        self.invalidate_checkpoints();
+        self.conversation.invalidate_checkpoints();
         self.conversation.models.begin_conversation("clear");
         if let Some(commit) = self.conversation.checkpoints.snapshot("session start") {
             self.conversation
@@ -1138,7 +1138,7 @@ impl Session<'_> {
             View::Conversation => {
                 self.conversation.app.on_paste(pasted);
                 // The paste may have changed the active `@token`.
-                self.dispatch_file_search();
+                self.conversation.dispatch_file_search();
             }
             View::ResumePicker => self.conversation.app.paste_into_resume_search(pasted),
             View::DiffReview => self.conversation.app.paste_into_diff_search(pasted),
@@ -1159,14 +1159,16 @@ impl Session<'_> {
     fn confirm_backtrack(&mut self) -> std::io::Result<()> {
         // The history was rewound: a snapshot still in flight is about a
         // conversation that no longer exists.
-        self.invalidate_checkpoints();
+        self.conversation.invalidate_checkpoints();
         // The reset runs on a worker (docs/state/checkpoint.md); its outcome is
         // toasted when it lands, so this path does not wait for `git`.
-        let _restoring = self.restore_checkpoint_at(self.conversation.app.history.len());
+        let _restoring = self
+            .conversation
+            .restore_checkpoint_at(self.conversation.app.history.len());
         // `App::confirm_backtrack` already rewound the checklist to the
         // snapshot at the cut; the shared registry follows
         // (docs/tools/task-tools.md).
-        self.sync_task_registry();
+        self.conversation.sync_task_registry();
         // Consume the overlay-resized flag (a resize under the overlay must not
         // leak to the next return); we purge unconditionally below anyway.
         self.overlay_resized = false;
@@ -1181,18 +1183,6 @@ impl Session<'_> {
         // (invariant 3).
         self.repaint_conversation()?;
         Ok(())
-    }
-
-    /// Sync the shared task registry to `App`'s checklist — after any history
-    /// rewind (`/clear`, a `/resume` load, a backtrack truncation), so the
-    /// model's next `tasklist` call agrees with what the strip shows
-    /// (`docs/tools/task-tools.md`). The forward direction never needs this: a task
-    /// call *starts* at the registry and reaches `App` on its `TaskCall`
-    /// event.
-    pub(crate) fn sync_task_registry(&self) {
-        self.conversation
-            .task_registry
-            .replace(self.conversation.app.tasks().clone());
     }
 }
 
@@ -1232,4 +1222,16 @@ fn detach_stdio(command: &mut std::process::Command) {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+}
+
+impl super::conversation::Conversation {
+    /// Sync the shared task registry to `App`'s checklist — after any history
+    /// rewind (`/clear`, a `/resume` load, a backtrack truncation), so the
+    /// model's next `tasklist` call agrees with what the strip shows
+    /// (`docs/tools/task-tools.md`). The forward direction never needs this: a task
+    /// call *starts* at the registry and reaches `App` on its `TaskCall`
+    /// event.
+    pub(crate) fn sync_task_registry(&self) {
+        self.task_registry.replace(self.app.tasks().clone());
+    }
 }

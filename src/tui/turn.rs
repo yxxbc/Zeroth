@@ -24,7 +24,7 @@
 //! comes next — a queued batch, or a follow-up turn about a completion the model
 //! never heard about.
 //!
-//! Stopping a turn is [`Session::abandon_inflight`], and the one rule there is
+//! Stopping a turn is [`super::conversation::Conversation::abandon_inflight`], and the one rule there is
 //! **never `join()` on the loop**: a real backend can be parked in a blocking
 //! read for up to an op-timeout, and joining froze the whole UI for that long
 //! (`docs/input/interrupt.md`).
@@ -119,7 +119,7 @@ impl Session<'_> {
         // running waits in the queue: the snapshot must capture the
         // just-ended state before this turn edits anything
         // (`docs/state/checkpoint.md`). The checkpoint result dispatches it.
-        if self.checkpoint_pending() {
+        if self.conversation.checkpoint_pending() {
             self.conversation
                 .app
                 .queue_messages(input.texts, input.images);
@@ -222,7 +222,7 @@ impl Session<'_> {
         // A real prompt is the user's, whatever a loop-initiated turn left
         // marked (docs/tools/hooks.md).
         self.conversation.models.clear_synthetic_turn();
-        self.spawn_reply(prompt, paths, context);
+        self.conversation.spawn_reply(prompt, paths, context);
     }
 
     /// The `[PROMPT]` CLI shortcut (`docs/cli/cli.md`): the message given on the
@@ -259,7 +259,7 @@ impl Session<'_> {
     pub(crate) fn run_shell(&mut self, command: String) {
         // See `start_turn`: a `!` command is a turn too, and must not run
         // while the turn-end snapshot is still reading the tree.
-        if self.checkpoint_pending() {
+        if self.conversation.checkpoint_pending() {
             self.conversation.app.queue_shell_command(command);
             return;
         }
@@ -322,7 +322,7 @@ impl Session<'_> {
             self.conversation.app.listings.as_deref(),
             &self.conversation.app.history,
         );
-        self.spawn_reply(prompt, Vec::new(), context);
+        self.conversation.spawn_reply(prompt, Vec::new(), context);
     }
 
     /// Start a `/compact` summarization turn (`docs/architecture/compact.md`) — manual
@@ -377,26 +377,6 @@ impl Session<'_> {
         self.conversation.inflight = Some((cancel, handle));
     }
 
-    /// Spawn the session backend on `prompt` and hold the turn's cancel token +
-    /// thread handle, so a quit or an interrupt can stop it. The tail every
-    /// model-facing turn start shares.
-    fn spawn_reply(
-        &mut self,
-        prompt: String,
-        images: Vec<PathBuf>,
-        context: Vec<context::ContextMessage>,
-    ) {
-        let cancel = CancelToken::new();
-        let handle = self.conversation.models.backend().spawn(
-            prompt,
-            images,
-            context,
-            self.conversation.tx.clone(),
-            cancel.clone(),
-        );
-        self.conversation.inflight = Some((cancel, handle));
-    }
-
     /// The every-turn-end dispatch (`docs/tools/background.md`, `docs/input/queue.md`):
     /// snapshot the code state, settle held background completions, then send the
     /// next queued entry — or, with nothing queued and a model-launched
@@ -427,7 +407,7 @@ impl Session<'_> {
         // automatic completion turn) is dispatched — so nothing starts
         // editing before the just-ended state is captured, and the loop never
         // waits on `git` (docs/state/checkpoint.md).
-        let snapshotting = self.start_checkpoint_snapshot();
+        let snapshotting = self.conversation.start_checkpoint_snapshot();
         self.settle_bg_completions();
         // A plan whose every task is completed retires here — the turn that
         // finished it showed the all-green rows, and from now on the list is
@@ -436,7 +416,7 @@ impl Session<'_> {
         // shared registry follows, so its next `tasklist` agrees with the
         // strip (docs/tools/task-tools.md).
         if self.conversation.app.retire_finished_tasks() {
-            self.sync_task_registry();
+            self.conversation.sync_task_registry();
         }
         let unheard = self.conversation.registry.take_pending_notices();
         // A message the turn never reached a round boundary to read — it
@@ -463,7 +443,7 @@ impl Session<'_> {
     /// heard. Shared by the synchronous and deferred paths so they cannot
     /// drift.
     pub(crate) fn dispatch_after_checkpoint(&mut self, unheard: Vec<PendingNotice>) {
-        if self.checkpoint_pending() {
+        if self.conversation.checkpoint_pending() {
             return;
         }
         if !self.flush_next_queued() && unheard.iter().any(|note| note.from_model) {
@@ -494,43 +474,6 @@ impl Session<'_> {
         }
     }
 
-    /// Start the turn-end snapshot on its own thread
-    /// (`docs/state/checkpoint.md`). Returns whether the dispatch after the
-    /// turn must wait for it; a disabled store or a snapshot already in
-    /// flight dispatches immediately. A failed git step is a silent no-op
-    /// (the TUI never dies for a checkpoint); the recorded line flushes with
-    /// the loop's next `recorder.sync`.
-    fn start_checkpoint_snapshot(&mut self) -> bool {
-        if !self.conversation.checkpoints.is_enabled()
-            || self.conversation.checkpoint_pending.is_some()
-        {
-            return false;
-        }
-        let after = self.conversation.app.history.len();
-        let epoch = self.conversation.checkpoint_epoch;
-        let store = self.conversation.checkpoints.clone();
-        let tx = self.conversation.checkpoint_tx.clone();
-        let message = format!("checkpoint after {after} items");
-        let handle = std::thread::spawn(move || {
-            let began = Instant::now();
-            let commit = store.snapshot(&message);
-            super::timing::record("checkpoint.snapshot", began.elapsed());
-            let _ = tx.send(CheckpointDone {
-                after,
-                epoch,
-                commit,
-            });
-        });
-        self.conversation.checkpoint_pending = Some(PendingCheckpoint {
-            after,
-            epoch,
-            began: Instant::now(),
-            handle,
-            dispatch: None,
-        });
-        true
-    }
-
     /// A turn-end snapshot landed: record the commit when it still belongs to
     /// this conversation, then dispatch what the turn-end deferred. A snapshot
     /// that started before a rewind (`checkpoint_epoch`) or whose history
@@ -559,25 +502,6 @@ impl Session<'_> {
         if let Some(unheard) = pending.dispatch {
             self.dispatch_after_checkpoint(unheard);
         }
-    }
-
-    /// A rewind (`/clear`, a `/resume` load, a backtrack) makes any snapshot
-    /// in flight describe a conversation that no longer exists: bump the
-    /// epoch and forget the pending dispatch.
-    pub(crate) fn invalidate_checkpoints(&mut self) {
-        // Join first: the restore that follows rewinds the same private git
-        // store, and two git processes must not hold its index at once.
-        if let Some(pending) = self.conversation.checkpoint_pending.take() {
-            let _ = pending.handle.join();
-        }
-        self.conversation.checkpoint_epoch = self.conversation.checkpoint_epoch.wrapping_add(1);
-    }
-
-    /// Whether a snapshot or restore still owns the work tree — the headless
-    /// idle rule and the input queue's gate.
-    pub(crate) fn checkpoint_pending(&self) -> bool {
-        self.conversation.checkpoint_pending.is_some()
-            || self.conversation.restore_pending.is_some()
     }
 
     /// Drain a snapshot still in flight before the session ends, recording it
@@ -615,7 +539,24 @@ impl Session<'_> {
             }
         }
     }
+}
 
+/// Whether a snapshot that landed still describes this conversation: it must
+/// be the one requested (same `after`), from before any rewind (both epochs
+/// agree with the session's), and the history must still reach its position.
+fn checkpoint_applies(
+    pending: &PendingCheckpoint,
+    done: &CheckpointDone,
+    epoch: u64,
+    history_len: usize,
+) -> bool {
+    pending.after == done.after
+        && pending.epoch == done.epoch
+        && done.epoch == epoch
+        && done.after <= history_len
+}
+
+impl super::conversation::Conversation {
     /// Stop tracking the in-flight turn **without blocking the event loop**,
     /// swapping in a fresh reply channel — both ends, in place.
     ///
@@ -635,30 +576,84 @@ impl Session<'_> {
     /// nothing further and returns within one op-timeout). See
     /// `docs/input/interrupt.md`.
     pub(crate) fn abandon_inflight(&mut self) {
-        if let Some((cancel, handle)) = self.conversation.inflight.take() {
+        if let Some((cancel, handle)) = self.inflight.take() {
             cancel.cancel();
-            self.conversation.reaping.push(handle);
+            self.reaping.push(handle);
         }
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.conversation.tx = tx;
-        self.conversation.reply_rx = rx;
-        self.conversation.clocks.end_turn();
+        self.tx = tx;
+        self.reply_rx = rx;
+        self.clocks.end_turn();
     }
-}
+    /// Whether a snapshot or restore still owns the work tree — the headless
+    /// idle rule and the input queue's gate.
+    pub(crate) fn checkpoint_pending(&self) -> bool {
+        self.checkpoint_pending.is_some() || self.restore_pending.is_some()
+    }
 
-/// Whether a snapshot that landed still describes this conversation: it must
-/// be the one requested (same `after`), from before any rewind (both epochs
-/// agree with the session's), and the history must still reach its position.
-fn checkpoint_applies(
-    pending: &PendingCheckpoint,
-    done: &CheckpointDone,
-    epoch: u64,
-    history_len: usize,
-) -> bool {
-    pending.after == done.after
-        && pending.epoch == done.epoch
-        && done.epoch == epoch
-        && done.after <= history_len
+    /// A rewind (`/clear`, a `/resume` load, a backtrack) makes any snapshot
+    /// in flight describe a conversation that no longer exists: bump the
+    /// epoch and forget the pending dispatch.
+    pub(crate) fn invalidate_checkpoints(&mut self) {
+        // Join first: the restore that follows rewinds the same private git
+        // store, and two git processes must not hold its index at once.
+        if let Some(pending) = self.checkpoint_pending.take() {
+            let _ = pending.handle.join();
+        }
+        self.checkpoint_epoch = self.checkpoint_epoch.wrapping_add(1);
+    }
+
+    /// Start the turn-end snapshot on its own thread
+    /// (`docs/state/checkpoint.md`). Returns whether the dispatch after the
+    /// turn must wait for it; a disabled store or a snapshot already in
+    /// flight dispatches immediately. A failed git step is a silent no-op
+    /// (the TUI never dies for a checkpoint); the recorded line flushes with
+    /// the loop's next `recorder.sync`.
+    fn start_checkpoint_snapshot(&mut self) -> bool {
+        if !self.checkpoints.is_enabled() || self.checkpoint_pending.is_some() {
+            return false;
+        }
+        let after = self.app.history.len();
+        let epoch = self.checkpoint_epoch;
+        let store = self.checkpoints.clone();
+        let tx = self.checkpoint_tx.clone();
+        let message = format!("checkpoint after {after} items");
+        let handle = std::thread::spawn(move || {
+            let began = Instant::now();
+            let commit = store.snapshot(&message);
+            super::timing::record("checkpoint.snapshot", began.elapsed());
+            let _ = tx.send(CheckpointDone {
+                after,
+                epoch,
+                commit,
+            });
+        });
+        self.checkpoint_pending = Some(PendingCheckpoint {
+            after,
+            epoch,
+            began: Instant::now(),
+            handle,
+            dispatch: None,
+        });
+        true
+    }
+
+    /// Spawn the session backend on `prompt` and hold the turn's cancel token +
+    /// thread handle, so a quit or an interrupt can stop it. The tail every
+    /// model-facing turn start shares.
+    fn spawn_reply(
+        &mut self,
+        prompt: String,
+        images: Vec<PathBuf>,
+        context: Vec<context::ContextMessage>,
+    ) {
+        let cancel = CancelToken::new();
+        let handle =
+            self.models
+                .backend()
+                .spawn(prompt, images, context, self.tx.clone(), cancel.clone());
+        self.inflight = Some((cancel, handle));
+    }
 }
 
 #[cfg(test)]

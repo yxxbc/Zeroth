@@ -347,7 +347,7 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
     let mut interrupted = None;
     let run_start = session.conversation.app.history.len();
     let mut emitted = run_start;
-    let start = session.run_start_info(resumed);
+    let start = session.conversation.run_start_info(resumed);
     write(&reporter.start(&start.as_start()));
     // A conversation past its window compacts before the prompt goes out —
     // the TUI's idle-boundary rule, run once here (docs/architecture/compact.md).
@@ -364,22 +364,24 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
         {
             session.submit_startup_prompt(prompt);
         }
-        session.emit_settled(&mut reporter, run_start, &mut emitted);
-        if prompt.is_none() && session.headless_idle() {
+        session
+            .conversation
+            .emit_settled(&mut reporter, run_start, &mut emitted);
+        if prompt.is_none() && session.conversation.headless_idle() {
             // Something already queued — a shell that just ended, an agent
             // that just settled — may still start a turn: take it before
             // calling the run over. What decides is whether a turn started,
             // never that something arrived: a command still printing in the
             // background sends output for as long as it runs.
             session.drain_queued_events(&mut reporter, run_start, &mut emitted);
-            if session.headless_idle() {
+            if session.conversation.headless_idle() {
                 break;
             }
             continue;
         }
         // Idle but for subagents still working: the wait on them is bounded.
         // A notice already in hand is not waited on — its turn is coming.
-        let agents_deadline = if prompt.is_none() && session.idle_on_working_agents() {
+        let agents_deadline = if prompt.is_none() && session.conversation.idle_on_working_agents() {
             Some(*agents_since.get_or_insert_with(Instant::now) + agent_wait)
         } else {
             agents_since = None;
@@ -388,8 +390,8 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
         if agents_deadline.is_some_and(|deadline| Instant::now() >= deadline) {
             // An agent that settled meanwhile still gets its turn.
             session.drain_queued_events(&mut reporter, run_start, &mut emitted);
-            if session.idle_on_working_agents() {
-                stopped_agents = session.working_agents();
+            if session.conversation.idle_on_working_agents() {
+                stopped_agents = session.conversation.working_agents();
                 break;
             }
             continue;
@@ -417,21 +419,25 @@ pub(crate) async fn run_job(mut startup: Startup, host: Option<&super::host::Hos
         }
         // Compaction at the loop bottom only while the run waits on its
         // subagents — the idle boundary a follow-up turn will come out of.
-        let waiting = session.waiting_on_agents();
+        let waiting = session.conversation.waiting_on_agents();
         session.after_headless_iteration(waiting);
     }
     // Settle a tool whose worker was cancelled by the signal before recording
     // the rollout. Otherwise the reporter can synthesize a failed item while
     // the resumed conversation has no corresponding tool result.
     if interrupted.is_some() {
-        session.settle_interrupted_run(run_start, &mut reporter, &mut emitted);
+        session
+            .conversation
+            .settle_interrupted_run(run_start, &mut reporter, &mut emitted);
     }
     // An interrupted run may still have a turn-end snapshot on its worker;
     // record it before shutting the store down, but never start a turn.
     session
         .settle_checkpoint_quietly(std::time::Duration::from_secs(5))
         .await;
-    session.emit_settled(&mut reporter, run_start, &mut emitted);
+    session
+        .conversation
+        .emit_settled(&mut reporter, run_start, &mut emitted);
     session.finish(
         &mut reporter,
         run_start,
@@ -467,54 +473,6 @@ impl StartInfo {
 }
 
 impl Session<'_> {
-    /// Cancel the live turn and persist its interrupted tool calls before the
-    /// headless reporter finishes the session. No queued follow-up is started.
-    fn settle_interrupted_run(
-        &mut self,
-        run_start: usize,
-        reporter: &mut Reporter,
-        emitted: &mut usize,
-    ) {
-        let elapsed = self
-            .conversation
-            .clocks
-            .turn_start
-            .map(|start| start.elapsed().as_secs())
-            .unwrap_or_default();
-        self.conversation.app.set_command_elapsed(
-            self.conversation
-                .clocks
-                .command_start
-                .map(|start| start.elapsed()),
-        );
-        if let Some((cancel, _)) = self.conversation.inflight.as_ref() {
-            cancel.cancel();
-        }
-        if let Some(zeroth::app::InterruptedTurn::Kept { agents, .. }) =
-            self.conversation.app.interrupt_for_shutdown(elapsed)
-            && let Some(group) = agents
-        {
-            for entry in group.agents {
-                let _ = self.conversation.agent_registry.kill(&entry.id);
-            }
-        }
-        self.abandon_inflight();
-        self.conversation.clocks.command_start = None;
-        self.emit_settled(reporter, run_start, emitted);
-    }
-
-    /// What a headless run announces as it starts.
-    fn run_start_info(&self, resumed: bool) -> StartInfo {
-        StartInfo {
-            session_id: self.conversation.recorder.conversation_id().to_string(),
-            model: self.conversation.models.model_name(),
-            cwd: self.conversation.cwd.display().to_string(),
-            cwd_display: self.conversation.cwd_display.clone(),
-            permission_mode: self.conversation.permissions.mode(),
-            resumed,
-        }
-    }
-
     /// Say what the startup review would have asked about and nobody could
     /// (`docs/cli/headless.md` *Trust*): it stays off, exactly as after a
     /// declined review, and an interactive run in this directory asks.
@@ -615,72 +573,11 @@ impl Session<'_> {
                 .saturating_sub(1)
                 .max(run_start);
         }
-        self.emit_settled(reporter, run_start, emitted);
+        self.conversation.emit_settled(reporter, run_start, emitted);
         if let Some((name, args, arguments)) = started {
             write(&reporter.tool_started(&name, &args, arguments.as_deref()));
         }
         write(&notice);
-    }
-
-    /// Hand the reporter whatever history has settled since the last call —
-    /// never what a retried reply attempt could still take back
-    /// ([`zeroth::app::App::settled_history_len`]).
-    fn emit_settled(&self, reporter: &mut Reporter, run_start: usize, emitted: &mut usize) {
-        let settled = self.conversation.app.settled_history_len().max(run_start);
-        if settled < *emitted {
-            *emitted = settled;
-        }
-        if settled > *emitted {
-            write(&reporter.settled(&self.conversation.app.history[*emitted..settled]));
-            *emitted = settled;
-        }
-    }
-
-    /// Whether the run has nothing left to wait for: no turn in flight,
-    /// nothing queued, no subagent working (`zeroth::herdr::agent_busy`:
-    /// a subagent always finishes, and its result starts the next turn).
-    /// Background shells do not count — a server started with `&` never ends.
-    fn headless_idle(&self) -> bool {
-        self.conversation.inflight.is_none()
-            && !self.conversation.app.turn_active()
-            && self.conversation.app.queued.is_empty()
-            && !self.waiting_on_agents()
-            && !self.checkpoint_pending()
-    }
-
-    fn waiting_on_agents(&self) -> bool {
-        self.conversation
-            .app
-            .agents()
-            .iter()
-            .any(zeroth::herdr::agent_busy)
-            || self.conversation.app.has_pending_agent_notices()
-    }
-
-    /// Idle but for subagents still at work — the wait
-    /// [`core::agent_wait`] bounds.
-    fn idle_on_working_agents(&self) -> bool {
-        self.conversation.inflight.is_none()
-            && !self.conversation.app.turn_active()
-            && self.conversation.app.queued.is_empty()
-            && !self.checkpoint_pending()
-            && self
-                .conversation
-                .app
-                .agents()
-                .iter()
-                .any(zeroth::herdr::agent_busy)
-    }
-
-    /// The subagents still at work, by their descriptions.
-    fn working_agents(&self) -> Vec<String> {
-        self.conversation
-            .app
-            .agents()
-            .iter()
-            .filter(|run| zeroth::herdr::agent_busy(run))
-            .map(|run| run.description.clone())
-            .collect()
     }
 
     /// Fold every event already waiting on the background, subagent and
@@ -727,7 +624,7 @@ impl Session<'_> {
         self.conversation.app.sync_context_used();
         if compact
             && self.conversation.inflight.is_none()
-            && !self.checkpoint_pending()
+            && !self.conversation.checkpoint_pending()
             && !self.conversation.models.is_stalled_test_backend()
             && self.conversation.app.should_auto_compact()
         {
@@ -814,5 +711,101 @@ impl Session<'_> {
             usage,
             duration_ms: duration_ms(duration),
         }
+    }
+}
+
+impl super::conversation::Conversation {
+    /// The subagents still at work, by their descriptions.
+    fn working_agents(&self) -> Vec<String> {
+        self.app
+            .agents()
+            .iter()
+            .filter(|run| zeroth::herdr::agent_busy(run))
+            .map(|run| run.description.clone())
+            .collect()
+    }
+
+    /// Idle but for subagents still at work — the wait
+    /// [`core::agent_wait`] bounds.
+    fn idle_on_working_agents(&self) -> bool {
+        self.inflight.is_none()
+            && !self.app.turn_active()
+            && self.app.queued.is_empty()
+            && !self.checkpoint_pending()
+            && self.app.agents().iter().any(zeroth::herdr::agent_busy)
+    }
+
+    fn waiting_on_agents(&self) -> bool {
+        self.app.agents().iter().any(zeroth::herdr::agent_busy)
+            || self.app.has_pending_agent_notices()
+    }
+
+    /// Whether the run has nothing left to wait for: no turn in flight,
+    /// nothing queued, no subagent working (`zeroth::herdr::agent_busy`:
+    /// a subagent always finishes, and its result starts the next turn).
+    /// Background shells do not count — a server started with `&` never ends.
+    fn headless_idle(&self) -> bool {
+        self.inflight.is_none()
+            && !self.app.turn_active()
+            && self.app.queued.is_empty()
+            && !self.waiting_on_agents()
+            && !self.checkpoint_pending()
+    }
+
+    /// Hand the reporter whatever history has settled since the last call —
+    /// never what a retried reply attempt could still take back
+    /// ([`zeroth::app::App::settled_history_len`]).
+    fn emit_settled(&self, reporter: &mut Reporter, run_start: usize, emitted: &mut usize) {
+        let settled = self.app.settled_history_len().max(run_start);
+        if settled < *emitted {
+            *emitted = settled;
+        }
+        if settled > *emitted {
+            write(&reporter.settled(&self.app.history[*emitted..settled]));
+            *emitted = settled;
+        }
+    }
+
+    /// What a headless run announces as it starts.
+    fn run_start_info(&self, resumed: bool) -> StartInfo {
+        StartInfo {
+            session_id: self.recorder.conversation_id().to_string(),
+            model: self.models.model_name(),
+            cwd: self.cwd.display().to_string(),
+            cwd_display: self.cwd_display.clone(),
+            permission_mode: self.permissions.mode(),
+            resumed,
+        }
+    }
+
+    /// Cancel the live turn and persist its interrupted tool calls before the
+    /// headless reporter finishes the session. No queued follow-up is started.
+    fn settle_interrupted_run(
+        &mut self,
+        run_start: usize,
+        reporter: &mut Reporter,
+        emitted: &mut usize,
+    ) {
+        let elapsed = self
+            .clocks
+            .turn_start
+            .map(|start| start.elapsed().as_secs())
+            .unwrap_or_default();
+        self.app
+            .set_command_elapsed(self.clocks.command_start.map(|start| start.elapsed()));
+        if let Some((cancel, _)) = self.inflight.as_ref() {
+            cancel.cancel();
+        }
+        if let Some(zeroth::app::InterruptedTurn::Kept { agents, .. }) =
+            self.app.interrupt_for_shutdown(elapsed)
+            && let Some(group) = agents
+        {
+            for entry in group.agents {
+                let _ = self.agent_registry.kill(&entry.id);
+            }
+        }
+        self.abandon_inflight();
+        self.clocks.command_start = None;
+        self.emit_settled(reporter, run_start, emitted);
     }
 }
