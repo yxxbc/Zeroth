@@ -38,6 +38,11 @@ pub struct InputHistory {
 }
 
 impl InputHistory {
+    pub(super) fn reset_navigation(&mut self) {
+        self.cursor = None;
+        self.last_recall = None;
+    }
+
     /// Record a submitted input and exit browsing, **queuing it for the
     /// persistent history file**. Blank texts are ignored and an entry
     /// identical to the newest is collapsed in memory, like codex's

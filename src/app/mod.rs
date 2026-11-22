@@ -51,6 +51,7 @@ mod queue;
 mod reasoning;
 mod resume;
 mod secrets;
+mod sessions;
 mod settings;
 mod skill_picker;
 mod skills_menu;
@@ -883,6 +884,9 @@ pub struct App {
     /// The round's live agent group between its announcement and its
     /// resolution — the strip's blue `● Running {n} agents…` tree cell.
     agent_group: Option<AgentGroupLive>,
+    /// The full-screen bar's focused identity (`None` = composer).
+    session_bar: Option<sessions::TabFocus>,
+    workspace_drafts: std::collections::HashMap<Option<String>, sessions::WorkspaceDraft>,
     /// The ↓ roster navigation: `Some(0)` highlights the `● main` row,
     /// `Some(i+1)` the i-th **visible** roster entry. The footer line swaps
     /// to the selection hints while it is `Some`. See `docs/agents/agent-tool.md`.
@@ -978,11 +982,20 @@ impl App {
 
     /// Tell the key routing that the screen-owning viewport is painting
     /// (`docs/ui/full-screen.md`) — the boundary's call at bootstrap, like
-    /// [`set_path_display`](Self::set_path_display). Only the conversation-scroll
-    /// keys read it; the inline viewport leaves PageUp/PageDown/Ctrl+Home/End
-    /// to the composer.
+    /// [`set_path_display`](Self::set_path_display). The conversation-scroll
+    /// keys read it, and so does the session bar (`docs/ui/workspace.md`): ↓
+    /// from an empty composer steps onto the bar only here, and the inline
+    /// viewport leaves PageUp/PageDown/Ctrl+Home/End to the composer.
     pub const fn set_fullscreen(&mut self, on: bool) {
         self.fullscreen = on;
+    }
+
+    /// Is the screen-owning viewport in use? The frame composition reads it
+    /// for the session bar (`docs/ui/workspace.md`) and the inline path for
+    /// nothing at all.
+    #[must_use]
+    pub const fn fullscreen(&self) -> bool {
+        self.fullscreen
     }
 
     /// Bump [`history_generation`](Self::history_generation) without touching
@@ -1391,6 +1404,11 @@ impl App {
         self.agent_selection = None;
         self.agent_selection_memory = None;
         self.agent_view = None;
+        self.session_bar = None;
+        for (_, draft) in self.workspace_drafts.drain() {
+            self.discarded_images
+                .extend(draft.images.into_iter().map(|(_, path)| path));
+        }
         self.pending_agents.clear();
         // The blocked tool threads are reaped by the loop's Clear arm (their
         // cancel token trips); the prompt they were waiting on goes with them

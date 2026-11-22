@@ -72,6 +72,7 @@ mod reasoning;
 mod resume_view;
 mod search;
 mod secrets_view;
+mod session_bar;
 mod settings_view;
 mod skills_view;
 mod spinner_view;
@@ -107,11 +108,13 @@ pub use self::context_view::{
     ContextCache, DebugBody, context_body, context_lines, render_context_view,
 };
 pub use self::conversation::{
-    banner_tail, committed_history, conversation_lines, conversation_lines_carded,
-    conversation_lines_expanded, conversation_lines_tracked, is_expandable, repaint_lines,
-    repaint_tail,
+    UserPrompt, banner_tail, committed_history, conversation_lines, conversation_lines_carded,
+    conversation_lines_expanded, conversation_lines_tracked, is_expandable, pinned_prompt,
+    pinned_prompt_line, repaint_lines, repaint_tail,
 };
 pub use self::diff_view::{diff_body_rows, render_diff_view};
+pub use self::selection::{highlight, slice};
+pub mod selection;
 pub use self::donate_view::{donate_picker_height, donate_view_lines, render_donate_picker};
 pub use self::export_view::{
     export_picker_height, export_text, export_view_lines, render_export_picker,
@@ -131,10 +134,12 @@ pub use self::layout::{
     Repin, background_view_height, cursor_position, cursor_visible, fitted_preview_rows, hang_rows,
     key_onboarding_height, live_height, modal_needs_rebuild, model_picker_height,
     overlay_cursor_seat, permission_height, preview_budget, preview_rows, region_is_modal, repin,
-    restore_cursor_row, stream_preview_max_rows, strip_has_status,
+    restore_cursor_row, scroll_anchor, stream_preview_max_rows, strip_has_status,
 };
 pub use self::link_card_view::link_card_lines;
-pub use self::live::{composer_cursor_at, render_live, render_live_with_preview};
+pub use self::live::{
+    composer_cursor_at, render_live, render_live_with_preview, render_workspace_live,
+};
 pub use self::login_view::render_key_onboarding;
 pub use self::mascot_view::{mascot_picker_height, render_mascot_picker};
 pub use self::menu::{
@@ -145,10 +150,14 @@ pub use self::message::{compaction_lines, message_lines, message_lines_with_path
 pub use self::model_view::render_model_picker;
 pub use self::offline::{offline_lines, offline_rows};
 pub use self::palette::{activate_theme, active_theme, with_theme};
-pub use self::permission_view::{permission_lines, permission_remember_label, render_permission};
+pub use self::permission_view::{
+    permission_lines, permission_option_at, permission_option_rows, permission_remember_label,
+    render_permission,
+};
 pub use self::reasoning::reasoning_lines;
-pub use self::resume_view::render_resume_picker;
+pub use self::resume_view::{render_resume_picker, resume_row_at};
 pub use self::secrets_view::{render_secrets_picker, secrets_picker_height, secrets_view_lines};
+pub use self::session_bar::SessionBarHits;
 pub use self::settings_view::{render_settings, settings_height};
 pub use self::skills_view::{render_skills_menu, skills_menu_height};
 pub use self::spinner_view::{render_spinner_picker, spinner_picker_height};

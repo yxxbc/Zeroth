@@ -164,6 +164,26 @@ fn live_height_is_clamped_to_the_terminal_height() {
 }
 
 #[test]
+fn a_scroll_anchor_is_the_tail_exactly_at_the_bottom() {
+    // The click on the pinned prompt uses this rule, and so does every scroll
+    // key: `None` is the tail (follow new output), `Some(top)` holds a line.
+    // Landing on the last screenful re-arms the follow, by design.
+    assert_eq!(super::scroll_anchor(0, 100, 20), Some(0));
+    assert_eq!(super::scroll_anchor(79, 100, 20), Some(79));
+    assert_eq!(
+        super::scroll_anchor(80, 100, 20),
+        None,
+        "the bottom screenful is the tail, not an anchor"
+    );
+    assert_eq!(
+        super::scroll_anchor(500, 100, 20),
+        None,
+        "a target past the end clamps to the tail"
+    );
+    assert_eq!(super::scroll_anchor(0, 5, 20), None, "nothing to scroll");
+}
+
+#[test]
 fn repin_keeps_the_box_top_anchored_growing_downward() {
     // Room below: grow in place, top fixed, no scroll, nothing to clear.
     assert_eq!(

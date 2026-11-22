@@ -263,3 +263,58 @@ fn a_cut_session_preview_ends_with_an_ellipsis() {
     let line = row(&buf, 4, 24);
     assert!(line.trim_end().ends_with('…'), "{line:?}");
 }
+
+// --- mouse: a click on a session row (docs/state/resume.md) ------------------
+
+#[test]
+fn a_click_maps_to_the_session_row_under_it() {
+    // The body is a window over the matches, so a click must map through the
+    // same window the renderer painted — not straight to a match index.
+    let app = resume_app(&["one", "two", "three"]);
+    let area = ratatui::layout::Rect::new(0, 0, 40, 12);
+    // The body opens on row 4 (title, gap, search, gap) and has 12 - 7 = 5 rows.
+    assert_eq!(resume_row_at(&app, area, 4, 3), Some(0));
+    assert_eq!(resume_row_at(&app, area, 5, 3), Some(1));
+    assert_eq!(resume_row_at(&app, area, 6, 3), Some(2));
+    assert_eq!(
+        resume_row_at(&app, area, 7, 3),
+        None,
+        "past the last session"
+    );
+    assert_eq!(resume_row_at(&app, area, 3, 3), None, "the search line");
+    assert_eq!(resume_row_at(&app, area, 0, 3), None, "the title");
+    assert_eq!(
+        resume_row_at(&app, area, 5, 40),
+        None,
+        "past the page's right edge"
+    );
+}
+
+#[test]
+fn a_click_through_a_scrolled_window_still_names_the_right_session() {
+    // More sessions than rows: the window is centred on the selection, so the
+    // top row is not match 0. A click must account for that offset.
+    let previews: Vec<String> = (0..20).map(|i| format!("session {i}")).collect();
+    let refs: Vec<&str> = previews.iter().map(String::as_str).collect();
+    let mut app = resume_app(&refs);
+    if let Some(picker) = app.resume_picker.as_mut() {
+        picker.selected = 10;
+    }
+    let area = ratatui::layout::Rect::new(0, 0, 40, 12);
+    let body_h = 5usize;
+    let start = super::super::menu::centered_window(20, 10, body_h);
+    assert!(start > 0, "the fixture must actually scroll");
+    assert_eq!(
+        resume_row_at(&app, area, 4, 3),
+        Some(start),
+        "the first body row is the window's first match"
+    );
+    assert_eq!(resume_row_at(&app, area, 4 + 4, 3), Some(start + 4));
+}
+
+#[test]
+fn an_empty_picker_has_no_row_to_click() {
+    let app = resume_app(&[]);
+    let area = ratatui::layout::Rect::new(0, 0, 40, 12);
+    assert_eq!(resume_row_at(&app, area, 4, 3), None);
+}

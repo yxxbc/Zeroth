@@ -718,21 +718,31 @@ pub fn render_live_with_preview(
     app: &App,
     stream_preview: Option<&[Line<'static>]>,
 ) {
+    let _ = render_workspace_live(area, buf, app, stream_preview);
+}
+
+/// Paint the live region and capture the workspace tab targets in that frame.
+pub fn render_workspace_live(
+    area: Rect,
+    buf: &mut Buffer,
+    app: &App,
+    stream_preview: Option<&[Line<'static>]>,
+) -> SessionBarHits {
     // The `AskUserQuestion` modal replaces the whole live region — the
     // streaming strip included, since the turn is blocked on the answers.
     // Checked first: the two modals queue behind each other, so at most one
     // is ever open. See `docs/tools/ask.md`.
     if app.ask().is_some() {
         render_ask(area, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // A pending tool-permission request replaces the whole live region — the
     // streaming strip included, since the turn is blocked on the answer. It
     // wins over every other inline view (it is modal). See
     // `docs/state/permissions.md`.
     if app.permission().is_some() {
-        render_permission(area, buf, app);
-        return;
+        let options = render_permission(area, buf, app);
+        return SessionBarHits::default().with_options(options);
     }
     // The startup review replaces the composer next — only a modal outranks
     // it, the key routing's order (`docs/state/config-review.md`). The strip keeps
@@ -747,7 +757,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_config_review(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // The inline `/model` picker replaces the **composer** — its own framed
     // body takes the composer's rows plus the band's and the footer's — but
@@ -760,7 +770,7 @@ pub fn render_live_with_preview(
         let [strip, body] = view_split(area, model_picker_rows(picker, area.width, area.height));
         render_strip_above(strip, buf, app, stream_preview);
         render_model_picker(body, buf, picker);
-        return;
+        return SessionBarHits::default();
     }
     // The inline `/login` onboarding flow sits under the same strip.
     if let Some(onboarding) = &app.key_onboarding {
@@ -770,7 +780,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_key_onboarding(body, buf, onboarding);
-        return;
+        return SessionBarHits::default();
     }
     // …and so does the inline `/settings` menu. See `docs/state/settings.md`.
     if app.settings_picker.is_some() {
@@ -780,7 +790,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_settings(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the inline `/mascot` picker, the `/settings` menu's twin. See
     // `docs/ui/mascot.md`.
@@ -791,7 +801,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_mascot_picker(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the inline `/spinner` picker, the `/mascot` picker's twin — the
     // one picker whose subject is the strip it keeps above itself. See
@@ -803,7 +813,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_spinner_picker(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the inline `/theme` picker, codex's theme picker in the family's
     // frame (its preview beside the list on a wide terminal). See
@@ -815,7 +825,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_theme_picker(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the inline `/skills` menu, the `/settings` menu's twin (its
     // compact page on a short terminal). See `docs/tools/skills.md`.
@@ -826,7 +836,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_skills_menu(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the read-only `/hooks` menu — its body is the built line count,
     // the ↓ manager band's rule. See `docs/tools/hooks-menu.md`.
@@ -836,7 +846,7 @@ pub fn render_live_with_preview(
         let [strip, body] = view_split(area, body_h);
         render_strip_above(strip, buf, app, stream_preview);
         render_hooks_menu(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the read-only `/donate` page, its sibling — the same built-line
     // body. See `docs/ui/donate.md`.
@@ -847,7 +857,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_donate_picker(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the `/secrets` page, the same built-line body — its values
     // masked in the builder. See `docs/state/secrets.md`.
@@ -858,7 +868,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         render_secrets_picker(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the read-only `/export` page, the `/donate` page's sibling. See
     // `docs/ui/export.md`.
@@ -866,7 +876,7 @@ pub fn render_live_with_preview(
         let [strip, body] = view_split(area, super::export_view::export_menu_rows(app, area.width));
         render_strip_above(strip, buf, app, stream_preview);
         super::export_view::render_export_picker(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the read-only `/context` page, its sibling too. See
     // `docs/architecture/context-usage.md`.
@@ -877,7 +887,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         super::context_usage_view::render_context_usage(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // …and the read-only `/usage` page, its sibling. See `docs/providers/usage.md`.
     if app.usage_page.is_some() {
@@ -887,7 +897,7 @@ pub fn render_live_with_preview(
         );
         render_strip_above(strip, buf, app, stream_preview);
         super::usage_view::render_usage_page(body, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // The ↓ background manager band replaces the composer (and the band/footer
     // slots below it) — but **not** the streaming strip: a running tool's live
@@ -903,7 +913,7 @@ pub fn render_live_with_preview(
         let [strip, band] = view_split(area, band_h);
         render_strip_above(strip, buf, app, stream_preview);
         render_background_view(band, buf, app);
-        return;
+        return SessionBarHits::default();
     }
     // The band below the box holds the palette, the shortcuts overview, *or* the
     // `@` file picker (band_rows — mutually exclusive). Queued messages render
@@ -1028,9 +1038,8 @@ pub fn render_live_with_preview(
     if menu_rows(app, area.width) > 0 {
         Paragraph::new(command_menu_lines(app, band_area.width)).render(band_area, buf);
     } else if shortcuts_rows(app, area.width) > 0 {
-        Paragraph::new(shortcuts_lines(
-            app.turn_active(),
-            app.has_backtrack_target(),
+        Paragraph::new(super::menu::shortcuts_for_app(
+            app,
             band_area.width,
             band_area.height,
         ))
@@ -1064,7 +1073,11 @@ pub fn render_live_with_preview(
 
     // The agent roster below the footer — the persistent `● main` + `◯ …`
     // list while agents exist (docs/agents/agent-tool.md).
+    if app.fullscreen() {
+        return super::session_bar::render_session_bar(agent_area, buf, app);
+    }
     if agent_rows > 0 {
         Paragraph::new(agent_list_lines(app, agent_area.width)).render(agent_area, buf);
     }
+    SessionBarHits::default()
 }

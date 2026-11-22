@@ -572,12 +572,7 @@ pub fn shortcuts_rows(app: &App, width: u16) -> u16 {
     if !app.shortcuts_open {
         return 0;
     }
-    let lines = shortcuts_lines(
-        app.turn_active(),
-        app.has_backtrack_target(),
-        width,
-        u16::MAX,
-    );
+    let lines = shortcuts_for_app(app, width, u16::MAX);
     u16::try_from(lines.len()).unwrap_or(u16::MAX)
 }
 
@@ -676,13 +671,14 @@ struct ShortcutsGrid {
     gutter: usize,
     /// Whether the labels drop their leading ` for` / ` to` (`terse_label`).
     terse: bool,
+    entries: &'static [(&'static str, &'static str)],
 }
 
 impl ShortcutsGrid {
     /// `SHORTCUTS` split into `count` balanced columns in a wording, at no
     /// gutter yet.
-    fn split(count: usize, terse: bool) -> Self {
-        let total = SHORTCUTS.len();
+    fn split(count: usize, terse: bool, entries: &'static [(&'static str, &'static str)]) -> Self {
+        let total = entries.len();
         let count = count.clamp(1, total.max(1));
         let (base, extra) = (total / count, total % count);
         let mut start = 0;
@@ -697,7 +693,7 @@ impl ShortcutsGrid {
         let widths = columns
             .iter()
             .map(|column| {
-                SHORTCUTS[column.clone()]
+                entries[column.clone()]
                     .iter()
                     .map(|&entry| shortcut_widest(entry, terse))
                     .max()
@@ -709,14 +705,20 @@ impl ShortcutsGrid {
             widths,
             gutter: 0,
             terse,
+            entries,
         }
     }
 
     /// `count` columns in a wording, if they fit `width` whole — inset, and
     /// at least [`SHORTCUTS_MIN_GUTTER`] apart — with the width they do not
     /// need shared out between the gutters, up to [`SHORTCUTS_MAX_GUTTER`].
-    fn fitted(count: usize, terse: bool, width: u16) -> Option<Self> {
-        let grid = Self::split(count, terse);
+    fn fitted(
+        count: usize,
+        terse: bool,
+        width: u16,
+        entries: &'static [(&'static str, &'static str)],
+    ) -> Option<Self> {
+        let grid = Self::split(count, terse, entries);
         let content: usize = grid.widths.iter().sum();
         let gaps = grid.columns.len() - 1;
         let need = cols(MENU_INDENT) + content + gaps * SHORTCUTS_MIN_GUTTER;
@@ -739,8 +741,8 @@ impl ShortcutsGrid {
     /// full wording again — the terse one would save no row there — unless
     /// only the terse one fits whole. A terminal too narrow even for that
     /// still gets the one column; the paint's clip is all that is left to it.
-    fn for_width(width: u16) -> Self {
-        let total = SHORTCUTS.len();
+    fn for_width(width: u16, entries: &'static [(&'static str, &'static str)]) -> Self {
+        let total = entries.len();
         let mut counts: Vec<usize> = (SHORTCUTS_MIN_ROWS.clamp(1, total.max(1))..=total)
             .map(|rows| total.div_ceil(rows))
             .collect();
@@ -757,9 +759,9 @@ impl ShortcutsGrid {
         .find_map(|(counts, terse)| {
             counts
                 .iter()
-                .find_map(|&count| Self::fitted(count, terse, width))
+                .find_map(|&count| Self::fitted(count, terse, width, entries))
         })
-        .unwrap_or_else(|| Self::split(1, true))
+        .unwrap_or_else(|| Self::split(1, true, entries))
     }
 
     /// How many rows the layout takes: its first (longest) column's length.
@@ -788,7 +790,7 @@ impl ShortcutsGrid {
             if row >= column.len() {
                 break; // the columns only shorten to the right
             }
-            let entry = SHORTCUTS[column.start + row];
+            let entry = self.entries[column.start + row];
             let (key, label) = shortcut_text(entry, turn_active, can_backtrack, self.terse);
             if let Some(pad) = pad {
                 spans.push(Span::raw(" ".repeat(pad)));
@@ -824,7 +826,31 @@ pub fn shortcuts_lines(
     width: u16,
     height: u16,
 ) -> Vec<Line<'static>> {
-    let grid = ShortcutsGrid::for_width(width);
+    build_shortcuts(turn_active, can_backtrack, width, height, SHORTCUTS)
+}
+
+pub(super) fn shortcuts_for_app(app: &App, width: u16, height: u16) -> Vec<Line<'static>> {
+    build_shortcuts(
+        app.turn_active(),
+        app.has_backtrack_target(),
+        width,
+        height,
+        if app.fullscreen() {
+            WORKSPACE_SHORTCUTS
+        } else {
+            SHORTCUTS
+        },
+    )
+}
+
+fn build_shortcuts(
+    turn_active: bool,
+    can_backtrack: bool,
+    width: u16,
+    height: u16,
+    entries: &'static [(&'static str, &'static str)],
+) -> Vec<Line<'static>> {
+    let grid = ShortcutsGrid::for_width(width, entries);
     let rows = grid.rows();
     let height = usize::from(height);
     let shown = if rows <= height {

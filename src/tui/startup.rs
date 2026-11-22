@@ -36,8 +36,10 @@ pub(crate) struct Startup {
     /// `-p`: run headless, reporting this way (`docs/cli/headless.md`) — the
     /// prompt above then already holds what stdin added. `None` is the TUI.
     pub(crate) print: Option<zeroth::cli::PrintOptions>,
-    /// `--fullscreen`: the screen-owning TUI (`docs/ui/full-screen.md`).
-    pub(crate) fullscreen: bool,
+    /// The viewport the run asked for: `Some(true)` is `--fullscreen`,
+    /// `Some(false)` is `--inline`, `None` leaves it to `ZEROTH_TUI` and then
+    /// to [`zeroth::term::DEFAULT_VIEWPORT`] (`docs/ui/full-screen.md`).
+    pub(crate) fullscreen: Option<bool>,
 }
 
 /// The `--continue`/`--resume` directive — the session to install before the

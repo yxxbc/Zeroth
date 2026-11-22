@@ -659,8 +659,9 @@ impl App {
             // (`remove_agent`'s rule; the boundary repaints the main
             // conversation, so the screen goes back with the row.)
             if self.agent_view.as_deref() == Some(id) {
-                self.agent_view = None;
+                self.close_agent_view();
             }
+            self.discard_workspace_draft(id);
             self.forget_agent_selection(id);
             self.clamp_agent_selection();
             self.agents_generation += 1;
@@ -890,8 +891,9 @@ impl App {
         }
         self.agents_generation += 1;
         if self.agent_view.as_deref() == Some(id) {
-            self.agent_view = None;
+            self.close_agent_view();
         }
+        self.discard_workspace_draft(id);
         self.forget_agent_selection(id);
         self.clamp_agent_selection();
     }
@@ -1023,6 +1025,9 @@ impl App {
     /// Enter an agent's session view (the roster selection's Enter) — and the
     /// pick the next ↓ comes back to (`agent_selection_start`).
     pub fn open_agent_view(&mut self, id: &str) {
+        if self.fullscreen && self.agent_view.as_deref() != Some(id) {
+            self.swap_workspace_draft(Some(id));
+        }
         self.agent_view = Some(id.to_string());
         self.agent_selection_memory = Some(id.to_string());
         self.shortcuts_open = false;
@@ -1034,6 +1039,9 @@ impl App {
 
     /// Leave the agent session view back to the main conversation.
     pub fn close_agent_view(&mut self) {
+        if self.fullscreen && self.agent_view.is_some() {
+            self.swap_workspace_draft(None);
+        }
         self.agent_view = None;
     }
 

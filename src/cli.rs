@@ -67,10 +67,13 @@ pub struct SessionArgs {
     /// `-p` / `--print`: run headless with these options — no screen, the
     /// answer on stdout (`docs/cli/headless.md`). `None` is the TUI.
     pub print: Option<PrintOptions>,
-    /// `--fullscreen`: run the terminal UI in the **screen-owning** mode on
-    /// the alternate screen rather than the inline viewport
-    /// (`docs/ui/full-screen.md`). `ZEROTH_TUI=full` does the same.
-    pub fullscreen: bool,
+    /// Which viewport the run asked for, if it said anything:
+    /// `Some(true)` is `--fullscreen` (the screen-owning alternate-screen
+    /// mode), `Some(false)` is `--inline` (the conversation in the terminal's
+    /// scrollback), and `None` leaves it to `ZEROTH_TUI`, then to the default
+    /// (`docs/ui/full-screen.md`). Three states rather than a bool because
+    /// "not asked" is not "asked for inline".
+    pub fullscreen: Option<bool>,
 }
 
 /// A headless run's own options (`docs/cli/headless.md`) — the flags that mean
@@ -267,7 +270,14 @@ const MAIN_DOC: HelpDoc = HelpDoc {
                     literal: "    --fullscreen",
                     placeholder: "",
                     description: "Run the terminal UI on the alternate screen\n\
-                                  (experimental; ZEROTH_TUI=full does the same)",
+                                  (conversation laid out inside the window;\n\
+                                  the default; ZEROTH_TUI=full)",
+                },
+                Row {
+                    literal: "    --inline",
+                    placeholder: "",
+                    description: "Keep the conversation in the terminal's own\n\
+                                  scrollback instead (ZEROTH_TUI=inline)",
                 },
                 Row {
                     literal: "-h, --help",
@@ -457,6 +467,7 @@ where
     let mut permission_mode: Option<PermissionMode> = None;
     let mut cwd: Option<PathBuf> = None;
     let mut fullscreen: Option<()> = None;
+    let mut inline: Option<()> = None;
     let mut args = args.into_iter().peekable();
     // `update` routes as the first argument only (docs/ops/update.md) and
     // takes nothing: a flag or word after it is a mistake, not a prompt.
@@ -527,6 +538,17 @@ where
                     return Err(format!("{flag} takes no value"));
                 }
                 set_once(&mut fullscreen, (), "--fullscreen")?;
+                continue;
+            }
+            // The inline viewport said out loud. It is the default today, so
+            // the flag changes nothing yet — its job is to let a script or an
+            // alias pin the mode that will stop being the default
+            // (`docs/ui/full-screen.md` *Default decision*).
+            "--inline" => {
+                if value.is_some() {
+                    return Err(format!("{flag} takes no value"));
+                }
+                set_once(&mut inline, (), "--inline")?;
                 continue;
             }
             "--output-format" => {
@@ -668,13 +690,22 @@ where
     if fullscreen.is_some() && print.is_some() {
         return Err("--fullscreen needs the terminal UI (not --print)".to_string());
     }
+    // Two viewports, one screen: asking for both is a mistake worth naming
+    // rather than silently resolving in either direction.
+    if fullscreen.is_some() && inline.is_some() {
+        return Err("--fullscreen and --inline name two different viewports".to_string());
+    }
     Ok(Cli::Session(SessionArgs {
         start,
         prompt,
         cwd,
         permission_mode,
         print,
-        fullscreen: fullscreen.is_some(),
+        fullscreen: fullscreen.is_some().then_some(true).or_else(|| {
+            // `--inline` is the other half of the same question; the two are
+            // refused together above, so at most one of them is set.
+            inline.is_some().then_some(false)
+        }),
     }))
 }
 
@@ -1039,16 +1070,54 @@ mod tests {
     }
 
     #[test]
+    fn inline_is_the_opt_out_and_the_two_viewports_cannot_be_asked_for_at_once() {
+        // Neither flag: **nothing asked**, which is not the same as "inline" —
+        // the default lives in `term::DEFAULT_VIEWPORT`, and main resolves the
+        // three states in order (flag, environment, default).
+        let Ok(Cli::Session(args)) = parsed(&["x"]) else {
+            panic!("a session run parses");
+        };
+        assert_eq!(args.fullscreen, None, "a bare run asks for no viewport");
+
+        // The explicit opt-out parses and means what it says.
+        let Ok(Cli::Session(args)) = parsed(&["--inline", "x"]) else {
+            panic!(
+                "--inline parses as a session run: {:?}",
+                parsed(&["--inline", "x"]).err()
+            );
+        };
+        assert_eq!(
+            args.fullscreen,
+            Some(false),
+            "inline is not the screen mode"
+        );
+
+        // Two viewports, one screen: named, not silently resolved.
+        let err = parsed(&["--fullscreen", "--inline", "x"]).expect_err("contradictory");
+        assert!(
+            err.contains("--fullscreen") && err.contains("--inline"),
+            "{err}"
+        );
+        // …and each still refuses a value and a repeat.
+        assert!(parsed(&["--inline=1", "x"]).is_err());
+        assert!(parsed(&["--inline", "--inline", "x"]).is_err());
+    }
+
+    #[test]
     fn fullscreen_is_a_tui_flag_and_refuses_a_screenless_run() {
         let Ok(Cli::Session(args)) = parsed(&["--fullscreen", "x"]) else {
             panic!("--fullscreen parses as a session run");
         };
-        assert!(args.fullscreen, "the flag reaches the session args");
+        assert_eq!(
+            args.fullscreen,
+            Some(true),
+            "the flag reaches the session args"
+        );
         assert_eq!(args.prompt.as_deref(), Some("x"));
         assert!(matches!(
             parsed(&["--fullscreen"]),
             Ok(Cli::Session(SessionArgs {
-                fullscreen: true,
+                fullscreen: Some(true),
                 ..
             }))
         ));
@@ -1395,7 +1464,10 @@ Options:
   -C, --cwd <DIR>                Run in DIR instead of the current directory
       --permission-mode <MODE>   manual, edit, auto or master, for this run only
       --fullscreen               Run the terminal UI on the alternate screen
-                                 (experimental; ZEROTH_TUI=full does the same)
+                                 (conversation laid out inside the window;
+                                 the default; ZEROTH_TUI=full)
+      --inline                   Keep the conversation in the terminal's own
+                                 scrollback instead (ZEROTH_TUI=inline)
   -h, --help                     Print help
   -V, --version                  Print version
 

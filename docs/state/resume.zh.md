@@ -56,6 +56,10 @@ picker（`resume_picker.rs`）—— 一个备用屏幕 overlay：
   串过滤；选择重置到第一条匹配），Backspace 弹掉查询。**Esc 先清查询**；只有在空
   查询上按 Esc 才取消。从一个正在跑的 session 里，取消（以及 Ctrl+C）只是关掉
   picker —— 活着的对话不受影响。
+- **单击**一行只是把它高亮；再点一次已高亮的那一行才恢复它
+  （`App::click_resume_row`）—— 这就是权限提示的两步规则，于是一次误点不会加载
+  会话。指针下的那一行由 `ui::resume_row_at` 找出，它走的是渲染时画出的同一个居中
+  窗口，所以列表滚动后点击依然逐行对应。
 - 列表区域的空状态：`No sessions yet` / `No results for your search`。
 
 流程（`slash_dispatch.rs`、`session_lifecycle.rs`）：

@@ -195,6 +195,10 @@ Esc 条目是三向上下文相关的（也就是 codex 的退出条目）：
 上一条用户消息时是 `esc esc to edit previous`（`SHORTCUTS_BACKTRACK`，
 `docs/input/backtrack.md`），只有在没有可回溯的东西时才是 `esc to quit`。
 
+| 仅限全屏 | 操作 |
+| --- | --- |
+| `↓` / `←` / `→` / `Enter` / `↑` | 从空输入框进入[会话栏](workspace.md)、移动焦点、切换会话或返回输入框。 |
+
 ### 已知的差异
 
 - **没有常驻的 `? for shortcuts` 提示**：codex 有一条始终在场的页脚行可以放它；

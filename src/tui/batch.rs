@@ -199,7 +199,9 @@ fn run_job(
         prompt: Some(job.prompt.clone()),
         permission_mode,
         print: Some(job_options),
-        fullscreen: false,
+        // A job file's runs are print mode: no screen, so no viewport to pick
+        // (`docs/cli/headless.md`).
+        fullscreen: None,
     };
     let began = Instant::now();
     let outcome = match tokio::runtime::Builder::new_current_thread()

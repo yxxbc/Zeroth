@@ -34,7 +34,6 @@ use std::time::Instant;
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::text::Line;
-use unicode_width::UnicodeWidthStr;
 
 use zeroth::app::{App, DebugPage, HistoryItem, Role, View, edits_composer};
 use zeroth::images;
@@ -282,16 +281,17 @@ impl Session<'_> {
             };
             let mut content_h = conv_area;
             let mut start = window_start(content_h);
-            // The latest user message above the window's top is pinned on one
-            // reserved row, so the question stays with its answer while the
-            // reply is scrolled (`docs/ui/full-screen.md`).
-            let mut sticky = sticky_line(&tail, &self.full_user_starts, start);
-            if sticky.is_some() && content_h > 1 {
+            // The turn the window's top sits in is pinned on one reserved row
+            // while its whole message has scrolled away, so the question stays
+            // with its answer (`docs/ui/conversation-tool-details-and-pin.md`).
+            let width = usize::from(screen.width);
+            let mut pin = pinned_row(&self.full_prompts, start, width, self.full_pin_hover);
+            if pin.is_some() && content_h > 1 {
                 content_h -= 1;
                 start = window_start(content_h);
-                sticky = sticky_line(&tail, &self.full_user_starts, start);
+                pin = pinned_row(&self.full_prompts, start, width, self.full_pin_hover);
             } else if content_h <= 1 {
-                sticky = None;
+                pin = None;
             }
             let end = (start + content_h).min(tail.len());
             let mut window: Vec<Line<'static>> = tail[start..end].to_vec();
@@ -300,22 +300,33 @@ impl Session<'_> {
             self.apply_selection(&mut window);
             self.full_len = tail.len();
             self.full_conv_h = content_h;
-            self.full_sticky_rows = usize::from(sticky.is_some());
+            self.full_sticky_rows = usize::from(pin.is_some());
+            self.full_pin_row = pin.as_ref().map(|pin| pin.start);
+            if pin.is_none() {
+                // A strip that went away takes its hover with it: the pointer
+                // is now over conversation rows.
+                self.full_pin_hover = false;
+            }
             // The hit map is the content window the user can see — the same
             // rows the viewport paints below the pinned row (`full_window`).
             self.full_window = window.clone();
             let mut painted = Vec::with_capacity(window.len() + self.full_sticky_rows);
-            if let Some(sticky) = sticky {
-                painted.push(sticky);
+            if let Some(pin) = pin {
+                painted.push(pin.line);
             }
             painted.extend(window);
             let app = &self.app;
-            return self.term.draw_full_with_tail(
+            let mut hits = ui::SessionBarHits::default();
+            self.term.draw_full_with_tail(
                 &painted,
                 height,
-                |area, buf| ui::render_live_with_preview(area, buf, app, preview.as_deref()),
+                |area, buf| {
+                    hits = ui::render_workspace_live(area, buf, app, preview.as_deref());
+                },
                 app,
-            );
+            )?;
+            self.full_tab_hits = hits;
+            return Ok(());
         }
         let app = &self.app;
         // `term` places the cursor from the final (content-anchored) viewport
@@ -329,49 +340,72 @@ impl Session<'_> {
 
     /// The screen-owning mode's conversation rows: the startup banner, the
     /// finished history, the in-flight reply, and — inside an agent session
-    /// view — that agent's own transcript. Cached by
-    /// `(agent view, generation, width, streaming length)`: the frame is
-    /// painted every draw, so re-rendering the whole conversation per 120-fps
-    /// frame would be O(n²) over a reply (`docs/ui/full-screen.md`).
+    /// view — that agent's own transcript.
+    ///
+    /// Two halves, and the split is what keeps a big session usable. The
+    /// **history** rows go through [`FullTail`]'s cache, keyed on anything
+    /// that changes what those rows are; the **reply** that is still streaming
+    /// is appended here, per frame. One cache over both, keyed on the streamed
+    /// text's length, re-rendered the whole session on every chunk — 12.8 ms
+    /// at 1,000 turns, 77% of a 60 fps frame, per chunk
+    /// (`docs/ui/full-screen.md` *Performance*).
     fn full_tail_lines(&mut self) -> Vec<ratatui::text::Line<'static>> {
         let width = self.term.screen().width;
         let theme = ui::active_theme();
-        let viewing_agent = self.app.viewed_agent().is_some();
+        let agent_id = self.app.viewed_agent().map(|run| run.id.as_str());
+        let viewing_agent = agent_id.is_some();
+        self.full_reading
+            .retain(|id, _| id.as_deref().is_none_or(|id| self.app.agent(id).is_some()));
         let generation = if viewing_agent {
-            self.app.agents_generation()
+            (self.app.agents_generation(), 0)
         } else {
-            self.app.history_generation()
+            (self.app.history_generation(), self.app.history.len())
         };
-        let stream_len = if viewing_agent {
-            self.app
-                .viewed_agent()
-                .and_then(|run| run.streaming.as_deref())
-                .map_or(0, str::len)
-        } else {
-            self.app.streaming_text().map_or(0, str::len)
-        };
-        // A cleared/replaced/rewound history (or a different agent) makes the
-        // stored line index meaningless: jump back to the tail rather than
-        // anchoring the view to a line that no longer exists.
-        if let Some((agent, g, _, _, _, _)) = &self.full_tail
-            && (*agent != viewing_agent || *g != generation)
+        // A different conversation owns a different scroll anchor and expanded
+        // cells. Main-history replacement invalidates only the main indices.
+        if let Some(previous) = self
+            .full_tail
+            .as_ref()
+            .map(|tail| (tail.agent.clone(), tail.generation, tail.width, tail.theme))
         {
-            self.full_top = None;
-            self.full_hover = None;
-            self.full_press = None;
-            self.full_select = None;
-            self.full_expanded.clear();
-            self.full_items.clear();
-            self.full_anchor = None;
+            let (previous, g, _, _) = previous;
+            let switched = previous.as_deref() != agent_id;
+            if switched {
+                self.full_reading.insert(
+                    previous.clone(),
+                    super::FullReading {
+                        top: self.full_top.take(),
+                        expanded: std::mem::take(&mut self.full_expanded),
+                        generation: g.0,
+                    },
+                );
+                if let Some(saved) = self.full_reading.remove(&self.app.agent_view)
+                    && (viewing_agent || saved.generation == generation.0)
+                {
+                    self.full_top = saved.top;
+                    self.full_expanded = saved.expanded;
+                }
+            } else if !viewing_agent && g.0 != generation.0 {
+                self.full_top = None;
+                self.full_expanded.clear();
+            }
+            if switched || (!viewing_agent && g.0 != generation.0) {
+                self.full_hover = None;
+                self.full_press = None;
+                self.full_select = None;
+                self.full_items.clear();
+                self.full_anchor = None;
+            }
         }
-        if let Some((agent, g, w, s, t, lines)) = &self.full_tail
-            && *agent == viewing_agent
-            && *g == generation
-            && *w == width
-            && *s == stream_len
-            && *t == theme
-        {
-            return lines.clone();
+        let history_cached = self.full_tail.as_ref().is_some_and(|tail| {
+            tail.agent.as_deref() == agent_id
+                && tail.generation == generation
+                && tail.width == width
+                && tail.theme == theme
+                && !self.full_tail_dirty
+        });
+        if history_cached {
+            return self.tailed_with_stream(width);
         }
         // Lone URL lines in assistant replies become preview cards once
         // fetched (`docs/ui/rich-links.md`). The closures capture the fields
@@ -407,14 +441,14 @@ impl Session<'_> {
             HistoryItem::Message(message) if message.role == Role::Assistant => card_line(line),
             _ => None,
         };
-        let (mut lines, mut user_starts, mut items) = match self.app.viewed_agent() {
+        let (mut lines, mut prompts, mut items) = match self.app.viewed_agent() {
             Some(run) => {
                 // An agent's session view keeps a cell per call: its cells are
                 // keyed on the records its own run makes
                 // (`docs/agents/agent-view-streaming.md`).
                 let history = ui::committed_history(&run.history, &run.tool_queue, None).to_vec();
                 recheck_pictures(&history);
-                let mut starts = Vec::new();
+                let mut prompts = Vec::new();
                 let mut items = Vec::new();
                 let expanded = &self.full_expanded;
                 let mut lines = ui::conversation_lines_carded(
@@ -425,11 +459,14 @@ impl Session<'_> {
                     |index| expanded.contains(&index),
                     card_for,
                     |index, start, count| {
-                        if matches!(
-                            &history[index],
-                            HistoryItem::Message(message) if message.role == Role::User
-                        ) {
-                            starts.push(start);
+                        if let HistoryItem::Message(message) = &history[index]
+                            && message.role == Role::User
+                        {
+                            prompts.push(ui::UserPrompt {
+                                start,
+                                end: start + count,
+                                text: message.text.clone(),
+                            });
                         }
                         if ui::is_expandable(&history[index]) {
                             items.push((start, count, index));
@@ -447,10 +484,10 @@ impl Session<'_> {
                         }
                     }
                 }
-                (lines, starts, items)
+                (lines, prompts, items)
             }
             None => {
-                let mut starts = Vec::new();
+                let mut prompts = Vec::new();
                 let mut items = Vec::new();
                 let expanded = &self.full_expanded;
                 let mut lines = ui::conversation_lines_carded(
@@ -461,11 +498,14 @@ impl Session<'_> {
                     |index| expanded.contains(&index),
                     card_for,
                     |index, start, count| {
-                        if matches!(
-                            &self.app.history[index],
-                            HistoryItem::Message(message) if message.role == Role::User
-                        ) {
-                            starts.push(start);
+                        if let HistoryItem::Message(message) = &self.app.history[index]
+                            && message.role == Role::User
+                        {
+                            prompts.push(ui::UserPrompt {
+                                start,
+                                end: start + count,
+                                text: message.text.clone(),
+                            });
                         }
                         if ui::is_expandable(&self.app.history[index]) {
                             items.push((start, count, index));
@@ -488,7 +528,7 @@ impl Session<'_> {
                         }
                     }
                 }
-                (lines, starts, items)
+                (lines, prompts, items)
             }
         };
         // Fetch the lone links that have no card yet; a URL is requested once
@@ -507,30 +547,82 @@ impl Session<'_> {
         // `banner_tail` puts the banner and one blank row above the
         // conversation; the user-message and item offsets follow it.
         let offset = banner.len() + 1;
-        for start in &mut user_starts {
-            *start += offset;
+        for prompt in &mut prompts {
+            prompt.start += offset;
+            prompt.end += offset;
         }
         for (start, _, _) in &mut items {
             *start += offset;
         }
         lines = ui::banner_tail(banner, lines);
+        self.full_prompts = prompts;
+        self.full_items = items;
+        self.full_tail_dirty = false;
+        self.full_tail = Some(super::FullTail {
+            agent: self.app.agent_view.clone(),
+            generation,
+            width,
+            theme,
+            lines,
+        });
+        self.tailed_with_stream(width)
+    }
+
+    /// The cached history rows with this frame's **in-flight reply** and any
+    /// flowed page appended.
+    ///
+    /// This is the per-chunk half: it renders only what is still streaming, so
+    /// its cost is the reply's size, not the session's. The history rows are
+    /// cloned (a `Vec<Line>` share of the cached copy) and the reply is built
+    /// on top of them, because the frame paints the tail as one slice.
+    fn tailed_with_stream(&mut self, width: u16) -> Vec<ratatui::text::Line<'static>> {
+        let mut lines = self
+            .full_tail
+            .as_ref()
+            .map(|tail| tail.lines.clone())
+            .unwrap_or_default();
+        let streaming = self
+            .app
+            .viewed_agent()
+            .and_then(|run| run.streaming.as_deref().filter(|text| !text.is_empty()))
+            .map(str::to_string);
+        let streaming = match streaming {
+            Some(text) => Some(text),
+            None => {
+                if self.app.viewed_agent().is_none() {
+                    self.app
+                        .streaming_text()
+                        .filter(|text| !text.is_empty())
+                        .map(str::to_string)
+                } else {
+                    None
+                }
+            }
+        };
+        let mut stream = Vec::new();
+        if let Some(text) = streaming {
+            stream.extend(if self.app.viewed_agent().is_some() {
+                self.agent_render.committed_rows(&text, width)
+            } else {
+                ui::message_lines_with_paths(
+                    Role::Assistant,
+                    &text,
+                    width,
+                    Some(self.app.path_display()),
+                )
+            });
+        }
         // A framed view opened over this screen flows its page the same way
         // the inline rebuild does (`docs/ui/view-flow.md`).
         let flow = self.current_view_flow();
         self.flowed_view = flow.as_ref().map(|flow| flow.signature);
         if let Some(flow) = flow {
-            lines.extend(flow.lines);
+            stream.extend(flow.lines);
         }
-        self.full_user_starts = user_starts;
-        self.full_items = items;
-        self.full_tail = Some((
-            viewing_agent,
-            generation,
-            width,
-            stream_len,
-            theme,
-            lines.clone(),
-        ));
+        // Kept for `full_selected_text`, which indexes the whole tail: the
+        // history half is borrowed from the cache, this half is already here.
+        self.full_stream_lines = stream.clone();
+        lines.extend(stream);
         lines
     }
 
@@ -576,15 +668,11 @@ impl Session<'_> {
             } else {
                 u16::MAX
             };
-            let mut x = 0u16;
-            for span in &mut line.spans {
-                let width = u16::try_from(span.content.width()).unwrap_or(u16::MAX);
-                let span_end = x.saturating_add(width);
-                if from < span_end && to > x {
-                    span.style = span.style.add_modifier(ratatui::style::Modifier::REVERSED);
-                }
-                x = span_end;
-            }
+            // Exactly the cells the copy will take: `ui::highlight` splits the
+            // spans at the selection's edges and reverses whole graphemes, the
+            // same test `ui::slice` copies with
+            // (`docs/ui/full-screen.md` *Selection semantics*).
+            *line = ui::highlight(line, from, to);
         }
     }
 
@@ -599,30 +687,11 @@ impl Session<'_> {
         } else {
             ((b_line, b_col), (a_line, a_col))
         };
-        let lines = &self.full_tail.as_ref()?.5;
-        let mut out = Vec::new();
-        for (row, line) in lines.iter().enumerate() {
-            if row < start.0 {
-                continue;
-            }
-            if row > end.0 {
-                break;
-            }
-            let from = if row == start.0 { start.1 } else { 0 };
-            let to = if row == end.0 {
-                end.1.saturating_add(1)
-            } else {
-                u16::MAX
-            };
-            out.push(slice_line(line, from, to));
-        }
-        while out.first().is_some_and(String::is_empty) {
-            out.remove(0);
-        }
-        while out.last().is_some_and(String::is_empty) {
-            out.pop();
-        }
-        Some(out.join("\n")).filter(|text| !text.trim().is_empty())
+        // The tail is two halves: the cached history rows, then this frame's
+        // streaming ones. Selection indexes the whole thing, so walk both in
+        // order — no need to have copied the history to complete it.
+        let history = self.full_tail.as_ref()?.lines.iter();
+        ui::selection::text(history.chain(self.full_stream_lines.iter()), start, end)
     }
 
     /// Render the full-screen tool-output overlay. Clamps the scroll to the
@@ -838,6 +907,9 @@ impl Session<'_> {
     /// synchronized update. (`reflow` cleared the pending queue first, so the
     /// re-commit can never double up with pre-rebuild leftovers.)
     pub(crate) fn repaint_conversation(&mut self) -> io::Result<()> {
+        if self.term.fullscreen() {
+            return self.draw_conversation();
+        }
         let screen = self.term.screen();
         // The purge takes the encoded pictures with it, so a picture whose
         // file has gone since it was drawn — or since the conversation was
@@ -914,6 +986,9 @@ impl Session<'_> {
     /// roster) painted below in the same synchronized frame. The in-flight
     /// partial commits through `agent_render` so later chunks append seamlessly.
     pub(crate) fn repaint_agent_view(&mut self) -> io::Result<()> {
+        if self.term.fullscreen() {
+            return self.draw_conversation();
+        }
         let screen = self.term.screen();
         self.agent_render.reset();
         let Some(run) = self.app.viewed_agent() else {
@@ -978,19 +1053,30 @@ impl Session<'_> {
     }
 }
 
-/// The user message whose first line is the latest one above `start` — the
-/// pinned prompt header when that line has scrolled off the top. `None` when
-/// the prompt is already the window's first row (or there is none above it).
-fn sticky_line(
-    tail: &[Line<'static>],
-    user_starts: &[usize],
+/// The pinned prompt strip for this frame: the turn [`ui::pinned_prompt`]
+/// picks, drawn as one summary row, and the tail row it stands for (the click
+/// target). `None` when no prompt qualifies, or when the one that does says
+/// nothing worth summarising.
+fn pinned_row(
+    prompts: &[ui::UserPrompt],
+    window_start: usize,
+    width: usize,
+    hovered: bool,
+) -> Option<PinnedRow> {
+    let prompt = ui::pinned_prompt(prompts, window_start)?;
+    let width = u16::try_from(width).unwrap_or(u16::MAX);
+    let line = ui::pinned_prompt_line(&prompt.text, width, hovered)?;
+    Some(PinnedRow {
+        start: prompt.start,
+        line,
+    })
+}
+
+/// A frame's pinned prompt: the summary row to paint at the top of the
+/// conversation area, and the tail row a click on it scrolls back to.
+struct PinnedRow {
     start: usize,
-) -> Option<Line<'static>> {
-    let position = user_starts
-        .iter()
-        .rev()
-        .find(|&&position| position < start)?;
-    tail.get(*position).cloned()
+    line: Line<'static>,
 }
 
 /// The interned link id of the span covering column `col` on `line`, if any.
@@ -1005,25 +1091,6 @@ fn carrier_at(line: &Line<'static>, col: u16) -> Option<u32> {
         x = x.saturating_add(width);
     }
     None
-}
-
-/// The text of `line` in display columns `[from, to)`, trailing blanks
-/// trimmed. A wide glyph is kept whole when its first column is inside the
-/// range; its shadow cell has no character of its own.
-fn slice_line(line: &Line<'static>, from: u16, to: u16) -> String {
-    use unicode_width::UnicodeWidthChar;
-    let mut out = String::new();
-    let mut x = 0u16;
-    for span in &line.spans {
-        for ch in span.content.chars() {
-            let width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(0);
-            if x >= from && x < to {
-                out.push(ch);
-            }
-            x = x.saturating_add(width);
-        }
-    }
-    out.trim_end().to_string()
 }
 
 /// Look again for the file behind every picture `history` shows, before it is

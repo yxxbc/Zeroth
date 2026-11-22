@@ -646,6 +646,9 @@ pub(super) fn agent_group_full_lines(
 /// these rows.
 #[must_use]
 pub fn agent_list_rows(app: &App) -> u16 {
+    if app.fullscreen() {
+        return SESSION_BAR_ROWS;
+    }
     let agents = app.visible_agents().len();
     if agents == 0 {
         return 0;

@@ -421,7 +421,7 @@ impl Session<'_> {
         let target = target.clamp(0, max_top as isize) as usize;
         // Reaching the bottom resumes follow-tail; anywhere above it anchors
         // the view to that line, so new output does not move it.
-        self.full_top = (target < max_top).then_some(target);
+        self.full_top = ui::scroll_anchor(target, self.full_len, conv);
         self.full_hover = None;
         self.frame.schedule_frame();
     }
@@ -432,8 +432,50 @@ impl Session<'_> {
     /// the escape hatch on terminals that keep it), and a left click with no
     /// drag opens the link under the pointer.
     fn on_mouse(&mut self, mouse: MouseEvent) -> std::io::Result<()> {
-        if !self.term.fullscreen() || self.app.view != View::Conversation || self.app.modal_open() {
+        if !self.term.fullscreen() {
             return Ok(());
+        }
+        // The permission prompt takes the pointer before anything else: it is
+        // the one modal whose answer a click can give, and a click must never
+        // reach the conversation through it (`docs/state/permissions.md`).
+        if self.app.permission().is_some() {
+            return self.on_permission_mouse(mouse);
+        }
+        // The `/resume` picker is a page of rows, so a click picks one
+        // (`docs/state/resume.md`).
+        if self.app.view == View::ResumePicker {
+            return self.on_resume_mouse(mouse);
+        }
+        if self.app.view != View::Conversation || self.app.modal_open() {
+            return Ok(());
+        }
+        // Use the last painted tabs, not a layout recomputed after roster events.
+        let tab = self
+            .full_tab_hits
+            .tab_at(mouse.column, mouse.row)
+            .filter(|_| self.app.session_tabs_available());
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.full_tab_press = tab.map(|id| id.map(str::to_string));
+                if self.full_tab_press.is_some() {
+                    self.full_press = None;
+                    self.full_select = None;
+                    self.frame.schedule_frame();
+                    return Ok(());
+                }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => self.full_tab_press = None,
+            MouseEventKind::Up(MouseButton::Left) => {
+                if let Some(pressed) = self.full_tab_press.take() {
+                    if tab == Some(pressed.as_deref()) {
+                        let action = self.app.select_session_tab(pressed.as_deref());
+                        self.on_action(action)?;
+                    }
+                    self.frame.schedule_frame();
+                    return Ok(());
+                }
+            }
+            _ => {}
         }
         // A left click in the composer places the caret there — the one
         // live-region click the mode supports so far (`docs/ui/full-screen.md`).
@@ -447,6 +489,7 @@ impl Session<'_> {
                 height.min(screen.height),
             );
             if let Some(cursor) = ui::composer_cursor_at(live, &self.app, mouse.column, mouse.row) {
+                self.app.focus_workspace_composer();
                 self.app.input.set_cursor(cursor);
                 self.full_press = None;
                 self.full_select = None;
@@ -467,18 +510,26 @@ impl Session<'_> {
             }
             MouseEventKind::Moved => {
                 let hover = self.content_row(&mouse).map(|row| (mouse.column, row));
-                if self.full_hover != hover {
-                    self.full_hover = hover;
+                let on_pin = self.on_pin_row(&mouse);
+                let moved = self.full_hover != hover || self.full_pin_hover != on_pin;
+                if self.full_pin_hover != on_pin {
+                    self.full_pin_hover = on_pin;
+                }
+                self.full_hover = hover;
+                if moved {
                     self.frame.schedule_frame();
                 }
             }
             MouseEventKind::Down(MouseButton::Left) => {
+                self.full_pin_press = self.on_pin_row(&mouse);
                 self.full_press = self.full_cell(&mouse);
                 self.full_select = None;
                 self.full_hover = None;
                 self.frame.schedule_frame();
             }
             MouseEventKind::Drag(MouseButton::Left) => {
+                // A drag started on the strip is not a click on it.
+                self.full_pin_press = false;
                 if let (Some(press), Some(current)) = (self.full_press, self.full_cell(&mouse)) {
                     self.full_select = (press != current).then_some((press, current));
                     self.full_hover = None;
@@ -489,6 +540,7 @@ impl Session<'_> {
                 // A drag copies; a click (no drag) opens the link under it.
                 let text = self.full_selected_text();
                 let clicked = self.full_press.take().is_some();
+                let pin_click = std::mem::take(&mut self.full_pin_press);
                 self.full_select = None;
                 if let Some(text) = text {
                     // A selection is not "/copy": say what was copied.
@@ -501,6 +553,10 @@ impl Session<'_> {
                             self.toast(format!("Copy failed: {reason}"), ToastKind::Error);
                         }
                     }
+                } else if pin_click && self.on_pin_row(&mouse) {
+                    // The strip stands for a prompt above the window: a click
+                    // brings it back into view (`docs/ui/conversation-tool-details-and-pin.md`).
+                    self.scroll_to_pinned_prompt();
                 } else if clicked
                     && let Some(row) = self.content_row(&mouse)
                     && let Some(url) = self.full_link_at(mouse.column, row)
@@ -524,7 +580,7 @@ impl Session<'_> {
         if let Some(card) = card {
             self.cards.insert(url, card);
             super::link_cards::save(&self.cards);
-            self.full_tail = None;
+            self.full_tail_dirty = true;
             self.frame.schedule_frame();
         }
     }
@@ -548,7 +604,7 @@ impl Session<'_> {
         let item_screen_row =
             usize::from(content_row).saturating_sub(line.saturating_sub(item_start));
         self.full_anchor = Some((item_start, item_screen_row));
-        self.full_tail = None;
+        self.full_tail_dirty = true;
         self.full_hover = None;
         self.frame.schedule_frame();
     }
@@ -558,6 +614,68 @@ impl Session<'_> {
     fn full_cell(&self, mouse: &MouseEvent) -> Option<(usize, u16)> {
         self.content_row(mouse)
             .map(|row| (self.full_start + usize::from(row), mouse.column))
+    }
+
+    /// Is the pointer on the pinned prompt strip? It occupies the frame's
+    /// first conversation row, which [`content_row`](Self::content_row)
+    /// deliberately skips — the strip is a control, not conversation.
+    fn on_pin_row(&self, mouse: &MouseEvent) -> bool {
+        self.full_sticky_rows == 1 && mouse.row == 0
+    }
+
+    /// Scroll the prompt the pinned strip stands for back into view: its first
+    /// row becomes the window's top, which retires the strip on the next frame
+    /// (the message is visible again, so nothing needs summarising). The
+    /// target is clamped like every other scroll anchor.
+    fn scroll_to_pinned_prompt(&mut self) {
+        let Some(start) = self.full_pin_row else {
+            return;
+        };
+        self.full_top = ui::scroll_anchor(start, self.full_len, self.full_conv_h);
+        self.full_hover = None;
+        self.full_pin_hover = false;
+        self.frame.schedule_frame();
+    }
+
+    /// A click inside the `/resume` picker: the row under the pointer is
+    /// highlighted, or resumed when it is already highlighted — the picker's
+    /// Enter, shared with the click ([`App::click_resume_row`]).
+    fn on_resume_mouse(&mut self, mouse: MouseEvent) -> std::io::Result<()> {
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return Ok(());
+        }
+        let screen = self.term.screen();
+        let area = ratatui::layout::Rect::new(0, 0, screen.width, screen.height);
+        let Some(index) = ui::resume_row_at(&self.app, area, mouse.row, mouse.column) else {
+            return Ok(());
+        };
+        let action = self.app.click_resume_row(index);
+        self.on_action(action).map(|_| ())
+    }
+
+    /// A click on the open **permission prompt**: the option whose rows it
+    /// landed on is highlighted, or answered when it is already highlighted
+    /// ([`App::click_permission_option`]).
+    ///
+    /// The prompt is painted as its page's **tail** in the live region
+    /// (`render_permission`), so the pointer's row is mapped from the bottom
+    /// of the page — the same arithmetic
+    /// [`ui::permission_option_at`] does, with the region's own geometry.
+    fn on_permission_mouse(&mut self, mouse: MouseEvent) -> std::io::Result<()> {
+        if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+            return Ok(());
+        }
+        // The rows come from the frame that was **painted**, never from a
+        // fresh layout: the prompt is laid out for the live region's height at
+        // paint time, and that height can change before the click lands —
+        // recomputing then missed the options entirely.
+        let Some(index) = self.full_tab_hits.permission_option_at(mouse.row) else {
+            return Ok(());
+        };
+        let action = self.app.click_permission_option(index);
+        // A resolved prompt answers on another thread; the flow only says
+        // whether the app should quit, which answering never does.
+        self.on_action(action).map(|_| ())
     }
 
     /// The conversation-content row under the pointer (0-based, below the
@@ -741,6 +859,14 @@ impl Session<'_> {
         self.agent_registry.clear();
         self.agent_clocks.clear();
         self.agent_expiry.clear();
+        self.full_reading.clear();
+        self.full_tail = None;
+        self.full_top = None;
+        self.full_expanded.clear();
+        self.full_anchor = None;
+        self.full_select = None;
+        self.full_press = None;
+        self.full_hover = None;
         // …and the permission gate: `clear_conversation` dropped the prompt, the
         // cancelled threads reap themselves, so no unclaimed decision may linger
         // for the next turn (docs/state/permissions.md). The ask gate's board goes
@@ -787,6 +913,7 @@ impl Session<'_> {
     fn on_resize(&mut self, width: u16, height: u16) -> std::io::Result<()> {
         let size_changed = self.term.resized(width, height);
         if size_changed && self.app.view == View::Conversation {
+            self.full_tab_press = None;
             // A resize under an open permission prompt reseats it with this
             // purge; the reflow notes it itself (`term.take_modal_scrolled`) so
             // the prompt's close purge-rebuilds too instead of stranding the box

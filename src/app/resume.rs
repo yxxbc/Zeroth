@@ -119,6 +119,36 @@ impl App {
         self.view = View::ResumePicker;
     }
 
+    /// Resume the highlighted (filtered) row — Enter's action, shared with a
+    /// click on a row so the two can never pick different sessions. An empty
+    /// list has nothing to resume and the picker stays up.
+    pub(super) fn resume_selected_session(&mut self) -> Action {
+        let Some(picker) = self.resume_picker.as_ref() else {
+            return Action::None;
+        };
+        match picker.matches().get(picker.selected) {
+            Some(selected) => Action::ResumeSession(selected.path.clone()),
+            None => Action::None,
+        }
+    }
+
+    /// A click on a session row: highlight it, or resume it when it is
+    /// already highlighted — the permission prompt's two-step rule, for the
+    /// same reason (a stray click on a picker should not load a session).
+    pub fn click_resume_row(&mut self, index: usize) -> Action {
+        let Some(picker) = self.resume_picker.as_mut() else {
+            return Action::None;
+        };
+        if index >= picker.matches().len() {
+            return Action::None;
+        }
+        if picker.selected == index {
+            return self.resume_selected_session();
+        }
+        picker.selected = index;
+        Action::None
+    }
+
     /// Dismiss the `/resume` picker (Esc/Ctrl+C, a failed load, or right
     /// after a successful one): back to the conversation view. The loop
     /// leaves the alternate screen and repaints, the Ctrl+O return.
@@ -173,13 +203,7 @@ impl App {
             KeyCode::PageDown => picker.selected = (picker.selected + RESUME_PAGE).min(last),
             KeyCode::Home => picker.selected = 0,
             KeyCode::End => picker.selected = last,
-            KeyCode::Enter => {
-                // Resume the highlighted (filtered) row; an empty list has
-                // nothing to resume and the picker stays up.
-                if let Some(selected) = picker.matches().get(picker.selected) {
-                    return Action::ResumeSession(selected.path.clone());
-                }
-            }
+            KeyCode::Enter => return self.resume_selected_session(),
             KeyCode::Esc => {
                 if picker.query.is_empty() {
                     self.close_resume_picker();

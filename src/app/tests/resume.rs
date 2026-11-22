@@ -103,3 +103,53 @@ fn interrupt_undo_stops_at_a_resumed_sessions_trailing_user_message() {
     assert_eq!(roles(&app), vec![Role::User], "the resumed tail survives");
     assert_eq!(message_at(&app, 0).text, "old");
 }
+
+// --- the mouse (docs/state/resume.md) ----------------------------------------
+
+fn click_app() -> App {
+    let mut app = App::new();
+    app.open_resume_picker(
+        (0..3)
+            .map(|i| crate::session::SessionSummary {
+                path: std::path::PathBuf::from(format!("s{i}")),
+                updated_secs: 300,
+                created_secs: 7_200,
+                cwd: "/repo".into(),
+                preview: format!("session {i}"),
+            })
+            .collect(),
+        "/repo".into(),
+    );
+    app
+}
+
+#[test]
+fn a_click_highlights_a_row_and_a_second_click_resumes_it() {
+    // The permission prompt's two-step rule, for the same reason: a stray
+    // click on a picker must not load a session.
+    let mut app = click_app();
+    assert_eq!(app.click_resume_row(2), Action::None);
+    assert_eq!(
+        app.resume_picker.as_ref().map(|p| p.selected),
+        Some(2),
+        "the first click only moves the highlight"
+    );
+    assert_eq!(
+        app.click_resume_row(2),
+        Action::ResumeSession(std::path::PathBuf::from("s2")),
+        "the second click resumes the highlighted row"
+    );
+}
+
+#[test]
+fn a_click_off_the_rows_does_nothing() {
+    let mut app = click_app();
+    assert_eq!(app.click_resume_row(9), Action::None);
+    assert_eq!(app.resume_picker.as_ref().map(|p| p.selected), Some(0));
+}
+
+#[test]
+fn a_click_with_no_picker_open_is_ignored() {
+    let mut app = App::new();
+    assert_eq!(app.click_resume_row(0), Action::None);
+}

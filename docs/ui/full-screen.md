@@ -1,10 +1,10 @@
 # The screen-owning TUI — full-screen mode (design)
 
-**Status: phase 1 (skeleton) implemented.** `--fullscreen` or
-`ZEROTH_TUI=full` paints the conversation and the live region into one
-alternate-screen frame. Scrolling, own selection/copy, mouse and cards are the
-next phases; the inline viewport remains the default until the parity checklist
-below is green.
+**Status: phases 1–5 done — this is the default.** A bare `zeroth` paints the
+conversation and the live region into one alternate-screen frame, with its own
+scrolling, mouse, drag-copy, click-to-expand and the session bar. `--inline` (or
+`ZEROTH_TUI=inline`) is the way back to the conversation-in-scrollback viewport,
+which is still fully supported.
 
 ## Why
 
@@ -210,10 +210,12 @@ still applies.
   window to that tail line (`full_top`), so new output does not move it;
   reaching the bottom resumes follow-tail. The keys are claimed only when the
   boundary marked the app full-screen, so the inline composer keeps them.
-  When the user message that owns the top of the window has scrolled above it,
-  its first line is **pinned** on one reserved row (the latest user message
-  above the window), so the question stays with its answer; while the prompt
-  itself is visible no row is spent (`sticky_line`, `full_user_starts`).
+  When the user message that owns the top of the window has scrolled entirely
+  above it, a one-line **summary** of it is pinned on one reserved row, so the
+  question stays with its answer; while any row of the prompt is still visible
+  none is spent, and pointing at the strip lights it because a click scrolls
+  the prompt back (`pinned_prompt`, `full_prompts`,
+  [`conversation-tool-details-and-pin`](conversation-tool-details-and-pin.md)).
 - **Mouse.** Capture is on for the session (and disabled on exit). The last
   painted conversation rows are the hit map (`full_window`): moving over a link
   underlines its run, a left click with no drag opens it through the platform
@@ -241,11 +243,19 @@ still applies.
   in), cover images on link cards, suspend (`Ctrl+Z`) / editor handoff, and
   agent-view parity beyond the transcript tail. They are the phases below.
 
+The [workspace session bar](workspace.md) replaces the vertical agent roster in full-screen mode.
+
 ## Mode selection and rollout
 
-- **Opt-in first:** `--fullscreen` (name to settle) plus a config key
-  (`ui.screen = "inline" | "full"`) and an environment override for tests
-  (`ZEROTH_TUI=full`, the Miyu `MIYU_TUI=1` precedent). Default: `inline`.
+- **The names, and which one is the default:** `--fullscreen` (the mode, and
+  now the default) and `--inline` (the way back), with the environment twin
+  `ZEROTH_TUI=full` / `ZEROTH_TUI=inline` — a *value* selector, so a typo asks
+  for nothing and falls through to the default rather than erroring
+  (`term::viewport_value`, `term::DEFAULT_VIEWPORT`). The two flags together
+  are refused. A config key (`ui.screen`) is not implemented; the flags and the
+  variable cover the same ground and are what the smoke suite drives.
+  The suite pins `ZEROTH_TUI=inline` for every phase but 156/164, which drive
+  the screen-owning mode explicitly.
 - **Parity checklist** before the default flips: streaming text, thinking,
   tool cells/groups, parallel batches, agents/agent view, background shells,
   permission + ask prompts, every picker and page, `/clear`, `/resume`,
@@ -274,10 +284,47 @@ still applies.
 - **Terminal/tmux quirks.** Alternate screen, mouse reporting and image
   protocols differ. Mitigation: the mode is opt-in, the inline path stays
   available, and the image/OSC 8 gates are shared.
-- **Performance.** Rebuilding the whole frame per draw is O(screen), and the
-  transcript cache already does the expensive part. Diffing is per cell. The
-  budget is 60 fps while streaming at 200×60 over a large session; measure
-  before flipping the default.
+- **Performance — measured, and fixed by splitting the frame cache.** The budget is
+  60 fps while streaming at 200×60 over a large session (16.7 ms a frame).
+  Measured on an Apple-silicon Mac at 200 columns, one full rebuild of the
+  conversation rows costs:
+
+  | turns | rows | rebuild | share of a 60 fps frame |
+  | --- | --- | --- | --- |
+  | 20 | 140 | 0.79 ms | 5% |
+  | 60 | 420 | 1.13 ms | 7% |
+  | 150 | 1,050 | 1.92 ms | 12% |
+  | 300 | 2,100 | 3.84 ms | 23% |
+  | 600 | 4,200 | 7.79 ms | 47% |
+  | 1,000 | 7,000 | 12.82 ms | 77% |
+
+  Painting a 200×60 frame from rows already built is 0.19 ms and constant, so
+  the rows are the cost, at roughly 1.8 µs a row. The problem is **how often**
+  they are rebuilt: `full_tail`'s cache key includes the streaming text's
+  length, which grows with every chunk, so each chunk re-renders the whole
+  conversation — including the history that did not change. At the dummy's
+  45 ms chunk pace that is 2% of a core at 1,000 turns, but a real model
+  streams 30–100 chunks a second, and at 100 the same session would spend
+  **~128% of a core** rebuilding unchanged rows.
+
+  **Fixed** by giving the frame the transcript cache's own split: the finished
+  conversation's rows are cached on what changes *them* (the conversation, its
+  generation, the width, the theme, the verbose toggle, the expanded set,
+  fetched cards), and the in-flight reply is rendered on top per frame. A
+  chunk now costs the reply's size plus one clone of the cached rows, not a
+  re-render of the session:
+
+  | turns | rows | per chunk, before | per chunk, after |
+  | --- | --- | --- | --- |
+  | 150 | 900 | 2.83 ms | 0.16 ms |
+  | 300 | 1,800 | 2.64 ms | 0.14 ms |
+  | 600 | 3,600 | 5.01 ms | 0.20 ms |
+  | 1,000 | 6,000 | 8.22 ms | 0.29 ms |
+
+  18–29× cheaper, and the residue grows at ~0.02 µs a row instead of 1.8 µs,
+  so a 1,000-turn session streaming 100 chunks a second spends ~3% of a core
+  rather than 128%. `full_selected_text` reads the two halves in order, so
+  drag-copy still indexes the whole tail.
 - **A second front end to test.** The smoke matrix doubles. Mitigation: keep
   the frame composition shared, and phase the feature set.
 
@@ -289,31 +336,63 @@ still applies.
 2. **Parity — next.** Agents/agent view, prompts, pickers, images, toasts,
    queue, backtrack, resume/clear, Ctrl+O, resize anchors; the parity checklist
    green.
-3. **Mouse and scrolling — done except cards/selection polish.** Capture, hit
-   map, hover, click links, click-to-expand, wheel,
+3. **Mouse and scrolling — done.** Capture, the hit map, hover, clicking a
+   link, click-to-expand, the wheel,
    PageUp/PageDown/Ctrl+Home/End, drag-select/copy, and the composer's
-   click-to-place caret all work; still open here: character-precise selection
-   and mouse on picker/option rows.
+   click-to-place caret all work; selection is character-exact (see *Selection
+   semantics*), and the permission prompt's options and the `/resume` picker's
+   rows take clicks. Still open here: mouse on the `/model`, `/login` and
+   `/settings` rows.
 4. **Rich links — text cards done.** A lone URL line in an assistant reply
    becomes a preview card (site — title, dim description, cover when one
    exists) once fetched; the `/links` page remains (`rich-links.md`).
-5. **Default decision.** Flip the default, keep `--inline`, evaluate removal.
+5. **Default decision — done.** The default is the screen-owning mode;
+   `--inline` / `ZEROTH_TUI=inline` keeps the old viewport, and its removal is
+   a later call, not part of this work.
 
 ## Open questions
 
 - **Is inline permanent?** Keeping both is a real cost (two viewports, two
   renderers, a doubled smoke matrix). The owner decision to pursue full screen
   is recorded; removal is a later call.
-- **Ctrl+O's role.** In full screen the conversation is already the transcript;
-  Ctrl+O can stay as "expanded everywhere" (the current overlay), become a
-  jump-to-last-reply action, or be retired. Decide during parity.
-- **Selection semantics.** Word/line selection, full-target copy for a link,
-  OSC 52 as a copy fallback over ssh.
-- **The mode's name and flag.** `--fullscreen` is descriptive; `--tui` pairs
-  badly with `--inline`; settle before the first release that carries it.
-- **Scrollback on exit.** Should the mode leave the final screen (a "last
-  frame" harvest) or restore the shell's screen like every alternate-screen
-  app? Restoring is the default; a `/copy transcript` is the escape hatch.
+- **Ctrl+O's role — stays, decided.** It keeps exactly what it does inline:
+  the whole-transcript pager, with every cell expanded at once. Two reasons it
+  cannot be retired. **Esc-Esc backtrack opens it** — a primed second Esc is
+  `Action::ToggleToolView`, and the preview it scrolls to lives on that page
+  (`docs/input/backtrack.md`), so retiring Ctrl+O would take backtracking with
+  it. And "expand everything" is still a distinct affordance from
+  click-to-expand: the page shows the conversation in one scroll with every
+  tool body open, which is how a long session is read end to end.
+  In full screen a collapsed cell can be opened **either** way — a click
+  expands it in place, Ctrl+O opens the page — so the `(ctrl+o to expand)`
+  hint under a folded cell stays true. Jump-to-last-reply was considered and
+  dropped: Ctrl+End already does it.
+- **Selection semantics — cell-exact, decided.** A drag selects **graphemes**,
+  never halves: a wide glyph or a ZWJ emoji whose first column is inside the
+  range is taken whole, one whose first column falls outside is left out, so
+  neither the screen nor the clipboard can show a broken cluster. The
+  highlight and the copy ask the same question (`ui::selection::selected`), so
+  **what is reversed is exactly what is copied** — the rule
+  `src/ui/tests/selection.rs` pins by painting a line into a `Buffer` and
+  reading the reversed cells back. Spans are split at the selection's edges, so
+  a three-character pick inside a twenty-character span reverses three cells
+  rather than the whole span (which is what shipped first).
+  Still open here: word/line selection by double/triple click, and copying a
+  whole link target rather than its visible run. OSC 52 remains the fallback
+  when no native clipboard is reachable.
+
+- **Scrollback on exit — restore, decided.** Leaving the mode **restores the
+  shell's screen** exactly as it was before startup, like every alternate-screen
+  app: the conversation does not stay behind in scrollback. A "last frame"
+  harvest was considered and rejected — it quietly overwrites whatever the
+  shell had on screen, and a wall of TUI in the scrollback is rarely what
+  someone wants after quitting.
+  The conversation is not lost with the screen: the exit hint printed below the
+  restored terminal names the rollout to resume
+  (`Resume this session with: zeroth --resume <id>`, `docs/cli/cli.md`), and
+  `/export` writes the transcript to a file for anything that outlives the
+  session. Smoke Phase 156 pins both halves — the alternate screen is left
+  **and** the hint is printed.
 
 ## Non-goals
 

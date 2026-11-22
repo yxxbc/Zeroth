@@ -97,6 +97,7 @@ impl App {
         self.backtrack = Backtrack::default();
         self.background_focus = false;
         self.agent_selection = None;
+        self.focus_workspace_composer();
         let saved_input = self.input.text().to_string();
         let saved_cursor = self.input.cursor();
         let saved_shell_mode = self.shell_mode;
@@ -236,6 +237,30 @@ impl App {
     }
 
     /// The decision the currently highlighted option row stands for.
+    /// A left click on option `index` of the open prompt — the mouse's way to
+    /// answer it (`docs/state/permissions.md`).
+    ///
+    /// **Two steps, deliberately.** The first click on an option highlights it;
+    /// a click on the option already highlighted answers. One click that
+    /// answered would turn a stray click on a `rm -rf` prompt into consent,
+    /// and the prompt is exactly where a mis-click is most expensive.
+    pub fn click_permission_option(&mut self, index: usize) -> Action {
+        let Some(prompt) = self.permission() else {
+            return Action::None;
+        };
+        if index >= OPTION_COUNT {
+            return Action::None;
+        }
+        if prompt.selected == index {
+            let decision = self.selected_decision();
+            return self.resolve_permission(decision);
+        }
+        if let Some(prompt) = self.permission.as_mut() {
+            prompt.selected = index;
+        }
+        Action::None
+    }
+
     fn selected_decision(&self) -> PermissionDecision {
         match self.permission.as_ref().map_or(0, |p| p.selected) {
             0 => PermissionDecision::Approve,

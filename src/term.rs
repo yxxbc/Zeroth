@@ -1928,19 +1928,41 @@ fn install_panic_hook(keyboard_enhanced: bool) {
 /// `CODEX_TUI_DISABLE_KEYBOARD_ENHANCEMENT`). See `docs/input/shift-enter.md`.
 const DISABLE_KEYBOARD_ENHANCEMENT_ENV: &str = "ZEROTH_DISABLE_KEYBOARD_ENHANCEMENT";
 
-/// Environment selector for the screen-owning mode: `ZEROTH_TUI=full`
-/// (`docs/ui/full-screen.md`). A *value* selector, not a truthy gate — any
-/// other value (or none) leaves the inline viewport, so a typo can never move
-/// a user's screen.
+/// The viewport a run takes when nothing asks for one
+/// (`docs/ui/full-screen.md` *Default decision*): the screen-owning mode.
+///
+/// Inline is still fully supported — `--inline` or `ZEROTH_TUI=inline` — it is
+/// no longer what a bare `zeroth` opens.
+pub const DEFAULT_VIEWPORT: Viewport = Viewport::Full;
+
+/// What `ZEROTH_TUI` asks for, if anything (`docs/ui/full-screen.md`). A
+/// *value* selector, not a truthy gate: `full` and `inline` say what they
+/// mean, and **anything else asks for nothing** — an unrecognized value falls
+/// through to the default rather than erroring, so a typo can never strand a
+/// user in a mode they did not want.
 #[must_use]
-pub fn fullscreen_requested() -> bool {
-    fullscreen_value(std::env::var("ZEROTH_TUI").ok().as_deref())
+pub fn viewport_requested() -> Option<Viewport> {
+    viewport_value(std::env::var("ZEROTH_TUI").ok().as_deref())
 }
 
-/// [`fullscreen_requested`]'s pure half, unit-tested.
+/// [`viewport_requested`]'s pure half, unit-tested.
 #[must_use]
-pub fn fullscreen_value(value: Option<&str>) -> bool {
-    value.is_some_and(|value| value.trim().eq_ignore_ascii_case("full"))
+pub fn viewport_value(value: Option<&str>) -> Option<Viewport> {
+    match value.map(str::trim) {
+        Some(value) if value.eq_ignore_ascii_case("full") => Some(Viewport::Full),
+        Some(value) if value.eq_ignore_ascii_case("inline") => Some(Viewport::Inline),
+        _ => None,
+    }
+}
+
+/// The two viewports a run can take (`docs/ui/full-screen.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Viewport {
+    /// The conversation lives in the terminal's own scrollback.
+    Inline,
+    /// The app owns the screen: the default, `--fullscreen`,
+    /// `ZEROTH_TUI=full`.
+    Full,
 }
 
 /// How long the startup read waits for the cursor report before giving up —
@@ -2083,19 +2105,32 @@ mod tests {
     use ratatui::style::Style;
 
     use super::{
-        HEADLESS_SIZE, InlineViewport, OverlayPaint, fullscreen_value,
-        keyboard_enhancement_disabled, overlay_paint, visible_cells,
+        HEADLESS_SIZE, InlineViewport, OverlayPaint, keyboard_enhancement_disabled, overlay_paint,
+        visible_cells,
     };
 
     #[test]
-    fn fullscreen_is_selected_by_value_not_truthiness() {
-        // docs/ui/full-screen.md: only `full` opts in — `1`, `yes` and a typo
-        // leave the inline viewport, so an env mistake cannot move the screen.
-        assert!(fullscreen_value(Some("full")));
-        assert!(fullscreen_value(Some(" FULL ")));
-        assert!(!fullscreen_value(Some("1")));
-        assert!(!fullscreen_value(Some("yes")));
-        assert!(!fullscreen_value(None));
+    fn the_viewport_is_selected_by_value_and_a_typo_asks_for_nothing() {
+        use super::{Viewport, viewport_value};
+        // docs/ui/full-screen.md: the two named modes say what they mean, and
+        // anything else asks for nothing — it falls through to the default
+        // rather than erroring, so an env mistake cannot strand a user.
+        assert_eq!(viewport_value(Some("full")), Some(Viewport::Full));
+        assert_eq!(viewport_value(Some(" FULL ")), Some(Viewport::Full));
+        assert_eq!(viewport_value(Some("inline")), Some(Viewport::Inline));
+        assert_eq!(viewport_value(Some(" INLINE ")), Some(Viewport::Inline));
+        assert_eq!(viewport_value(Some("ful")), None);
+        assert_eq!(viewport_value(Some("1")), None);
+        assert_eq!(viewport_value(Some("yes")), None);
+        assert_eq!(viewport_value(None), None);
+    }
+
+    #[test]
+    fn the_default_viewport_is_the_screen_owning_one() {
+        // The product decision (docs/ui/full-screen.md *Default decision*): a
+        // bare `zeroth` takes the screen; `--inline` is the way back.
+        use super::{DEFAULT_VIEWPORT, Viewport};
+        assert_eq!(DEFAULT_VIEWPORT, Viewport::Full);
     }
 
     #[test]

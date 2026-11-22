@@ -208,6 +208,7 @@ impl App {
         self.backtrack = Backtrack::default();
         self.background_focus = false;
         self.agent_selection = None;
+        self.focus_workspace_composer();
         let saved_input = self.input.text().to_string();
         let saved_cursor = self.input.cursor();
         let saved_shell_mode = self.shell_mode;

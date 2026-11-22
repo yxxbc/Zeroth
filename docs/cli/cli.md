@@ -43,7 +43,10 @@ Options:
   -C, --cwd <DIR>                Run in DIR instead of the current directory
       --permission-mode <MODE>   manual, edit, auto or master, for this run only
       --fullscreen               Run the terminal UI on the alternate screen
-                                 (experimental; ZEROTH_TUI=full does the same)
+                                 (conversation laid out inside the window;
+                                 the default; ZEROTH_TUI=full)
+      --inline                   Keep the conversation in the terminal's own
+                                 scrollback instead (ZEROTH_TUI=inline)
   -h, --help                     Print help
   -V, --version                  Print version
 
@@ -156,11 +159,16 @@ The grammar (`cli::parse`):
   parked behind it would either start a fresh conversation on Esc or have
   to be dropped: two surprising outcomes for one flag, so the grammar
   says no up front.
-- **`--fullscreen`** opts into the experimental screen-owning TUI
-  (`docs/ui/full-screen.md`): the conversation is painted on the alternate
-  screen instead of committed to scrollback. `ZEROTH_TUI=full` does the
-  same from the environment, and the flag is refused with `-p` — a print
-  run has no screen for it to own.
+- **`--fullscreen`** takes the screen-owning TUI (`docs/ui/full-screen.md`) —
+  **the default** since the parity work landed: the conversation is painted on
+  the alternate screen instead of committed to scrollback, with its own
+  scrolling, mouse, drag-copy and the session bar. `ZEROTH_TUI=full` says the
+  same from the environment, and the flag is refused with `-p` — a print run
+  has no screen for it to own.
+- **`--inline`** is the way back: the conversation stays in the terminal's own
+  scrollback, which is what `zeroth` opened until the screen-owning mode became
+  the default. `ZEROTH_TUI=inline` says the same from the environment. The two
+  flags together are refused — two viewports, one screen.
 
 ### The `--help` page
 

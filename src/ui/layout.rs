@@ -750,6 +750,21 @@ pub fn modal_needs_rebuild(
     }
 }
 
+/// The full-screen conversation's scroll anchor after a scroll to `target`:
+/// `Some(top)` pins the window there, `None` means the tail — the last
+/// `window` rows of a `len`-row conversation, which is where every scroll
+/// lands exactly when it reaches the bottom (`docs/ui/full-screen.md`).
+///
+/// One rule for every way the window moves — the scroll keys, the wheel, a
+/// click on the pinned prompt — so "reach the bottom and follow the tail
+/// again" cannot mean two things depending on which gesture got there.
+#[must_use]
+pub fn scroll_anchor(target: usize, len: usize, window: usize) -> Option<usize> {
+    let max_top = len.saturating_sub(window);
+    let top = target.min(max_top);
+    (top < max_top).then_some(top)
+}
+
 /// Decide how to re-pin a live region currently at `top` with `old_height` to
 /// `new_height` on a `screen_height`-row screen, keeping its top anchored.
 #[must_use]
@@ -941,6 +956,9 @@ pub fn cursor_visible(app: &App) -> bool {
     }
     if let Some(prompt) = app.permission() {
         return prompt.amend;
+    }
+    if app.session_bar_focused().is_some() {
+        return false;
     }
     // The no-text-entry pickers (`/hooks`, the startup review, `/mcp`) and
     // the ↓ manager band are menus too — same rule

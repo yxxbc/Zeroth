@@ -289,6 +289,17 @@ Every prompt offers three, selected with ↑/↓ + Enter (the steps wrap — ↓
    written to `permissions.json` (an id means nothing to the next process).
 3. **No** — reject; the model is told to stop and wait.
 
+A **click** answers too, in two steps: the first click on an option highlights
+it, a click on the option already highlighted answers it
+(`App::click_permission_option`). Two steps deliberately — one click that
+answered would turn a stray click on a destructive prompt into consent, and
+the prompt is where a mis-click costs most. The option's rows are found by
+`ui::permission_option_rows`, which records where they land while the page is
+built, and `ui::permission_option_at` maps the pointer's row through the page's
+**tail** — the part `render_permission` actually paints in the live region —
+so a click cannot answer the option above the one under it. Tab's amend field
+has no options on screen and so takes no clicks.
+
 A long option **word-wraps** instead of truncating (`option_rows`, the
 command body's `wrap_output`): an exact-only rule is the whole command, and
 the old one-row `…` cut hid exactly the text being approved. Continuation

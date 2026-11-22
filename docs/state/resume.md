@@ -66,6 +66,11 @@ The picker (`resume_picker.rs`) — an alternate-screen overlay:
   top match), Backspace pops the query. **Esc clears the query first**; only
   an Esc on an empty query cancels. From a running session, cancel (and
   Ctrl+C) simply closes the picker — the live conversation is untouched.
+- A **click** on a row highlights it; a click on the row already highlighted
+  resumes it (`App::click_resume_row`) — the permission prompt's two-step rule,
+  so a stray click never loads a conversation. The row under the pointer is
+  found by `ui::resume_row_at`, which walks the same centred window the
+  renderer painted, so a scrolled list still maps click-for-click.
 - Empty states in the list area: `No sessions yet` / `No results for your
   search`.
 

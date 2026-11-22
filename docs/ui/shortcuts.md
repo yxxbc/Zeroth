@@ -230,6 +230,10 @@ edit previous` (`SHORTCUTS_BACKTRACK`) when idle with a previous user message
 to edit (`docs/input/backtrack.md`), and `esc to quit` only with nothing to
 backtrack to.
 
+| Full-screen only | Action |
+| --- | --- |
+| `↓` / `←` / `→` / `Enter` / `↑` | Focus the [session bar](workspace.md) from an empty composer, move focus, switch, or return to the composer. |
+
 ### Known divergences
 
 - **No persistent `? for shortcuts` hint**: codex has an always-present

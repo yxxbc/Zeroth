@@ -171,6 +171,19 @@ pub(super) fn user_bg_color() -> Color {
     palette().user_bg
 }
 
+/// The pinned prompt's ink at rest — the user bubble's, because the strip is
+/// that message's summary (`docs/ui/conversation-tool-details-and-pin.md`).
+pub(super) fn pinned_prompt_color() -> Color {
+    user_color()
+}
+
+/// The pinned prompt's ink under the pointer. The accent, the same "this row
+/// is the target" cue the pickers select with — no new colour role, since a
+/// hovered pin says exactly what a selected row says.
+pub(super) fn pinned_prompt_hover_color() -> Color {
+    palette().accent
+}
+
 pub(super) fn ai_color() -> Color {
     palette().text
 }
@@ -356,6 +369,14 @@ pub(super) const TOOL_TRUNCATED_MARKER: &str = "…";
 
 /// Placeholder body for a finished tool that produced no output.
 pub(super) const TOOL_NO_OUTPUT: &str = "(no output)";
+
+/// The pinned prompt's ellipsis: the one column a summary too long for the
+/// frame gives up to say so (`pinned_prompt_line`,
+/// `docs/ui/conversation-tool-details-and-pin.md`). A separate constant from
+/// [`TOOL_TRUNCATED_MARKER`] because the two say different things — one marks
+/// dropped *output*, the other a cut *summary* — and a theme may want them to
+/// differ.
+pub(super) const PINNED_PROMPT_ELLIPSIS: &str = "…";
 
 // ---------------------------------------------------------------------------
 // The thinking stream (docs/ui/thinking-stream.md). It borrows the tool cell's
@@ -2760,6 +2781,17 @@ pub(super) const SHORTCUTS: &[(&str, &str)] = &[
     ("ctrl+c", " to quit"),
 ];
 
+pub(super) const WORKSPACE_SHORTCUTS: &[(&str, &str)] = &{
+    let mut entries = [("", ""); SHORTCUTS.len() + 1];
+    let mut index = 0;
+    while index < SHORTCUTS.len() {
+        entries[index] = SHORTCUTS[index];
+        index += 1;
+    }
+    entries[index] = ("↓ ←/→ Enter ↑", " for sessions");
+    entries
+};
+
 /// The `esc` entry while a turn is in flight, where Esc interrupts it (see
 /// [`shortcuts_lines`]; the idle edit hint is [`SHORTCUTS_BACKTRACK`]).
 pub(super) const SHORTCUTS_INTERRUPT: (&str, &str) = ("esc", " to interrupt");
@@ -3200,6 +3232,12 @@ pub(super) const AGENT_HINT_AGENT: &[(&str, &str)] = &[("Enter", " to view"), ("
 /// stopped rather than stopping it twice (`docs/agents/agent-tool.md`).
 pub(super) const AGENT_HINT_AGENT_DONE: &[(&str, &str)] =
     &[("Enter", " to view"), ("x", " to clear")];
+
+// --- the screen-owning mode's session bar (docs/ui/workspace.md) ---
+
+pub(super) const SESSION_TAB_WIDTH: usize = 28;
+pub(super) const SESSION_BAR_ROWS: u16 = 1;
+pub(super) const SESSION_BAR_CHIP_GAP: &str = "  ";
 
 // --- the inline tool-permission prompt (docs/state/permissions.md) ---
 

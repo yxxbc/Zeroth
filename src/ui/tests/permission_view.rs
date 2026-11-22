@@ -1424,3 +1424,120 @@ fn a_session_prompts_description_row_is_dim() {
         "this session"
     );
 }
+
+// --- mouse: a click on an option row (docs/state/permissions.md) --------------
+
+#[test]
+fn the_recorded_option_rows_are_where_the_options_are_drawn() {
+    // The check the first version of this test lacked: it compared the hit
+    // test against the same spans it was given, so both could be (and were)
+    // wrong together. Here the expectation comes from the **painted text** —
+    // the row whose line reads `❯ 1. Yes` — not from the spans themselves.
+    let app = app_with(request(
+        PermissionKind::Bash,
+        "rm -rf build",
+        "rm -rf build",
+    ));
+    let lines = permission_lines(&app, 80, 24);
+    let spans = permission_option_rows(&app, 80, 24);
+    let plain = |row: usize| -> String {
+        lines[row]
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect()
+    };
+    for (span, index) in &spans {
+        let first = plain(span.start);
+        assert!(
+            first.contains(&format!("{}. ", index + 1)),
+            "the span for option {index} starts on a row that does not begin it: \
+             {first:?} (row {})",
+            span.start
+        );
+        // The row after the span is either the next option's first row or a
+        // row that starts no option at all — never a continuation of this one
+        // (which would mean the span ended early).
+        if let Some(next) = lines.get(span.end) {
+            let text: String = next.spans.iter().map(|s| s.content.as_ref()).collect();
+            let starts_option = text
+                .split_whitespace()
+                .nth(1)
+                .is_some_and(|word| word.ends_with('.'));
+            if starts_option {
+                assert!(
+                    text.contains(&format!("{}. ", index + 2)),
+                    "the row after option {index} begins option {}, not {}: {text:?}",
+                    index + 1,
+                    index + 2
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_click_lands_on_the_option_whose_rows_it_hit() {
+    // The page is painted as its TAIL in the live region, so a pointer row is
+    // an offset from the bottom of the page, not from its top. Getting that
+    // wrong would answer a different option than the one under the pointer —
+    // on a permission prompt, the difference between "allow" and "reject".
+    let app = app_with(request(
+        PermissionKind::Bash,
+        "rm -rf build",
+        "rm -rf build",
+    ));
+    let width = 80;
+    let height = 24;
+    let lines = permission_lines(&app, width, height);
+    let spans = permission_option_rows(&app, width, height);
+    assert_eq!(spans.len(), 3, "a bash prompt offers three answers");
+
+    // Paint the page's tail into a `height`-row region, the way the boundary
+    // does, and walk every painted row: the option whose range contains it
+    // must be the one the hit test answers.
+    let painted_from = lines.len().saturating_sub(usize::from(height));
+    for row in 0..height {
+        let painted_row = painted_from + usize::from(row);
+        let expected = spans
+            .iter()
+            .find(|(span, _)| span.contains(&painted_row))
+            .map(|(_, index)| *index);
+        assert_eq!(
+            permission_option_at(lines.len(), height, &spans, row),
+            expected,
+            "row {row} (page row {painted_row})"
+        );
+    }
+}
+
+#[test]
+fn a_click_off_the_options_answers_nothing() {
+    let app = app_with(request(PermissionKind::Bash, "ls", "ls"));
+    let (lines, height) = (permission_lines(&app, 80, 24), 24);
+    let spans = permission_option_rows(&app, 80, 24);
+    assert_eq!(permission_option_at(lines.len(), height, &spans, 0), None);
+    assert_eq!(
+        permission_option_at(lines.len(), 0, &spans, 0),
+        None,
+        "a region with no rows paints no option"
+    );
+    assert_eq!(
+        permission_option_at(lines.len(), height, &[], 5),
+        None,
+        "no options, no hit"
+    );
+}
+
+#[test]
+fn the_amend_field_has_no_option_rows_to_click() {
+    // Tab swaps the options for the feedback field: there is nothing to click
+    // until it comes back.
+    let mut app = app_with(request(PermissionKind::Bash, "ls", "ls"));
+    let mut key = |code| {
+        app.on_key(KeyEvent::new(code, KeyModifiers::NONE));
+    };
+    key(KeyCode::Tab);
+    assert!(app.permission().is_some_and(|prompt| prompt.amend));
+    assert!(permission_option_rows(&app, 80, 24).is_empty());
+}

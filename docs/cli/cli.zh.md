@@ -41,7 +41,10 @@ Options:
   -C, --cwd <DIR>                Run in DIR instead of the current directory
       --permission-mode <MODE>   manual, edit, auto or master, for this run only
       --fullscreen               Run the terminal UI on the alternate screen
-                                 (experimental; ZEROTH_TUI=full does the same)
+                                 (conversation laid out inside the window;
+                                 the default; ZEROTH_TUI=full)
+      --inline                   Keep the conversation in the terminal's own
+                                 scrollback instead (ZEROTH_TUI=inline)
   -h, --help                     Print help
   -V, --version                  Print version
 
@@ -138,7 +141,10 @@ Enter 会绘制出的样子。
   `--resume needs a session id to send a prompt into (or use --continue)`。选择器
   是交互式的且可被关闭，一个停在它后面的 prompt 要么在按 Esc 时开启一段新对话，
   要么不得不被丢弃：一个 flag 带来两种意外结局，所以语法一开始就说不。
-- **`--fullscreen`** 选用实验性的、自己拥有一块屏幕的 TUI
+- **`--inline`** 是回到旧模式的路：对话留在终端自己的 scrollback 里，也就是在全屏成为
+  默认之前 `zeroth` 打开的样子。`ZEROTH_TUI=inline` 从环境说同样的话。两个 flag
+  同时给会被拒绝 —— 两个 viewport，一块屏幕。
+- **`--fullscreen`** 选用自己拥有一块屏幕的 TUI
   （`docs/ui/full-screen.md`）：对话被画在备用屏上，而不是提交进 scrollback。
   `ZEROTH_TUI=full` 从环境里做同一件事，而与 `-p` 同用时这个 flag 被拒绝 ——
   一次 print 运行没有屏幕可供它拥有。

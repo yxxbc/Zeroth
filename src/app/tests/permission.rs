@@ -707,3 +707,52 @@ fn the_classifier_page_is_reachable_over_an_open_prompt() {
     assert_eq!(app.view, View::Conversation);
     assert!(app.permission().is_some());
 }
+
+// --- the mouse (docs/state/permissions.md) -----------------------------------
+
+#[test]
+fn a_click_highlights_an_option_and_a_second_click_answers_it() {
+    // Two steps on purpose: a single click that answered would turn a stray
+    // click on a destructive prompt into consent.
+    let mut app = App::new();
+    app.open_permission(bash_request("perm_click"));
+    assert_eq!(app.permission().map(|p| p.selected), Some(0));
+
+    assert_eq!(app.click_permission_option(2), Action::None);
+    assert_eq!(
+        app.permission().map(|p| p.selected),
+        Some(2),
+        "the first click moves the highlight, it does not answer"
+    );
+
+    let action = app.click_permission_option(2);
+    assert!(
+        matches!(
+            action,
+            Action::ResolvePermission {
+                decision: PermissionDecision::Deny(None),
+                ..
+            }
+        ),
+        "the second click on the same option answers it: {action:?}"
+    );
+    assert!(app.permission().is_none(), "the prompt is gone");
+}
+
+#[test]
+fn a_click_past_the_last_option_does_nothing() {
+    let mut app = App::new();
+    app.open_permission(bash_request("perm_oob"));
+    assert_eq!(app.click_permission_option(9), Action::None);
+    assert_eq!(app.permission().map(|p| p.selected), Some(0));
+    assert!(app.permission().is_some(), "still waiting for an answer");
+}
+
+#[test]
+fn a_click_with_no_prompt_open_is_ignored() {
+    // The handler runs on every full-screen click; with nothing open there is
+    // no option to hit and nothing to answer.
+    let mut app = App::new();
+    assert_eq!(app.click_permission_option(0), Action::None);
+    assert!(app.permission().is_none());
+}

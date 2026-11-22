@@ -122,6 +122,41 @@ fn resume_toolbar_spans(picker: &ResumePicker, compact: bool) -> Vec<Span<'stati
     ]
 }
 
+/// Which session row a click on the picker lands on: the **match index** (an
+/// index into `ResumePicker::matches()`), or `None` off the rows.
+///
+/// The picker is a full alternate-screen page, so `row` is the pointer's row
+/// inside it (0-based from the page's top). The body is the window
+/// [`centered_window`] computes for the current selection, so a click maps
+/// through the same window the renderer paints — one row, one session, no
+/// second geometry to drift from it.
+#[must_use]
+pub fn resume_row_at(app: &App, area: Rect, row: u16, col: u16) -> Option<usize> {
+    let picker = app.resume_picker.as_ref()?;
+    if col >= area.width || row >= area.height {
+        return None;
+    }
+    // The layout `render_resume_picker` splits: a row of title, a gap, the
+    // search line, a gap, then the body.
+    let body_top = 4;
+    let body_height = area.height.saturating_sub(5 + 2);
+    if row < body_top {
+        return None;
+    }
+    let offset = usize::from(row - body_top);
+    if offset >= usize::from(body_height) {
+        return None;
+    }
+    let matches = picker.matches();
+    if matches.is_empty() {
+        return None;
+    }
+    let selected = picker.selected.min(matches.len().saturating_sub(1));
+    let start = centered_window(matches.len(), selected, usize::from(body_height).max(1));
+    let index = start + offset;
+    (index < matches.len()).then_some(index)
+}
+
 /// Render the full-screen `/resume` session picker — codex's resume picker,
 /// sized down (docs/state/resume.md): the slash-tiled title, the type-to-search
 /// line, the dense session rows (windowed to keep the selection **centered**

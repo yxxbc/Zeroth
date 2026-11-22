@@ -1597,11 +1597,7 @@ impl ModelSession {
             .filter(ModelConfig::is_usable)
             .map(|cfg| {
                 let model = cfg.model.clone();
-                let mut backend = LlmBackend::configure(
-                    cfg,
-                    self.system_prompt.clone(),
-                    /*tools_enabled=*/ false,
-                );
+                let mut backend = LlmBackend::for_compact(cfg, self.system_prompt.clone());
                 // The compact events (docs/tools/hooks.md): PreCompact's context
                 // becomes extra summarization instructions, PostCompact hears
                 // the summary — via the wrapper, so the ordinary session

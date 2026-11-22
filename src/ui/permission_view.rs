@@ -499,9 +499,59 @@ fn more_row(hidden: usize, width: u16) -> Line<'static> {
 /// prompt" and "no rows" alike.
 #[must_use]
 pub fn permission_lines(app: &App, width: u16, term_height: u16) -> Vec<Line<'static>> {
+    permission_lines_and_options(app, width, term_height).0
+}
+
+/// [`permission_lines`] with the row range each **option** occupies, in the
+/// same coordinates — what the mouse needs to turn a click into an answer
+/// (`docs/state/permissions.md`).
+///
+/// Empty when the prompt is in Tab's amend mode (there are no options on
+/// screen then) or when no prompt is open.
+#[must_use]
+pub fn permission_option_rows(
+    app: &App,
+    width: u16,
+    term_height: u16,
+) -> Vec<(std::ops::Range<usize>, usize)> {
+    permission_lines_and_options(app, width, term_height).1
+}
+
+/// Which option a click on the prompt's painted rows lands on.
+///
+/// `lines` is the whole page [`permission_lines`] built, `height` the rows the
+/// live region actually paints — `render_permission` paints the page's **tail**
+/// into it, so the visible window is `lines[lines.len() - height..]` — and
+/// `row` is the pointer's row inside that window. `None` off the options.
+#[must_use]
+pub fn permission_option_at(
+    lines: usize,
+    height: u16,
+    spans: &[(std::ops::Range<usize>, usize)],
+    row: u16,
+) -> Option<usize> {
+    let height = usize::from(height);
+    if height == 0 {
+        return None;
+    }
+    let painted_from = lines.saturating_sub(height);
+    let painted_row = painted_from.checked_add(usize::from(row))?;
+    spans
+        .iter()
+        .find(|(span, _)| span.contains(&painted_row))
+        .map(|(_, index)| *index)
+}
+
+fn permission_lines_and_options(
+    app: &App,
+    width: u16,
+    term_height: u16,
+) -> (Vec<Line<'static>>, Vec<(std::ops::Range<usize>, usize)>) {
     let Some(prompt) = app.permission() else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
+    // Where the options sit inside `below`, recorded as they are built.
+    let mut option_spans: Vec<(std::ops::Range<usize>, usize)> = Vec::new();
     let request = &prompt.request;
     let file_change = matches!(request.kind, PermissionKind::Write | PermissionKind::Edit);
 
@@ -529,7 +579,10 @@ pub fn permission_lines(app: &App, width: u16, term_height: u16) -> Vec<Line<'st
         below.push(hint_row(PERMISSION_AMEND_HINTS));
     } else {
         for (i, label) in options(request, app.project_dir()).iter().enumerate() {
-            below.extend(option_rows(i, label, i == prompt.selected, width));
+            let start = below.len();
+            let rows = option_rows(i, label, i == prompt.selected, width);
+            below.extend(rows);
+            option_spans.push((start..below.len(), i));
         }
         below.push(Line::default());
         below.push(hint_row(&hints(request)));
@@ -583,6 +636,11 @@ pub fn permission_lines(app: &App, width: u16, term_height: u16) -> Vec<Line<'st
         frame.push(body_rule(width));
     }
     frame.extend(below);
+    // Where `below` landed in the page — recorded now, before the closing
+    // rule is pushed, so the option rows can be shifted by exactly the prefix
+    // above them. (Taking it after the push was off by one, and a click on the
+    // option under the pointer answered the one above it.)
+    let options_base = frame.len().saturating_sub(below_len);
     frame.push(rule(width));
 
     // The live cells that raised this — kept visible above the modal so the
@@ -622,13 +680,23 @@ pub fn permission_lines(app: &App, width: u16, term_height: u16) -> Vec<Line<'st
         // gives way, and only the static frame flows.
         Vec::new()
     };
+    // The options were recorded relative to `below`, which `frame` carries at
+    // its end: shift them past the frame's own prefix first (the rule, title,
+    // target and body), then past any context that flowed above the page.
+    for (span, _) in &mut option_spans {
+        *span = (span.start + options_base)..(span.end + options_base);
+    }
     if context.is_empty() {
-        return frame;
+        return (frame, option_spans);
+    }
+    let offset = context.len() + 1;
+    for (span, _) in &mut option_spans {
+        *span = (span.start + offset)..(span.end + offset);
     }
     let mut out = context;
     out.push(Line::default());
     out.extend(frame);
-    out
+    (out, option_spans)
 }
 
 /// Whether the context cells above the prompt are **static** for as long as
@@ -700,8 +768,41 @@ fn file_lang(path: &str) -> Option<&str> {
 /// and the conversation above a fitting prompt is the *real* screen — the
 /// prompt grew by scrolling like any other region, so what the user just
 /// read stays put (`docs/state/permissions.md`).
-pub fn render_permission(area: Rect, buf: &mut Buffer, app: &App) {
-    super::view_flow::render_framed_tail(area, buf, permission_lines(app, area.width, area.height));
+pub fn render_permission(
+    area: Rect,
+    buf: &mut Buffer,
+    app: &App,
+) -> Vec<(std::ops::Range<u16>, usize)> {
+    let lines = permission_lines(app, area.width, area.height);
+    let spans = permission_option_rows(app, area.width, area.height);
+    super::view_flow::render_framed_tail(area, buf, lines.clone());
+    painted_option_rows(area, lines.len(), &spans)
+}
+
+/// Where the option rows land **on screen**, from the page as painted: the
+/// page is bottom-aligned in `area` (its tail is what fits), so a page row
+/// maps to `area.y + row - (lines - area.height)`. Rows that fell off the top
+/// are left out — a click cannot reach them.
+fn painted_option_rows(
+    area: Rect,
+    lines: usize,
+    spans: &[(std::ops::Range<usize>, usize)],
+) -> Vec<(std::ops::Range<u16>, usize)> {
+    let height = usize::from(area.height);
+    let from = lines.saturating_sub(height);
+    spans
+        .iter()
+        .filter_map(|(span, index)| {
+            let start = span.start.max(from);
+            let end = span.end.min(from + height);
+            if start >= end {
+                return None;
+            }
+            let top = area.y.saturating_add(u16::try_from(start - from).ok()?);
+            let bottom = area.y.saturating_add(u16::try_from(end - from).ok()?);
+            Some((top..bottom, *index))
+        })
+        .collect()
 }
 
 /// The `bash` "don't ask again" label — the stored rule as the option showed

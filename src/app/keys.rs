@@ -110,6 +110,17 @@ impl App {
         if self.view == View::Conversation && self.background_view.is_some() {
             return self.on_key_background(key);
         }
+        // The screen-owning mode's session bar claims a few keys the same way
+        // — ←/→/Enter/↑/Esc — and lets every other key through after
+        // clearing itself. Below the manager band (a search may open over the
+        // bar, and Ctrl+C must still cancel it), above the shell-indicator
+        // highlight and Ctrl+C. See `docs/ui/workspace.md`.
+        if self.view == View::Conversation
+            && self.session_bar.is_some()
+            && let Some(action) = self.on_key_session_bar(key)
+        {
+            return action;
+        }
         // A lit footer shell indicator (↓ pressed, the band not open yet)
         // claims a handful of keys first — Enter opens the band, Esc/↑/Ctrl+C
         // dismiss the highlight — and lets every other key through after
@@ -213,6 +224,7 @@ impl App {
             self.shortcuts_open = !self.shortcuts_open;
             return Action::None;
         }
+        let shortcuts_was_open = self.shortcuts_open;
         if self.shortcuts_open {
             self.shortcuts_open = false;
             if key.code == KeyCode::Esc {
@@ -611,7 +623,9 @@ impl App {
             // walks the footer (the shell indicator / agent roster) — Ctrl+N
             // stays an editing key.
             KeyCode::Up => self.nav_up(),
-            KeyCode::Down => self.nav_down(/*footer_walk*/ true),
+            KeyCode::Down => self.nav_down(
+                !self.fullscreen || (!shortcuts_was_open && key.modifiers == KeyModifiers::NONE),
+            ),
             KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => self.nav_up(),
             KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.nav_down(/*footer_walk*/ false)
@@ -791,11 +805,19 @@ impl App {
             return Action::None;
         }
         if footer_walk {
-            if self.background_focusable() {
+            // The screen-owning mode's session bar comes first — the ↓ from an
+            // empty composer the bar was designed for (`docs/ui/workspace.md`);
+            // the inline footer's walk only runs where there is no bar.
+            if self.fullscreen {
+                if self.input.is_empty() && !self.shell_mode && self.session_tabs_available() {
+                    self.focus_session_bar();
+                    return Action::None;
+                }
+            } else if self.background_focusable() {
                 self.background_focus = true;
                 return Action::None;
             }
-            if self.agent_selectable() {
+            if !self.fullscreen && self.agent_selectable() {
                 self.agent_selection = Some(self.agent_selection_start());
                 return Action::None;
             }

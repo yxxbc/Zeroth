@@ -5,6 +5,8 @@
 //! invariant 3); the tail restores the startup banner over a short conversation
 //! (`docs/ui/header.md`).
 
+use super::theme::*;
+use super::wrap::{cols, truncate_cols};
 use super::*;
 
 /// Whether `item` is a `!` shell command's header message (`Role::Shell`).
@@ -246,6 +248,94 @@ fn keep_last_rows(mut lines: Vec<Line<'static>>, max_rows: usize) -> Vec<Line<'s
         lines = lines.split_off(lines.len() - max_rows);
     }
     lines
+}
+
+/// One user message's place in the rendered conversation: the rows it occupies,
+/// the history item it came from, and its wording — what the pinned prompt row
+/// needs (`docs/ui/conversation-tool-details-and-pin.md`).
+///
+/// Built by whoever lays the conversation out (the frame builders in
+/// `src/tui/`), since only they know the row offsets a wrapped message
+/// produced; the two decisions the pin makes on top of them are pure and live
+/// here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserPrompt {
+    /// The first row it occupies, inclusive.
+    pub start: usize,
+    /// One past its last row.
+    pub end: usize,
+    /// The message's raw text, as recorded in history.
+    pub text: String,
+}
+
+/// The prompt the pinned row shows: the latest user message that has scrolled
+/// **entirely** above `window_start`.
+///
+/// A message whose last row is still on screen is not pinned, even when its
+/// first row has gone: the reader can already see the question, and a copy of
+/// its opening line directly above its own continuation reads as two
+/// paragraphs of the same sentence. This is the difference from the rule the
+/// pin shipped with (`start < window_start`), which behaved that way for every
+/// wrapped prompt. `None` while any part of a prompt is visible, and for an
+/// empty conversation.
+#[must_use]
+pub fn pinned_prompt(prompts: &[UserPrompt], window_start: usize) -> Option<&UserPrompt> {
+    // The turn the window's top sits in: the last prompt that has begun by
+    // the time the window starts. Only that one may be pinned. Falling back to
+    // an earlier turn would name the wrong question — with a tall window the
+    // newest turn's reply fills the screen while its question is still inside
+    // it, and the strip would show the turn before.
+    let turn = prompts
+        .iter()
+        .rev()
+        .find(|prompt| prompt.start <= window_start)?;
+    (turn.end <= window_start).then_some(turn)
+}
+
+/// The pinned row: a prompt's whole wording folded onto one line — its breaks
+/// and runs of blanks become single spaces — behind the user bullet, cut to
+/// `width` display columns with the theme's pinned-prompt ellipsis when it does not
+/// fit, and padded to the full width so its ground reads as one strip.
+///
+/// The whole message is what gets summarised, not its first drawn line: a long
+/// question usually opens with the least informative part of itself ("look at
+/// this:"), while the line that actually asks it comes after a blank row.
+///
+/// `hovered` lights the ink without changing the ground — the row is a control
+/// that scrolls back to the prompt, so pointing at it has to say so. `None`
+/// when the prompt has nothing but blanks: there is no summary to show, and a
+/// bullet over an empty strip would only cost a row of conversation.
+#[must_use]
+pub fn pinned_prompt_line(text: &str, width: u16, hovered: bool) -> Option<Line<'static>> {
+    let folded = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if folded.is_empty() {
+        return None;
+    }
+    let width = usize::from(width);
+    let room = width.saturating_sub(cols(USER_BULLET));
+    if room == 0 {
+        return None;
+    }
+    let body = if cols(&folded) <= room {
+        folded
+    } else {
+        // One column of the room buys the ellipsis; the rest is cut on a
+        // grapheme boundary so a wide glyph is never split.
+        let kept = truncate_cols(&folded, room.saturating_sub(cols(PINNED_PROMPT_ELLIPSIS)));
+        format!("{kept}{PINNED_PROMPT_ELLIPSIS}")
+    };
+    let pad = " ".repeat(width.saturating_sub(cols(USER_BULLET) + cols(&body)));
+    let ink = if hovered {
+        pinned_prompt_hover_color()
+    } else {
+        pinned_prompt_color()
+    };
+    let ground = Style::new().bg(user_bg_color());
+    Some(Line::from(vec![
+        Span::styled(USER_BULLET, ground.fg(ink).add_modifier(Modifier::BOLD)),
+        Span::styled(body, ground.fg(ink)),
+        Span::styled(pad, ground),
+    ]))
 }
 
 /// A rebuilt repaint tail with the header banner (docs/ui/header.md) restored

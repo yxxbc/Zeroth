@@ -83,6 +83,7 @@ impl App {
     ///
     /// [`pasted`]: App::pasted
     pub fn on_paste(&mut self, pasted: &str) {
+        self.focus_workspace_composer();
         // An open Ctrl+R search owns *every* key ([`on_key`] routes them all to
         // on_key_search) — a bracketed paste is input too, so it extends the
         // query (readline's paste-into-isearch) instead of editing the doomed
@@ -292,6 +293,7 @@ impl App {
     /// [`images`]: App::images
     /// [`take_submission_images`]: App::take_submission_images
     pub fn attach_image(&mut self, path: PathBuf) {
+        self.focus_workspace_composer();
         // Like `on_paste`, an insert next to a `/command`, `@token` or
         // `$mention` re-derives the same menu/shell/picker state every
         // composer edit runs.

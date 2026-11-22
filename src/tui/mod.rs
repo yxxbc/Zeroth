@@ -148,30 +148,33 @@ pub(crate) struct Session<'t> {
     /// closes and warmed at the loop bottom so it never opens cold
     /// (`docs/ui/tool-view-performance.md`).
     transcript: ui::TranscriptCache,
-    /// The screen-owning mode's conversation tail, cached by
-    /// `(history generation, width, streaming length)`: the full-screen frame
-    /// repaints from history every draw (no scrollback commit), and
-    /// re-rendering the whole conversation per 120-fps frame would be O(n²)
-    /// over a reply. Recomputed once per chunk/item, not per frame
-    /// (`docs/ui/full-screen.md`).
-    full_tail: Option<(
-        bool,
-        u64,
-        u16,
-        usize,
-        zeroth::app::Theme,
-        Vec<ratatui::text::Line<'static>>,
-    )>,
+    /// The screen-owning mode's **history** rows — the finished conversation,
+    /// not the reply streaming over it — cached by what can change those rows
+    /// ([`FullTail`]). The in-flight reply is appended per frame, so a chunk
+    /// costs O(reply) rather than O(session); keying this on the stream length
+    /// re-rendered the whole session every chunk (`docs/ui/full-screen.md`
+    /// *Performance*).
+    full_tail: Option<FullTail>,
     /// The screen-owning mode's scroll anchor: the tail line shown at the top
     /// of the conversation, or `None` to follow the tail. Indexes
     /// `full_tail`'s rows, so it survives new output (the view does not move
     /// when scrolled up) and is clamped to what the last frame painted
     /// (`full_len`/`full_conv_h`).
     full_top: Option<usize>,
+    full_tail_dirty: bool,
+    full_tab_hits: ui::SessionBarHits,
+    full_tab_press: Option<Option<String>>,
+    full_reading: HashMap<Option<String>, FullReading>,
     /// The painted tail's length and conversation-window height — what the
     /// scroll keys clamp against between frames.
     full_len: usize,
     full_conv_h: usize,
+    /// This frame's **streaming** rows — the in-flight reply and any flowed
+    /// page — appended after [`full_tail`](Self::full_tail)'s history rows.
+    /// Kept apart so a chunk re-renders only these: selection reads both
+    /// halves in order, and nothing has to copy the history to complete the
+    /// picture (`docs/ui/full-screen.md` *Performance*).
+    full_stream_lines: Vec<ratatui::text::Line<'static>>,
     /// The conversation rows exactly as the last frame painted them (the
     /// scroll window, hover applied) — the hit map for link clicks and hover.
     full_window: Vec<ratatui::text::Line<'static>>,
@@ -207,14 +210,28 @@ pub(crate) struct Session<'t> {
     card_rx: tokio::sync::mpsc::UnboundedReceiver<(String, Option<zeroth::link_card::LinkCard>)>,
     /// Whether previews are on for this process (`ZEROTH_LINK_CARDS`).
     link_cards: bool,
-    /// Tail indices of each user message's first line, for the pinned prompt
-    /// header: the latest one above the top of the window is drawn on a
-    /// reserved row so the question stays with its answer while the reply is
-    /// scrolled (`docs/ui/full-screen.md`).
-    full_user_starts: Vec<usize>,
+    /// Every user message's rows in the built tail, for the pinned prompt
+    /// strip: the turn the window's top sits in is drawn on one reserved row
+    /// — as a one-line summary of the whole message — while the reply below it
+    /// is scrolled (`docs/ui/conversation-tool-details-and-pin.md`). Rebuilt
+    /// with the tail, so it shares the frame cache's invalidation.
+    full_prompts: Vec<ui::UserPrompt>,
     /// How many rows at the top of the conversation area the pinned prompt
     /// takes (0 or 1) — mouse coordinates are relative to the content below it.
     full_sticky_rows: usize,
+    /// The tail row the pinned strip stands for, when one is showing: the
+    /// scroll target a click on it returns to.
+    full_pin_row: Option<usize>,
+    /// Whether the pointer is over that strip — it is a control, so pointing
+    /// at it has to say so.
+    full_pin_hover: bool,
+    /// A left button went down on that strip. Kept beside [`full_press`]
+    /// because the strip is not conversation: it has no content cell, so a
+    /// press on it records nothing there and the release must still know the
+    /// click was the strip's.
+    ///
+    /// [`full_press`]: Self::full_press
+    full_pin_press: bool,
     /// The Ctrl+D overlay's built context window, rebuilt only when its
     /// signature changes — per frame the O(conversation) derivation starved
     /// the scroll keys on a big context (`docs/architecture/context.md`).
@@ -546,4 +563,39 @@ impl StatusClocks {
         self.turn_start = None;
         self.thinking_start = None;
     }
+}
+
+#[derive(Default)]
+struct FullReading {
+    top: Option<usize>,
+    expanded: std::collections::HashSet<usize>,
+    generation: u64,
+}
+
+/// The screen-owning frame's **history** rows, cached apart from the reply
+/// that streams over them.
+///
+/// The split is the whole point. Keying one cache on the streaming text's
+/// length re-rendered the entire conversation on every chunk — measured at
+/// 12.8 ms for a 1,000-turn session, 77% of a 60 fps frame, *per chunk*
+/// (`docs/ui/full-screen.md` *Performance*). Everything here is keyed on what
+/// can change what the finished rows **are**, and the in-flight reply is
+/// appended per frame on top: a chunk then costs O(reply), not O(session).
+#[derive(Default)]
+struct FullTail {
+    /// The conversation these rows belong to: `None` for the main one, else
+    /// the viewed agent's id.
+    agent: Option<String>,
+    /// The conversation's identity — its generation and length — so a
+    /// `/clear`, a rewind or a `/resume` rebuilds, and an ordinary append does
+    /// not (the streaming reply is not in `history` until it settles).
+    generation: (u64, usize),
+    width: u16,
+    theme: zeroth::app::Theme,
+    /// Banner and finished items. The per-item offsets the pin and the hit
+    /// map read live beside it, in
+    /// [`full_prompts`](Session::full_prompts) and
+    /// [`full_items`](Session::full_items), and are written when this
+    /// rebuilds.
+    lines: Vec<ratatui::text::Line<'static>>,
 }
