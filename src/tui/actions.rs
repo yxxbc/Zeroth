@@ -543,7 +543,9 @@ impl Session<'_> {
             let live = ratatui::layout::Rect::new(
                 0,
                 screen.height.saturating_sub(height),
-                screen.width.saturating_sub(ui::sidebar_width(screen.width)),
+                screen
+                    .width
+                    .saturating_sub(ui::sidebar_columns(&self.app, screen.width)),
                 height.min(screen.height),
             );
             if let Some(cursor) = ui::composer_cursor_at(live, &self.app, mouse.column, mouse.row) {
@@ -697,7 +699,9 @@ impl Session<'_> {
     /// (`InlineViewport::draw_full_with_tail`).
     fn full_bar_row(&self, mouse: &MouseEvent) -> Option<u16> {
         let screen = self.term.screen();
-        let rest = screen.width.saturating_sub(ui::sidebar_width(screen.width));
+        let rest = screen
+            .width
+            .saturating_sub(ui::sidebar_columns(&self.app, screen.width));
         if rest <= ui::SCROLLBAR_COLUMNS {
             return None;
         }

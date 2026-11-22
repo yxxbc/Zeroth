@@ -15,6 +15,7 @@ per change.
 
 → Hide thinking           false
   Verbose output          false
+  Sidebar                 false
   Show images             true
   Image width             120
   Auto-resize images      true
@@ -33,7 +34,7 @@ per change.
 
 ## The settings
 
-Nineteen rows, each one a knob the running session actually reads. Every value
+Twenty rows, each one a knob the running session actually reads. Every value
 **cycles** — there is no free-text field anywhere, so Enter and Space mean the
 same thing on every row and the menu never needs an edit mode.
 
@@ -41,7 +42,8 @@ same thing on every row and the menu never needs an edit mode.
 |---|---|---|
 | **Hide thinking** | `false` / `true` | Whether the model's chain-of-thought streams in the live `● Thinking…` cell and collapses into a `Thought for …` line (`docs/ui/thinking-stream.md`). `true` restores the counted-and-dropped behaviour. Seeded from `ZEROTH_SHOW_THINKING`. |
 | **Verbose output** | **`false`** / `true` | Whether every read, search, listing and scratchpad edit keeps a cell of its own (`true`, the tool cells exactly as they always were) or a run of them folds into one collapsed line — `● Reading 2 files, listing 1 directory…` while it runs, the dim `Read 2 files, listed 1 directory (ctrl+o to expand)` once it is over, a `write`/`edit` in the session's scratchpad its own leading `made 1 scratchpad edit +55` clause (`docs/ui/tool-groups.md`). **Off by default**, Claude Code's non-verbose view; Ctrl+O shows every call whole either way. Cycling it purge-rebuilds, so the committed conversation changes shape at once. Seeded from `ZEROTH_VERBOSE`. |
-| **Show images** | `true` / `false` | Whether a pasted screenshot and the `read` tool's image reads are drawn as pictures in the conversation (`docs/ui/images.md`). `false (unavailable)` when the terminal can't draw one. Cycling it purge-rebuilds, so committed pictures appear or vanish at once. |
+| **Sidebar** | **`false`** / `true` | Whether the screen-owning mode draws its right column — the brand, the session's facts and what is running (`docs/ui/sidebar.md`). **Off by default**: the conversation keeps every column until asked. The three width bands (30 / 24 / hidden) still apply once it is on, and a narrow terminal shows nothing whatever the row says. Cycling it needs no rebuild: the wrap width is part of the frame cache's key. Seeded from `ZEROTH_SIDEBAR`. |
+| **Show images** | `true` / `false` | Whether the `read` tool's image reads are drawn as pictures in the conversation (`docs/ui/images.md`). A pasted screenshot is never drawn — its composer chip was the confirmation. `false (unavailable)` when the terminal can't draw one. Cycling it purge-rebuilds, so committed pictures appear or vanish at once. |
 | **Image width** | `60` / `80` / `120` | An inline picture's width **cap**, in columns — clamped to the terminal, and never used to blow a small picture up. Cycling it purge-rebuilds like **Show images**. |
 | **Auto-resize images** | `true` / `false` | Whether a large picture is downscaled to 2000×2000 before it is **sent to the model** (`docs/ui/images.md`). Nothing to do with the display, so the row stays available even on a terminal that can't draw. |
 | **Error retry** | `0` / `1` / `2` / `3` / `5` / `10` | How many times a request the provider **answers badly** (a `5xx`, a reset, a stall) is retried before the error surfaces (`llm::retry`, the `retrying n/N` status). A connection that cannot be made at all is not counted: it is **waited for**, every few seconds for as long as it takes, under the `Waiting for internet…` status (`docs/providers/offline.md`). `0` means never retry, the wait included. Was the fixed `MAX_RETRIES = 3`. |
@@ -159,6 +161,7 @@ page (`docs/ui/view-flow.md` *A picker's page*):
 
   → Hide thinking        false
     Verbose output       false
+    Sidebar              false
     Show images          true
     Image width          120
     Auto-resize images   true
@@ -296,6 +299,9 @@ docs`.
     one collapsed line — and the rebuild repaints them from history. Turning
     it on first lets go of an open group, so the reads it held come back as
     cells of their own (`docs/ui/tool-groups.md`).
+  - **Sidebar** needs nothing either: the frame's wrap width reads the row,
+    and the width is already in the frame cache's key
+    (`docs/ui/sidebar.md`).
   - **Hide thinking** and **Auto compact** need nothing beyond the pure flag:
     `tui::stream` consults `App::settings().show_thinking()` per phase and
     `App::should_auto_compact` gates on the flag.

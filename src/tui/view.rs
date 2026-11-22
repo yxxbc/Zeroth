@@ -373,7 +373,7 @@ impl Session<'_> {
     fn full_text_width(&self) -> u16 {
         let screen = self.term.screen().width;
         screen
-            .saturating_sub(ui::sidebar_width(screen))
+            .saturating_sub(ui::sidebar_columns(&self.app, screen))
             .saturating_sub(ui::SCROLLBAR_COLUMNS)
             .max(1)
     }
@@ -600,7 +600,7 @@ impl Session<'_> {
         // anchored to the screen's cells, and this frame scrolls and repaints
         // under it, which leaves the image behind as ghost blocks wherever it
         // used to sit (`ui::header_lines_plain`).
-        let banner = if ui::sidebar_width(self.term.screen().width) > 0 {
+        let banner = if ui::sidebar_columns(&self.app, self.term.screen().width) > 0 {
             Vec::new()
         } else {
             ui::header_lines_plain(&self.app, width)
@@ -673,6 +673,13 @@ impl Session<'_> {
                 )
             });
         }
+        // The screen-owning mode's live cells ride the conversation, not the
+        // strip (`ui::conversation_live_lines`): a running tool's tail and an
+        // open thinking phase grow in the transcript, in the turn's own order,
+        // and scroll with it — the strip above the composer keeps only the
+        // status line and its tip. Empty inline and in an agent session view,
+        // whose strip keeps its preview.
+        stream.extend(ui::conversation_live_lines(&self.app, width));
         // A framed view opened over this screen flows its page the same way
         // the inline rebuild does (`docs/ui/view-flow.md`).
         let flow = self.current_view_flow();
@@ -1408,6 +1415,9 @@ mod tests {
     fn thinking_app() -> App {
         let mut app = App::new();
         app.set_fullscreen(true);
+        // The sidebar is opt-in (`docs/ui/sidebar.md`); this sweep is about
+        // the region painted one column narrower because of it.
+        app.settings_mut().sidebar = true;
         app.begin_stream();
         app.begin_reasoning();
         app.push_thinking(

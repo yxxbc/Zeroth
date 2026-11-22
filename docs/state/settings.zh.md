@@ -14,6 +14,7 @@
 
 → Hide thinking           false
   Verbose output          false
+  Sidebar                 false
   Show images             true
   Image width             120
   Auto-resize images      true
@@ -32,7 +33,7 @@
 
 ## 设置项
 
-十九行，每一行都是运行中的 session 真正会读的一个旋钮。每个值都是**循环**的
+二十行，每一行都是运行中的 session 真正会读的一个旋钮。每个值都是**循环**的
 ——任何地方都没有自由文本字段，所以 Enter 和 Space 在每一行上意思相同，菜单也
 从不需要编辑模式。
 
@@ -40,7 +41,8 @@
 |---|---|---|
 | **Hide thinking** | `false` / `true` | 模型的思维链是否在 live 的 `● Thinking…` 单元格里流出并收成一行 `Thought for …`（`docs/ui/thinking-stream.md`）。`true` 恢复「计数后丢弃」的行为。由 `ZEROTH_SHOW_THINKING` 播种。 |
 | **Verbose output** | **`false`** / `true` | 每次 read、搜索、列举和 scratchpad 编辑是不是各留一个自己的单元格（`true`，tool 单元格与它们一直以来的样子完全一致），还是一串这样的合并成一行折叠行——运行中是 `● Reading 2 files, listing 1 directory…`，结束后是 dim 的 `Read 2 files, listed 1 directory (ctrl+o to expand)`，session 的 scratchpad 里一次 `write`/`edit` 则有自己的领头从句 `made 1 scratchpad edit +55`（`docs/ui/tool-groups.md`）。**默认关**，即 Claude Code 的非 verbose 视图；Ctrl+O 两边都把每个调用完整显示。循环它会 purge 重建，所以已提交的对话立刻改变形状。由 `ZEROTH_VERBOSE` 播种。 |
-| **Show images** | `true` / `false` | 一张粘贴的截图和 `read` 工具的图片读取，是否在对话里画成图（`docs/ui/images.md`）。当终端画不出来时是 `false (unavailable)`。循环它会 purge 重建，所以已提交的图片立刻出现或消失。 |
+| **Sidebar** | **`false`** / `true` | 拥有屏幕的模式是否画出它右边那一列——品牌、会话事实和正在运行的东西（`docs/ui/sidebar.md`）。**默认关**：对话先拿着每一列，直到被要求。打开后三档宽度（30 / 24 / 隐藏）仍然生效，而窄终端无论这一行怎么设都不显示。循环它不需要重建：换行宽度本来就是帧缓存的键。由 `ZEROTH_SIDEBAR` 播种。 |
+| **Show images** | `true` / `false` | `read` 工具的图片读取是否在对话里画成图（`docs/ui/images.md`）。粘贴的截图从不画——它在 composer 里的芯片就是确认。当终端画不出来时是 `false (unavailable)`。循环它会 purge 重建，所以已提交的图片立刻出现或消失。 |
 | **Image width** | `60` / `80` / `120` | 一张内联图片的宽度**上限**，按列——夹取到终端宽度，从不用于把一张小图放大。循环它像 **Show images** 一样 purge 重建。 |
 | **Auto-resize images** | `true` / `false` | 一张大图是否在**发给模型**之前缩到 2000×2000（`docs/ui/images.md`）。与显示无关，所以这一行在一个画不出图的终端上也仍可用。 |
 | **Error retry** | `0` / `1` / `2` / `3` / `5` / `10` | 一个 provider **答得很糟**（`5xx`、一次 reset、一次停滞）的请求在错误浮现前重试多少次（`llm::retry`，`retrying n/N` 状态）。根本连不上的连接不计入：它是被**等待**的，每几秒一次，要多久就多久，在 `Waiting for internet…` 状态下（`docs/providers/offline.md`）。`0` 表示从不重试，那一份等待也包括在内。曾是固定的 `MAX_RETRIES = 3`。 |
@@ -146,6 +148,7 @@ config home、一个该特性愿意快照的 cwd（`checkpoint::cwd_scope`——
 
   → Hide thinking        false
     Verbose output       false
+    Sidebar              false
     Show images          true
     Image width          120
     Auto-resize images   true
@@ -260,6 +263,8 @@ Space 用于循环，正是搜索不能含空格的原因；这没关系——la
     read 和搜索改变形状——每次调用一个单元格，或一行折叠行——而重建从 history
     重绘它们。打开它会先放掉一个打开的组，于是它持有的那些 read 作为它们自己的
     单元格回来（`docs/ui/tool-groups.md`）。
+  - **Sidebar** 也一样什么都不需要：帧的换行宽度直接读这一行，而宽度本来就是帧
+    缓存的键的一部分（`docs/ui/sidebar.md`）。
   - **Hide thinking** 和 **Auto compact** 除那个纯 flag 之外什么都不需要：
     `tui::stream` 按阶段查 `App::settings().show_thinking()`，而
     `App::should_auto_compact` 以该 flag 为闸。

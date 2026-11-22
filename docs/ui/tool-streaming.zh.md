@@ -26,6 +26,13 @@ Running (live, in the strip above the box):        Finished (committed to scroll
 `(9s · wait 2m)` —— 无论输出是什么形状，它都挂在实时单元格上（见下文*时钟行一
 直在*）。
 
+**实时单元格住在哪，取决于模式。** 内联模式下它是 strip 的预览位，在 composer
+上方：提交过的行永远收不回来，而运行中的单元格还没提交。拥有屏幕的模式下它是对
+话的一部分（`ui::conversation_live_lines`，`docs/ui/full-screen.md` *live cell
+坐在对话里*）：运行中的单元格和它的尾巴追加到流式回复之后的 transcript 上，所以
+调用按回合产生它们的顺序出现、跟着它滚动，而 strip 只留状态行和它的 tip。两者用
+的是同一个构建器，变的只是表面。
+
 两个状态是刻意不对称的 —— **运行中**你想要**尾部**（刚发生了什么）；**结束**
 之后，成功命令显示**头部**和展开提示，失败命令则保留头部与错误尾部。尾部显示最后 `TOOL_PEEK_ROWS`（4）个显示
 行；头部在 `TOOL_FOLD_ROWS`（3）个显示行处**折叠**，提示行压在上面 ——

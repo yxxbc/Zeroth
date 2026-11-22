@@ -77,9 +77,9 @@ fn the_whole_page_is_titled_and_lists_its_rows_under_the_search_prompt() {
             "",
             "  → Hide thinking        false",
             "    Verbose output       false",
+            "    Sidebar              false",
             "    Show images          true",
             "    Image width          120",
-            "    Auto-resize images   true",
             counter.as_str(),
             "",
             "    Hide the model's chain-of-thought instead of streaming it above the composer",
@@ -113,7 +113,7 @@ fn the_window_shows_five_settings_and_the_counter_names_the_rest() {
     assert_eq!(SETTINGS_MENU_MAX_ROWS, 5);
     assert_eq!(setting_rows(&page_at(&app, 90, TALL), &labels), 5);
     // Deep in the list the window rides the selection, centred on it.
-    select(&mut app, 7); // Permission mode
+    select(&mut app, 8); // Permission mode
     let texts = page_at(&app, 90, TALL);
     let rows: Vec<&String> = texts
         .iter()
@@ -124,7 +124,7 @@ fn the_window_shows_five_settings_and_the_counter_names_the_rest() {
     assert!(
         texts
             .iter()
-            .any(|t| *t == format!("    (8/{})", SettingKey::ALL.len())),
+            .any(|t| *t == format!("    (9/{})", SettingKey::ALL.len())),
         "{texts:#?}"
     );
 }
@@ -214,8 +214,11 @@ fn every_row_shows_its_label_and_value_and_the_first_is_marked() {
     assert!(second.starts_with("    Verbose output"), "{second:?}");
     assert!(second.contains("false"), "{second:?}");
     let third = row(&buf, FIRST_ROW + 2, 78);
-    assert!(third.starts_with("    Show images"), "{third:?}");
-    assert!(third.contains("true"), "{third:?}");
+    assert!(third.starts_with("    Sidebar"), "{third:?}");
+    assert!(third.contains("false"), "{third:?}");
+    let fourth = row(&buf, FIRST_ROW + 3, 78);
+    assert!(fourth.starts_with("    Show images"), "{fourth:?}");
+    assert!(fourth.contains("true"), "{fourth:?}");
     // The selected row's marker takes the picker family's cyan accent.
     assert_eq!(buf[(2, FIRST_ROW)].fg, model_selected_color());
 }
@@ -235,7 +238,7 @@ fn the_values_line_up_in_a_column() {
     };
     assert_eq!(
         value_col(FIRST_ROW, 'f'),
-        value_col(FIRST_ROW + 2, 't'),
+        value_col(FIRST_ROW + 3, 't'),
         "the value column is shared"
     );
     assert_eq!(
@@ -259,10 +262,10 @@ fn an_off_value_is_dimmed_and_an_on_value_is_not() {
         settings_value_off_color(),
         "false is dim"
     );
-    let line = row(&buf, FIRST_ROW + 2, 78);
+    let line = row(&buf, FIRST_ROW + 3, 78);
     let at = u16::try_from(line.find("true").unwrap()).unwrap();
     assert_eq!(
-        buf[(at, FIRST_ROW + 2)].fg,
+        buf[(at, FIRST_ROW + 3)].fg,
         settings_value_color(),
         "a live value is not"
     );
@@ -668,7 +671,7 @@ fn the_compact_settings_page_is_the_familys_short_page() {
     assert_eq!(texts[5], "", "nothing above the first row: {texts:#?}");
     assert!(texts[6].starts_with("  → Hide thinking"), "{texts:#?}");
     assert!(texts[7].starts_with("    Verbose output"), "{texts:#?}");
-    assert!(texts[8].starts_with("    Show images"), "{texts:#?}");
+    assert!(texts[8].starts_with("    Sidebar"), "{texts:#?}");
     assert_eq!(
         texts[9],
         format!("  ↓ {} more below", SettingKey::ALL.len() - 3),
@@ -687,15 +690,15 @@ fn the_compact_settings_page_is_the_familys_short_page() {
 #[test]
 fn the_compact_settings_window_keeps_the_selection_in_its_middle() {
     let mut app = settings_app();
-    select(&mut app, 7); // Permission mode
+    select(&mut app, 8); // Permission mode
     let texts = page_at(&app, 78, 12);
-    assert_eq!(texts[5], "  ↑ 6 more above", "{texts:#?}");
+    assert_eq!(texts[5], "  ↑ 7 more above", "{texts:#?}");
     assert!(texts[6].starts_with("    Tools"), "{texts:#?}");
     assert!(texts[7].starts_with("  → Permission mode"), "{texts:#?}");
     assert!(texts[8].starts_with("    Checkpoints"), "{texts:#?}");
     assert_eq!(
         texts[9],
-        format!("  ↓ {} more below", SettingKey::ALL.len() - 9),
+        format!("  ↓ {} more below", SettingKey::ALL.len() - 10),
         "{texts:#?}"
     );
 }

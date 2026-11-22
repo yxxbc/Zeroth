@@ -468,6 +468,9 @@ fn the_live_thinking_header_survives_the_sidebar_at_every_width() {
     // and painted at the width the helper names keeps the header.
     let mut full = App::new();
     full.set_fullscreen(true);
+    // The sidebar is opt-in (`docs/ui/sidebar.md`); this sweep is about the
+    // region painted one column narrower because of it.
+    full.settings_mut().sidebar = true;
     full.begin_stream();
     full.begin_reasoning();
     full.push_thinking(
@@ -490,29 +493,33 @@ fn the_live_thinking_header_survives_the_sidebar_at_every_width() {
             continue; // no sidebar at this width: there is nothing to disagree about
         }
         saw_sidebar = true;
-        let band = band_rows(&full, live_w);
-        let height = live_height(
-            &full.input,
-            live_w,
-            term_h,
-            strip_has_status(&full),
+        // The strip above the composer reserves no preview slot in the
+        // screen-owning mode: the block is part of the conversation now, so
+        // nothing in a fixed slot can overflow and lose its head.
+        assert_eq!(
             fitted_preview_rows(&full, live_w, term_h),
-            hang_rows(&full, live_w),
-            queued_rows(&full, live_w),
-            toast_rows(&full),
-            band,
-            footer_rows(&full, band),
-            agent_list_rows(&full),
+            0,
+            "screen_w={screen_w}: the strip still reserves a preview"
         );
-        let mut buf = buffer(live_w, height);
-        render_workspace_live(buf.area, &mut buf, &full, Some(&[]));
-        let rows: Vec<String> = (0..height).map(|y| row(&buf, y, live_w)).collect();
+        // The block is built at the conversation's wrap width, so its header
+        // leads and every body row fits — the invariant the reported bug
+        // broke.
+        let block: Vec<String> = conversation_live_lines(&full, live_w)
+            .iter()
+            .map(plain)
+            .collect();
         assert!(
-            rows.iter().any(|r| r.contains("Thinking…")),
-            "screen_w={screen_w} (painted at {live_w}): the live block's header was \
-             dropped:\n{}",
-            rows.join("\n")
+            block.first().is_some_and(|row| row.contains("Thinking…")),
+            "screen_w={screen_w} (painted at {live_w}): the block's header is \
+             missing:\n{}",
+            block.join("\n")
         );
+        for row in &block {
+            assert!(
+                crate::ui::wrap::cols(row) <= usize::from(live_w),
+                "screen_w={screen_w} (painted at {live_w}): {row:?} overflows"
+            );
+        }
     }
     assert!(
         saw_sidebar,

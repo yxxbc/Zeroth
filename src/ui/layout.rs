@@ -76,6 +76,13 @@ pub(super) const fn strip_rows(has_status: bool, preview_rows: u16, hang_rows: u
 /// its own trim (they share this walk, so they agree by construction).
 #[must_use]
 pub fn preview_rows(app: &App, width: u16) -> u16 {
+    // The screen-owning mode's conversation is the tail, live cells included
+    // ([`super::live::conversation_live_lines`]): the strip above the composer
+    // has no preview slot there, so it reserves none. An agent session view
+    // keeps its own strip (`docs/agents/agent-view-streaming.md`).
+    if app.fullscreen() && app.viewed_agent().is_none() {
+        return 0;
+    }
     // An agent session view previews the *viewed agent's* stream — its live
     // tool cells, its thinking block, or its reply's uncommitted frontier
     // (docs/agents/agent-tool.md, docs/agents/agent-view-streaming.md). The branch mirrors
@@ -281,7 +288,7 @@ pub(super) const fn fit_preview_rows(height: u16, want: u16, other: u16) -> u16 
 #[must_use]
 pub fn live_text_width(app: &App, screen_width: u16) -> u16 {
     if app.fullscreen() {
-        screen_width.saturating_sub(super::sidebar::width(screen_width))
+        screen_width.saturating_sub(super::sidebar::columns(app, screen_width))
     } else {
         screen_width
     }

@@ -1311,3 +1311,69 @@ fn a_queued_write_previews_its_head_under_waiting() {
         "{texts:#?}"
     );
 }
+
+// --- live cells inside the conversation (full-screen mode) ---
+
+#[test]
+fn the_screen_owning_conversation_carries_the_whole_thought_in_order() {
+    // The reported complaint: thinking's detail stayed in one fixed slot above
+    // the composer and showed only its last three rows. In the screen-owning
+    // mode the block now grows where the turn is, in order, and scrolls with
+    // the conversation.
+    let mut app = App::new();
+    app.begin_stream();
+    app.begin_reasoning();
+    for i in 1..=12 {
+        app.push_thinking(&format!("thought line {i}\n"));
+    }
+    // Inline stays as it was: the strip's tail is all that can be shown, and
+    // the conversation gets nothing.
+    assert!(
+        conversation_live_lines(&app, 80).is_empty(),
+        "inline keeps the block in the strip"
+    );
+    app.set_fullscreen(true);
+    let lines: Vec<String> = conversation_live_lines(&app, 80)
+        .iter()
+        .map(plain)
+        .collect();
+    assert!(
+        lines.first().is_some_and(|row| row.contains("Thinking…")),
+        "{lines:#?}"
+    );
+    let body = lines[1..].join("\n");
+    assert!(
+        body.contains("thought line 1") && body.contains("thought line 12"),
+        "the whole thought, not a window: {body}"
+    );
+    // The strip's preview slot is gone, so nothing can overflow it.
+    assert_eq!(preview_rows(&app, 80), 0);
+    assert!(preview_lines(&app, 80, Some(&[]), 5).is_empty());
+    // Settled, the block gives way to the committed `Thought for …` line.
+    app.finish_reasoning(3);
+    assert!(conversation_live_lines(&app, 80).is_empty());
+}
+
+#[test]
+fn the_screen_owning_conversation_carries_a_running_tool_cell() {
+    let mut app = App::new();
+    app.set_fullscreen(true);
+    app.begin_stream();
+    app.start_tool("Bash", "sleep 100", None);
+    for i in 1..=9 {
+        app.push_tool_output(&format!("line {i}\n"));
+    }
+    let texts: Vec<String> = conversation_live_lines(&app, 60)
+        .iter()
+        .map(plain)
+        .collect();
+    assert!(
+        texts.iter().any(|t| t.contains("Bash(sleep 100)")),
+        "the running cell is in the conversation: {texts:#?}"
+    );
+    assert!(
+        texts.iter().any(|t| t.contains("line 9")),
+        "its tail rides it: {texts:#?}"
+    );
+    assert_eq!(preview_rows(&app, 60), 0, "the strip reserves nothing");
+}

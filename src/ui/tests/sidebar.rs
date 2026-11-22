@@ -176,3 +176,18 @@ fn store_of(subjects: &[&str]) -> TaskStore {
     }
     store
 }
+
+#[test]
+fn the_column_is_opt_in_and_the_setting_gates_the_bands() {
+    // `width` is the band policy; `columns` is what the frame and the wrap
+    // width call, and it answers 0 until the **Sidebar** setting is on
+    // (`docs/ui/sidebar.md`). The default is off: a new session keeps the
+    // conversation's columns.
+    let mut app = App::new();
+    assert_eq!(sidebar_columns(&app, 140), 0, "off by default");
+    assert_eq!(sidebar_columns(&app, 100), 0);
+    app.settings_mut().sidebar = true;
+    assert_eq!(sidebar_columns(&app, 140), WIDE_COLS);
+    assert_eq!(sidebar_columns(&app, 100), NARROW_COLS);
+    assert_eq!(sidebar_columns(&app, 80), 0, "a narrow screen still wins");
+}

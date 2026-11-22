@@ -220,3 +220,28 @@ pub(super) fn live_reasoning_lines(text: &str, pulse: Duration, width: u16) -> V
     );
     lines
 }
+
+/// The open phase's block for the **conversation**, in the screen-owning mode
+/// (`docs/ui/thinking-stream.md` *The live block*). The same `● Thinking…`
+/// header — blinking bullet, shimmering label — over the **whole** thought so
+/// far instead of the strip's three-row tail: this block is part of the
+/// transcript, so it grows in place, scrolls with the conversation and stays in
+/// the order the turn produced it (the reported complaint: a fixed block above
+/// the composer showed only the last few rows of every phase).
+///
+/// It is not windowed, so its cost is the thought's length — the same O(reply)
+/// the streaming reply's own rows pay per chunk (`docs/ui/full-screen.md`
+/// *Performance*). Only the full-screen mode calls it; the inline mode keeps
+/// the tail because a committed row can never be taken back.
+pub(super) fn live_reasoning_stream_lines(
+    text: &str,
+    pulse: Duration,
+    width: u16,
+) -> Vec<Line<'static>> {
+    let mut lines = vec![thinking_header(
+        Some(pulse),
+        shimmer_spans_from(REASONING_RUNNING, pulse, reasoning_shimmer_base()),
+    )];
+    lines.extend(gutter_body(text, width));
+    lines
+}

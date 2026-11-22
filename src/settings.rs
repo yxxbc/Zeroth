@@ -60,6 +60,9 @@ pub enum SettingKey {
     /// Show every read, search and listing as its own tool cell instead of
     /// collapsing a run of them into one line (`docs/ui/tool-groups.md`).
     Verbose,
+    /// Draw the screen-owning mode's right column (`docs/ui/sidebar.md`).
+    /// Off by default: the conversation keeps every column until asked.
+    Sidebar,
     /// Draw pictures inline in the conversation (`docs/ui/images.md`).
     ShowImages,
     /// How wide, in columns, an inline picture may be (`docs/ui/images.md`).
@@ -106,6 +109,7 @@ impl SettingKey {
     pub const ALL: &'static [Self] = &[
         Self::HideThinking,
         Self::Verbose,
+        Self::Sidebar,
         Self::ShowImages,
         Self::ImageWidth,
         Self::AutoResizeImages,
@@ -130,6 +134,7 @@ impl SettingKey {
         match self {
             Self::HideThinking => "Hide thinking",
             Self::Verbose => "Verbose output",
+            Self::Sidebar => "Sidebar",
             Self::ShowImages => "Show images",
             Self::ImageWidth => "Image width",
             Self::AutoResizeImages => "Auto-resize images",
@@ -158,6 +163,9 @@ impl SettingKey {
             }
             Self::Verbose => {
                 "A cell per read, search, listing and scratchpad edit, not one collapsed line"
+            }
+            Self::Sidebar => {
+                "Show the screen-owning mode's right column: the brand, the session's facts and what is running"
             }
             Self::ShowImages => {
                 "Render pasted screenshots and image reads as pictures in the terminal"
@@ -272,6 +280,11 @@ pub struct SessionSettings {
     /// default, `docs/ui/tool-groups.md`).
     #[serde(skip_serializing_if = "is_false")]
     pub verbose: bool,
+    /// Draw the screen-owning mode's sidebar (default `false` — the column
+    /// is an opt-in; a narrow terminal never shows it whatever this says,
+    /// `docs/ui/sidebar.md`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub sidebar: bool,
     /// Draw pictures inline (default `true` — a terminal that can't draw one
     /// reports the row unavailable anyway).
     #[serde(skip_serializing_if = "is_true")]
@@ -347,6 +360,7 @@ impl Default for SessionSettings {
         Self {
             hide_thinking: false,
             verbose: false,
+            sidebar: false,
             show_images: true,
             image_width: DEFAULT_IMAGE_WIDTH,
             auto_resize_images: true,
@@ -469,6 +483,7 @@ impl SessionSettings {
         let text = match key {
             SettingKey::HideThinking => bool_text(self.hide_thinking),
             SettingKey::Verbose => bool_text(self.verbose),
+            SettingKey::Sidebar => bool_text(self.sidebar),
             SettingKey::ShowImages => bool_text(self.images_active()),
             SettingKey::ImageWidth => self.image_width.to_string(),
             SettingKey::AutoResizeImages => bool_text(self.auto_resize_images),
@@ -507,6 +522,7 @@ impl SessionSettings {
         match key {
             SettingKey::HideThinking => self.hide_thinking = !self.hide_thinking,
             SettingKey::Verbose => self.verbose = !self.verbose,
+            SettingKey::Sidebar => self.sidebar = !self.sidebar,
             SettingKey::ShowImages => self.show_images = !self.show_images,
             SettingKey::ImageWidth => {
                 self.image_width = next_in(IMAGE_WIDTH_CHOICES, &self.image_width);
@@ -548,6 +564,7 @@ impl SessionSettings {
         match key {
             SettingKey::HideThinking => self.hide_thinking = live.hide_thinking,
             SettingKey::Verbose => self.verbose = live.verbose,
+            SettingKey::Sidebar => self.sidebar = live.sidebar,
             SettingKey::ShowImages => self.show_images = live.show_images,
             SettingKey::ImageWidth => self.image_width = live.image_width,
             SettingKey::AutoResizeImages => self.auto_resize_images = live.auto_resize_images,

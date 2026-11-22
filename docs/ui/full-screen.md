@@ -55,6 +55,23 @@ Invariant 3 — the content-anchored inline viewport and its two-way resize
 reflow — is the **inline mode's** invariant. The full-screen mode replaces it
 with a different contract, stated below, and the two must not be mixed.
 
+### Live cells ride the conversation
+
+The streaming strip's **preview slot** is an inline-mode necessity: a row
+committed to scrollback can never be taken back, so a running tool's tail and an
+open thinking phase can only live in the one repaintable region. The
+screen-owning frame has no such limit, so its live cells are part of the
+conversation: `ui::conversation_live_lines` appends the running tool/agent/write
+cell, the open read group, or the `● Thinking…` block over the **whole** thought
+to the tail after the streaming reply (`tui::view`'s `tailed_with_stream`), and
+`ui::preview_rows` returns 0 there, so the strip keeps only the status line, its
+running checklist or tip, and any queued messages or toast. A turn's cells
+therefore appear in the order it produced them and scroll with it; when a call
+settles, the next repaint drops the live rows and history's committed cell or
+`Thought for …` line takes their place (`docs/ui/thinking-stream.md`,
+`docs/ui/tool-streaming.md`). An agent session view keeps its own strip preview
+— its stream is a column of its own (`docs/agents/agent-view-streaming.md`).
+
 ### The viewport seam
 
 `InlineViewport` gains a sibling, and the call sites see one `Screen` value
@@ -103,9 +120,10 @@ App state × width × height × scroll offset × open overlay × theme
 and is built top to bottom:
 
 1. the header banner (the same builder as inline, when configured),
-2. the conversation: finished history rendered by the transcript builders,
-   followed by the live region (streaming text, thinking, tool cells/groups,
-   the agent tree, queued messages, background notices),
+2. the conversation: finished history rendered by the transcript builders, then
+   the in-flight reply and this turn's live cells — a running tool/agent/write
+   cell, an open read group, or the `● Thinking…` block
+   (*Live cells ride the conversation*, above),
 3. the status line and tips,
 4. the composer and footer,
 5. any overlay page (permission prompt, ask, pickers, `/usage`, Ctrl+O…), which
@@ -143,6 +161,12 @@ away. The flow rule was never wrong; the row count reserved before the paint
 was. At 149 columns the region reserved ten rows and its content needed eleven.
 An 80-column smoke phase could not see it, because the sidebar only exists at
 96 columns and wider.
+
+That symptom is history twice over now: the thinking block is part of the
+conversation (above), so no bottom-anchored strip can flow its head away. The
+width rule still matters — the composer's wrapped rows, the band, the footer
+and the tip are all counted at it — and the lesson stands: any count that sizes
+the region must use the width the region is painted at.
 
 ### Scrolling
 

@@ -343,8 +343,14 @@ impl Session<'_> {
             SettingKey::Verbose => rebuild = true,
             // Read where they are used — nothing to rebuild. The ask timeout
             // is read by the draw tick on every reading of the idle clock, so
-            // `never` stops a running wait at once (docs/tools/ask.md).
-            SettingKey::HideThinking | SettingKey::AutoCompact | SettingKey::AskTimeout => {}
+            // `never` stops a running wait at once (docs/tools/ask.md). The
+            // sidebar changes the conversation's wrap width, which is already
+            // part of the frame cache's key: the next frame re-wraps by
+            // itself (`docs/ui/sidebar.md`).
+            SettingKey::HideThinking
+            | SettingKey::Sidebar
+            | SettingKey::AutoCompact
+            | SettingKey::AskTimeout => {}
             // Shift+Tab's path owns this one; the menu never routes it here.
             SettingKey::PermissionMode => {}
             // The one per-user row: its file is update.json, and turning it

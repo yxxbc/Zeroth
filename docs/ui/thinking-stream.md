@@ -37,7 +37,8 @@ All of it to the live block, none to the settled line:
 
 | Surface | Renders | Why |
 | --- | --- | --- |
-| **Strip** (live) | `● Thinking…` — blinking bullet, shimmering bold-white label | the one place something is still happening, and nothing here is ever committed, so motion is free |
+| **Strip** (live, inline) | `● Thinking…` — blinking bullet, shimmering bold-white label | the one place something is still happening, and nothing here is ever committed, so motion is free |
+| **Conversation** (live, full-screen) | the same header over the **whole** thought, at the end of the transcript | the screen is ours to repaint, so the block can grow in the turn's own order and scroll with it (`docs/ui/full-screen.md`) |
 | **Inline** (settled) | one dim row, `Done for Ns`'s exact dress | a finished thought is a footnote about work already done |
 | **Ctrl+O** (expanded) | the same dim row, minus the hint | no hint to make room for — this *is* the expansion |
 
@@ -56,31 +57,46 @@ the old invisible behaviour exactly (the status clause and the token tally stay
 
 Scrollback is **immutable** — `insert_before` queues rows the terminal keeps
 forever. A design that streamed reasoning to scrollback could never take it
-back, so `Thought for …` could not replace it. So the reasoning block lives
-**only in the live region**, in the streaming strip's preview slot (where a
-running tool's tail already lives), and the *only* thing that ever commits is
-the one-line cell. That is the same collapsed-inline / expanded-in-Ctrl+O
-contract every tool call has (CLAUDE.md invariant 4), and it needs no new
-machinery in `term.rs`.
+back, so `Thought for …` could not replace it. So in the **inline** mode the
+reasoning block lives only in the live region, in the streaming strip's preview
+slot (where a running tool's tail already lives), and the *only* thing that ever
+commits is the one-line cell. That is the same collapsed-inline /
+expanded-in-Ctrl+O contract every tool call has (CLAUDE.md invariant 4), and it
+needs no new machinery in `term.rs`.
+
+**The screen-owning mode is different, and that is the point of the change.** A
+full-screen frame is rebuilt from state on every draw — no row belongs to the
+terminal — so the block can be part of the conversation: `ui::conversation_live_lines`
+appends the `● Thinking…` header over the **whole thought** (not the strip's
+three-row tail) to the tail after the streaming reply, and the strip above the
+composer keeps only the status line and its tip. The block grows in place,
+scrolls with the turn and stays in the order the turn produced it — a fixed
+three-row slot above the composer showed only the last few rows of every phase
+and nothing of the ones before it (the reported complaint). When the phase ends,
+the next repaint drops the live block and the committed `Thought for …` line is
+already in history; nothing was ever committed that would need taking back.
 
 ## The pieces
 
-### The live block (strip preview)
+### The live block
 
-`ui::live_reasoning_lines` renders
+In the inline mode the strip previews it (`ui::live_reasoning_lines`, the tail
+window below); in the screen-owning mode the conversation carries the whole
+block (`ui::reasoning::live_reasoning_stream_lines`, same header, the full body
+via the same gutter walk). Both render
 
 - the `● Thinking…` header — the tool cell's own `TOOL_BULLET`, **blinking**
   at the shared frame pulse (`docs/ui/tool-pulse.md`) exactly like a running
   tool's, beside a label carrying the status line's **shimmer** sweep
   (`ui::status::shimmer_spans_from`, the same wave the `Working…` verb below it
   wears, off the same frame clock); and
-- the **tail** of the reasoning so far in the `⎿` gutter
-  (`TOOL_RESULT_PREFIX`, via `ui::file_cell::gutter_row_styled` — the corner on
-  the first row, the rest aligned under it): the last `REASONING_PEEK_LINES`
-  (three) wrapped display rows, word-wrapped with spaces preserved
-  (`ui::wrap_output`, the same wrapper the streaming `bash` tail and the Ctrl+O
-  view use), dim and **italic** — the one cue separating a thought's `⎿` body
-  from a tool's.
+- the reasoning in the `⎿` gutter (`TOOL_RESULT_PREFIX`, via
+  `ui::file_cell::gutter_row_styled` — the corner on the first row, the rest
+  aligned under it), word-wrapped with spaces preserved (`ui::wrap_output`, the
+  same wrapper the streaming `bash` tail and the Ctrl+O view use), dim and
+  **italic** — the one cue separating a thought's `⎿` body from a tool's. The
+  **strip** shows the **tail** of it: the last `REASONING_PEEK_LINES` (three)
+  wrapped display rows. The **conversation** shows the whole thought so far.
 
 **Three rows** (updated 2026-10-15; the window was five). The count is of
 display rows, not source lines, so a line that wraps onto two rows spends two
@@ -88,7 +104,9 @@ of them: three lines of thought at 87 columns — the reported screen — filled
 all five and stood the block six rows tall over the box, every one of them
 pushing the conversation up (invariant 3). Three rows keep what the model is
 writing now in view, the same body height a settled `bash` cell shows above
-its fold (`TOOL_FOLD_ROWS`); the whole thought is one Ctrl+O away.
+its fold (`TOOL_FOLD_ROWS`); the whole thought is one Ctrl+O away. The
+screen-owning mode needs none of this arithmetic: its block is not windowed,
+because the rows can be taken back on the next repaint.
 
 Blank source lines are skipped: reasoning is full of paragraph breaks, and
 spending the small window on them would show a third as much thought. Walking

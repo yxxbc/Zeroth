@@ -488,7 +488,7 @@ impl InlineViewport {
         let live_width = self
             .screen
             .width
-            .saturating_sub(crate::ui::sidebar_width(self.screen.width));
+            .saturating_sub(crate::ui::sidebar_columns(app, self.screen.width));
         let live = Rect::new(
             0,
             self.screen.height.saturating_sub(height),
@@ -567,7 +567,7 @@ impl InlineViewport {
                 // the right so the conversation — and the composer's cursor —
                 // start at column 0, where an inline composer and the shell's
                 // own prompt already put them.
-                let side = crate::ui::sidebar_width(area.width);
+                let side = crate::ui::sidebar_columns(app, area.width);
                 let rest = if side > 0 {
                     let side_area = Rect::new(
                         area.x + area.width.saturating_sub(side),

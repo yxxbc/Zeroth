@@ -1367,6 +1367,12 @@ pub(crate) fn apply_setting_overrides(mut settings: SessionSettings) -> SessionS
     if let Some(on) = env_flag_set("ZEROTH_VERBOSE") {
         settings.verbose = on;
     }
+    // The **Sidebar** row: the screen-owning mode's right column for the run
+    // (`docs/ui/sidebar.md`) — off by default, so the env form can turn it on
+    // as well as off.
+    if let Some(on) = env_flag_set("ZEROTH_SIDEBAR") {
+        settings.sidebar = on;
+    }
     // `ZEROTH_HOOKS` seeds the **Hooks** row the way `ZEROTH_TOOLS`
     // seeds Tools — an override for this run, never saved (docs/tools/hooks.md).
     // It used to be ANDed over the row instead, which could only ever turn

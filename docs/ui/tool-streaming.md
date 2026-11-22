@@ -27,6 +27,15 @@ The footer's clause is the **command's own clock beside the wait its call
 runs under** — `(9s · wait 2m)` — and it is on the live cell whatever
 the output's shape (*The clock row is always there*, below).
 
+**Where the live cell lives depends on the mode.** Inline it is the strip's
+preview slot, above the composer: a committed row can never be taken back, and
+the running cell is not committed yet. In the screen-owning mode it is part of
+the conversation (`ui::conversation_live_lines`, `docs/ui/full-screen.md` *Live
+cells ride the conversation*): the running cell and its tail are appended to the
+transcript after the streaming reply, so calls appear in the order the turn made
+them and scroll with it, and the strip keeps only the status line and its tip.
+The rows are the same builder's; only the surface changes.
+
 The two states are deliberately asymmetric — while **running** you want the
 **tail** (what just happened); once **finished**, successful commands show the **head** with an
 expand hint, while failures retain the head and error tail. The tail shows the last `TOOL_PEEK_ROWS` (4) display rows; the

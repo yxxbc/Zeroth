@@ -111,6 +111,15 @@ pub(super) fn preview_lines(
     rows: u16,
 ) -> Vec<Line<'static>> {
     let rows = usize::from(rows);
+    // The screen-owning mode's conversation **is** the tail, live cells
+    // included: the strip above the composer keeps only the status line and
+    // its tip, so nothing here has a preview to draw
+    // ([`conversation_live_lines`], docs/ui/full-screen.md). An agent session
+    // view is the exception — its stream is a column of its own and keeps the
+    // strip's cells.
+    if app.fullscreen() && app.viewed_agent().is_none() {
+        return Vec::new();
+    }
     if let Some(run) = app.viewed_agent() {
         // The viewed agent's own strip — fed the same boundary-built frontier
         // the main branch below gets, since its commits go through the same
@@ -162,6 +171,42 @@ pub(super) fn preview_lines(
                 true,
             )
         }
+    }
+}
+
+/// The live cells that belong at the **end of the conversation** in the
+/// screen-owning mode: the running tool/agent/write cell, the open read group,
+/// or an open thinking phase's block — the same content the inline strip
+/// previews, growing in the transcript instead of sitting in a fixed slot above
+/// the composer (`docs/ui/thinking-stream.md`, `docs/ui/tool-streaming.md`).
+/// Appended after the streaming reply, so a turn's cells appear in the order it
+/// produced them and scroll with it; when the phase or call settles, its
+/// committed line takes their place.
+///
+/// Empty in the inline mode (a committed row cannot be taken back, so the live
+/// block stays in the strip) and in an agent session view (which keeps its own
+/// strip). The reasoning block here is the **whole** thought, not the strip's
+/// three-row tail — that is the point of putting it in the conversation.
+#[must_use]
+pub fn conversation_live_lines(app: &App, width: u16) -> Vec<Line<'static>> {
+    if !app.fullscreen() || app.viewed_agent().is_some() {
+        return Vec::new();
+    }
+    // The precedence is `preview_lines`'s — what is genuinely executing wins,
+    // then a forming write, then the open group, then the thought.
+    if app.agent_group().is_some() || !app.tool_queue().is_empty() {
+        return preview_tool_lines(app, width);
+    }
+    if app.tool_drafts().previews().next().is_some() {
+        return drafting_lines(app, width);
+    }
+    let group = open_group_lines(app, width);
+    if !group.is_empty() {
+        return group;
+    }
+    match app.reasoning() {
+        Some(text) => super::reasoning::live_reasoning_stream_lines(text, app.pulse(), width),
+        None => Vec::new(),
     }
 }
 

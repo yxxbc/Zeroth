@@ -82,6 +82,21 @@ pub const fn width(screen_width: u16) -> u16 {
     }
 }
 
+/// The columns the sidebar actually takes for `app`: [`width`]'s band policy
+/// while the **Sidebar** setting is on, none while it is off (the default —
+/// the conversation keeps every column until asked, `docs/ui/sidebar.md`).
+///
+/// This is the one function the frame and the conversation's wrap width
+/// call, so a column can never appear without the rows being rebuilt for it.
+#[must_use]
+pub fn columns(app: &App, screen_width: u16) -> u16 {
+    if app.settings().sidebar {
+        width(screen_width)
+    } else {
+        0
+    }
+}
+
 /// The seam's column, on the sidebar's left edge — the conversation is to its
 /// left, the shell's own prompt and the composer are at column 0.
 pub const SIDEBAR_SEAM_COLS: u16 = 1;

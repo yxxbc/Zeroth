@@ -35,7 +35,8 @@ Thought for 1m 5s · 1.5k tokens (ctrl+o to expand)
 
 | 表面 | 渲染什么 | 为什么 |
 | --- | --- | --- |
-| **Strip**（live） | `● Thinking…` —— 闪烁的圆点、带微光的粗白标签 | 唯一还有事在发生的地方，而这里的东西永远不会被提交，所以动是免费的 |
+| **Strip**（live，内联） | `● Thinking…` —— 闪烁的圆点、带微光的粗白标签 | 唯一还有事在发生的地方，而这里的东西永远不会被提交，所以动是免费的 |
+| **对话**（live，全屏） | 同一个 header，盖在**整段**思考上，在 transcript 的末尾 | 屏幕是我们自己的、可以重绘，所以这一块能按回合自己的顺序长出来、跟着它滚动（`docs/ui/full-screen.md`） |
 | **Inline**（落定） | 一行暗色，`Done for Ns` 的同一套装扮 | 一段结束的思考是关于已完成工作的脚注 |
 | **Ctrl+O**（展开） | 同一行暗色，去掉提示 | 没有提示要留位置 —— 这*就是*展开 |
 
@@ -53,27 +54,38 @@ rollout，并在 `/resume` 时回来。
 
 Scrollback 是**不可变的** —— `insert_before` 排队的行，终端会永远留着。一个把
 推理流进 scrollback 的设计永远收不回来，所以 `Thought for …` 没法替换它。于是
-推理块**只住在 live region** 里，住在那条流式 strip 的预览位（运行中的 tool 的
-尾巴本来就住那儿），而**唯一**会被提交的东西是那一行 cell。这就是每个 tool call
-都有的那个折叠内联 / 在 Ctrl+O 里展开的契约（CLAUDE.md 不变量 4），而且它不需
-要在 `term.rs` 里加任何新机制。
+推理块在**内联**模式下只住在 live region 里，住在那条流式 strip 的预览位（运行
+中的 tool 的尾巴本来就住那儿），而**唯一**会被提交的东西是那一行 cell。这就是每
+个 tool call 都有的那个折叠内联 / 在 Ctrl+O 里展开的契约（CLAUDE.md 不变量 4），
+而且它不需要在 `term.rs` 里加任何新机制。
+
+**拥有屏幕的模式不一样，而这正是这次改动的重点。** 全屏帧每次绘制都从状态重建
+—— 没有一行归终端所有 —— 所以这一块可以是对话的一部分：
+`ui::conversation_live_lines` 把 `● Thinking…` header 盖在**整段**思考上（不是
+strip 的三行尾巴），追加到流式回复之后的尾部，而 composer 上方的 strip 只留状态行
+和它的 tip。这一块原地生长、跟着回合滚动，并保持回合产生它的顺序 —— 一个固定的三
+行槽只显示每个阶段最后几行，之前阶段的一行都看不到（这就是被报告的问题）。阶段结
+束时，下一次重绘丢掉 live 块，而提交的 `Thought for …` 行已经在历史里了；从来没
+有提交过需要收回的东西。
 
 ## 各个部件
 
-### live 块（strip 预览）
+### live 块
 
-`ui::live_reasoning_lines` 渲染
+内联模式下由 strip 预览它（`ui::live_reasoning_lines`，下面那个尾巴窗口）；拥有
+屏幕的模式下对话带着整块（`ui::reasoning::live_reasoning_stream_lines`，同一个
+header，整段正文走同一条槽线）。两者都渲染
 
 - `● Thinking…` 这个 header —— tool cell 自己的 `TOOL_BULLET`，**闪烁**在共享
   的帧脉冲上（`docs/ui/tool-pulse.md`），和运行中的 tool 一模一样，旁边是一个
   带着状态行**微光**扫过的标签（`ui::status::shimmer_spans_from`，就是它下面那
   个 `Working…` 动词披的同一道波，取自同一个帧时钟）；以及
-- 到目前为止推理的**尾巴**，在 `⎿` 槽线里
-  （`TOOL_RESULT_PREFIX`，经由 `ui::file_cell::gutter_row_styled` —— 第一行带转
-  角，其余对齐在它下面）：最后 `REASONING_PEEK_LINES`（三）个换行后的显示行，按
-  单词换行且保留空格（`ui::wrap_output`，流式 `bash` 尾巴和 Ctrl+O 视图用的同
-  一个包装器），暗色且**斜体** —— 这是把一段思考的 `⎿` 正文和一个 tool 的区分
-  开来的唯一线索。
+- 推理本身，在 `⎿` 槽线里（`TOOL_RESULT_PREFIX`，经由
+  `ui::file_cell::gutter_row_styled` —— 第一行带转角，其余对齐在它下面），按单
+  词换行且保留空格（`ui::wrap_output`，流式 `bash` 尾巴和 Ctrl+O 视图用的同一
+  个包装器），暗色且**斜体** —— 这是把一段思考的 `⎿` 正文和一个 tool 的区分开来
+  的唯一线索。**strip** 显示它的**尾巴**：最后 `REASONING_PEEK_LINES`（三）个换
+  行后的显示行。**对话**显示到目前为止的整段思考。
 
 **三行**（2026-10-15 更新；窗口原来是五行）。数的是显示行，不是源行，所以一个
 换到两行的行花掉两行：在 87 列 —— 报告里的那个屏幕 —— 上三行思考就把五行全填

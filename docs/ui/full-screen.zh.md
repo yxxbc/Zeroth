@@ -44,6 +44,20 @@
 不变量 3 —— 内容锚定的内联 viewport 以及它的双向 resize 重排 —— 是**内联模式
 的**不变量。全屏模式用下面陈述的另一份契约替代它，两者绝不能混用。
 
+### live cell 坐在对话里
+
+流式条带的**预览位**是内联模式的必需品：提交进 scrollback 的行永远收不回来，所以
+运行中 tool 的尾巴和一个打开的思考阶段只能住在那一个可重绘的区域里。拥有屏幕的帧
+没有这个限制，所以它的 live cell 是对话的一部分：`ui::conversation_live_lines` 把
+运行中的 tool/agent/write cell、打开的 read 组，或者盖在**整段**思考上的
+`● Thinking…` 块追加到流式回复之后的尾部（`tui::view` 的 `tailed_with_stream`），
+而 `ui::preview_rows` 在那里返回 0，所以 strip 只留状态行、它下面的运行清单或
+tip，以及排队的消息和 toast。一个回合的 cell 于是按它产生的顺序出现、跟着它滚动；
+一个调用落定时，下一次重绘丢掉 live 行，历史里提交的 cell 或 `Thought for …` 行
+顶上它们的位置（`docs/ui/thinking-stream.md`、`docs/ui/tool-streaming.md`）。agent
+session 视图保留自己的 strip 预览 —— 它的流是它自己的一列
+（`docs/agents/agent-view-streaming.md`）。
+
 ### viewport 接缝
 
 `InlineViewport` 多了一个兄弟，而调用点看到的是一个 `Screen` 值（一个 enum，
@@ -91,8 +105,9 @@ App state × width × height × scroll offset × open overlay × theme
 它自上而下构建：
 
 1. 横幅（与内联同一个构建器，在配置了它时），
-2. 对话：已完成的历史由 transcript 的构建器渲染，接着是 live 区域（流式文字、
-   思考、tool 单元格/组、agent 树、排队消息、后台 notice），
+2. 对话：已完成的历史由 transcript 的构建器渲染，接着是本回合的流式回复和 live
+   cell —— 一个运行中的 tool/agent/write cell、一个打开的 read 组，或者
+   `● Thinking…` 块（见上 *live cell 坐在对话里*），
 3. 状态行与 tips，
 4. composer 与页脚，
 5. 任何 overlay 页面（权限 prompt、ask、各个 picker、`/usage`、Ctrl+O……），它
@@ -122,6 +137,11 @@ live 区块只剩 `⎿` 正文行，`● Thinking…` 表头**不见了**，上�
 保住了最新的行，把表头流走了。流动规则从来没错；错的是画之前预留的行数。在 149 列
 时，区域预留了十行，而内容需要十一行。80 列的 smoke 阶段看不到它，因为侧栏只在
 96 列及以上才存在。
+
+这个症状现在已经是双重历史：思考块是对话的一部分了（见上），所以任何贴底锚定的
+strip 都不能再把它的表头流走。宽度规则仍然要紧 —— composer 换行后的行数、band、
+footer 和 tip 都按它计数 —— 而教训仍然成立：任何给区域定高的计数，都必须用区域
+真正被画上去的宽度。
 
 ### 滚动
 

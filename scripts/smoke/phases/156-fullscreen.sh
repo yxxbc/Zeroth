@@ -10,8 +10,11 @@ smoke_begin
 # enter, and quitting must leave the screen (the shell gets its own back).
 S_FULL="${S}_full"
 RAW156="$(mktemp)"
+# The sidebar is opt-in (`/settings` → Sidebar, off by default,
+# `docs/ui/sidebar.md`); this phase asserts it, so it asks for it. The
+# default-off half is a pane of its own, below.
 tmux new-session -d -s "$S_FULL" -x 100 -y 32 \
-	"$APP_ABS --fullscreen"
+	"env ZEROTH_SIDEBAR=1 $APP_ABS --fullscreen"
 # Record from before the first frame: the alternate-screen enter happens during
 # startup, so a pipe attached after the prompt appears would miss it.
 tmux pipe-pane -t "$S_FULL" -o "cat >> $RAW156"
@@ -221,8 +224,12 @@ img156_rollout="$img156_day/rollout-2026-07-23T10-00-00-15615616.jsonl"
 	printf '{"timestamp":"2026-07-23T10:00:02.000Z","type":"tool","payload":{"name":"Read","args":"%s/shot.png","ok":true,"output":"Read image (PNG, 100x60, 2 KB)","timestamp":"10:00 AM","shell":false,"truncated":false,"arguments":"{\\"path\\":\\"%s/shot.png\\"}"}}\n' "$IMG156_DIR" "$IMG156_DIR"
 	printf '{"timestamp":"2026-07-23T10:00:03.000Z","type":"message","payload":{"role":"assistant","text":"A colour gradient with a white diagonal.","timestamp":"10:00 AM"}}\n'
 } >"$img156_rollout"
+# The sidebar carries the brand here, so the banner's own ASCII crest (which
+# is drawn in `▄▀▙▛` cells) stays out of the frame: the check below reads any
+# `▄` as a placed picture, and only the sidebar-off banner would put one
+# there legitimately.
 tmux new-session -d -s "$S_IMG" -x 100 -y 30 -c "$IMG156_DIR" \
-	"env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$IMG156_SESS ZEROTH_IMAGE_PROTOCOL=halfblocks ZEROTH_IMAGE_CELL_SIZE=5x10 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS --fullscreen --resume $img156_rollout"
+	"env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$IMG156_SESS ZEROTH_IMAGE_PROTOCOL=halfblocks ZEROTH_IMAGE_CELL_SIZE=5x10 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS ZEROTH_SIDEBAR=1 $BIN_ABS --fullscreen --resume $img156_rollout"
 if ! wait_for 10 "$S_IMG" -E '^❯'; then
 	fail "the image fixture never came up in full-screen mode"
 fi
@@ -249,7 +256,22 @@ rm -rf "$IMG156_DIR" "$IMG156_SESS"
 
 # The sidebar's three bands (docs/ui/sidebar.md): full column when wide, a
 # narrower one in the middle, and nothing at all when the conversation needs
-# the room. The seam is the mark that says a column is there.
+# the room. The seam is the mark that says a column is there. First the
+# default: off, so the brand rides the banner and no column is painted.
+S_NOSIDE="${S}_noside"
+tmux new-session -d -s "$S_NOSIDE" -x 140 -y 30 "$APP_ABS --fullscreen"
+if ! wait_for 10 "$S_NOSIDE" -E '^❯'; then
+	fail "the sidebar fixture never came up"
+fi
+noside="$(tmux capture-pane -p -t "$S_NOSIDE")"
+echo "==== Phase 156: captured pane (140 columns, Sidebar off — the default) ===="
+printf '%s\n' "$noside" | sed -n '1,3p'
+if printf '%s\n' "$noside" | grep -qF "│Zeroth v"; then
+	fail "the sidebar is up by default; it is opt-in (Sidebar, off)"
+fi
+expect_has "$noside" -F "$HEADER_TITLE_MARK" \
+	"with no sidebar the brand banner must carry the title"
+tmux kill-session -t "$S_NOSIDE"
 tmux resize-window -t "$S_FULL" -x 140 -y 30
 sleep 0.6
 wide="$(tmux capture-pane -p -t "$S_FULL")"
