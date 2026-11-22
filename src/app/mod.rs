@@ -85,7 +85,9 @@ pub(crate) use self::compact::{estimate_messages_tokens, message_tokens};
 pub use self::composer::{SHELL_EMPTY_NOTICE, shell_query};
 pub use self::context_usage::{ContextUsagePage, ContextUsageRow};
 pub use self::diff::{DiffFilter, DiffFocus, DiffReview};
-pub use self::donate::{DONATION_ADDRESSES, DonatePicker, DonationAddress};
+pub use self::donate::{
+    DONATION_ADDRESSES, DonatePicker, DonationAddress, SUPPORT_LINKS, SupportLink,
+};
 pub use self::drafts::{ArgField, ArgsScanner, ToolDraft, ToolDrafts, previewed_display};
 pub use self::export::{EXPORT_EMPTY_NOTICE, ExportPicker, ExportTarget, export_file_name};
 pub use self::file_picker::FileSearch;

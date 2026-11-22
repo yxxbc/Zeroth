@@ -17,20 +17,19 @@ if [ "$(uname -s)" = Darwin ] && command -v launchctl >/dev/null 2>&1 &&
 	smoke_skip "a GUI login has a native clipboard, so the OSC 52 fallback this phase reads cannot fire (set-clipboard would not see it)"
 fi
 
-# the `/donate` page (docs/donate.md). The `/hooks` browser's
-# sibling over the project's crypto donation addresses: a gradient
-# `♥ Support Zeroth` title over a dim blurb, each address as a numbered
-# `❯ 1. BTC  Bitcoin` row (the ticker and the coin — no network clause)
-# over its rounded box, with the networks it is reachable on captioned
-# UNDER that box (`Network: Solana`, and the seven EVM chains on the one
-# ETH address — the label agreeing with the count), an amber
-# wrong-network caution pointing at those captions and a key hint; ↓
-# moves the `❯`, on to the third (SOL) row and back; `c` copies the
-# highlighted address — the toast names the coin, and headless here (the
-# suite's own unset of the display variables) arboard has no clipboard server
-# so the OSC 52 fallback lands the address VERBATIM in tmux's paste buffer
-# (Phase 28's trick) while the page stays open; Esc
-# brings the composer and its footer back.
+# the `/donate` page (docs/ui/donate.md). The `/hooks` browser's sibling over
+# the project's sponsorship links and its one crypto address: a gradient
+# `♥ Support Zeroth` title over a dim blurb, the three off-chain links
+# (Afdian, Email, WeChat) as clickable rows, then the `❯ 1. XKO  X Layer`
+# row (the ticker and the coin — no network clause) over its rounded box,
+# with the network it is reachable on captioned UNDER that box
+# (`Network: X Layer`), an amber wrong-network caution pointing at that
+# caption and a key hint; `c` copies the highlighted address — the toast
+# names the coin, and headless here (the suite's own unset of the display
+# variables) arboard has no clipboard server so the OSC 52 fallback lands the
+# address VERBATIM in tmux's paste buffer (Phase 28's trick) while the page
+# stays open; a digit past the one row names nothing and changes nothing;
+# Esc brings the composer and its footer back.
 S112="${S}_donate"
 tmux new-session -d -s "$S112" -x 90 -y 40 "$APP"
 # tmux must capture OSC 52 from the app into its own buffer (Phase 28).
@@ -41,19 +40,23 @@ sleep 0.4
 donate_palette="$(tmux capture-pane -t "$S112" -p)"
 echo "==== Phase 112: the palette filtered to /donate ===="
 printf '%s\n' "$donate_palette"
-expect_has "$donate_palette" -F "Support the project with a crypto donation" "/donate is missing from the slash-command palette"
+expect_has "$donate_palette" -F "Support the project: links and the X Layer address" "/donate is missing from the slash-command palette"
 tmux send-keys -t "$S112" Enter
 sleep 0.5
 donate_open="$(tmux capture-pane -t "$S112" -p)"
-echo "==== Phase 112: the page open (BTC highlighted) ===="
+echo "==== Phase 112: the page open (XKO highlighted) ===="
 printf '%s\n' "$donate_open"
 for expect in "♥ Support Zeroth" "Free and open source" \
-	"❯ 1. BTC  Bitcoin" "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7" "Network: Bitcoin (Native SegWit)" \
-	"  2. ETH  Ethereum" "0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b" \
-	"Networks: Ethereum, Linea, Base, Arbitrum, BNB Chain, OP, Polygon" \
-	"  3. SOL  Solana" "Gwhv5c6uAa6aAz1MjwzV9QJpbm7CJWy2kuCeZ75mFc94" "Network: Solana" \
+	"Afdian" "afdian.com/a/xynrin" "Email" "xynrin@icloud.com" \
+	"WeChat" "github.com/yxxbc/zeroth#sponsorship" \
+	"❯ 1. XKO  X Layer" "XKO456c0e87173789d770d6a031ba320863dce6d2cc" "Network: X Layer" \
 	"↑↓ navigate  enter/c copy address  esc close"; do
 	expect_has "$donate_open" -F "$expect" "the open page is missing '$expect'"
+done
+# The deleted addresses are gone, not merely folded: the catalog is one row.
+for gone in "Bitcoin" "Ethereum" "Solana" "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7" \
+	"0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b" "Gwhv5c6uAa6aAz1MjwzV9QJpbm7CJWy2kuCeZ75mFc94"; do
+	expect_lacks "$donate_open" -F "$gone" "the page still shows the removed '$gone'"
 done
 # The caution is prose wrapped to the pane's width, so a phrase of it can
 # straddle a row break (at these 90 columns it breaks after `cannot be`):
@@ -66,76 +69,53 @@ if ! printf '%s' "$donate_open_prose" | grep -qF \
 fi
 # A row is the ticker and the coin's name and nothing more: no network
 # clause after the coin (read as the whole trimmed row, not a substring).
-for label in "❯ 1. BTC  Bitcoin" "2. ETH  Ethereum" "3. SOL  Solana"; do
-	if ! printf '%s\n' "$donate_open" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -qxF "$label"; then
-		fail "the row '$label' carries something after the coin"
-	fi
-done
-# Each address sits in its rounded box: the row over it opens with ╭ and
-# the row under it with ╰.
-for addr in "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7" "0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b" \
-	"Gwhv5c6uAa6aAz1MjwzV9QJpbm7CJWy2kuCeZ75mFc94"; do
-	if ! printf '%s\n' "$donate_open" | grep -B1 -F "$addr" | head -1 | grep -qF "╭"; then
-		fail "no rounded top over $addr"
-	fi
-	if ! printf '%s\n' "$donate_open" | grep -A1 -F "$addr" | tail -1 | grep -qF "╰"; then
-		fail "no rounded bottom under $addr"
-	fi
-done
-# The networks caption sits DIRECTLY under its box — the row two below the
+if ! printf '%s\n' "$donate_open" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -qxF "❯ 1. XKO  X Layer"; then
+	fail "the XKO row carries something after the coin"
+fi
+# The address sits in its rounded box: the row over it opens with ╭ and the
+# row under it with ╰.
+if ! printf '%s\n' "$donate_open" | grep -B1 -F "XKO456c0e87173789d770d6a031ba320863dce6d2cc" | head -1 | grep -qF "╭"; then
+	fail "no rounded top over the XKO address"
+fi
+if ! printf '%s\n' "$donate_open" | grep -A1 -F "XKO456c0e87173789d770d6a031ba320863dce6d2cc" | tail -1 | grep -qF "╰"; then
+	fail "no rounded bottom under the XKO address"
+fi
+# The network caption sits DIRECTLY under its box — the row two below the
 # address (the box's bottom wall is the one between them) — so a reader who
 # has found an address has found where it may be sent without hunting.
 donate_caption_under() { # $1 address, $2 caption
 	printf '%s\n' "$donate_open" | grep -A2 -F "$1" | tail -1 |
 		sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -qxF "$2"
 }
-if ! donate_caption_under "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7" "Network: Bitcoin (Native SegWit)"; then
-	fail "the BTC networks caption is not under its box"
-fi
-if ! donate_caption_under "0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b" \
-	"Networks: Ethereum, Linea, Base, Arbitrum, BNB Chain, OP, Polygon"; then
-	fail "the ETH networks caption is not under its box"
-fi
-if ! donate_caption_under "Gwhv5c6uAa6aAz1MjwzV9QJpbm7CJWy2kuCeZ75mFc94" "Network: Solana"; then
-	fail "the SOL networks caption is not under its box"
+if ! donate_caption_under "XKO456c0e87173789d770d6a031ba320863dce6d2cc" "Network: X Layer"; then
+	fail "the XKO network caption is not under its box"
 fi
 # The page replaces the composer: its footer is off screen while it is up.
 expect_lacks "$donate_open" -F "dummy_model_name ·" "the footer is still on screen under the page"
-# ↓ moves the ❯ to ETH.
-tmux send-keys -t "$S112" Down
-sleep 0.4
-donate_eth="$(tmux capture-pane -t "$S112" -p)"
-echo "==== Phase 112: ↓ highlights ETH ===="
-printf '%s\n' "$donate_eth"
-expect_has "$donate_eth" -F "❯ 2. ETH" "↓ did not move the ❯ to ETH"
-expect_lacks "$donate_eth" -F "❯ 1. BTC" "BTC still wears the ❯ after ↓"
 # `c` copies the highlighted address: the toast names the coin, and the
 # OSC 52 fallback lands the address verbatim in tmux's buffer.
 while tmux delete-buffer 2>/dev/null; do :; done
 tmux send-keys -t "$S112" -l "c"
-donate_copied="$(wait_pane 3 "$S112" -F "Copied the ETH address to clipboard")" # up to ~3s
+donate_copied="$(wait_pane 3 "$S112" -F "Copied the XKO address to clipboard")" # up to ~3s
 echo "==== Phase 112: after c — the toast ===="
 printf '%s\n' "$donate_copied"
-expect_has "$donate_copied" -F "Copied the ETH address to clipboard" "c did not confirm the copy with a toast naming the coin"
+expect_has "$donate_copied" -F "Copied the XKO address to clipboard" "c did not confirm the copy with a toast naming the coin"
 donate_clip="$(tmux show-buffer 2>/dev/null)"
 echo "==== Phase 112: tmux clipboard buffer (the OSC 52 fallback landed here) ===="
 printf '%s\n' "$donate_clip"
-if [ "$donate_clip" != "0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b" ]; then
-	fail "the clipboard does not hold the ETH address verbatim"
+if [ "$donate_clip" != "XKO456c0e87173789d770d6a031ba320863dce6d2cc" ]; then
+	fail "the clipboard does not hold the XKO address verbatim"
 fi
-expect_has "$donate_copied" -F "❯ 2. ETH" "copying closed the page"
-# ↓ once more reaches the third row, SOL; a fourth ↓ wraps back to BTC.
-tmux send-keys -t "$S112" Down
+expect_has "$donate_copied" -F "❯ 1. XKO" "copying closed the page"
+# A digit past the one row names nothing: `2` leaves the page open, the
+# highlight where it was, and the draft untouched.
+tmux send-keys -t "$S112" -l "2"
 sleep 0.4
-donate_sol="$(tmux capture-pane -t "$S112" -p)"
-echo "==== Phase 112: ↓ highlights SOL ===="
-printf '%s\n' "$donate_sol"
-expect_has "$donate_sol" -F "❯ 3. SOL  Solana" "↓ did not move the ❯ to SOL"
-tmux send-keys -t "$S112" Down
-sleep 0.4
-if ! tmux capture-pane -t "$S112" -p | grep -qF "❯ 1. BTC"; then
-	fail "↓ past the last row did not wrap to BTC"
-fi
+donate_two="$(tmux capture-pane -t "$S112" -p)"
+echo "==== Phase 112: 2 names no row ===="
+printf '%s\n' "$donate_two"
+expect_has "$donate_two" -F "❯ 1. XKO  X Layer" "a digit past the last row moved the ❯"
+expect_has "$donate_two" -F "♥ Support Zeroth" "a digit past the last row closed the page"
 # Esc closes: the composer and its footer come back, the page is gone.
 tmux send-keys -t "$S112" Escape
 sleep 0.4
@@ -143,5 +123,5 @@ donate_closed="$(tmux capture-pane -t "$S112" -p)"
 echo "==== Phase 112: after Esc ===="
 printf '%s\n' "$donate_closed"
 expect_has "$donate_closed" -F "dummy_model_name ·" "the composer and footer did not come back after Esc"
-expect_lacks "$donate_closed" -F "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7" "the page is still on screen after Esc"
+expect_lacks "$donate_closed" -F "XKO456c0e87173789d770d6a031ba320863dce6d2cc" "the page is still on screen after Esc"
 tmux kill-session -t "$S112" 2>/dev/null

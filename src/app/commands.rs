@@ -306,7 +306,7 @@ pub const COMMANDS: &[SlashCommand] = &[
     ),
     SlashCommand::builtin(
         "donate",
-        "Support the project with a crypto donation",
+        "Support the project: links and the X Layer address",
         CommandEffect::Donate,
     ),
     SlashCommand::builtin(

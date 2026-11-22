@@ -1,7 +1,7 @@
 //! The read-only `/donate` page (`docs/ui/donate.md`).
 
 use super::*;
-use crate::app::DONATION_ADDRESSES;
+use crate::app::{DONATION_ADDRESSES, SUPPORT_LINKS};
 use crate::ui::donate_view::{donate_menu_rows, donate_view_lines};
 use crate::ui::theme::{
     border_color, donate_address_color, donate_caution_color, error_color, model_meta_color,
@@ -52,6 +52,88 @@ fn closed_builds_nothing() {
 }
 
 #[test]
+fn the_support_links_sit_above_the_addresses_as_clickable_rows() {
+    // The off-chain paths lead: a reader without a wallet finds theirs
+    // first, each shown address underlined and carrying its own target
+    // (`docs/ui/links.md`), so a click opens the page or the mailbox.
+    let lines = donate_view_lines(&open_app(), 100, TALL);
+    let texts: Vec<String> = lines.iter().map(plain).collect();
+    let first_address = texts
+        .iter()
+        .position(|t| t.contains("1. XKO"))
+        .expect("the first address row");
+    for link in SUPPORT_LINKS {
+        let row = texts
+            .iter()
+            .position(|t| t.contains(link.shown))
+            .unwrap_or_else(|| panic!("{} is on the page: {texts:?}", link.name));
+        assert!(row < first_address, "{} leads the addresses", link.name);
+        assert!(
+            texts[row].contains(link.name),
+            "{}'s row names it: {:?}",
+            link.name,
+            texts[row]
+        );
+    }
+    let targets = link_targets(&lines);
+    for link in SUPPORT_LINKS {
+        assert!(
+            targets.iter().any(|t| t == link.url),
+            "{}'s row carries {} as its target: {targets:?}",
+            link.name,
+            link.url
+        );
+    }
+}
+
+#[test]
+fn the_support_links_yield_whole_before_any_address_box_does() {
+    // The block is the first thing a short terminal can spare: the address
+    // Enter copies and the caution that governs it outrank a link whose
+    // text a reader can also find in the README. Losing it costs rows, not
+    // a box.
+    let app = open_app();
+    let whole = page_at(&app, 80, TALL);
+    assert!(
+        whole.iter().any(|t| t.contains(SUPPORT_LINKS[0].shown)),
+        "the whole page carries the links: {whole:#?}"
+    );
+    let texts = page_at(&app, 80, short_of(&whole));
+    assert!(
+        !texts.iter().any(|t| t.contains(SUPPORT_LINKS[0].shown)),
+        "the links yielded: {texts:#?}"
+    );
+    assert_eq!(
+        boxes(&texts),
+        DONATION_ADDRESSES.len(),
+        "no address box was spent on the links: {texts:#?}"
+    );
+}
+
+#[test]
+fn a_narrow_terminal_wraps_a_support_link_rather_than_cutting_it() {
+    // The shown address is the thing a reader transcribes when the terminal
+    // cannot open a link: wrapped, every column of it reads back.
+    let width = 40u16;
+    let texts = texts(&open_app(), width);
+    let link = &SUPPORT_LINKS[1];
+    let head = texts
+        .iter()
+        .position(|t| t.contains(link.name))
+        .unwrap_or_else(|| panic!("{} is on the page: {texts:?}", link.name));
+    let rows: Vec<&str> = texts
+        .iter()
+        .skip(head)
+        .take_while(|t| !t.trim().is_empty())
+        .map(|t| t.trim())
+        .collect();
+    assert!(
+        rows.join("").contains(link.shown),
+        "the wrapped rows read back as the whole address: {rows:?}"
+    );
+}
+
+#[test]
 fn the_page_is_framed_with_title_blurb_rows_boxes_caution_and_hint() {
     let texts = texts(&open_app(), 80);
     assert!(is_rule(texts.first().expect("a top rule")), "top rule");
@@ -59,12 +141,8 @@ fn the_page_is_framed_with_title_blurb_rows_boxes_caution_and_hint() {
     for expect in [
         "♥ Support Zeroth",
         "Free and open source",
-        "❯ 1. BTC  Bitcoin",
-        "Network: Bitcoin (Native SegWit)",
-        "  2. ETH  Ethereum",
-        "Networks: Ethereum, Linea, Base, Arbitrum, BNB Chain, OP, Polygon",
-        "  3. SOL  Solana",
-        "Network: Solana",
+        "❯ 1. XKO  X Layer",
+        "Network: X Layer",
         "Send each coin only over a network listed under its address",
         "cannot be recovered",
         "↑↓ navigate  enter/c copy address  esc close",
@@ -162,32 +240,17 @@ fn the_networks_caption_aligns_with_its_box_and_stays_dim() {
 }
 
 #[test]
-fn a_narrow_terminal_wraps_the_networks_caption_rather_than_cutting_it() {
-    // Seven chain names do not fit a 40-column pane: the caption wraps and
-    // every network still reads back, because a name the reader cannot see
-    // is a network they cannot know is safe. (The address wraps inside its
-    // box at this width too, so the caption is found by its own label.)
+fn a_narrow_terminal_keeps_the_networks_caption_whole() {
+    // The caption is the answer to the caution's question, so a narrow pane
+    // must not cut it — with one network it fits on one row and reads back
+    // exactly, label included.
     let width = 40u16;
     let texts = texts(&open_app(), width);
-    let eth = DONATION_ADDRESSES[1];
-    let head = texts
-        .iter()
-        .position(|t| t.trim().starts_with("Networks:"))
-        .unwrap_or_else(|| panic!("the ETH caption is on the page: {texts:?}"));
-    let rows: Vec<&str> = texts
-        .iter()
-        .skip(head)
-        .take_while(|t| !t.trim().is_empty())
-        .map(|t| t.trim())
-        .collect();
-    assert_eq!(
-        rows.join(" "),
-        format!("Networks: {}", eth.networks.join(", ")),
-        "the wrapped rows read back as the whole caption: {texts:?}"
-    );
+    let entry = &DONATION_ADDRESSES[0];
+    let expect = format!("Network: {}", entry.networks.join(", "));
     assert!(
-        rows.len() > 1,
-        "the caption actually wrapped at {width} columns: {texts:?}"
+        texts.iter().any(|t| t.trim() == expect),
+        "{expect:?} reads back whole on {width} columns: {texts:?}"
     );
 }
 
@@ -497,15 +560,6 @@ fn render_paints_the_lines_and_the_cursor_hides_seated_on_the_marker() {
         (2, marker_row),
         "the seat is the highlighted row's marker"
     );
-    // …and it follows the highlight.
-    let app = open_at(1);
-    let mut buf = buffer(80, height);
-    render_donate_picker(buf.area, &mut buf, &app);
-    let marker_row_2 = (0..height)
-        .find(|&y| row(&buf, y, 80).trim_start().starts_with('❯'))
-        .expect("the marker moved");
-    assert!(marker_row_2 > marker_row);
-    assert_eq!(cursor_position(area, &app), (2, marker_row_2));
 }
 
 // --- a short terminal keeps the highlighted address on screen ---
@@ -521,6 +575,16 @@ fn page_at(app: &App, width: u16, height: u16) -> Vec<String> {
 /// How many address boxes the page draws.
 fn boxes(texts: &[String]) -> usize {
     texts.iter().filter(|t| t.contains('╭')).count()
+}
+
+/// Every link target carried by any span of `lines` — the OSC 8 carrier read
+/// back (`docs/ui/links.md`).
+fn link_targets(lines: &[Line<'static>]) -> Vec<String> {
+    lines
+        .iter()
+        .flat_map(|l| l.spans.iter())
+        .filter_map(|s| crate::links::style_link(&s.style).map(|u| u.to_string()))
+        .collect()
 }
 
 fn has_title(texts: &[String]) -> bool {
@@ -565,38 +629,29 @@ fn every_short_donate_page_hugs_its_frame() {
 }
 
 #[test]
-fn a_short_terminal_collapses_the_addresses_the_highlight_is_not_on() {
-    // The whole page boxes every address and is about thirty rows; anchored
-    // on a shorter terminal it kept the last addresses and the caution, and
-    // the highlighted one — the one Enter copies — flowed off the top. The
-    // boxes the highlight is not on yield first: those addresses keep only
-    // their label rows, and the highlighted one keeps its box and its
-    // networks, while the header stays as long as it fits.
+fn a_short_terminal_drops_the_header_before_the_address() {
+    // The page is about twenty rows. Anchored on a shorter terminal it
+    // keeps the one address — the one Enter copies — with its label, box,
+    // caption and the caution that governs it; the header yields first.
     let app = open_app();
     let whole = page_at(&app, 80, TALL);
-    assert_eq!(boxes(&whole), 3, "every address boxed: {whole:#?}");
-    let texts = page_at(&app, 80, short_of(&whole));
+    assert_eq!(boxes(&whole), 1, "the one address is boxed: {whole:#?}");
+    let levels = levels(&app, 80);
+    let collapsed = levels
+        .iter()
+        .position(|page| !has_title(page) && boxes(page) == 1)
+        .unwrap_or_else(|| panic!("a headerless page: {levels:#?}"));
+    let texts = &levels[collapsed];
     assert!(texts.len() < whole.len(), "{texts:#?}");
-    assert!(
-        has_title(&texts),
-        "the header stays while it fits: {texts:#?}"
-    );
-    assert_eq!(boxes(&texts), 1, "one box: {texts:#?}");
+    label_row(texts, 0);
     assert!(
         texts
             .iter()
             .any(|t| t.contains(DONATION_ADDRESSES[0].address)),
         "{texts:#?}"
     );
-    for (i, entry) in DONATION_ADDRESSES.iter().enumerate().skip(1) {
-        label_row(&texts, i);
-        assert!(
-            !texts.iter().any(|t| t.contains(entry.address)),
-            "{texts:#?}"
-        );
-    }
     assert!(
-        texts.iter().any(|t| t.contains("Network: Bitcoin")),
+        texts.iter().any(|t| t.contains("Network: X Layer")),
         "{texts:#?}"
     );
     assert!(
@@ -607,54 +662,26 @@ fn a_short_terminal_collapses_the_addresses_the_highlight_is_not_on() {
 }
 
 #[test]
-fn the_highlighted_address_opens_under_its_own_label() {
-    // An accordion: the list keeps its order and the box opens in place.
-    let app = open_at(1);
-    let whole = page_at(&app, 80, TALL);
-    let texts = page_at(&app, 80, short_of(&whole));
-    let (btc, eth, sol) = (
-        label_row(&texts, 0),
-        label_row(&texts, 1),
-        label_row(&texts, 2),
-    );
+fn the_address_opens_under_its_own_label() {
+    // The box opens in place, directly under the row that names it.
+    let app = open_app();
+    let texts = page_at(&app, 80, TALL);
+    let label = label_row(&texts, 0);
     let top = texts.iter().position(|t| t.contains('╭')).expect("the box");
-    assert!(btc < eth && eth < top && top < sol, "{texts:#?}");
     assert_eq!(
+        label + 1,
         top,
-        eth + 1,
         "the box sits right under its label: {texts:#?}"
     );
-    assert!(texts[eth].trim_start().starts_with('❯'), "{texts:#?}");
+    assert!(texts[label].trim_start().starts_with('❯'), "{texts:#?}");
     assert!(
         texts
             .iter()
-            .any(|t| t.contains(DONATION_ADDRESSES[1].address)),
+            .any(|t| t.contains(DONATION_ADDRESSES[0].address)),
         "{texts:#?}"
     );
     assert!(
-        texts.iter().any(|t| t.contains("Networks: Ethereum")),
-        "{texts:#?}"
-    );
-}
-
-#[test]
-fn a_shorter_terminal_drops_the_header_too() {
-    let app = open_app();
-    let collapsed = page_at(&app, 80, short_of(&page_at(&app, 80, TALL)));
-    let texts = page_at(&app, 80, short_of(&collapsed));
-    assert!(texts.len() < collapsed.len(), "{texts:#?}");
-    assert!(!has_title(&texts), "no header: {texts:#?}");
-    assert_eq!(boxes(&texts), 1, "{texts:#?}");
-    for i in 0..DONATION_ADDRESSES.len() {
-        label_row(&texts, i);
-    }
-    assert!(
-        texts.iter().any(|t| t.contains("cannot be recovered")),
-        "{texts:#?}"
-    );
-    assert!(texts.iter().any(|t| t.contains("esc close")), "{texts:#?}");
-    assert!(
-        is_rule(&texts[0]) && is_rule(texts.last().expect("rows")),
+        texts.iter().any(|t| t.contains("Network: X Layer")),
         "{texts:#?}"
     );
 }
@@ -704,33 +731,29 @@ fn levels(app: &App, width: u16) -> Vec<Vec<String>> {
 }
 
 #[test]
-fn shorter_than_the_accordion_only_the_highlighted_address_stays() {
-    // Three label rows over a box and its caption make even the accordion
-    // about fourteen rows. Shorter than that, the list narrows to the one
-    // address the highlight is on, its numbered label saying where it
-    // stands, and the caution and the hint stay. No overflow slots: straight
-    // under the top rule they would hug it blank at the first address
-    // (`docs/ui/view-flow.md` *The frame hugs its content*).
-    let app = open_at(1);
+fn shorter_than_the_box_only_the_label_and_address_stay() {
+    // Twenty rows will not seat the header and the blurb. Shorter than
+    // that the page narrows to the one address, its numbered label saying
+    // where it stands, and the caution and the hint stay. No overflow
+    // slots: straight under the top rule they would hug it blank at the
+    // first address (`docs/ui/view-flow.md` *The frame hugs its content*).
+    let app = open_app();
     let levels = levels(&app, 80);
-    assert_eq!(levels.len(), 4, "{levels:#?}");
-    let texts = &levels[3];
+    let texts = levels.last().expect("the narrowest page");
     assert!(!has_title(texts), "{texts:#?}");
     assert_eq!(boxes(texts), 1, "{texts:#?}");
-    let eth = label_row(texts, 1);
-    assert_eq!(eth, 1, "the label opens the page: {texts:#?}");
-    assert!(texts[eth].trim_start().starts_with("❯ 2."), "{texts:#?}");
-    assert!(texts[eth + 1].contains('╭'), "{texts:#?}");
-    assert!(!texts.iter().any(|t| t.contains("1. BTC")), "{texts:#?}");
-    assert!(!texts.iter().any(|t| t.contains("3. SOL")), "{texts:#?}");
+    let xko = label_row(texts, 0);
+    assert_eq!(xko, 1, "the label opens the page: {texts:#?}");
+    assert!(texts[xko].trim_start().starts_with("❯ 1."), "{texts:#?}");
+    assert!(texts[xko + 1].contains('╭'), "{texts:#?}");
     assert!(
         !texts.iter().any(|t| t.contains(" more ")),
         "no overflow rows: {texts:#?}"
     );
     let lines: Vec<Line<'static>> = texts.iter().map(|t| Line::from(t.clone())).collect();
-    assert_frame_hugs_content("the highlighted address alone", &lines);
+    assert_frame_hugs_content("the address alone", &lines);
     assert!(
-        texts.iter().any(|t| t.contains("Networks: Ethereum")),
+        texts.iter().any(|t| t.contains("Network: X Layer")),
         "{texts:#?}"
     );
     assert!(

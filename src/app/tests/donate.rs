@@ -22,18 +22,12 @@ fn selected(app: &App) -> usize {
 // ===== the catalog =====
 
 #[test]
-fn the_catalog_lists_btc_eth_then_sol_with_the_project_addresses() {
+fn the_catalog_lists_the_one_xko_address() {
     let tickers: Vec<&str> = DONATION_ADDRESSES.iter().map(|a| a.ticker).collect();
-    assert_eq!(tickers, ["BTC", "ETH", "SOL"]);
-    let btc = DONATION_ADDRESSES[0];
-    assert_eq!(btc.coin, "Bitcoin");
-    assert_eq!(btc.address, "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7");
-    let eth = DONATION_ADDRESSES[1];
-    assert_eq!(eth.coin, "Ethereum");
-    assert_eq!(eth.address, "0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b");
-    let sol = DONATION_ADDRESSES[2];
-    assert_eq!(sol.coin, "Solana");
-    assert_eq!(sol.address, "Gwhv5c6uAa6aAz1MjwzV9QJpbm7CJWy2kuCeZ75mFc94");
+    assert_eq!(tickers, ["XKO"]);
+    let xko = DONATION_ADDRESSES[0];
+    assert_eq!(xko.coin, "X Layer");
+    assert_eq!(xko.address, "XKO456c0e87173789d770d6a031ba320863dce6d2cc");
 }
 
 #[test]
@@ -42,24 +36,8 @@ fn every_entry_names_the_networks_its_address_is_reachable_on() {
     // *where* may this be sent? A wrong-network transfer is unrecoverable,
     // so an entry with no network named would be an entry the caution
     // cannot cover.
-    let btc = DONATION_ADDRESSES[0];
-    assert_eq!(btc.networks, ["Bitcoin (Native SegWit)"]);
-    let eth = DONATION_ADDRESSES[1];
-    assert_eq!(
-        eth.networks,
-        [
-            "Ethereum",
-            "Linea",
-            "Base",
-            "Arbitrum",
-            "BNB Chain",
-            "OP",
-            "Polygon",
-        ],
-        "the one EVM address is reachable on every chain the wallet exposes"
-    );
-    let sol = DONATION_ADDRESSES[2];
-    assert_eq!(sol.networks, ["Solana"]);
+    let xko = DONATION_ADDRESSES[0];
+    assert_eq!(xko.networks, ["X Layer"]);
 }
 
 #[test]
@@ -92,6 +70,61 @@ fn every_network_name_is_a_bare_printable_label() {
             );
         }
     }
+}
+
+#[test]
+fn every_support_link_names_itself_and_carries_an_openable_target() {
+    // The links are what a reader without a wallet acts on, so each row must
+    // be identifiable and must carry a target the opener can spawn: an
+    // `https://` page or a `mailto:` — never a bare host the caller would
+    // have to guess a scheme for.
+    assert!(
+        !SUPPORT_LINKS.is_empty(),
+        "the page shows at least one path"
+    );
+    let mut seen = std::collections::HashSet::new();
+    for link in SUPPORT_LINKS {
+        assert!(!link.name.is_empty(), "a link needs a label");
+        assert_eq!(link.name, link.name.trim(), "{}: padding", link.name);
+        assert!(
+            !link.shown.is_empty() && link.shown == link.shown.trim(),
+            "{}: the shown address is bare",
+            link.name
+        );
+        assert!(
+            link.url.starts_with("https://") || link.url.starts_with("mailto:"),
+            "{}: {:?} carries no openable scheme",
+            link.name,
+            link.url
+        );
+        assert!(
+            !link.url.chars().any(char::is_whitespace),
+            "{}: {:?} carries whitespace",
+            link.name,
+            link.url
+        );
+        assert!(seen.insert(link.url), "{}: duplicate target", link.name);
+    }
+    let names: Vec<&str> = SUPPORT_LINKS.iter().map(|l| l.name).collect();
+    assert_eq!(names, ["Afdian", "Email", "WeChat"]);
+}
+
+#[test]
+fn the_xko_address_is_x_layer_s_twenty_byte_account() {
+    // XKO is X Layer's prefix on a standard twenty-byte EVM account
+    // (https://web3.okx.com/onchainos/dev-docs/xlayer/.../address-format):
+    // three characters replacing `0x`, then forty hex digits. Pinned here
+    // because a truncation or a stray character would silently redirect the
+    // transfer, and only the network label says where it may go.
+    let xko = DONATION_ADDRESSES[0];
+    assert_eq!(xko.ticker, "XKO");
+    assert_eq!(xko.networks, ["X Layer"]);
+    let core = xko.address.strip_prefix("XKO").expect("the XKO prefix");
+    assert_eq!(core.len(), 40, "twenty bytes, hex");
+    assert!(
+        core.chars().all(|c| c.is_ascii_hexdigit()),
+        "bare hex: {core:?}"
+    );
 }
 
 #[test]
@@ -161,7 +194,7 @@ fn the_palette_lists_donate_with_a_concise_description() {
         .expect("/donate is registered");
     assert_eq!(
         cmd.description,
-        "Support the project with a crypto donation"
+        "Support the project: links and the X Layer address"
     );
     assert_eq!(cmd.effect, CommandEffect::Donate);
 }
@@ -193,19 +226,16 @@ fn opening_abandons_the_bands_that_share_the_composer() {
 // ===== the key grammar (the /hooks family: navigation, no text entry) =====
 
 #[test]
-fn up_and_down_wrap_at_the_ends() {
+fn up_and_down_stay_on_the_only_address() {
+    // One address means the wrapping walk has nowhere to go: ↓ and ↑ are
+    // still owned (they never leak to the composer) but the highlight stays
+    // on row one, which is also the last row.
     let mut app = donate_app();
-    let last = DONATION_ADDRESSES.len() - 1;
-    assert_eq!(selected(&app), 0);
+    assert_eq!(DONATION_ADDRESSES.len(), 1, "the fixture is one row");
     assert_eq!(app.on_key(key(KeyCode::Down)), Action::None);
-    assert_eq!(selected(&app), 1);
-    app.on_key(key(KeyCode::Down));
-    assert_eq!(selected(&app), 2, "↓ reaches the third row");
-    assert_eq!(selected(&app), last, "…which is the last one");
-    app.on_key(key(KeyCode::Down));
-    assert_eq!(selected(&app), 0, "↓ past the last wraps to the first");
-    app.on_key(key(KeyCode::Up));
-    assert_eq!(selected(&app), last, "↑ from the first wraps to the last");
+    assert_eq!(selected(&app), 0);
+    assert_eq!(app.on_key(key(KeyCode::Up)), Action::None);
+    assert_eq!(selected(&app), 0);
 }
 
 #[test]
@@ -220,48 +250,36 @@ fn home_and_end_jump() {
 #[test]
 fn enter_and_c_copy_the_highlighted_address_and_keep_the_page_open() {
     let mut app = donate_app();
-    app.on_key(key(KeyCode::Down));
-    let eth = DONATION_ADDRESSES[1];
+    let xko = DONATION_ADDRESSES[0];
     assert_eq!(
         app.on_key(key(KeyCode::Enter)),
-        Action::CopyDonationAddress(eth)
+        Action::CopyDonationAddress(xko)
     );
     assert!(app.donate_picker.is_some(), "copying keeps the page open");
     assert_eq!(
         app.on_key(key(KeyCode::Char('c'))),
-        Action::CopyDonationAddress(eth)
+        Action::CopyDonationAddress(xko)
     );
     assert_eq!(
         app.on_key(key(KeyCode::Char('C'))),
-        Action::CopyDonationAddress(eth),
+        Action::CopyDonationAddress(xko),
         "the shifted key copies too"
     );
-    assert_eq!(selected(&app), 1, "the highlight stays put");
+    assert_eq!(selected(&app), 0, "the highlight stays put");
 }
 
 #[test]
 fn a_digit_jumps_to_that_address_and_copies_it() {
     let mut app = donate_app();
     assert_eq!(
-        app.on_key(key(KeyCode::Char('2'))),
-        Action::CopyDonationAddress(DONATION_ADDRESSES[1])
-    );
-    assert_eq!(selected(&app), 1, "the digit moved the highlight");
-    assert_eq!(
         app.on_key(key(KeyCode::Char('1'))),
         Action::CopyDonationAddress(DONATION_ADDRESSES[0])
     );
     assert_eq!(selected(&app), 0);
-    assert_eq!(
-        app.on_key(key(KeyCode::Char('3'))),
-        Action::CopyDonationAddress(DONATION_ADDRESSES[2]),
-        "3 reaches the SOL row"
-    );
-    assert_eq!(selected(&app), 2);
     // A digit past the rows names nothing and is ignored.
-    assert_eq!(app.on_key(key(KeyCode::Char('4'))), Action::None);
+    assert_eq!(app.on_key(key(KeyCode::Char('2'))), Action::None);
     assert_eq!(app.on_key(key(KeyCode::Char('9'))), Action::None);
-    assert_eq!(selected(&app), 2);
+    assert_eq!(selected(&app), 0);
 }
 
 #[test]

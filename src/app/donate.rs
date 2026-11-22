@@ -12,18 +12,17 @@
 
 use super::*;
 
-/// One donation address: the coin's ticker (`BTC`), its name (`Bitcoin`),
+/// One donation address: the coin's ticker (`XKO`), its name (`X Layer`),
 /// the address itself — copied verbatim, so it is bare ASCII with no
 /// whitespace (the catalog tests pin that) — and the **networks** it is
 /// reachable on.
 ///
 /// The networks are a list rather than a single name because one address
-/// need not mean one chain: the EVM address is the same twenty bytes on
-/// Ethereum, Linea, Base, Arbitrum, BNB Chain, OP and Polygon, and a page
-/// that named only the first would leave a user guessing whether the other
-/// six are safe — a guess whose wrong answer is unrecoverable. So the
-/// entry states where its address may be sent and the page's caution says,
-/// once, that nothing else may be.
+/// need not mean one chain: an EVM address is the same twenty bytes on every
+/// chain the wallet exposes, and a page that named only the first would leave
+/// a user guessing whether the others are safe — a guess whose wrong answer is
+/// unrecoverable. So the entry states where its address may be sent and the
+/// page's caution says, once, that nothing else may be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DonationAddress {
     /// The ticker the row leads with and the copy toast names — one bare
@@ -41,32 +40,58 @@ pub struct DonationAddress {
 }
 
 /// The project's donation addresses, in the order the page lists them.
-pub const DONATION_ADDRESSES: &[DonationAddress] = &[
-    DonationAddress {
-        ticker: "BTC",
-        coin: "Bitcoin",
-        address: "bc1qhwamfrwuhz64pk00l75ykfff2ang22ns64chf7",
-        networks: &["Bitcoin (Native SegWit)"],
+///
+/// One today: `XKO`, X Layer's prefix on a standard twenty-byte EVM account.
+/// The catalog is the page's only input, so an address is removed by deleting
+/// its entry here — the layout, the digit grammar and the docs' examples are
+/// all driven from this const (`docs/ui/donate.md`).
+pub const DONATION_ADDRESSES: &[DonationAddress] = &[DonationAddress {
+    ticker: "XKO",
+    coin: "X Layer",
+    address: "XKO456c0e87173789d770d6a031ba320863dce6d2cc",
+    networks: &["X Layer"],
+}];
+
+/// One off-chain way to support the project: the row's label
+/// (`Afdian`), the bare address the reader sees and copies, and the target
+/// a click opens — an `https://` page or a `mailto:`.
+///
+/// These sit above the crypto addresses because they are the paths a reader
+/// can take without owning a wallet. `url` is passed to the platform's
+/// opener verbatim, so it carries the scheme it means: the page renders the
+/// shown address as an OSC 8 hyperlink over it, and neither invents a
+/// scheme the other would have to guess (`docs/ui/links.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SupportLink {
+    /// The row's label — one bare word, like a ticker.
+    pub name: &'static str,
+    /// What a reader sees beside the label: the page's address, or the
+    /// mailbox for a `mailto:`. Shown and copied verbatim.
+    pub shown: &'static str,
+    /// The target, scheme included.
+    pub url: &'static str,
+}
+
+/// The project's off-chain support links, in the order the page lists them.
+///
+/// A const for the same reason the addresses are: these are the project's,
+/// not the user's, and a page that read them from disk would be a page
+/// anyone with write access to the config home could redirect.
+pub const SUPPORT_LINKS: &[SupportLink] = &[
+    SupportLink {
+        name: "Afdian",
+        shown: "afdian.com/a/xynrin",
+        url: "https://afdian.com/a/xynrin",
     },
-    DonationAddress {
-        ticker: "ETH",
-        coin: "Ethereum",
-        address: "0xEAf6fbabB9DBE7a23BfE22A7A6c4aCe02063524b",
-        networks: &[
-            "Ethereum",
-            "Linea",
-            "Base",
-            "Arbitrum",
-            "BNB Chain",
-            "OP",
-            "Polygon",
-        ],
+    SupportLink {
+        name: "Email",
+        shown: "xynrin@icloud.com",
+        url: "mailto:xynrin@icloud.com?subject=%5BZeroth%5D%20Sponsorship",
     },
-    DonationAddress {
-        ticker: "SOL",
-        coin: "Solana",
-        address: "Gwhv5c6uAa6aAz1MjwzV9QJpbm7CJWy2kuCeZ75mFc94",
-        networks: &["Solana"],
+    SupportLink {
+        name: "WeChat",
+        shown: "github.com/yxxbc/zeroth#sponsorship",
+        url: "https://github.com/yxxbc/zeroth#sponsorship",
     },
 ];
 

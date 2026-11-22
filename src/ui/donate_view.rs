@@ -21,7 +21,7 @@ use super::theme::*;
 use super::wrap::{clamp_spans, cols, ellipsize, wrap_output};
 use super::*;
 
-use crate::app::{DONATION_ADDRESSES, DonationAddress};
+use crate::app::{DONATION_ADDRESSES, DonationAddress, SUPPORT_LINKS, SupportLink};
 
 /// The title row: `♥ Support Zeroth` — the heart in its own red, the
 /// verb and the name bold and washed left-to-right in the banner's accent →
@@ -83,6 +83,56 @@ fn label_line(index: usize, entry: &DonationAddress, selected: bool, width: u16)
         ],
         width as usize,
     )
+}
+
+/// The support-links block: one row per [`SUPPORT_LINKS`] entry, the label
+/// bold and the shown address underlined and carrying its target as an OSC 8
+/// hyperlink (`docs/ui/links.md`), so clicking the address opens the page or
+/// the mailbox exactly as `/login`'s device page does.
+///
+/// These ride **above** the address rows and take no part in the `❯`
+/// selection: the page's grammar is navigation plus *copy*, and a link row
+/// has nothing to copy into a wallet. A reader who wants the URL copies it
+/// off the screen (or clicks it), which is what a hyperlink is for.
+fn support_rows(width: u16) -> Vec<Line<'static>> {
+    SUPPORT_LINKS
+        .iter()
+        .flat_map(|link| support_link_rows(link, width))
+        .collect()
+}
+
+/// One link's row — `Afdian   afdian.com/a/xynrin` — with the shown address
+/// wrapped (and every fragment carrying the whole target) when it does not
+/// fit beside its label.
+fn support_link_rows(link: &SupportLink, width: u16) -> Vec<Line<'static>> {
+    let label = Style::new()
+        .fg(model_id_color())
+        .add_modifier(Modifier::BOLD);
+    let url = Style::new()
+        .fg(link_url_color())
+        .add_modifier(Modifier::UNDERLINED);
+    let lead = format!("{MODEL_INDENT}{}", link.name);
+    let gap = cols(DONATE_LABEL_GAP);
+    let room = (width as usize).saturating_sub(cols(&lead) + gap).max(1) as u16;
+    super::inline::wrap_inline_hanging(
+        &[(link.shown.to_string(), crate::links::linked(url, link.url))],
+        room,
+        room,
+    )
+    .into_iter()
+    .enumerate()
+    .map(|(i, spans)| {
+        let mut row = Vec::with_capacity(spans.len() + 2);
+        if i == 0 {
+            row.push(Span::styled(lead.clone(), label));
+            row.push(Span::raw(DONATE_LABEL_GAP));
+        } else {
+            row.push(Span::raw(" ".repeat(cols(&lead) + gap)));
+        }
+        row.extend(spans);
+        clamp_spans(row, width as usize)
+    })
+    .collect()
 }
 
 /// The address inside its rounded box, indented past the label like the
@@ -256,6 +306,10 @@ pub fn donate_view_lines(app: &App, width: u16, height: u16) -> Vec<Line<'static
     let caution = || model_wrapped_rows(DONATE_CAUTION, donate_caution_color(), width);
     let hint = || model_placeholder_row(DONATE_HINT, model_meta_color(), width);
     let tail = || vec![caution(), vec![hint()]];
+    // The off-chain ways in, above the addresses: a reader without a wallet
+    // finds their path first, and the block sheds whole before any address
+    // box does (it is the first thing a short terminal can spare).
+    let links = || vec![support_rows(width)];
     // Every address its own block, each one boxed.
     let boxed = || {
         (0..count)
@@ -283,6 +337,7 @@ pub fn donate_view_lines(app: &App, width: u16, height: u16) -> Vec<Line<'static
     first_page_that_fits(
         height,
         &[
+            &|| page(vec![header(), links(), boxed(), tail()]),
             &|| page(vec![header(), boxed(), tail()]),
             &|| page(vec![header(), accordion(), tail()]),
             &|| page(vec![accordion(), tail()]),
