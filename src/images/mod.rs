@@ -55,16 +55,32 @@ pub use payload::{
     set_payload_cache_dir,
 };
 pub use registry::{
-    ImagePolicy, Placement, any_placements, auto_resizing, graphics_available, known_missing,
-    known_size, mascot_image_path, place, place_in, placement, policy, recheck_pictures,
-    remember_missing, remember_size, set_mascot_image_path, set_policy, showing,
+    ImagePolicy, Placement, ScrollingFrame, any_placements, auto_resizing, graphics_available,
+    in_scrolling_frame, known_missing, known_size, mascot_image_path, place, place_in, placement,
+    policy, recheck_pictures, remember_missing, remember_size, scrolling_frame,
+    set_mascot_image_path, set_policy, showing,
 };
 pub use store::{
     Detection, GraphicsReply, IMAGE_CELL_SIZE_ENV, IMAGE_PROTOCOL_ENV, IMAGE_RETRANSMIT_ENV,
     IMAGES_ENV, ImageStore, MULTIPLEXER_SESSION_VARS, graphics_query_wanted, images_disabled,
     kitty_from_env, load_fitted, parse_cell_size, protocol_after_reply, protocol_from_name,
-    retransmit_forced, under_multiplexer,
+    protocol_off, retransmit_forced, under_multiplexer,
 };
+
+/// The lock every test that moves the process-global image policy (or the
+/// scrolling-frame scope) holds, so parallel tests cannot see each other's
+/// state.
+///
+/// It lives here rather than in either test module because `ui`'s image tests
+/// and this module's own both write the one policy: two locks would serialise
+/// each group against itself and leave the pair racing.
+#[cfg(test)]
+pub(crate) fn policy_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 /// The pixel size an image `read`'s own fact line reports.
 ///

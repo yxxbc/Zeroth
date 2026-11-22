@@ -216,16 +216,23 @@ still applies.
   none is spent, and pointing at the strip lights it because a click scrolls
   the prompt back (`pinned_prompt`, `full_prompts`,
   [`conversation-tool-details-and-pin`](conversation-tool-details-and-pin.md)).
-- **No terminal images in the frame.** The banner renders its **text badge**
-  here, never the graphic mascot (`ui::header_lines_plain`): a terminal image
-  is anchored to the screen's cells rather than to the app's buffer, and this
-  frame scrolls and repaints under it, so a placement is left behind as ghost
-  blocks wherever it used to sit — the reported "noise after scrolling". The
-  inline viewport is unaffected (its banner is committed to scrollback once),
-  and the sidebar's art is safe (a fixed column that never scrolls). On a
-  terminal or multiplexer that reports a graphics protocol but does not render
-  it, the placeholder cells arrive as box glyphs; `ZEROTH_IMAGE_PROTOCOL=none`
-  turns pictures off entirely if that ever happens.
+- **No terminal images in the frame.** A terminal image is anchored to the
+  screen's cells rather than to the app's buffer, and this frame scrolls and
+  repaints under it, so a placement is left behind as ghost blocks wherever it
+  used to sit — the reported "noise after scrolling". So no placement is made
+  in a scrolling row. The banner renders its **text badge**, never the graphic
+  mascot (`ui::header_lines_plain`); a conversation picture — an image `read`,
+  a Ctrl+V attachment, a link card's cover — reserves **no rows** at all
+  (`images::scrolling_frame` around the frame's history build), the same shape
+  as **Show images** off: the `read` cell's `Read image (…)` fact line is what
+  names it, and a card keeps its head and description. What does **not** scroll
+  keeps its art: the sidebar's brand mascot (a fixed column, built outside that
+  scope), the inline viewport (its banner is committed to scrollback once), the
+  Ctrl+O pager (a page with its own image slicing) and the inline conversation.
+  On a terminal or multiplexer that reports a graphics protocol but does not
+  render it, the placeholder cells arrive as box glyphs;
+  `ZEROTH_IMAGE_PROTOCOL=none` turns pictures off entirely — the fixed art
+  included — if that ever happens.
 - **The frame's own chrome.** Two columns are the app's, outside the
   conversation's wrap width: the [sidebar](sidebar.md) on the right (a pure
   function of the screen's width — 30, 24 or no columns) and a **scrollbar** on

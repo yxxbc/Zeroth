@@ -195,13 +195,18 @@ span 会在选区边界处切开，所以在一个 20 字的 span 里选 3 个�
   一行预留行上，于是问题与它的答案待在一起；这条消息还有任何一行可见时不花任何行，
   而指针移到横条上会让它亮起来，因为单击会把那条输入滚回来（`pinned_prompt`、
   `full_prompts`、[`conversation-tool-details-and-pin`](conversation-tool-details-and-pin.md)）。
-- **帧里不放终端图像。** 这里的 banner 画**文字徽标**，不画图形 mascot
-  （`ui::header_lines_plain`）：终端图像锚在屏幕的格子上，而不是 app 的缓冲区上，
+- **帧里不放终端图像。** 终端图像锚在屏幕的格子上，而不是 app 的缓冲区上，
   而这一帧会在它下面滚动和重绘，于是 placement 就被留成残影块 —— 也就是反馈里
-  「滚动之后的噪点」。内联 viewport 不受影响（它的 banner 只提交一次进 scrollback），
-  侧栏的图像是安全的（固定列，永不滚动）。如果终端或多路复用器声明支持图形协议
-  却并不渲染，占位格就会以方块字形出现；真遇到这种情况，`ZEROTH_IMAGE_PROTOCOL=none`
-  可以彻底关掉图片。
+  「滚动之后的噪点」。所以滚动行里一律不做 placement：banner 画**文字徽标**，
+  不画图形 mascot（`ui::header_lines_plain`）；对话里的图片 —— 图片 `read`、
+  Ctrl+V 附件、链接卡的封面 —— **一行都不预留**（帧在构建历史时处于
+  `images::scrolling_frame` 作用域），与关掉 **Show images** 同形：`read`
+  单元格自己的 `Read image (…)` 事实行就是它的文字说明，卡片保留标题和描述。
+  不滚动的东西仍然有图：侧栏的品牌 mascot（固定列，在这个作用域之外构建）、
+  内联 viewport（banner 只提交一次进 scrollback）、Ctrl+O pager（自带图像切片），
+  以及内联对话。如果终端或多路复用器声明支持图形协议却并不渲染，占位格就会以
+  方块字形出现；`ZEROTH_IMAGE_PROTOCOL=none` 可以彻底关掉图片 —— 固定列的图也
+  一起关掉。
 - **画面自己的框架。** 有两列属于 app、在对话的换行宽度之外：右边是[侧栏](sidebar.md)
   （屏幕宽度的纯函数 —— 30 列、24 列或没有），右边是**滚动条**。滚动条永远占一列，
   所以换行宽度不会在读者眼皮底下移动；只有存在屏幕之外的内容时才画，拇指按屏幕上

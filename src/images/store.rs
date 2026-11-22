@@ -32,7 +32,8 @@ pub const IMAGES_ENV: &str = "ZEROTH_IMAGES";
 
 /// Force the graphics protocol instead of guessing it from the environment:
 /// `kitty`, `iterm2`, `sixel`, or `halfblocks`. For the terminal whose env
-/// vars say nothing — and for saying "just use half-blocks".
+/// vars say nothing — and for saying "just use half-blocks". `none` builds no
+/// store at all, so every painter (the sidebar's fixed art included) is off.
 pub const IMAGE_PROTOCOL_ENV: &str = "ZEROTH_IMAGE_PROTOCOL";
 
 /// Force the terminal's cell size in pixels, `WxH` (e.g. `9x18`), for a
@@ -82,6 +83,22 @@ pub fn protocol_from_name(value: &str) -> Option<ProtocolType> {
         "halfblocks" | "half-blocks" | "blocks" => Some(ProtocolType::Halfblocks),
         _ => None,
     }
+}
+
+/// Whether [`IMAGE_PROTOCOL_ENV`] asks for **no pictures at all** — the
+/// spelling `docs/ui/full-screen.md` points a reader at when their terminal
+/// reports graphics it does not render.
+///
+/// Separate from [`protocol_from_name`] because "none" is not an encoder: it
+/// says the store should not be built, which is also what
+/// [`super::store::images_disabled`] says for [`IMAGES_ENV`]. Both spellings
+/// turn every painter off, the sidebar's fixed art included.
+#[must_use]
+pub fn protocol_off(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "none" | "off" | "disabled"
+    )
 }
 
 /// A `WxH` cell size, as [`IMAGE_CELL_SIZE_ENV`] spells it. Pure.
@@ -298,6 +315,8 @@ const PRIMARY: Screen = false;
 ///
 /// [`IMAGE_PROTOCOL_ENV`] and [`IMAGE_CELL_SIZE_ENV`] override both, and a
 /// pinned protocol — `halfblocks` included — is never asked about.
+/// `ZEROTH_IMAGE_PROTOCOL=none` builds no store at all, the escape hatch for a
+/// terminal that reports graphics it does not actually render.
 ///
 /// [`InlineViewport::init`]: crate::term::InlineViewport::init
 pub struct Detection {
@@ -311,6 +330,10 @@ pub struct Detection {
     blacklisted_env: bool,
     /// [`IMAGE_RETRANSMIT_ENV`].
     retransmit: bool,
+    /// [`IMAGE_PROTOCOL_ENV`] asked for **no** pictures
+    /// ([`protocol_off`]): the store is built disabled, so even the
+    /// fixed-column art goes.
+    off: bool,
 }
 
 impl Detection {
@@ -348,17 +371,20 @@ impl Detection {
         if let Some(forced) = forced {
             picker.set_protocol_type(forced);
         }
+        let off = env(IMAGE_PROTOCOL_ENV).as_deref().is_some_and(protocol_off);
         let set = |name: &str| env(name).is_some_and(|v| !v.is_empty());
         Self {
-            ask: graphics_query_wanted(
-                picker.protocol_type(),
-                forced.is_some(),
-                multiplexed,
-                term.as_deref(),
-            ),
+            ask: !off
+                && graphics_query_wanted(
+                    picker.protocol_type(),
+                    forced.is_some(),
+                    multiplexed,
+                    term.as_deref(),
+                ),
             picker,
             blacklisted_env: set("WEZTERM_EXECUTABLE") || set("KONSOLE_VERSION"),
             retransmit: retransmit_forced(env(IMAGE_RETRANSMIT_ENV).as_deref()),
+            off,
         }
     }
 
@@ -370,8 +396,15 @@ impl Detection {
 
     /// The store, once the terminal's answer is in (an empty
     /// [`GraphicsReply`] when it was not asked).
+    ///
+    /// [`IMAGE_PROTOCOL_ENV=none`](IMAGE_PROTOCOL_ENV) skips the detection
+    /// whole: the disabled store reserves no rows and paints nothing, which is
+    /// the one switch that also removes the fixed-column art.
     #[must_use]
     pub fn into_store(mut self, reply: &GraphicsReply) -> ImageStore {
+        if self.off {
+            return ImageStore::disabled();
+        }
         let protocol =
             protocol_after_reply(self.picker.protocol_type(), reply, self.blacklisted_env);
         self.picker.set_protocol_type(protocol);

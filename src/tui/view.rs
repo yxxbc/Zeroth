@@ -448,6 +448,15 @@ impl Session<'_> {
         if history_cached {
             return self.tailed_with_stream(width);
         }
+        // This frame scrolls its conversation under whatever is painted on it,
+        // and a terminal picture is anchored to the screen's cells rather than
+        // to the buffer above: leaving one in a scrolling row is the reported
+        // "noise after scrolling" in `docs/ui/full-screen.md`. Every row built
+        // below is therefore pictureless — the `read` cell's fact line is the
+        // text stand-in, the link card keeps its head and description — while
+        // the sidebar's fixed-column art and the Ctrl+O pager, built outside
+        // this scope, keep theirs.
+        let _scrolling = images::scrolling_frame();
         // Lone URL lines in assistant replies become preview cards once
         // fetched (`docs/ui/rich-links.md`). The closures capture the fields
         // directly, so the renderer's mutable borrows (`agent_render`) below

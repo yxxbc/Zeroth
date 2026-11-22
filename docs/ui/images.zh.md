@@ -237,8 +237,10 @@ ESC\`，然后光标报告。
 
 仍然探测不出的，落到**半块**上。`ZEROTH_IMAGE_PROTOCOL`（`kitty` / `iterm2` /
 `sixel` / `halfblocks`）与 `ZEROTH_IMAGE_CELL_SIZE`（`9x18`）覆盖二
-者；`ZEROTH_IMAGES=0` 关掉整个功能。`smoke.sh` Phase 107e 自己扮演终端 —— 一个按
-herdr、沉默终端或 WezTerm 的方式回答的 pty —— 因为 tmux 一点都回答不了。
+者；`ZEROTH_IMAGES=0` 关掉整个功能，`ZEROTH_IMAGE_PROTOCOL=none` 也从协议变量
+关掉它 —— 而且它是唯一连侧栏固定列图片一起关掉的拼写，因为这时根本不构建
+store。`smoke.sh` Phase 107e 自己扮演终端 —— 一个按 herdr、沉默终端或 WezTerm
+的方式回答的 pty —— 因为 tmux 一点都回答不了。
 
 ### 在容器里
 
@@ -263,15 +265,16 @@ docker exec -it -e TERM -e COLORTERM -e TERM_PROGRAM -e KITTY_WINDOW_ID -e TMUX 
 
 ## 绘制
 
-`ImageStore::stamp(buf)` 在**四个**位置运行，漏掉一个，那个视图里的 bug 就还活着
-（`visible_cells` 规则）：
+`ImageStore::stamp(buf)` 在**每一条**绘制路径上运行，漏掉一个，那个视图里的 bug
+就还活着（`visible_cells` 规则）：
 
 | 路径 | 画什么 |
 | --- | --- |
 | `write_above_chunk` | 一次 scrollback 提交 —— 图片被写进终端真实的 scrollback 一次，此后随文字一起滚动 |
-| `paint_live` | live 区域 |
+| `paint_live` / `draw_still` | live 区域，动画中或静止 |
 | `paint_reflow` | 一次 purge 重建的 live 区域（它的尾部走 `write_above`） |
 | `draw_overlay` | Ctrl+O / Ctrl+D 的备用屏 —— 在 diff *之前* stamp，于是一个没变过的页面保持沉默（`docs/ui/overlay-repaint.md`） |
+| `draw_full` | 全屏帧 —— 侧栏固定列的图，以及画在它上面的一页（见下面的*会滚动的帧*） |
 
 `ratatui_image` 的渲染方式是把整条图形转义塞进一个 `Cell` 的 symbol，并把被覆盖
 的单元格标成 `CellDiffOption::Skip`（半块是普通单元格，一点都用不上这
@@ -288,6 +291,20 @@ docker exec -it -e TERM -e COLORTERM -e TERM_PROGRAM -e KITTY_WINDOW_ID -e TMUX 
 前一个不相邻的单元格重新寻址，而一条转义团可以把光标留在任何地方 —— sixel 的摆放
 会先把它的区域逐行清掉 —— 所以它之后的那个单元格开一次新的 `draw`，而那总是以一
 次光标移动开头。
+
+### 会滚动的帧
+
+上面四条路径并不等价。一次 scrollback 提交、live 区域和 Ctrl+O pager 都是画完就
+不再动那些行（或按页面做 diff）；而**全屏帧**每一次滚动和重绘都会把整段对话重放
+一遍（`docs/ui/full-screen.md`）。它的行不归终端挪动：一张锚在单元格上的图形可以
+活得比它被摆放的那一行更久 —— 这就是反馈里的「滚动之后的噪点」。
+
+所以帧构建历史时运行在 `images::scrolling_frame()` 里，而 `images::place` —— 链接
+卡封面的 `images::place_in` 也一样 —— 在它生效期间什么都不预留。对话行里的图片
+**不留行、也不留载体**；`read` 单元格自己的 `Read image (…)` 事实行就是它的文字
+替身，卡片则退回到它对没有封面的页面本来就有的纯文本形态。这是一个**作用域**，
+不是 session 设置：侧栏的固定列 mascot 在它关闭之后才构建，图片照旧；内联模式、
+transcript pager 和每一条 `stamp` 路径都完全不受影响。
 
 ### 按拟合后的尺寸解码
 

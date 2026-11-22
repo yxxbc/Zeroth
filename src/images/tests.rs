@@ -3,7 +3,7 @@
 //! save for its cache's file-state rule, which a half-block store proves here
 //! with no terminal anywhere (it draws real coloured cells into a `Buffer`).
 
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::MutexGuard;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Rect, Size};
@@ -16,10 +16,7 @@ use super::*;
 /// Tests that move the process-global policy hold this, so they can't see
 /// each other's settings (`cargo test` runs them on parallel threads).
 fn policy_lock() -> MutexGuard<'static, ()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    super::policy_lock()
 }
 
 fn image(w: u32, h: u32) -> image::DynamicImage {
@@ -394,6 +391,49 @@ fn the_protocol_override_names_every_encoder_this_build_has() {
     );
     assert_eq!(protocol_from_name("chafa"), None, "not an encoder we have");
     assert_eq!(protocol_from_name(""), None);
+}
+
+#[test]
+fn the_protocol_override_can_turn_pictures_off() {
+    // `docs/ui/full-screen.md` points a reader whose terminal reports graphics
+    // it does not render at `ZEROTH_IMAGE_PROTOCOL=none`. It has to be a
+    // spelling this build acts on, not one the name table drops on the floor.
+    for off in ["none", "off", "disabled", " NONE "] {
+        assert!(protocol_off(off), "{off:?} is a request for no pictures");
+    }
+    for on in ["kitty", "iterm2", "sixel", "halfblocks", ""] {
+        assert!(!protocol_off(on), "{on:?} names an encoder");
+    }
+}
+
+#[test]
+fn a_scrolling_frame_reserves_no_pictures() {
+    // The screen-owning mode repaints and scrolls its conversation while a
+    // graphic stays anchored to the cells it was placed on; pictures there
+    // would be left behind as ghost blocks (the reported noise after a
+    // scroll). The whole reservation path is closed while that frame builds
+    // its rows — and opens again the moment it is done, so fixed art (the
+    // sidebar's mascot) and every inline paint still get theirs.
+    let _guard = policy_lock();
+    set_policy(halfblock_policy());
+    let path = "/tmp/scrolling-frame.png";
+    assert!(place(path, (100, 60), 100).is_some(), "a picture before");
+    {
+        let _frame = scrolling_frame();
+        assert!(in_scrolling_frame());
+        assert_eq!(place(path, (100, 60), 100), None, "no block in the frame");
+        assert_eq!(
+            place_in(path, (100, 60), 30, 6),
+            None,
+            "no link-card cover either"
+        );
+    }
+    assert!(!in_scrolling_frame(), "the scope put it back");
+    assert!(
+        place(path, (100, 60), 100).is_some(),
+        "and the fixed column still draws"
+    );
+    set_policy(ImagePolicy::default());
 }
 
 #[test]

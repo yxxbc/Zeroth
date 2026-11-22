@@ -182,6 +182,71 @@ echo "==== Phase 156: captured pane (a click answered the permission prompt) ===
 tmux capture-pane -p -t "$S_PERM" | grep -F "User rejected" | head -1
 tmux kill-session -t "$S_PERM"
 
+# A picture in the conversation is **reserved but never placed** in this mode
+# (docs/ui/full-screen.md *No terminal images in the frame*): the frame scrolls
+# under a terminal placement, so the rows the inline view fills with a picture
+# stay text here — the `read` cell's fact line names it — and scrolling can
+# never leave a block behind. Half-blocks are pinned for the same reason Phase
+# 107 pins them: they are ordinary coloured cells, so `capture-pane` sees them
+# (a kitty placeholder is a glyph too, but one that means "picture" only to a
+# terminal that will draw it).
+S_IMG="${S}_img"
+IMG156_DIR="$(mktemp -d "$SMOKE_TMP/img156.XXXXXX")"
+IMG156_SESS="$(mktemp -d "$SMOKE_TMP/img156sess.XXXXXX")"
+img156_day="$IMG156_SESS/2026/07/23"
+mkdir -p "$img156_day"
+base64 -d >"$IMG156_DIR/shot.png" <<'PNG64'
+iVBORw0KGgoAAAANSUhEUgAAAGQAAAA8CAIAAAAfXYiZAAADYUlEQVR4Ae3AA6AkWZbG8f937o3I
+zKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a/aLvqjQguy0IIstCALLchCK7Qg
+Cy3IQguy0IIstEILstCCLLQgCy3IQguy0AotyEILstCCLLQgC63Qgiy0IAstyEILstCCLLRCC7LQ
+giy0IAstyEIrtCALLchCC7LQgiy0IAut0IIstCALLchCC7KQBQIKBBQIKBBQIKBAgYACAQUCCgQU
+qOr+JCpX/QsAqFSu+pcBUKk80P7+6x3f/lWuei4AVDoeaPvkb5SOq54bAJXKVf8yACqVF+Kuu976
+5ht+gqsAqFReiBtu+elSuQoAKh1X/csAqFRedE984ns85lHfw/9DAFQqL7pHvdj3ReX/IwAqlav+
+ZQBUOv7N/vzPP/QVX/7r+f8AgErl3+zlX/kbo/L/AgCVylX/MgAqlf8ov/3bn/h6r/1F/J8EQKXj
+P8prv8GXlo7/mwCoVK76lwFQqfwn+bmf+7y3fotP5f8GACqV/yRv8TafUSr/RwBQ6bjqXwZApfJf
+4wd/8Kvf/V0/kv+lAKhU/mu863t+dFT+twKgUrnqXwZApeO/xbd8y3d8yAe9D/9bAFCp/Lf4oA97
+v6j8rwFApXLVvwyASuV/gq/4ih/5xI97e/7HAqDS8T/Bx33yO5WO/7kAqFSu+pcBUKn8D/TZn/2L
+n/fZb8T/HABUKv8Dffbnv2mp/A8CQKXjqn8ZAJXK/3wf93G/91Vf8Wr8NwKgUvmf7yu+5jWi8t8J
+gErlqn8ZAJWO/3U+8AP/+tu/9SX5rwRApfK/zrd+50tH5b8UAJXKVf8yACqV/+3e9V2f8iM/+BD+
+UwFQ6fjf7gd/7OGl4z8XAJXKVf8yACqV/2Pe4i3u/cWfO81/LAAqlf9jfu6Xri2V/2AAVDqu+pcB
+UKn83/bar330u789598JgErl/7bf/v2NqPx7AVCpXPUvA6DS8f/Ky72c/+ovxL8WAJXK/yt/8TeK
+yr8aAJXKVf8yACqV/88e9Sg/5YniXwRApeP/syc+TaXjXwZApXLVvwyASuWqZ7nhBt97l3heAFQq
+Vz3LXfepVJ4PACodV/3LAKhUrnpBtrd9uC8AACqVq16Q/aWiAgBApXLVvwyAfwRqc6dvjMnyQgAA
+AABJRU5ErkJggg==
+PNG64
+img156_rollout="$img156_day/rollout-2026-07-23T10-00-00-15615616.jsonl"
+{
+	printf '{"timestamp":"2026-07-23T10:00:00.000Z","type":"session_meta","payload":{"id":"smoke-156-img","timestamp":"2026-07-23T10:00:00.000Z","cwd":"%s","model":"dummy_model_name","originator":"zeroth","version":"0.1.0"}}\n' "$IMG156_DIR"
+	printf '{"timestamp":"2026-07-23T10:00:01.000Z","type":"message","payload":{"role":"user","text":"look at shot.png","timestamp":"10:00 AM"}}\n'
+	printf '{"timestamp":"2026-07-23T10:00:02.000Z","type":"tool","payload":{"name":"Read","args":"%s/shot.png","ok":true,"output":"Read image (PNG, 100x60, 2 KB)","timestamp":"10:00 AM","shell":false,"truncated":false,"arguments":"{\\"path\\":\\"%s/shot.png\\"}"}}\n' "$IMG156_DIR" "$IMG156_DIR"
+	printf '{"timestamp":"2026-07-23T10:00:03.000Z","type":"message","payload":{"role":"assistant","text":"A colour gradient with a white diagonal.","timestamp":"10:00 AM"}}\n'
+} >"$img156_rollout"
+tmux new-session -d -s "$S_IMG" -x 100 -y 30 -c "$IMG156_DIR" \
+	"env $CFG_ENV_NOHIST ZEROTH_SESSIONS_DIR=$IMG156_SESS ZEROTH_IMAGE_PROTOCOL=halfblocks ZEROTH_IMAGE_CELL_SIZE=5x10 ZEROTH_STARTUP_DELAY_MS=$SMOKE_STARTUP_MS $BIN_ABS --fullscreen --resume $img156_rollout"
+if ! wait_for 10 "$S_IMG" -E '^❯'; then
+	fail "the image fixture never came up in full-screen mode"
+fi
+tmux send-keys -t "$S_IMG" C-Home
+sleep 0.6
+img156_frame="$(tmux capture-pane -p -t "$S_IMG")"
+echo "==== Phase 156: captured pane (an image read in the frame — text, never a placement) ===="
+printf '%s\n' "$img156_frame" | sed -n '1,8p'
+expect_has "$img156_frame" -F "Read image (PNG, 100x60" \
+	"the image read's cell is missing from the full-screen frame"
+if printf '%s' "$img156_frame" | grep -qF "▄"; then
+	fail "a terminal picture was placed in the scrolling full-screen frame"
+fi
+tmux send-keys -t "$S_IMG" C-End
+sleep 0.4
+tmux send-keys -t "$S_IMG" C-Home
+sleep 0.5
+img156_back="$(tmux capture-pane -p -t "$S_IMG")"
+if printf '%s' "$img156_back" | grep -qF "▄"; then
+	fail "scrolling left a picture block behind in the full-screen frame"
+fi
+tmux kill-session -t "$S_IMG"
+rm -rf "$IMG156_DIR" "$IMG156_SESS"
+
 # The sidebar's three bands (docs/ui/sidebar.md): full column when wide, a
 # narrower one in the middle, and nothing at all when the conversation needs
 # the room. The seam is the mark that says a column is there.

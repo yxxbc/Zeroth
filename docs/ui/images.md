@@ -292,9 +292,12 @@ same "cursor position could not be read" error.
 Anything still undetected falls to **half-blocks**.
 `ZEROTH_IMAGE_PROTOCOL` (`kitty` / `iterm2` / `sixel` / `halfblocks`) and
 `ZEROTH_IMAGE_CELL_SIZE` (`9x18`) override both;
-`ZEROTH_IMAGES=0` turns the whole feature off. `smoke.sh` Phase 107e plays
-the terminal itself — a pty answering the way herdr, a silent terminal or
-WezTerm would — since tmux can answer none of it.
+`ZEROTH_IMAGES=0` turns the whole feature off, and
+`ZEROTH_IMAGE_PROTOCOL=none` does the same from the protocol variable — the
+one spelling that also removes the sidebar's fixed-column art, since no store
+is built at all. `smoke.sh` Phase 107e plays the terminal itself — a pty
+answering the way herdr, a silent terminal or WezTerm would — since tmux can
+answer none of it.
 
 ### In a container
 
@@ -324,15 +327,16 @@ not answer the kitty query.
 
 ## Painting
 
-`ImageStore::stamp(buf)` runs in **four** places, and missing one leaves the
-bug alive in that view alone (the `visible_cells` rule):
+`ImageStore::stamp(buf)` runs in **every** paint path, and missing one leaves
+the bug alive in that view alone (the `visible_cells` rule):
 
 | path | what it draws |
 | --- | --- |
 | `write_above_chunk` | a scrollback commit — a picture is written into the terminal's real scrollback once, and scrolls with the text from then on |
-| `paint_live` | the live region |
+| `paint_live` / `draw_still` | the live region, animating or still |
 | `paint_reflow` | the live region of a purge rebuild (its tail goes through `write_above`) |
 | `draw_overlay` | the Ctrl+O / Ctrl+D alternate screen — stamped *before* the diff, so an unchanged page stays silent (`docs/ui/overlay-repaint.md`) |
+| `draw_full` | the screen-owning frame — the sidebar's fixed-column art and a page painted over it (*A frame that scrolls*, below) |
 
 `ratatui_image` renders by stashing the whole graphics escape into a `Cell`'s
 symbol and marking the covered cells `CellDiffOption::Skip` (half-blocks are
@@ -352,6 +356,24 @@ backend only re-addresses a cell that isn't adjacent to the one before it, and
 an escape blob can leave the cursor anywhere — a sixel placement clears its
 area row by row first — so the cell after it starts a fresh `draw`, which
 always opens with a cursor move.
+
+### A frame that scrolls
+
+The four paths above are not equal. A scrollback commit, the live region and
+the Ctrl+O pager paint rows and then leave them alone (or diff them as a
+page); the **full-screen frame** replays its whole conversation on every
+scroll and repaint (`docs/ui/full-screen.md`). Its rows are not the terminal's
+to move: a graphic anchored to cells can outlive the row it was placed over,
+which is the reported "noise after scrolling".
+
+So the frame's history build runs inside `images::scrolling_frame()`, and
+`images::place` — `images::place_in` too, for a link card's cover — reserves
+nothing while it is set. A picture in a conversation row leaves **no rows and
+no carrier**; the `read` cell's `Read image (…)` fact line is its text
+stand-in, and a card falls back to the text-only shape it already has for a
+page with no cover. The guard is a *scope*, not a session setting: the
+sidebar's fixed-column mascot is built after it closes and keeps its picture,
+and inline, the transcript pager and every `stamp` path are untouched.
 
 ### Decoding at the fitted size
 

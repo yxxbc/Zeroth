@@ -88,10 +88,14 @@ release heading when a version is cut.
   than one row above it when a pinned prompt takes the first row.
 
 - **Full-screen mode no longer leaves ghost blocks behind when the conversation
-  scrolls.** Its banner draws the text badge instead of the graphic mascot: a
-  terminal image is anchored to the screen's cells, and this frame repaints and
-  scrolls under it. If your terminal or multiplexer claims a graphics protocol
-  it does not render, `ZEROTH_IMAGE_PROTOCOL=none` turns pictures off.
+  scrolls.** Its banner draws the text badge instead of the graphic mascot, and
+  a picture in a conversation row — an image `read`, a Ctrl+V attachment, a
+  link card's cover — now reserves no rows at all: a terminal image is anchored
+  to the screen's cells, and this frame repaints and scrolls under it. The
+  sidebar's fixed-column art, the inline viewport and Ctrl+O keep their
+  pictures. If your terminal or multiplexer claims a graphics protocol it does
+  not render, `ZEROTH_IMAGE_PROTOCOL=none` turns pictures off — and it now
+  actually does, instead of being silently ignored.
 
 - **Selecting text in full-screen mode highlights exactly what it copies.** The
   selection is cut on grapheme boundaries, so a wide glyph or a joined emoji is

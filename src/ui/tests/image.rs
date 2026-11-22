@@ -3,17 +3,14 @@
 //! The policy is process-global — the module's own doc says why — so every
 //! test here holds [`policy_lock`] and puts the default back on the way out.
 
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::MutexGuard;
 
 use super::*;
 use crate::app::{HistoryItem, Message, Role, ToolCall, ToolStatus};
 use crate::images::{self, ImagePolicy};
 
 fn policy_lock() -> MutexGuard<'static, ()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    images::policy_lock()
 }
 
 /// A session whose terminal can draw, at a 10x20 cell.
@@ -139,6 +136,70 @@ fn nothing_is_reserved_when_the_row_is_off_or_the_terminal_cannot_draw() {
         ..ImagePolicy::default()
     });
     assert!(image_block_lines(&item, 100).is_empty(), "no terminal");
+    restore();
+}
+
+#[test]
+fn a_scrolling_frame_reserves_no_picture_rows() {
+    // The screen-owning frame's rows scroll under any graphic (the reported
+    // noise after a scroll, `docs/ui/full-screen.md`), so the builder is asked
+    // the ordinary question and the policy answers "no rows" for it. The
+    // `read` cell keeps its fact line, which is the text stand-in.
+    let _guard = drawing(120);
+    let item = image_read("/tmp/cat.png", (700, 689));
+    let outside = image_block_lines(&item, 100);
+    assert!(!outside.is_empty(), "inline keeps its picture");
+    {
+        let _frame = images::scrolling_frame();
+        assert!(
+            image_block_lines(&item, 100).is_empty(),
+            "the scrolling frame reserves no picture rows"
+        );
+    }
+    assert_eq!(image_block_lines(&item, 100), outside, "and gets them back");
+    restore();
+}
+
+#[test]
+fn a_scrolling_frame_gives_a_link_card_its_text_without_a_cover() {
+    // A cover is a terminal placement too, laid out in the same scrolling
+    // rows. Without one the card falls back to the text-only shape it already
+    // has for a page with no image.
+    let _guard = drawing(120);
+    let card = crate::link_card::LinkCard {
+        title: "A page".to_string(),
+        site: "example.com".to_string(),
+        cover: Some(crate::link_card::Cover {
+            path: "/tmp/cover.png".to_string(),
+            px: (1600, 1200),
+        }),
+        ..crate::link_card::LinkCard::default()
+    };
+    let url = "https://example.com/x";
+    let cars = |rows: &[Line<'static>]| {
+        rows.iter()
+            .flat_map(|line| line.spans.iter())
+            .filter(|span| {
+                span.style
+                    .underline_color
+                    .and_then(images::carrier_parts)
+                    .is_some()
+            })
+            .count()
+    };
+    assert!(cars(&link_card_lines(&card, url, 80)) > 0, "a cover inline");
+    {
+        let _frame = images::scrolling_frame();
+        let rows = link_card_lines(&card, url, 80);
+        assert_eq!(cars(&rows), 0, "no cover cells in the scrolling frame");
+        assert!(
+            rows[0]
+                .spans
+                .iter()
+                .any(|span| span.content.contains("example.com")),
+            "the text card is still drawn"
+        );
+    }
     restore();
 }
 

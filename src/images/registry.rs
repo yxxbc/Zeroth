@@ -23,6 +23,7 @@
 //!
 //! See `docs/ui/images.md`.
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock, RwLock};
@@ -162,6 +163,79 @@ pub fn any_placements() -> bool {
     ANY_PLACEMENTS.load(Ordering::Relaxed)
 }
 
+// A scope is per thread: the frame is composed on the draw thread, and a
+// worker that happens to build lines at the same moment must keep its
+// pictures (the unit tests run in parallel and would otherwise see each
+// other's scope).
+thread_local! {
+    static SCROLLING_FRAME: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Whether the rows being built land in a frame that **scrolls under the
+/// terminal's pictures** — the screen-owning mode (`docs/ui/full-screen.md`).
+///
+/// A graphic is anchored to the screen's cells, not to the app's buffer: the
+/// full-screen frame rewrites those cells as the reader scrolls, and the
+/// protocols that place pixels rather than ordinary cells (sixel, iTerm2, a
+/// kitty virtual placement on a multiplexer that does not pass it through)
+/// can leave the old picture behind as ghost blocks — the reported "noise
+/// after scrolling". While this is set, [`place`] and [`place_in`] reserve
+/// nothing, so every line builder falls back to the text it already has (a
+/// `read`'s fact line names the picture; a link card keeps its head and
+/// description).
+///
+/// It is a **scope around the frame's scrolling rows**, not a session
+/// setting: the sidebar's fixed-column mascot is built outside it and keeps
+/// its art, as does every inline paint and the Ctrl+O pager.
+#[must_use]
+pub fn in_scrolling_frame() -> bool {
+    SCROLLING_FRAME.try_with(Cell::get).unwrap_or(false)
+}
+
+/// Set this thread's scrolling-frame flag, returning the previous value.
+fn swap_scrolling_frame(on: bool) -> bool {
+    SCROLLING_FRAME
+        .try_with(|flag| flag.replace(on))
+        .unwrap_or(false)
+}
+
+/// Enter the scope, remembering what it was so a nesting caller restores it
+/// exactly.
+pub struct ScrollingFrame {
+    previous: bool,
+}
+
+impl ScrollingFrame {
+    /// Mark this thread's rows as belonging to a scrolling frame until the
+    /// guard drops.
+    ///
+    /// A guard rather than two calls so a panic while building a frame cannot
+    /// leave pictures suppressed for the rest of the session.
+    pub fn new() -> Self {
+        Self {
+            previous: swap_scrolling_frame(true),
+        }
+    }
+}
+
+impl Default for ScrollingFrame {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for ScrollingFrame {
+    fn drop(&mut self) {
+        swap_scrolling_frame(self.previous);
+    }
+}
+
+/// Mark the rows built until the returned guard drops as belonging to a
+/// scrolling frame — the one call the screen-owning frame makes.
+pub fn scrolling_frame() -> ScrollingFrame {
+    ScrollingFrame::new()
+}
+
 fn placements() -> &'static Mutex<Placements> {
     static PLACEMENTS: OnceLock<Mutex<Placements>> = OnceLock::new();
     PLACEMENTS.get_or_init(|| {
@@ -175,13 +249,14 @@ fn placements() -> &'static Mutex<Placements> {
 /// Reserve a block for the image at `path` (whose pixel size is `px`) in a
 /// region `avail_cols` wide, returning the placement its cells will carry.
 ///
-/// `None` when images are off, the boundary found the picture's file gone
+/// `None` when images are off, the rows are being built for a frame that
+/// scrolls ([`in_scrolling_frame`]), the boundary found the picture's file gone
 /// ([`remember_missing`]), the terminal is too narrow, or the interner is
 /// full — in every case the caller simply reserves no rows and the cell above
 /// stands alone, exactly as before.
 #[must_use]
 pub fn place(path: &str, px: (u32, u32), avail_cols: u16) -> Option<Placement> {
-    if !showing() || known_missing(path) {
+    if !showing() || in_scrolling_frame() || known_missing(path) {
         return None;
     }
     let policy = policy();
@@ -193,10 +268,11 @@ pub fn place(path: &str, px: (u32, u32), avail_cols: u16) -> Option<Placement> {
 /// The link card's cover uses this (`docs/ui/rich-links.md`): a wide page
 /// image fits a third of the card, not the terminal's full width, and a tall
 /// one never pushes the card past its row budget. Everything else — the
-/// policy, the missing-file sighting, the interner — is [`place`]'s.
+/// policy, the scrolling-frame scope, the missing-file sighting, the interner
+/// — is [`place`]'s.
 #[must_use]
 pub fn place_in(path: &str, px: (u32, u32), avail_cols: u16, max_rows: u16) -> Option<Placement> {
-    if !showing() || known_missing(path) || max_rows == 0 {
+    if !showing() || in_scrolling_frame() || known_missing(path) || max_rows == 0 {
         return None;
     }
     let policy = policy();
