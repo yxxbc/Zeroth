@@ -4,8 +4,8 @@
 # --check` + `clippy -D warnings` + `test` + `doc`, all but `fmt` on macOS
 # too), the smoke suite over the real binary in tmux, the release tooling's
 # own fixture tests plus the version/changelog agreement.
-# The release workflow re-runs the gate, the tooling tests and the smoke suite
-# before it builds anything.
+# The release workflow does not re-run these: `scripts/release.sh gate` reads
+# this commit's results here, so one push is one CI run (docs/ops/release.md).
 name: CI
 
 on:

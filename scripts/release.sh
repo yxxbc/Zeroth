@@ -8,6 +8,7 @@
 #
 #   scripts/release.sh version                   # the version Cargo.toml names
 #   scripts/release.sh check [TAG]               # Cargo.toml, Cargo.lock, the README badge and CHANGELOG.md agree (and with TAG)
+#   scripts/release.sh gate [REPO] [COMMIT]      # the commit's CI passed (Gate: reuse the evidence, not a second run)
 #   scripts/release.sh build [TARGET]            # a packaged binary + checksum into dist/ (default: the host target)
 #   scripts/release.sh verify [DIST]             # every asset in dist/: checksums, layout, CPU, `--version`
 #   scripts/release.sh notes VERSION             # the release notes: CHANGELOG.md's section + the compare link
@@ -32,7 +33,7 @@ version)
 	. "$HERE/release/lib.sh"
 	manifest_version
 	;;
-check | build | verify | notes | publish | download | prepare | selftest)
+check | gate | build | verify | notes | publish | download | prepare | selftest)
 	exec bash "$HERE/release/$cmd.sh" "$@"
 	;;
 -h | --help | help)

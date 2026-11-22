@@ -1,10 +1,15 @@
 # .github/workflows/release.yml — build, verify and publish a release
 # (docs/ops/release.md). Runs on a `vX.Y.Z` tag push, and by hand
-# (workflow_dispatch) as a REHEARSAL: the same check, gate, builds and
+# (workflow_dispatch) as a REHEARSAL: the same check, builds and
 # verification, the notes rendered into the job summary, and nothing
 # published unless the run is on a tag and asked to. Every step is a
 # scripts/release.sh command, so what the workflow does is what a developer
 # can run and read.
+#
+# The tag's commit must already have passed CI: `gate` reads those checks
+# instead of running the gate, the smoke suite and the release tooling a
+# second time (one push, one CI run). A tag on a commit CI never saw, or saw
+# fail, is refused before a single asset is built.
 name: Release
 
 on:
@@ -32,6 +37,9 @@ on:
 
 permissions:
   contents: read
+  # The check job reads this commit's check runs to prove CI passed it.
+  checks: read
+  actions: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -57,7 +65,26 @@ jobs:
         run: scripts/release.sh check
       - run: shellcheck -x install.sh scripts/release.sh scripts/release/*.sh
       - run: scripts/release.sh selftest
+      - name: This commit's CI passed it
+        # One push, one CI run: the gate, the smoke suite and the release
+        # tooling already ran on this commit when it reached main, and the
+        # release reuses that evidence. A missing, failed or unfinished
+        # required job refuses the release here, before any asset is built.
+        env:
+          TOKEN: ${{ github.token }}
+          TOKEN_FILE: ${{ runner.temp }}/gh-token
+        run: |
+          # A few seconds at most: the evidence exists before the tag does.
+          printf '%s' "$TOKEN" >"$TOKEN_FILE"
+          scripts/release.sh gate --sha "$GITHUB_SHA" --token-var TOKEN_FILE
+      # A pull request rehearsal has no finished CI of its own: its gate is
+      # reported (red below) instead of blocking the rehearsal, while the
+      # release run on a tag always gates on it.
+      - name: A rehearsal reports the gate instead of gating on it
+        if: github.event_name == 'pull_request' && failure()
+        run: echo "::warning::the rehearsal's commit has no passing CI yet — the tag's run will require it"
       - id: mode
+        if: always() && !cancelled()
         env:
           ASKED: ${{ inputs.publish }}
         run: |
@@ -67,68 +94,9 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
-  gate:
-    name: fmt · clippy · test · doc
-    needs: check
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install the pinned toolchain
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: debug
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
-      - run: cargo doc --no-deps --lib
-
-  smoke:
-    # The terminal I/O boundary has no unit tests; the smoke suite is the only
-    # automated coverage of it, and a release tag is the last place a red
-    # terminal path should first be seen. Same shape as ci.yml's smoke job:
-    # one worker per core, then whatever failed re-runs serially once.
-    name: smoke suite (tmux)
-    needs: check
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install the pinned toolchain
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: debug
-      - run: sudo apt-get update && sudo apt-get install -y tmux
-      - name: The phase readers and the selector
-        run: bash scripts/smoke/selftest.sh
-      - run: cargo build
-      - name: Run every phase, one worker per core
-        id: parallel
-        continue-on-error: true
-        run: scripts/smoke.sh -j "$(nproc)"
-      - name: Re-run the failed phases alone before calling the job red
-        if: steps.parallel.outcome == 'failure'
-        run: |
-          cp -r target/smoke/logs target/smoke/logs-parallel
-          scripts/smoke.sh --failed --serial
-      - name: Keep the logs
-        if: failure() || steps.parallel.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: smoke-logs
-          path: |
-            target/smoke/logs
-            target/smoke/logs-parallel
-          if-no-files-found: ignore
-          retention-days: 7
-
   build:
     name: build ${{ matrix.target }}
-    needs: [check, gate, smoke]
+    needs: [check]
     strategy:
       fail-fast: false
       matrix:
