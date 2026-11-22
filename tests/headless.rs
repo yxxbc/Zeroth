@@ -738,6 +738,68 @@ fn marker_made(world: &World) -> bool {
 }
 
 #[test]
+fn continuing_keeps_the_project_reminder_in_the_original_request_prefix() {
+    let world = World::new("reminder-prefix");
+    let stand_in = StandIn::start();
+    let rule = "Keep the prefix fixture inside its isolated directory.";
+    std::fs::write(
+        world.work().join("AGENTS.md"),
+        format!("# Guide\n\n{rule}\n"),
+    )
+    .expect("the project guide");
+    let first = real_run(
+        &world,
+        &stand_in,
+        &["-p", "--permission-mode", "master", "first request"],
+    );
+    assert!(first.status.success(), "{}", stderr(&first));
+    let before = stand_in.chat_requests();
+    assert_eq!(before.len(), 2, "the fixture makes one shell call");
+    let second = real_run(
+        &world,
+        &stand_in,
+        &[
+            "-p",
+            "--continue",
+            "--permission-mode",
+            "master",
+            "next request",
+        ],
+    );
+    assert!(second.status.success(), "{}", stderr(&second));
+    let chats = stand_in.chat_requests();
+    assert_eq!(
+        chats.len(),
+        4,
+        "the continued run also makes one shell call"
+    );
+
+    let before: serde_json::Value = serde_json::from_str(&before[1]).expect("initial request");
+    let after: serde_json::Value = serde_json::from_str(&chats[2]).expect("continued request");
+    let prefix = before["messages"].as_array().expect("original messages");
+    let next = after["messages"].as_array().expect("continued messages");
+    let original_user = prefix
+        .iter()
+        .find(|m| m["role"] == "user")
+        .expect("first user message");
+    let opening = original_user["content"].as_str().expect("text prompt");
+    assert!(
+        opening.contains(rule) && opening.ends_with("first request"),
+        "{opening}"
+    );
+    assert_eq!(
+        after["tools"], before["tools"],
+        "tool schemas stay unchanged"
+    );
+    assert!(
+        next.starts_with(prefix),
+        "the continued request rewrote its cached prefix: {next:?}"
+    );
+    assert_eq!(next.last().expect("new prompt")["content"], "next request");
+    assert_eq!(chats[2].matches("<system-reminder>").count(), 1);
+}
+
+#[test]
 fn a_call_that_needs_approval_is_refused_and_the_model_is_told() {
     let world = World::new("manual");
     let stand_in = StandIn::start();

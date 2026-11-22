@@ -88,7 +88,7 @@ the context limit」）在空闲且有一个非空的、可推导的上下文时
    —— 这是必要的，因为只要上下文非空，真后端就忽略裸的 `prompt` 参数。这段
   prompt 从不记进历史（与 codex 一致：它只活在请求里）；
 - 请求跑在一个**一次性无 tool 后端**上 ——
-  `LlmBackend::configure(cfg, system_prompt, /*tools=*/false)`，带同样的人格+环
+  `LlmBackend::for_compact(cfg, system_prompt)`，带同样的人格+环
   境 prompt、没有后台注记注入 —— 所以模型只能用文本作答（codex 发总结请求时也不
   带 tool）。没有配置真后端时改用 session 后端（dummy）；`stream::turn_events`
   为压缩 prompt 脚本化一份纯文本总结，好让这个流程能离线驱动（以及被 `smoke.sh`
@@ -172,8 +172,15 @@ Codex 也会在接近上下文限制时**自动**压缩；我们也一样，用�
   （流式缓冲是空的 —— `compact_buffer` 里的半份总结被丢掉），只记下红色
   `Conversation interrupted` 通知。不追加标记；旧上下文站住。随后一个排队的批次
   在 *未压缩*的上下文上派发 —— 这是有意的（压缩没有发生）。
-- **一次后端错误**照旧骑 `App::fail_stream`：缓冲被丢掉，红色错误通知落地，没有
-  标记。
+- **尚未输出时遇到输入超限拒绝**，真实压缩后端（手动或自动）可以恢复。它先发送
+  完整请求。如果推理接口在输出任何文本、推理内容或工具调用片段前返回可识别的
+  输入或上下文超限错误，就移除最早的一整条历史消息（助手发出的一批工具调用及
+  其所有结果一并移除）再试，整个回合最多裁剪四次。每次请求都保留系统提示、交接
+  提示和 `PreCompact` 注记。裁剪只改变总结模型看到的内容，不改写记录或历史推导。
+  `PreCompact` 只运行一次，`PostCompact` 仍然只在成功时运行。
+- **其他后端错误**仍交给 `App::fail_stream`，包括输出片段之后才报超限、生成时
+  耗尽上下文窗口、或在预算内无法恢复且不能再移除历史（至少要保留一条历史消息）。
+  缓冲被丢掉，显示红色错误通知，不追加标记。
 - **压缩中途 `/clear`** 能工作，是因为压缩回合住在循环正常的 `inflight` 槽里：
   Clear 分支取消线程并换掉通道，而 `clear_conversation` 也丢掉
   `compact_buffer`。
@@ -205,10 +212,7 @@ Codex 也会在接近上下文限制时**自动**压缩；我们也一样，用�
 
 ## 局限
 
-- 在总结调用*期间*没有上下文窗口超限的恢复：codex 在那个 provider 错误上丢掉最老
-  的历史条目并重试；我们的 `ReplySource` 接缝没有这样的分类，所以这个回合失败一
-  次，带 provider 的错误通知（讽刺的是，这正是 `/compact` 存在要防的失败）。手工
-  裁剪之后（`/clear`、回溯）重试这个命令。
+- 无法识别的 provider 超限错误不会触发缩短请求后的重试。
 - codex 压缩之后那句「Heads up: Long threads and multiple compactions…」警告
   cell 没有移植 —— 标记 cell 就是全部记录。
 - 桥按 `bytes/4` 重新计 token，不是应用的 token 估计 —— 与 codex 为预算用的是同

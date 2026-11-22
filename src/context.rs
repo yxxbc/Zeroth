@@ -135,8 +135,10 @@ fn summary_bridge(summary: &str) -> String {
 pub enum ContextRole {
     /// The provider-side instructions — only ever the backend's system
     /// prompt, at the front of the request. TUI notices ride as bracketed
-    /// `user` notes instead: strict OpenAI-compatible providers (alternation
-    /// templates) reject mid-conversation system messages.
+    /// `user` notes instead: some OpenAI-compatible providers reject a
+    /// `system` role that is not the leading message, and the Responses wire
+    /// has no per-message system item at all — it hoists `system`/`developer`
+    /// into `instructions` (`src/llm/responses.rs`).
     System,
     /// The human: typed messages, `!` shell runs, and bracketed TUI notices.
     User,
@@ -425,17 +427,17 @@ fn push_user_text(out: &mut Derived, text: String, images: Vec<PathBuf>, origin:
 /// - A backend [`HistoryItem::Tool`] becomes a native tool-call pair: its
 ///   request folded onto the preceding assistant segment (or a fresh assistant
 ///   message with empty content) as a [`ContextToolCall`], immediately followed
-///   by a [`ContextRole::Tool`] result. Ids are synthesized per derivation
-///   (`call_0`, `call_1`, …) — the pairing only has to be internally consistent
-///   within the request, which is rebuilt each turn.
+///   by a [`ContextRole::Tool`] result. Recorded provider ids are retained when available; legacy or duplicate ids
+///   fall back to synthetic `call_N` ids.
 /// - A `!` shell [`HistoryItem::Tool`] becomes a `$ command` / output transcript
 ///   under the **user** role (the user ran it locally — it is not a model tool
 ///   call, so it cannot be a native `tool` message).
 /// - [`Role::Error`] / [`Role::System`] notices become `[error]` / `[system]`
 ///   **user-role** notes, so the model knows about interrupts, failures, and
-///   slash-command output. (Not system-role: strict OpenAI-compatible providers
-///   reject mid-conversation system messages; the bracket prefix marks them as
-///   UI, not the human.)
+///   slash-command output. (Not system-role: some OpenAI-compatible providers
+///   reject a non-leading `system` message, and the Responses wire has no
+///   per-message system item — its `system`/`developer` are hoisted into
+///   `instructions`; the bracket prefix marks them as UI, not the human.)
 /// - [`Role::Shell`] header messages are skipped — the shell *tool* recorded
 ///   with them already carries the command and its output.
 /// - [`HistoryItem::Summary`] rows are TUI chrome and are skipped.
@@ -957,8 +959,8 @@ fn derive_item(out: &mut Derived, history: &[HistoryItem], position: usize) {
         // A background shell's completion: a bracketed user-role note
         // carrying the outcome AND the output tail — the model reads the
         // result here (the rendered cell shows only the one-line headline).
-        // User-role like the other notices: strict providers reject
-        // mid-conversation system messages. See docs/tools/background.md.
+        // User-role like the other notices: some providers reject a
+        // non-leading `system` message. See docs/tools/background.md.
         HistoryItem::Background(notice) => {
             push_user_text(out, notice.context_text(), vec![], TextOrigin::Notice);
         }
@@ -1825,9 +1827,9 @@ mod tests {
 
     #[test]
     fn notices_become_bracketed_user_role_notes() {
-        // User-role, not system-role: strict OpenAI-compatible providers
-        // reject mid-conversation system messages, and adjacent notes merge
-        // into one entry (the alternation-safe wire shape).
+        // User-role, not system-role: some OpenAI-compatible providers reject
+        // a non-leading `system` message, and adjacent notes merge into one
+        // entry (the alternation-safe wire shape).
         let history = vec![
             message(Role::Error, "Conversation interrupted"),
             message(Role::System, "help text"),

@@ -54,6 +54,7 @@
 - [`ui/diff.md`](ui/diff.md)：`/diff` —— 审阅项目的 Git 改动
 - [`ui/donate.md`](ui/donate.md)：`/donate` —— 加密货币捐赠页
 - [`ui/command-tabs.md`](ui/command-tabs.md)：命令页 —— tab，以及如何让它们各自的状态分开（设计）
+- [`ui/conversation-tool-details-and-pin.md`](ui/conversation-tool-details-and-pin.md)：对话内的工具详情与置顶的用户输入 —— 全屏模式
 - [`ui/export.md`](ui/export.md)：`/export` —— 把对话导出为纯文本
 - [`ui/flicker.md`](ui/flicker.md)：无闪烁渲染 —— scrollback 提交并入绘制帧
 - [`ui/footer.md`](ui/footer.md)：输入框下方的会话上下文页脚
@@ -83,7 +84,9 @@
 - [`ui/tool-pulse.md`](ui/tool-pulse.md)：运行中圆点的闪烁
 - [`ui/tool-streaming.md`](ui/tool-streaming.md)：实时流式输出 `bash` 的输出 —— 运行中的尾巴 + 折叠的窥视行
 - [`ui/tool-view-performance.md`](ui/tool-view-performance.md)：Ctrl+O 的性能：增量 transcript 缓存与原子切换
+- [`ui/tui-workspace-plan.md`](ui/tui-workspace-plan.md)：全屏工作窗口 —— 会话切换与后台 Shell（中文；计划）
 - [`ui/view-flow.md`](ui/view-flow.md)：视图流动 —— 过长的内联视图内容流入 scrollback
+- [`ui/workspace.md`](ui/workspace.md): 全屏会话切换
 - [`ui/write-streaming.md`](ui/write-streaming.md)：模型写文件时流式显示这个 `Write`
 
 ## Input

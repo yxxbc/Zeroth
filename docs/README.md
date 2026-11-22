@@ -34,6 +34,7 @@ How the crate is put together: module layout, the async loop, the context, token
 What the screen is made of: the live region, streaming renderers, themes, the full-screen pages and the transcript pager.
 
 - [`ui/command-tabs.md`](ui/command-tabs.md): The command page — tabs, and keeping their state apart (Design)
+- [`ui/conversation-tool-details-and-pin.md`](ui/conversation-tool-details-and-pin.md): Tool details and the pinned prompt in the conversation — full-screen mode
 - [`ui/copy.md`](ui/copy.md): `/copy` — copy the last response to the clipboard
 - [`ui/diff.md`](ui/diff.md): `/diff` — review the project's Git changes
 - [`ui/donate.md`](ui/donate.md): `/donate` — the crypto donation page
@@ -66,7 +67,9 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/tool-pulse.md`](ui/tool-pulse.md): The running bullet's blink
 - [`ui/tool-streaming.md`](ui/tool-streaming.md): Live-streaming `bash` output — the running tail + collapsed peek
 - [`ui/tool-view-performance.md`](ui/tool-view-performance.md): Ctrl+O performance: the incremental transcript cache and the atomic switch
+- [`ui/tui-workspace-plan.md`](ui/tui-workspace-plan.md): The full-screen workspace — session switching and background shells (Chinese; plan)
 - [`ui/view-flow.md`](ui/view-flow.md): View flow — long inline-view content flows into scrollback
+- [`ui/workspace.md`](ui/workspace.md): Full-screen session switching
 - [`ui/write-streaming.md`](ui/write-streaming.md): Streaming a `Write` while the model writes it
 
 ## Input

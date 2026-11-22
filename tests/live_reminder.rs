@@ -1,10 +1,22 @@
 //! Live tests for the `<system-reminder>` the derived context leads with
 //! (`docs/architecture/context.md`, `docs/state/project-doc.md`): the AGENTS.md instructions
 //! section, the skills section and the agent-type section, composed into one
-//! block by `context::context_messages_full`, on the real wire. Every fact the
-//! model is asked for exists nowhere but inside that block, so a right answer
-//! proves the block was read the way it was designed to be — which no unit
-//! test can.
+//! block by `context::context_messages_full`, on the real wire.
+//!
+//! The derivation merges the block and the typed message into **one** user
+//! entry — reminder text first, then the user's message, separated by a blank
+//! line (`context::push_text`;
+//! `context::tests::the_listings_follow_the_instructions_inside_the_one_reminder`).
+//! The fixture below derives the turn through `context_messages_full` and
+//! asserts that exact shape, so what the model sees is the session's real one,
+//! not two user messages a model could tell apart.
+//!
+//! Each fact the model is asked for exists nowhere but inside that block, so a
+//! right answer proves the block was read. A model that merely echoes the
+//! user's own message must not be able to pass: the prompts name the *kind* of
+//! fact wanted (a codename, a skill for a task) and never state it — no prompt
+//! in this file contains `Umbral-Kite-77`, `mixology`, `haiku-writer` or
+//! `db-migrator`. No unit test can prove that; this one does.
 //!
 //! All `#[ignore]`d so `cargo test` stays offline and deterministic. Run
 //! explicitly with a real key (never committed — read from the environment):
@@ -18,7 +30,7 @@
 use std::path::PathBuf;
 
 use zeroth::app::{HistoryItem, Message, Role};
-use zeroth::context::{ContextMessage, context_messages_full};
+use zeroth::context::{ContextMessage, ContextRole, context_messages_full};
 use zeroth::llm::LlmBackend;
 use zeroth::stream::{CancelToken, ReplySource, StreamEvent};
 
@@ -81,6 +93,57 @@ fn user_turn(prompt: &str) -> Vec<HistoryItem> {
     })]
 }
 
+/// The derived context for one turn, checked against the shape the session
+/// really sends: **one** user entry, the `<system-reminder>` block first, then
+/// a blank line, then the typed `prompt` — the merge `context::push_text`
+/// performs. The wire sends the context and drops `prompt` when it is
+/// non-empty (`llm::backend::build_messages`), so the prompt has to be inside
+/// that entry; a hand-built history that skipped the merge would put it in a
+/// second user message instead, a shape no session produces.
+///
+/// The prompt must not contain any fact the test asks the model to read out
+/// of the block: merged into the same entry, a restated fact would let a model
+/// that only echoes the message "prove" the block was read.
+fn turn(
+    user_instructions: Option<&str>,
+    listings: Option<&str>,
+    prompt: &str,
+) -> Vec<ContextMessage> {
+    let context = context_messages_full(user_instructions, listings, &user_turn(prompt));
+    let merged = format!(
+        "{}\n\n{prompt}",
+        zeroth::reminder::reminder_message(&[
+            user_instructions.unwrap_or_default(),
+            listings.unwrap_or_default(),
+        ])
+    );
+    assert!(
+        merged.starts_with("<system-reminder>\nUse the following contexts and instructions"),
+        "the fixture has a block to lead with: {merged}"
+    );
+    assert_eq!(
+        context.to_vec(),
+        vec![ContextMessage {
+            role: ContextRole::User,
+            text: merged,
+            images: Vec::new(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+        }],
+        "the block and the prompt merge into one user entry, reminder first"
+    );
+    context
+}
+
+/// `entry`'s `<system-reminder>` block, through its closing tag.
+fn block_of(entry: &str) -> &str {
+    let end = entry
+        .find("</system-reminder>")
+        .expect("the entry opens with a closed reminder block")
+        + "</system-reminder>".len();
+    &entry[..end]
+}
+
 /// The guide every test plants: a fact that exists nowhere else.
 const GUIDE: &str = "# Contributor guide\n\nThis project's internal codename is Umbral-Kite-77. \
                      Always refer to it by that codename.\n";
@@ -113,21 +176,11 @@ fn live_the_instructions_section_reaches_the_model() {
     // the context leads with → the real wire — and the model reads a
     // sentinel fact back out of it.
     let (_repo, instructions) = planted_repo();
+    // The codename is never named here: it lives only in the block, so echoing
+    // the message cannot produce it.
     let prompt = "According to the project instructions you were given, what is this \
                   project's internal codename? Reply with just the codename.";
-    let context = context_messages_full(Some(&instructions), None, &user_turn(prompt));
-    assert_eq!(
-        context.len(),
-        1,
-        "the block and the prompt merge: {context:?}"
-    );
-    assert!(
-        context[0]
-            .text
-            .starts_with("<system-reminder>\nUse the following contexts and instructions:\n\n"),
-        "{}",
-        context[0].text
-    );
+    let context = turn(Some(&instructions), None, prompt);
     let text = reply(&backend(), prompt, context);
     assert!(
         text.contains("Umbral-Kite-77"),
@@ -142,8 +195,9 @@ fn live_all_three_sections_reach_the_model_in_one_block() {
     // `project_doc`, the two listing sections from the real skill and agent
     // discovery joined by `subagents::listing_sections` (the boundary's one
     // render, `tui::models::sync_listings`), composed by
-    // `context_messages_full`. One fact per section, none of them anywhere
-    // else — a reply naming all three proves every section was read.
+    // `context_messages_full` and merged with the typed message into one user
+    // entry. One fact per section, none of them anywhere else — a reply naming
+    // all three proves every section was read.
     let (_repo, instructions) = planted_repo();
 
     let skills_root = tempfile::tempdir().expect("skills dir");
@@ -187,17 +241,22 @@ fn live_all_three_sections_reach_the_model_in_one_block() {
     assert!(listings.contains("- mixology:"), "{listings}");
     assert!(listings.contains("(Tools: Read)"), "{listings}");
 
+    // No answer is named in the prompt — not the codename, not the skill's
+    // name, not an agent type. Each is asked for by description only, so the
+    // reply can only be right if the block was read.
     let prompt = "Without using any tools, answer in exactly three lines:\n\
                   1. The project's internal codename, from the project instructions.\n\
                   2. The name of the skill for naming cocktails.\n\
                   3. The names of every agent type you could launch, separated by commas.";
-    let context = context_messages_full(Some(&instructions), Some(&listings), &user_turn(prompt));
-    assert_eq!(
-        context.len(),
-        1,
-        "the block and the prompt merge: {context:?}"
-    );
-    let block = &context[0].text;
+    for fact in ["Umbral-Kite-77", "mixology", "haiku-writer", "db-migrator"] {
+        assert!(
+            !prompt.contains(fact),
+            "the prompt must not restate {fact:?}: it is merged after the block, so an echo \
+             of the message would pass without the block being read"
+        );
+    }
+    let context = turn(Some(&instructions), Some(&listings), prompt);
+    let block = block_of(&context[0].text).to_string();
     println!("{block}");
     assert_eq!(block.matches("<system-reminder>").count(), 1, "one block");
     let at = |needle: &str| {

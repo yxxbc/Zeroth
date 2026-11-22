@@ -440,8 +440,9 @@ base — default or override — so the empty → no-prompt contract still holds
 - The status line's `↑` token estimate still counts only the new turn's input,
   not the re-sent history (the tally was always an estimate).
 - There is no context-window **cap**: a very long session sends its whole
-  history until it hits the provider's limit (the provider's error surfaces
-  in-band like any other). Trimming/summarising is future work.
+  active context until it hits the provider's limit (the provider's error
+  surfaces in-band). Manual and automatic compaction can shrink the active
+  context between turns; see [compaction](compact.md).
 - Session files record attachment *paths*, not bytes: resuming after the OS
   temp-cleaner ran sends the `[image unavailable]` note instead of the image.
 - The undo/backtrack attachment re-key zips a message's placeholder

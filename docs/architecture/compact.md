@@ -106,7 +106,7 @@ no new user bubble:
   non-empty. The prompt is never recorded into history (codex-parity: it
   lives only in the request);
 - the request runs on a **one-off tools-free backend** —
-  `LlmBackend::configure(cfg, system_prompt, /*tools=*/false)` with the same
+  `LlmBackend::for_compact(cfg, system_prompt)` with the same
   persona+environment prompt and no background-notice injection — so the
   model can only answer with text (codex sends the summarize request with no
   tools). When no real backend is configured the session backend (the dummy)
@@ -216,8 +216,19 @@ fully streamed.
   dropped), recording only the red `Conversation interrupted` notice. No
   marker is appended; the old context stands. A queued batch then dispatches
   on the *uncompacted* context — intended (the compaction didn't happen).
-- **A backend error** rides `App::fail_stream` unchanged: the buffer is
-  dropped, the red error notice lands, no marker.
+- **An input-overflow rejection before any output** can be recovered by the
+  real compact backend (manual or auto). It sends the full request first.
+  When inference returns a recognizable input/context-limit error before any
+  text, reasoning or tool delta, it drops the oldest whole history message
+  (an assistant tool-call batch goes together with all its results) and
+  tries again, up to four trims across the turn. The system prompt, handoff
+  and `PreCompact` notes stay on every request. Trimming affects only what
+  the summarizer sees, not the transcript or history derivation. `PreCompact`
+  runs once, and `PostCompact` still runs only on success.
+- **Other backend errors**, including overflow after a delta, an output-side
+  context stop, or an overflow that cannot be recovered within the budget
+  without dropping all history, still reach `App::fail_stream`: the buffer
+  is dropped, the red error notice lands, and no marker is appended.
 - **`/clear` mid-compact** works because the compact turn lives in the loop's
   normal `inflight` slot: the Clear arm cancels the thread and swaps the
   channel, and `clear_conversation` also drops `compact_buffer`.
@@ -250,11 +261,8 @@ fully streamed.
 
 ## Limitations
 
-- No context-window-exceeded recovery *during* the summarize call: codex
-  drops the oldest history item and retries on that provider error; our
-  `ReplySource` seam has no such classification, so the turn fails with the
-  provider's error notice once (ironically, the failure `/compact` exists to
-  prevent). Retry the command after trimming by hand (`/clear`, backtrack).
+- Unrecognized provider overflow errors are not retried with a shorter
+  request.
 - Codex's post-compact "Heads up: Long threads and multiple compactions…"
   warning cell is not ported — the marker cell is the whole record.
 - The bridge re-tokenizes as `bytes/4`, not the app's token estimate — same

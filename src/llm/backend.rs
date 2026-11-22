@@ -56,6 +56,7 @@ pub struct LlmBackend {
     model: String,
     system_prompt: Option<String>,
     tools_enabled: bool,
+    compact: bool,
     /// The client's `tools` array as the `/context` page counts it — each
     /// tool's wire name and its schema serialized as sent
     /// (`docs/architecture/context-usage.md`). Rebuilt with the array itself, at the two
@@ -228,6 +229,7 @@ impl LlmBackend {
             model,
             system_prompt,
             tools_enabled,
+            compact: false,
             tool_definitions,
             agent_tools: Arc::default(),
             background: None,
@@ -254,6 +256,16 @@ impl LlmBackend {
             hooks: Arc::new(NoHooks),
             secrets: None,
         }
+    }
+
+    /// Build the one-off, tools-free summarizer with input-overflow recovery.
+    /// The caller appends the handoff as the last context message; opening
+    /// hooks can add notes after it. Neither is eligible for trimming.
+    #[must_use]
+    pub fn for_compact(cfg: ModelConfig, system_prompt: Option<String>) -> Self {
+        let mut backend = Self::configure(cfg, system_prompt, false);
+        backend.compact = true;
+        backend
     }
 
     /// Attach the shared background-shell registry so the executor can launch
@@ -763,6 +775,7 @@ impl ReplySource for LlmBackend {
         let turn_context = Arc::clone(&self.turn_context);
         let max_retries = self.max_retries;
         let max_tool_calls = self.max_tool_calls;
+        let compact = self.compact;
         // The run's reply budget, when it has one (docs/cli/headless.md).
         let round_budget = self.round_budget.clone();
         let hooks = Arc::clone(&self.hooks);
@@ -797,6 +810,8 @@ impl ReplySource for LlmBackend {
                 &context,
                 crate::images::attachment_data_url,
             );
+            let mut compact_retry =
+                compact.then(|| super::compact_retry::CompactRetry::new(&messages));
             // The turn's opening hooks (docs/tools/hooks.md): the SessionStart
             // drain, then UserPromptSubmit — here on the backend thread, the
             // codex placement, so nothing ever blocks the loop or the first
@@ -830,7 +845,7 @@ impl ReplySource for LlmBackend {
             // taking the prefix for it would cost the next real turn the
             // provider's cached copy. The hook notes above sit past the
             // prefix, at the frontier, whichever way the splice goes.
-            if let Ok(mut previous) = wire_history.lock() {
+            if !compact && let Ok(mut previous) = wire_history.lock() {
                 previous.restore(&mut messages);
             }
             let mut loaded_skills = skills
@@ -922,6 +937,17 @@ impl ReplySource for LlmBackend {
                         && !budget.take()
                     {
                         return agent::RoundOutcome::Limit(budget.limit_message());
+                    }
+                    if let Some(retry) = &mut compact_retry {
+                        return retry.run(msgs, &cancel, |request| {
+                            stream_round_with_provenance(
+                                &client,
+                                request,
+                                &tx,
+                                &cancel,
+                                max_retries,
+                            )
+                        });
                     }
                     if let Ok(mut previous) = wire_history.lock() {
                         previous.remember(msgs);
@@ -2041,6 +2067,20 @@ fn stream_round(
     cancel: &CancelToken,
     max_retries: u32,
 ) -> RoundOutcome {
+    stream_round_with_provenance(client, messages, tx, cancel, max_retries).0
+}
+
+/// The flag distinguishes provider request errors before any output from
+/// failures synthesized for completed streams, auth failures, and errors
+/// after text, reasoning or tool deltas have already been forwarded.
+fn stream_round_with_provenance(
+    client: &OpenAiClient,
+    messages: &[ChatMessage],
+    tx: &UnboundedSender<StreamEvent>,
+    cancel: &CancelToken,
+    max_retries: u32,
+) -> (RoundOutcome, bool) {
+    let mut pre_output_provider_error = false;
     // The successful attempt's outcome (text + tool calls) is stashed here so
     // it survives the retry driver, which only reports the disposition.
     let mut captured = None;
@@ -2100,6 +2140,11 @@ fn stream_round(
                     },
                     &mut sent,
                 );
+                // `sent` is set only after request auth; a successful HTTP
+                // stream can also yield LlmError::Api from an in-band frame
+                // (even with a numeric status), so status alone isn't safe.
+                pre_output_provider_error =
+                    sent && !emitted && matches!(&result, Err(LlmError::Api { .. }));
                 (result, emitted, sent)
             },
             || client.invalidate_auth(),
@@ -2136,10 +2181,10 @@ fn stream_round(
             if let Some(usage) = outcome.usage {
                 let _ = tx.send(StreamEvent::Usage(usage));
             }
-            round_outcome(outcome)
+            (round_outcome(outcome), false)
         }
-        AttemptResult::Cancelled => RoundOutcome::Cancelled,
-        AttemptResult::Failed(e) => RoundOutcome::Failed(e),
+        AttemptResult::Cancelled => (RoundOutcome::Cancelled, false),
+        AttemptResult::Failed(e) => (RoundOutcome::Failed(e), pre_output_provider_error),
     }
 }
 
@@ -3166,6 +3211,244 @@ root:*:0:0:System Administrator:/var/root:/bin/sh
         assert_eq!(specs[0].function.arguments, r#"{"command":"ls"}"#);
     }
 
+    #[derive(Debug, Default)]
+    struct TestCompactHooks {
+        calls: Mutex<Vec<String>>,
+    }
+
+    impl HookSink for TestCompactHooks {
+        fn user_prompt_submit(
+            &self,
+            _prompt: &str,
+            _cancel: &CancelToken,
+        ) -> super::super::hooks::PromptVerdict {
+            self.calls.lock().unwrap().push("pre".into());
+            super::super::hooks::PromptVerdict {
+                contexts: vec!["keep this instruction".into()],
+                ..Default::default()
+            }
+        }
+
+        fn prompt_hook_label(&self) -> &'static str {
+            "PreCompact"
+        }
+
+        fn stop(
+            &self,
+            _active: bool,
+            summary: &str,
+            _cancel: &CancelToken,
+        ) -> super::super::hooks::StopVerdict {
+            self.calls.lock().unwrap().push(format!("post: {summary}"));
+            super::super::hooks::StopVerdict::default()
+        }
+    }
+
+    const INPUT_OVERFLOW_BODY: &str = r#"{"error":{"code":"context_length_exceeded","message":"The model's maximum context length was exceeded."}}"#;
+
+    fn run_compact_requests(
+        answers: &[&str],
+        compact: bool,
+        context: Vec<ContextMessage>,
+    ) -> (Vec<serde_json::Value>, Vec<StreamEvent>, Vec<String>) {
+        use std::io::Write;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let answers: Vec<_> = answers.iter().map(|answer| (*answer).to_owned()).collect();
+        let (requests_tx, requests_rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            for answer in answers {
+                let (stream, _) = listener.accept().unwrap();
+                let (mut stream, body) = read_request(stream);
+                requests_tx
+                    .send(serde_json::from_slice(&body).unwrap())
+                    .unwrap();
+                stream.write_all(answer.as_bytes()).unwrap();
+            }
+            // An unexpected extra request should fail the test quickly, not
+            // leave the backend waiting for a server no longer answering.
+            drop(listener);
+        });
+        let mut cfg = ModelConfig::fallback();
+        cfg.api_base = format!("http://127.0.0.1:{port}/v1");
+        cfg.api_key = Some("not-a-real-key".into());
+        let hooks = Arc::new(TestCompactHooks::default());
+        let system = Some("preserve system".into());
+        let backend = if compact {
+            LlmBackend::for_compact(cfg, system)
+        } else {
+            LlmBackend::configure(cfg, system, false)
+        };
+        let backend = backend.with_hooks(hooks.clone()).with_max_retries(0);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        backend
+            .spawn("handoff".into(), vec![], context, tx, CancelToken::new())
+            .join()
+            .unwrap();
+        let requests = requests_rx.try_iter().collect();
+        let events = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        let calls = hooks.calls.lock().unwrap().clone();
+        (requests, events, calls)
+    }
+
+    fn response(status: &str, mime: &str, body: &str) -> String {
+        format!(
+            "HTTP/1.1 {status}\r\ncontent-type: {mime}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        )
+    }
+
+    #[test]
+    fn compact_input_overflow_retries_whole_units_without_reopening_hooks() {
+        let overflow = response("400 Bad Request", "application/json", INPUT_OVERFLOW_BODY);
+        let answer = response(
+            "200 OK",
+            "text/event-stream",
+            &format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                delta_frame("content", "summary")
+            ),
+        );
+        let (requests, events, hooks) = run_compact_requests(
+            &[&overflow, &overflow, &answer],
+            true,
+            vec![
+                ContextMessage::new(ContextRole::User, "oldest"),
+                ContextMessage::assistant_tool_calls(
+                    "old tool batch",
+                    vec![
+                        ContextToolCall::new("a", "read", "{}"),
+                        ContextToolCall::new("b", "read", "{}"),
+                    ],
+                ),
+                ContextMessage::tool_result("a", "a result"),
+                ContextMessage::tool_result("b", "b result"),
+                ContextMessage::new(ContextRole::User, "recent"),
+                ContextMessage::new(ContextRole::User, "handoff"),
+            ],
+        );
+        assert_eq!(requests.len(), 3);
+        let messages = requests[0]["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 8);
+        assert_eq!(messages[0]["content"], "preserve system");
+        assert_eq!(messages[6]["content"], "handoff");
+        assert!(
+            messages[7]["content"]
+                .as_str()
+                .unwrap()
+                .contains("keep this instruction")
+        );
+        assert_eq!(
+            requests[1]["messages"],
+            serde_json::json!([&messages[0..1], &messages[2..]].concat())
+        );
+        assert_eq!(
+            requests[2]["messages"],
+            serde_json::json!([&messages[0..1], &messages[5..]].concat())
+        );
+        assert_eq!(hooks, ["pre", "post: summary"]);
+        assert!(
+            matches!(events.as_slice(), [StreamEvent::HookNote { .. }, StreamEvent::Chunk(text), StreamEvent::StreamDone] if text == "summary")
+        );
+    }
+
+    fn compact_test_context() -> Vec<ContextMessage> {
+        ["oldest", "recent", "handoff"]
+            .map(|text| ContextMessage::new(ContextRole::User, text))
+            .to_vec()
+    }
+
+    #[test]
+    fn compact_does_not_retry_other_rejections_or_change_normal_turns() {
+        let overflow = response("400 Bad Request", "application/json", INPUT_OVERFLOW_BODY);
+        let invalid_model = response(
+            "400 Bad Request",
+            "application/json",
+            r#"{"error":{"code":"model_not_found"}}"#,
+        );
+        for (compact, reject, expected) in [
+            (false, &overflow, "context_length_exceeded"),
+            (true, &invalid_model, "model_not_found"),
+        ] {
+            let (requests, events, hooks) =
+                run_compact_requests(&[reject], compact, compact_test_context());
+            assert_eq!(requests.len(), 1);
+            assert_eq!(hooks, ["pre"]);
+            assert!(
+                matches!(events.as_slice(), [StreamEvent::HookNote { .. }, StreamEvent::Error(error)] if error.contains(expected))
+            );
+        }
+    }
+
+    #[test]
+    fn compact_does_not_retry_in_band_overflow_after_any_delta() {
+        // Chat's SSE error parser can use a numeric status, just like an
+        // HTTP rejection. Neither the status nor the body proves it is safe.
+        let error = r#"{"error":{"code":400,"message":"prompt is too long"}}"#;
+        let piece = r#"{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"read","arguments":"{}"}}]}}]}"#;
+        for (i, delta) in [
+            delta_frame("content", "partial"),
+            delta_frame("reasoning_content", "thought"),
+            piece.into(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let answer = response(
+                "200 OK",
+                "text/event-stream",
+                &format!("data: {delta}\n\ndata: {error}\n\n"),
+            );
+            let (requests, events, hooks) =
+                run_compact_requests(&[&answer], true, compact_test_context());
+            assert_eq!(requests.len(), 1);
+            assert_eq!(hooks, ["pre"]);
+            assert!(
+                matches!(events.last(), Some(StreamEvent::Error(error)) if error.contains("prompt is too long"))
+            );
+            match i {
+                0 => assert!(
+                    matches!(events.as_slice(), [StreamEvent::HookNote { .. }, StreamEvent::Chunk(text), StreamEvent::Error(_)] if text == "partial")
+                ),
+                1 => assert!(
+                    matches!(events.as_slice(), [StreamEvent::HookNote { .. }, StreamEvent::ThinkingStart, StreamEvent::ThinkingChunk(text), StreamEvent::Error(_)] if text == "thought")
+                ),
+                _ => assert!(matches!(
+                    events.as_slice(),
+                    [
+                        StreamEvent::HookNote { .. },
+                        StreamEvent::ToolCallDelta(_),
+                        StreamEvent::Error(_)
+                    ]
+                )),
+            }
+        }
+    }
+
+    #[test]
+    fn compact_retries_in_band_input_overflow_before_output() {
+        let overflow = response(
+            "200 OK",
+            "text/event-stream",
+            "data: {\"error\":{\"message\":\"prompt is too long\"}}\n\n",
+        );
+        let answer = response(
+            "200 OK",
+            "text/event-stream",
+            &format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                delta_frame("content", "summary")
+            ),
+        );
+        let (requests, events, hooks) =
+            run_compact_requests(&[&overflow, &answer], true, compact_test_context());
+        assert_eq!(requests.len(), 2);
+        assert_eq!(hooks, ["pre", "post: summary"]);
+        assert!(
+            matches!(events.as_slice(), [StreamEvent::HookNote { .. }, StreamEvent::Chunk(text), StreamEvent::StreamDone] if text == "summary")
+        );
+    }
+
     // --- a connection lost mid-reply (docs/providers/offline.md) ---------------------
 
     /// One answer of [`sse_server`]: its `data:` frames, and whether the
@@ -3179,7 +3462,7 @@ root:*:0:0:System Administrator:/var/root:/bin/sh
     /// A loopback chat-completions server answering its `n`th connection with
     /// `answers[n]`, then closing it.
     fn sse_server(answers: Vec<SseAnswer>) -> u16 {
-        use std::io::{BufRead, BufReader, Read, Write};
+        use std::io::Write;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         thread::spawn(move || {
@@ -3187,22 +3470,7 @@ root:*:0:0:System Administrator:/var/root:/bin/sh
                 let Ok((stream, _)) = listener.accept() else {
                     return;
                 };
-                let mut reader = BufReader::new(stream);
-                let mut length = 0usize;
-                loop {
-                    let mut line = String::new();
-                    if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-                        break;
-                    }
-                    if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
-                        length = value.trim().parse().unwrap_or(0);
-                    }
-                }
-                // The whole request body: a socket closed over unread bytes
-                // is reset rather than closed, which could lose the frames.
-                let mut body = vec![0u8; length];
-                let _ = reader.read_exact(&mut body);
-                let mut stream = reader.into_inner();
+                let (mut stream, _) = read_request(stream);
                 let _ = stream.write_all(
                     b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\n\
                       transfer-encoding: chunked\r\n\r\n",
@@ -3223,6 +3491,25 @@ root:*:0:0:System Administrator:/var/root:/bin/sh
             }
         });
         port
+    }
+
+    fn read_request(stream: std::net::TcpStream) -> (std::net::TcpStream, Vec<u8>) {
+        use std::io::{BufRead, BufReader, Read};
+        let mut reader = BufReader::new(stream);
+        let mut length = 0usize;
+        loop {
+            let mut line = String::new();
+            if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                break;
+            }
+            if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                length = value.trim().parse().unwrap_or(0);
+            }
+        }
+        // A socket closed over unread bytes is reset rather than closed.
+        let mut body = vec![0u8; length];
+        let _ = reader.read_exact(&mut body);
+        (reader.into_inner(), body)
     }
 
     /// A chat-completions frame whose delta carries `text` under `field`.
