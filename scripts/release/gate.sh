@@ -241,8 +241,18 @@ runs_file="$work/runs"
 rows="$(inspect "$work/checks" "$runs_file")" || die "gate: the API answer is not the shape this reads"
 tab="$(printf '\t')"
 failed=0
-while IFS="$tab" read -r label state; do
-	[ -n "$label" ] || continue
+while IFS="$tab" read -r first second third; do
+	[ -n "$first" ] || continue
+	if [ "$first" = reported ]; then
+		case "$third" in
+		success) ok "$repo@$ref · $second (reported)" ;;
+		*) warn "$repo@$ref · $second (reported): $(printf '%s' "$third" | tr '[:upper:]' '[:lower:]')" ;;
+		esac
+		continue
+	fi
+	[ -n "$second" ] || continue
+	label="$first"
+	state="$second"
 	case "$state" in
 	success) ok "$repo@$ref · $label" ;;
 	missing) fail "$repo@$ref · $label: no CI evidence — push it to main and let CI finish"; failed=1 ;;
