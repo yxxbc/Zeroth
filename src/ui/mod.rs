@@ -150,8 +150,8 @@ pub use self::layout::{
 };
 pub use self::link_card_view::link_card_lines;
 pub use self::live::{
-    composer_cursor_at, conversation_live_lines, render_live, render_live_with_preview,
-    render_workspace_live,
+    composer_cursor_at, composer_image_at, conversation_live_lines, render_live,
+    render_live_with_preview, render_workspace_live,
 };
 pub use self::login_view::render_key_onboarding;
 pub use self::mascot_view::{mascot_picker_height, render_mascot_picker};

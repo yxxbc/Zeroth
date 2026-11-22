@@ -1,10 +1,12 @@
 # Ctrl+V image paste
 
 
-> The pasted screenshot is also **drawn** in the conversation, under its own
-> user bubble — see `docs/ui/images.md`, which additionally covers the
-> `/settings` **Auto-resize images** row that downscales a large paste before
-> it is uploaded.
+> The pasted screenshot is **not** drawn in the conversation: you picked it off
+> your own screen, so a second copy under your own words tells you nothing —
+> the composer shows it as a highlighted, clickable `[Image #N]` chip instead
+> (*The placeholder in the composer*, below). The wire still carries the file,
+> and `docs/ui/images.md` covers the `/settings` **Auto-resize images** row
+> that downscales a large paste before it is uploaded.
 
 Pressing **Ctrl+V** (or **Ctrl+Alt+V**) reads an image off the system clipboard
 on a background worker, saves it into the session's **paste folder** —
@@ -29,6 +31,21 @@ placeholder is the *same* idea with a `PathBuf` payload instead of `String`.
 > stream image bytes that way. Codex (and this port) instead bind an explicit
 > `Ctrl+V` key that **actively reads the system clipboard** via `arboard`. The two
 > paths are unrelated despite both being "paste".
+
+## The placeholder in the composer
+
+The `[Image #N]` token is a chip, not prose: it wears the link ink and an
+underline (`ui::live::input_row_spans`), and it carries the picture's `file://`
+target as the OSC 8 carrier (`docs/ui/links.md`) — so a terminal that supports
+hyperlinks opens the picture on a click, and the screen-owning mode's own click
+does it too (`ui::composer_image_at` → the platform's opener, the same path a
+conversation link takes). A click anywhere else in the box still seats the
+caret; only the chip is a target. The wrapper never splits one across rows
+(`docs/input/textarea.md`), so the chip is always whole.
+
+Once the draft is sent, the placeholder stays in the message text the model
+reads (`[Image #N: {path}]`) and the picture is uploaded — but nothing is drawn
+under the user's bubble. The paste was the user's own confirmation.
 
 ## Containers and SSH: a session with no display
 

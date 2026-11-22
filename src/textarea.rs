@@ -744,21 +744,59 @@ fn place_word(
     }
 }
 
-/// Split `seg` into maximal runs of ASCII spaces / non-spaces, as `(range, is_space)`.
+/// Split `seg` into the units the wrapper places, as `(range, is_space)`.
+///
+/// Three shapes, because a terminal line's break opportunities are not just
+/// spaces:
+///
+/// - a run of ASCII spaces, the one place a soft break may consume a glyph;
+/// - one **wide** grapheme (CJK, a fullwidth form, an emoji) on its own, so a
+///   Chinese sentence breaks between its characters the way every terminal
+///   editor breaks one instead of jumping whole to the next row and leaving
+///   the rest of the line blank (`docs/input/textarea.md`);
+/// - everything else — a Latin word, a `[Image #N]` placeholder — as one
+///   unit. The placeholder is never split: it names a pasted picture, and
+///   `[Image` / `#N]` on two rows reads as two different tokens. Only a
+///   placeholder wider than the whole field hard-breaks, and then only
+///   because nothing else can be done with it.
 fn tokenize(text: &str, seg: Range<usize>) -> Vec<(Range<usize>, bool)> {
     let mut toks = Vec::new();
-    let s = &text[seg.clone()];
-    let mut idx = 0;
-    while idx < s.len() {
-        let is_space = s.as_bytes()[idx] == b' ';
-        let run = if is_space {
-            s[idx..].bytes().take_while(|b| *b == b' ').count()
-        } else {
-            s[idx..].find(' ').unwrap_or(s.len() - idx)
-        };
-        toks.push((seg.start + idx..seg.start + idx + run, is_space));
-        idx += run;
+    let mut idx = seg.start;
+    let mut word_start = idx;
+    // Flush the Latin run accumulated so far, if any.
+    let flush = |toks: &mut Vec<(Range<usize>, bool)>, word_start: usize, end: usize| {
+        if word_start < end {
+            toks.push((word_start..end, false));
+        }
+    };
+    while idx < seg.end {
+        let s = &text[idx..seg.end];
+        if s.starts_with(' ') {
+            flush(&mut toks, word_start, idx);
+            let run = s.bytes().take_while(|b| *b == b' ').count();
+            toks.push((idx..idx + run, true));
+            idx += run;
+            word_start = idx;
+            continue;
+        }
+        if let Some(len) = crate::paste::image_placeholder_len(s) {
+            flush(&mut toks, word_start, idx);
+            toks.push((idx..idx + len, false));
+            idx += len;
+            word_start = idx;
+            continue;
+        }
+        let g = s.graphemes(true).next().expect("a grapheme at the head");
+        if cols(g) > 1 {
+            flush(&mut toks, word_start, idx);
+            toks.push((idx..idx + g.len(), false));
+            idx += g.len();
+            word_start = idx;
+            continue;
+        }
+        idx += g.len();
     }
+    flush(&mut toks, word_start, seg.end);
     toks
 }
 
@@ -955,6 +993,38 @@ mod tests {
     fn wrap_measures_wide_chars_as_two_columns() {
         let ta = TextArea::from_text("你好世界");
         assert_eq!(rows(&ta, 4), vec!["你好", "世界"]);
+    }
+
+    #[test]
+    fn wrap_breaks_a_cjk_sentence_between_its_characters() {
+        // A Chinese sentence has no spaces, but a terminal editor breaks one
+        // between characters — the bug this pins: the whole run used to be one
+        // "word", so a 9-column run at width 8 jumped whole to the next row and
+        // left eight columns of the first blank.
+        let ta = TextArea::from_text("项目的支持地址保留");
+        assert_eq!(rows(&ta, 8), vec!["项目的支", "持地址保", "留"]);
+        // …and the row before a break is filled to the edge, not abandoned.
+        let text = "这是email、爱发电";
+        assert_eq!(rows(&ta_with(text), 10), vec!["这是email", "、爱发电"]);
+    }
+
+    #[test]
+    fn wrap_never_splits_an_image_placeholder() {
+        // `[Image #1]` names a pasted picture; `[Image` / `#1]` on two rows
+        // reads as two tokens. It moves whole to the next row when it does not
+        // fit, even though the space inside it is a break opportunity for
+        // ordinary prose.
+        let ta = TextArea::from_text("看看这个 [Image #1] 吧");
+        assert_eq!(rows(&ta, 13), vec!["看看这个", "[Image #1] 吧"]);
+        // A placeholder wider than the whole field is the one case that must
+        // break — hard, by graphemes, like any over-long word.
+        let ta = TextArea::from_text("[Image #12]");
+        assert_eq!(rows(&ta, 6), vec!["[Image", " #12]"]);
+    }
+
+    /// A `TextArea` over `text` (the wrapping tests only read it).
+    fn ta_with(text: &str) -> TextArea {
+        TextArea::from_text(text)
     }
 
     #[test]

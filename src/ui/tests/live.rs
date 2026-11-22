@@ -5,7 +5,7 @@ use crate::ui::live::{preview_lines, preview_tool_lines};
 use crate::ui::theme::{
     INPUT_CHROME_ROWS, STATUS_GAP_ROWS, STATUS_ROWS, TOOL_BACKGROUND_HINT,
     TOOL_BACKGROUND_HINT_DELAY, TOOL_PULSE_PERIOD, footer_focus_bg, footer_focus_fg,
-    tool_running_color,
+    link_url_color, prompt_color, tool_running_color,
 };
 use crate::ui::wrap::cols;
 
@@ -885,7 +885,7 @@ fn a_waiting_agentoutput_tails_the_agents_calls_under_its_wait_clock() {
         Some(r#"{"agent_id":"a7k2m9x4q","wait":300}"#),
     );
     app.push_tool_screen(
-        "Bash(curl -s https://api.github.com/users/linuztx)\nBash(curl -s https://api.github.com/users/linuztx/repos)\n",
+        "Bash(curl -s https://api.github.com/users/devuser)\nBash(curl -s https://api.github.com/users/devuser/repos)\n",
         "",
     );
     app.set_command_elapsed(Some(Duration::from_secs(12)));
@@ -893,7 +893,7 @@ fn a_waiting_agentoutput_tails_the_agents_calls_under_its_wait_clock() {
     assert!(
         texts
             .iter()
-            .any(|t| t.contains("Bash(curl -s https://api.github.com/users/linuztx/repos)")),
+            .any(|t| t.contains("Bash(curl -s https://api.github.com/users/devuser/repos)")),
         "the newest call is on screen: {texts:?}"
     );
     assert!(
@@ -1310,6 +1310,85 @@ fn a_queued_write_previews_its_head_under_waiting() {
         ["  ⎿  Waiting…", "      1 one", "      2 two"],
         "{texts:#?}"
     );
+}
+
+// --- pasted pictures in the composer (docs/input/image-paste.md) ---
+
+/// An app whose composer holds `text` and whose paste list carries one
+/// picture for `[Image #1]`.
+fn pasting(text: &str, path: &str) -> App {
+    let mut app = with_session();
+    app.input = crate::textarea::TextArea::from_text(text);
+    app.images
+        .push(("[Image #1]".to_string(), std::path::PathBuf::from(path)));
+    app
+}
+
+/// The live region's height for `app` at `width` inside a `term_h` screen.
+fn composer_height(app: &App, width: u16, term_h: u16) -> u16 {
+    let pv = preview_rows(app, width);
+    let hang = crate::ui::layout::hang_rows(app, width);
+    live_height(&app.input, width, term_h, false, pv, hang, 0, 0, 0, 0, 0)
+}
+
+#[test]
+fn the_composer_lights_a_paste_placeholder_and_carries_its_target() {
+    // The placeholder is the one token in the draft a click acts on, so it
+    // wears the link dress and the link carrier: an OSC 8 target the
+    // terminal can open, and the same target the screen-owning mode's click
+    // reads (docs/ui/links.md).
+    let app = pasting("look [Image #1] now", "/tmp/paste-1.png");
+    let width = 60u16;
+    let height = composer_height(&app, width, 24);
+    let mut buf = buffer(width, height);
+    render_live(buf.area, &mut buf, &app);
+    let y = (0..height)
+        .find(|&y| row(&buf, y, width).contains("[Image #1]"))
+        .expect("the placeholder is painted");
+    let x0 = row(&buf, y, width).find("[Image #1]").expect("its column");
+    let cell = &buf[(u16::try_from(x0).unwrap(), y)];
+    assert_eq!(cell.fg, link_url_color(), "the link ink");
+    assert!(
+        cell.modifier.contains(Modifier::UNDERLINED),
+        "underlined, like every link: {cell:?}"
+    );
+    assert_eq!(
+        crate::links::style_link(&cell.style()).as_deref(),
+        Some("file:///tmp/paste-1.png"),
+        "the picture's own target rides the cell"
+    );
+    // The prose around it stays plain.
+    let plain_cell = &buf[(0, y)];
+    assert_eq!(plain_cell.fg, prompt_color(), "the prompt is untouched");
+}
+
+#[test]
+fn a_click_on_the_placeholder_names_the_picture_and_a_click_beside_it_does_not() {
+    let app = pasting("look [Image #1] now", "/tmp/paste-2.png");
+    let width = 60u16;
+    let height = composer_height(&app, width, 24);
+    let area = Rect::new(0, 0, width, height);
+    // The composer's first text row: the one whose prompt column seats the
+    // cursor at byte 0.
+    let text_row = (0..height)
+        .find(|&y| composer_cursor_at(area, &app, 2, y) == Some(0))
+        .expect("the text row");
+    let col = 2 + u16::try_from(cols("look ")).unwrap();
+    assert_eq!(
+        composer_image_at(area, &app, col, text_row),
+        Some(std::path::PathBuf::from("/tmp/paste-2.png")),
+        "a click on the placeholder opens its picture"
+    );
+    assert_eq!(
+        composer_image_at(area, &app, col - 1, text_row),
+        None,
+        "a click on the prose beside it leaves the caret alone"
+    );
+    // A placeholder with no recorded path (a resumed draft's stale text, or
+    // one the user typed by hand) opens nothing.
+    let mut bare = pasting("look [Image #1] now", "/tmp/unused.png");
+    bare.images.clear();
+    assert_eq!(composer_image_at(area, &bare, col, text_row), None);
 }
 
 // --- live cells inside the conversation (full-screen mode) ---

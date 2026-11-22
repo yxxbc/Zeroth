@@ -1,9 +1,11 @@
 # Inline images
 
-A pasted screenshot and the `read` tool's image reads are drawn as **real
-pictures** in the conversation — in the terminal's own scrollback, in the
-live region, and in the Ctrl+O transcript — instead of only being described by
-a fact line. Where the terminal speaks a graphics protocol (kitty, iTerm2,
+The `read` tool's image reads are drawn as **real pictures** in the
+conversation — in the terminal's own scrollback, in the live region, and in the
+Ctrl+O transcript — instead of only being described by a fact line. A Ctrl+V
+paste is **not** drawn: the user picked that picture off their own screen, so
+the composer's highlighted `[Image #N]` chip was the confirmation
+(`docs/input/image-paste.md`); the wire still carries the file. Where the terminal speaks a graphics protocol (kitty, iTerm2,
 sixel) those are real pixels; everywhere else they are unicode half-blocks,
 which are ordinary coloured cells and therefore work in every terminal,
 scrollback and resize included.
@@ -111,9 +113,9 @@ nothing left to draw into them. That was the reported bug.
 
 So the boundary looks again before it lays a conversation out from history:
 `tui::view::recheck_pictures` reads the header of every picture the history
-shows (`ui::item_image_paths` lists the files — an image read's path and each
-Ctrl+V attachment) and hands the answers to `images::recheck_pictures`, the
-pure decision. A picture found has its size recorded (`remember_size`); one
+shows (`ui::item_image_paths` lists the files — an image read's path; paste
+attachments reserve no rows, so nothing to recheck) and hands the answers to
+`images::recheck_pictures`, the pure decision. A picture found has its size recorded (`remember_size`); one
 not found is marked missing (`remember_missing`), and `images::place` — the
 one call every reservation goes through — reserves no rows for a missing
 path. The cell above stands alone, exactly as it would with images off.
@@ -149,21 +151,12 @@ resizes.
 
 ### Where the pixel size comes from
 
-The row reservation is pure, so it can't open the file. Two sources, and only
-two:
-
-* An **image read** — the `read` tool's own fact line already carries it
-  (`Read image (JPEG, 700x689, 63 KB)`), so `images::read_image_size` parses
-  it back out. That is also the only record that survives a `/resume`: the
-  rollout keeps the cell's text, not the file's header.
-* A **Ctrl+V paste** — no such line, so the boundary reads the header once
-  when the paste lands (`images::remember_size`, from `tui::workers`) — and
-  again for every pasted picture a loaded conversation carries
-  (`tui::view::recheck_pictures`, before a `/resume`, `--continue` or
-  `--resume` load is laid out), since pastes are saved under the config home
-  (`{config_home}/image-cache/{session}/N.png`, `docs/input/image-paste.md`) and
-  are usually still there. A paste whose header can't be read — a picture
-  someone deleted — simply isn't drawn.
+The row reservation is pure, so it can't open the file. One source: an
+**image read**'s own fact line already carries the size
+(`Read image (JPEG, 700x689, 63 KB)`), so `images::read_image_size` parses it
+back out. That is also the only record that survives a `/resume`: the rollout
+keeps the cell's text, not the file's header. (A Ctrl+V paste has no visible
+block to size — it is never drawn — so its header is not read at all.)
 
 Either way the size is only half of it: a picture reserves rows only while
 its file is still there to draw from (*A picture whose file is gone*, above).

@@ -23,46 +23,79 @@ use super::wrap::cols;
 use super::*;
 use unicode_width::UnicodeWidthChar;
 
-/// Split one wrapped input row into spans, styling the parts inside
-/// `highlights` with [`SEARCH_HIGHLIGHT`] — the Ctrl+R match preview
-/// (codex highlights its textarea the same way). `row` is the text of the
-/// row whose byte range into the whole input is `range`; `highlights` are
-/// sorted, non-overlapping byte ranges into that same text
-/// ([`App::search_highlight_ranges`]). With no highlights the row comes back
-/// as one plain span.
-fn highlight_row_spans(
+/// Split one wrapped input row into spans: the Ctrl+R match previews in
+/// [`SEARCH_HIGHLIGHT`], the pasted-picture placeholders (`[Image #N]`) in the
+/// link dress and carrying their picture's `file://` target — the screen-owning
+/// mode's click opens it, and a terminal with OSC 8 opens it on its own
+/// (`docs/input/image-paste.md`). `row` is the text of the row whose byte range
+/// into the whole input is `range`; `highlights` are sorted, non-overlapping
+/// byte ranges into that same input ([`App::search_highlight_ranges`], a match
+/// may span wrapped rows). With no marks the row comes back as one plain span.
+fn input_row_spans(
+    app: &App,
     row: &str,
     range: &Range<usize>,
     highlights: &[Range<usize>],
 ) -> Vec<Span<'static>> {
-    if highlights.is_empty() {
-        return vec![Span::raw(row.to_string())];
+    // Placeholders are whole within a row by construction (the wrapper never
+    // splits one), so the row can be scanned on its own: a multi-megabyte
+    // draft costs one pass per visible row, not one per row over the draft.
+    let mut marks: Vec<(Range<usize>, Style)> = crate::paste::image_placeholder_ranges(row)
+        .into_iter()
+        .map(|range| {
+            let style = link_style();
+            let style = composer_image_url(app, &row[range.clone()])
+                .map_or(style, |url| crate::links::linked(style, &url));
+            (range, style)
+        })
+        .collect();
+    for highlight in highlights {
+        // This row's slice of the highlight.
+        let start = highlight.start.clamp(range.start, range.end);
+        let end = highlight.end.clamp(range.start, range.end);
+        if start < end {
+            marks.push((
+                start - range.start..end - range.start,
+                Style::new().add_modifier(SEARCH_HIGHLIGHT),
+            ));
+        }
     }
-    let style = Style::new().add_modifier(SEARCH_HIGHLIGHT);
+    marks.sort_by_key(|(range, _)| range.start);
     let mut spans = Vec::new();
-    let mut pos = range.start;
-    for h in highlights {
-        // This row's slice of the highlight (a match can span wrapped rows).
-        let start = h.start.clamp(pos, range.end);
-        let end = h.end.clamp(pos, range.end);
+    let mut pos = 0;
+    for (range, style) in marks {
+        let start = range.start.max(pos);
+        let end = range.end.min(row.len());
         if start >= end {
             continue;
         }
         if start > pos {
-            spans.push(Span::raw(
-                row[pos - range.start..start - range.start].to_string(),
-            ));
+            spans.push(Span::raw(row[pos..start].to_string()));
         }
-        spans.push(Span::styled(
-            row[start - range.start..end - range.start].to_string(),
-            style,
-        ));
+        spans.push(Span::styled(row[start..end].to_string(), style));
         pos = end;
     }
-    if pos < range.end {
-        spans.push(Span::raw(row[pos - range.start..].to_string()));
+    if pos < row.len() {
+        spans.push(Span::raw(row[pos..].to_string()));
     }
     spans
+}
+
+/// The dress a `[Image #N]` placeholder wears in the composer: the link ink,
+/// underlined, so it reads as the one clickable token in a row of prose — and
+/// it is one (`docs/input/image-paste.md`).
+fn link_style() -> Style {
+    Style::new()
+        .fg(link_url_color())
+        .add_modifier(Modifier::UNDERLINED)
+}
+
+/// The `file://` target of the picture a `[Image #N]` placeholder names, when
+/// the paste boundary recorded it (`App::images`).
+fn composer_image_url(app: &App, placeholder: &str) -> Option<String> {
+    let (_, path) = app.images.iter().find(|(shown, _)| shown == placeholder)?;
+    let path = path.to_str()?;
+    app.path_display().file_url(path)
 }
 
 /// Render the bottom live region into `buf`. While a reply streams, the strip's
@@ -748,6 +781,26 @@ pub fn composer_cursor_at(area: Rect, app: &App, col: u16, row: u16) -> Option<u
     Some(offset)
 }
 
+/// The pasted picture under a click at screen `(col, row)`, if the cell is on
+/// a `[Image #N]` placeholder in the composer — the screen-owning mode's
+/// click-to-open (`docs/input/image-paste.md`). `area` is the live region, as
+/// for [`composer_cursor_at`]; the hit test rides the same `input_box` layout
+/// and the same byte-offset mapping, so a click on a placeholder can never be
+/// sent to the cell beside it.
+#[must_use]
+pub fn composer_image_at(area: Rect, app: &App, col: u16, row: u16) -> Option<std::path::PathBuf> {
+    let offset = composer_cursor_at(area, app, col, row)?;
+    let text = app.input.text();
+    let range = crate::paste::image_placeholder_ranges(text)
+        .into_iter()
+        .find(|range| range.contains(&offset))?;
+    let placeholder = &text[range];
+    app.images
+        .iter()
+        .find(|(shown, _)| shown == placeholder)
+        .map(|(_, path)| path.clone())
+}
+
 /// [`render_live`], but with the streaming strip's assistant-preview line(s)
 /// supplied by the caller (the boundary's cheap [`StreamRender::preview`] —
 /// O(one line), or the forming table's rows) instead of re-rendering the whole
@@ -1071,7 +1124,7 @@ pub fn render_workspace_live(
                 (PROMPT, Style::new().fg(prompt_color()))
             };
             let mut spans = vec![Span::styled(prefix, style)];
-            spans.extend(highlight_row_spans(line, range, &highlights));
+            spans.extend(input_row_spans(app, line, range, &highlights));
             Line::from(spans)
         })
         .collect();

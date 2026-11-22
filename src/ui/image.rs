@@ -14,7 +14,7 @@
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 
-use crate::app::{HistoryItem, Message, Role, ToolCall};
+use crate::app::{HistoryItem, ToolCall};
 use crate::images;
 
 /// The `read` tool's name, as the model spells it — the one tool whose output
@@ -24,36 +24,32 @@ const READ_TOOL: &str = "read";
 /// Every picture a history item shows, as `(path, pixel size)` in the order
 /// they should be drawn.
 ///
-/// Two sources, and only two: a `read` whose result was an image (the size
-/// comes from the tool's own fact line, so it survives a `/resume`), and a
-/// user message carrying Ctrl+V attachments (the size comes from the registry
-/// the paste boundary filled). Everything else has no picture.
+/// One source: a `read` whose result was an image (the size comes from the
+/// tool's own fact line, so it survives a `/resume`). A user message's Ctrl+V
+/// attachments are **not** drawn — the user picked that picture off their own
+/// screen, so a second copy under their own words tells them nothing
+/// (`docs/input/image-paste.md`); the wire still carries it, and the model
+/// still sees it.
 #[must_use]
 pub fn item_images(item: &HistoryItem) -> Vec<(String, (u32, u32))> {
     match item {
         HistoryItem::Tool(tool) => tool_image(tool).into_iter().collect(),
-        HistoryItem::Message(message) => message_images(message),
         _ => Vec::new(),
     }
 }
 
-/// Every file `item` would draw a picture from — an image `read`'s path and
-/// each Ctrl+V attachment a user message carries — whether or not its picture
-/// can be drawn now.
+/// Every file `item` would draw a picture from — an image `read`'s path —
+/// whether or not its picture can be drawn now. A paste's files are not
+/// listed: they are not drawn, so there is no block to reserve or recheck.
 ///
 /// What the boundary looks for again before it lays a conversation out from
 /// history ([`images::recheck_pictures`]), so it cannot ask the registry what
-/// it already knows: a paste's size and a file found gone are exactly what
-/// that look records (`docs/ui/images.md`, *A picture whose file is gone*).
+/// it already knows: a file found gone is exactly what that look records
+/// (`docs/ui/images.md`, *A picture whose file is gone*).
 #[must_use]
 pub fn item_image_paths(item: &HistoryItem) -> Vec<String> {
     match item {
         HistoryItem::Tool(tool) => tool_image(tool).map(|(path, _)| path).into_iter().collect(),
-        HistoryItem::Message(message) if message.role == Role::User => message
-            .images
-            .iter()
-            .filter_map(|path| path.to_str().map(str::to_string))
-            .collect(),
         _ => Vec::new(),
     }
 }
@@ -81,22 +77,6 @@ fn read_path(tool: &ToolCall) -> String {
                 .map(str::to_string)
         })
         .unwrap_or_else(|| tool.args.clone())
-}
-
-/// The Ctrl+V attachments a user message carries, for the paths the paste
-/// boundary recorded a size for.
-fn message_images(message: &Message) -> Vec<(String, (u32, u32))> {
-    if message.role != Role::User {
-        return Vec::new();
-    }
-    message
-        .images
-        .iter()
-        .filter_map(|path| {
-            let path = path.to_str()?;
-            Some((path.to_string(), images::known_size(path)?))
-        })
-        .collect()
 }
 
 /// The rows `item`'s pictures reserve below its cell — a blank spacer then

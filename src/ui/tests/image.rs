@@ -234,11 +234,12 @@ fn the_path_comes_from_the_models_verbatim_arguments() {
 }
 
 #[test]
-fn a_pasted_attachment_draws_under_its_own_bubble() {
+fn a_pasted_attachment_is_sent_but_not_drawn_under_its_own_bubble() {
     let _guard = drawing(120);
-    // The paste boundary records the size; without one there is nothing to
-    // reserve, which is also the right answer for a resumed session whose
-    // temp file is gone.
+    // The user picked that picture off their own screen and pasted it, so a
+    // second copy under their own words tells them nothing — the placeholder
+    // in the composer was the confirmation
+    // (`docs/input/image-paste.md`). The wire still carries the file.
     let message = |path: &str| {
         HistoryItem::Message(Message {
             role: Role::User,
@@ -247,23 +248,19 @@ fn a_pasted_attachment_draws_under_its_own_bubble() {
             images: vec![std::path::PathBuf::from(path)],
         })
     };
-    assert!(
-        image_block_lines(&message("/tmp/never-seen.png"), 100).is_empty(),
-        "an unregistered path draws nothing"
-    );
     images::remember_size("/tmp/pasted.png", (800, 600));
-    let lines = image_block_lines(&message("/tmp/pasted.png"), 100);
-    assert!(!lines.is_empty(), "a registered paste draws");
-    assert_eq!(marked_rows(&lines).len(), lines.len() - 1);
+    assert!(
+        image_block_lines(&message("/tmp/pasted.png"), 100).is_empty(),
+        "a paste reserves no conversation rows"
+    );
     restore();
 }
 
 #[test]
 fn every_file_a_picture_is_drawn_from_is_listed_for_the_recheck() {
     // What the boundary looks for again when a conversation is loaded or
-    // rebuilt: an image read's file, whatever the registry knows of it, and
-    // every Ctrl+V attachment a user message carries — a paste whose size was
-    // never recorded included, since the recheck is what records it.
+    // rebuilt: an image read's file. A Ctrl+V attachment is not listed — it
+    // reserves no rows, so there is nothing for the recheck to spare.
     let read = image_read("/zeroth-tests/paths/read.png", (64, 64));
     assert_eq!(
         item_image_paths(&read),
@@ -280,12 +277,9 @@ fn every_file_a_picture_is_drawn_from_is_listed_for_the_recheck() {
             ],
         })
     };
-    assert_eq!(
-        item_image_paths(&message(Role::User)),
-        vec![
-            "/zeroth-tests/paths/1.png".to_string(),
-            "/zeroth-tests/paths/2.png".to_string(),
-        ]
+    assert!(
+        item_image_paths(&message(Role::User)).is_empty(),
+        "a paste draws nothing, so it lists nothing"
     );
     assert!(
         item_image_paths(&message(Role::Assistant)).is_empty(),

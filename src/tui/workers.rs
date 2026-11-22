@@ -683,15 +683,6 @@ impl Session<'_> {
     pub(crate) fn on_image_paste(&mut self, result: Result<PathBuf, String>) {
         match result {
             Ok(path) => {
-                // Read the header once, here at the boundary, so the pure line
-                // builders can reserve the right rows for the picture under
-                // the bubble it will be sent with (`docs/ui/images.md`). A path
-                // whose size never lands simply isn't drawn.
-                if let Some(name) = path.to_str()
-                    && let Some(px) = image_dimensions(&path)
-                {
-                    zeroth::images::remember_size(name, px);
-                }
                 self.app.attach_image(path);
                 // A known non-vision model can't see the paste: warn at once with
                 // a toast — the attachment still rides the request as a text note

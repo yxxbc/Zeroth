@@ -1,10 +1,12 @@
 # 内联图片
 
-粘贴进来的截图，以及 `read` tool 读到的图片，在对话里被画成**真正的图像** —— 在
-终端自己的 scrollback 里、在 live 区域里、在 Ctrl+O 的 transcript 里 —— 而不是只
-用一行事实描述。终端讲得上某种图形协议（kitty、iTerm2、sixel）时，那些是真正的像
-素；其余情况下是 unicode 半块，也就是普通的带色单元格，因此每个终端都成立，
-scrollback 与 resize 也包括在内。
+`read` tool 读到的图片在对话里被画成**真正的图像** —— 在终端自己的 scrollback
+里、在 live 区域里、在 Ctrl+O 的 transcript 里 —— 而不是只用一行事实描述。终端讲
+得上某种图形协议（kitty、iTerm2、sixel）时，那些是真正的像素；其余情况下是
+unicode 半块，也就是普通的带色单元格，因此每个终端都成立，scrollback 与 resize 也
+包括在内。一个 Ctrl+V 粘贴**不**画：那是用户从自己屏幕上选中的图片，composer 里
+那个高亮的 `[Image #N]` 芯片就是确认（`docs/input/image-paste.md`）；wire 上仍然
+带着那个文件。
 
 ```
 ● Read(/home/me/shots/cat.png)
@@ -92,7 +94,8 @@ sidecar 与线上附件早已用作键的那个 `(len, mtime)`（*内存*）—�
 
 所以边界在按历史铺开一段对话之前会再看一眼：`tui::view::recheck_pictures` 读一遍
 历史所显示的每张图片的头（`ui::item_image_paths` 列出这些文件 —— 一次图片读取的
-路径，加上每个 Ctrl+V 附件），把答案交给纯的决定 `images::recheck_pictures`。找
+路径；粘贴附件不预留任何行，所以没有要复查的），把答案交给纯的决定
+`images::recheck_pictures`。找
 到的记下尺寸（`remember_size`）；找不到的标为缺失（`remember_missing`），而
 `images::place` —— 每一次预留都要经过的那一个调用 —— 对缺失的路径不预留任何行。
 上面那个单元格于是独自立着，与关掉图片时完全一样。
@@ -122,21 +125,14 @@ resize。
 
 ### 像素尺寸从哪来
 
-行预留是纯的，所以它打不开文件。两个来源，而且只有两个：
+行预留是纯的，所以它打不开文件。只有一个来源：**一次图片读取**自己的事实行已经
+带着尺寸了（`Read image (JPEG, 700x689, 63 KB)`），所以
+`images::read_image_size` 把它解析回来。那也是在 `/resume` 之后唯一活下来的记录：
+rollout 保留的是单元格的文字，不是文件的头。（一个 Ctrl+V 粘贴没有可见的块可量
+—— 它从不被画 —— 所以它的头根本不会被读。）
 
-* **一次图片读取** —— `read` tool 自己的事实行已经带着它了（`Read image (JPEG,
-  700x689, 63 KB)`），所以 `images::read_image_size` 把它解析回来。那也是在
-  `/resume` 之后唯一活下来的记录：rollout 保留的是单元格的文字，不是文件的头。
-* **一个 Ctrl+V 粘贴** —— 没有那样的行，所以边界在粘贴落地时读一次头
-  （`images::remember_size`，来自 `tui::workers`）—— 并且为一个加载进来的对话所
-  带的每个粘贴图片再读一次（`tui::view::recheck_pictures`，在一次
-  `/resume`、`--continue` 或 `--resume` 加载被铺开之前），因为粘贴会被存在
-  config home 下
-  （`{config_home}/image-cache/{session}/N.png`，`docs/input/image-paste.md`）而
-  且通常还在那里。头读不到的粘贴 —— 被谁删掉的图片 —— 干脆不画。
-
-两种方式下尺寸都只是它的一半：只有文件还在、还有东西可画时，图片才预留行（上面
-的*文件已消失的图片*）。
+尺寸都只是它的一半：只有文件还在、还有东西可画时，图片才预留行（上面的*文件已消
+失的图片*）。
 
 ## 几何
 

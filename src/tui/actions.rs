@@ -548,6 +548,24 @@ impl Session<'_> {
                     .saturating_sub(ui::sidebar_columns(&self.app, screen.width)),
                 height.min(screen.height),
             );
+            if let Some(path) = ui::composer_image_at(live, &self.app, mouse.column, mouse.row) {
+                // A pasted picture's placeholder is the one composer cell a
+                // click *opens* rather than seats the caret in
+                // (`docs/input/image-paste.md`).
+                let url = path
+                    .to_str()
+                    .and_then(|path| self.app.path_display().file_url(path));
+                match url {
+                    Some(url) => self.open_full_link(&url),
+                    None => {
+                        self.toast(format!("Can't open {}", path.display()), ToastKind::Error);
+                    }
+                }
+                self.full_press = None;
+                self.full_select = None;
+                self.frame.schedule_frame();
+                return Ok(());
+            }
             if let Some(cursor) = ui::composer_cursor_at(live, &self.app, mouse.column, mouse.row) {
                 self.app.focus_workspace_composer();
                 self.app.input.set_cursor(cursor);

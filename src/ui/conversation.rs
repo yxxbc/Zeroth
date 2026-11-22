@@ -152,10 +152,12 @@ pub fn conversation_lines_carded(
                 // the chain-of-thought expands in Ctrl+O (docs/ui/thinking-stream.md).
                 HistoryItem::Reasoning(r) => lines.extend(reasoning_lines(r, width)),
             }
-            // A picture the item carries — an image `read`'s result, a message's
-            // Ctrl+V attachments — hangs below the cell, one blank row apart and
-            // flush at the left margin (`docs/ui/images.md`). Empty for everything
-            // else, and for every session where images are off.
+            // A picture the item carries — an image `read`'s result — hangs
+            // below the cell, one blank row apart and flush at the left margin
+            // (`docs/ui/images.md`). Empty for everything else, for a pasted
+            // attachment (the user picked that picture; the wire carries it,
+            // the screen does not repeat it), and for every session where
+            // images are off.
             lines.extend(super::image::image_block_lines(item, width));
         }
         // A lone-link line becomes its preview card, still inside this item so

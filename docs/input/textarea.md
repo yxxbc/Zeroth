@@ -57,6 +57,17 @@ the byte offsets the cursor needs. The textarea instead wraps to **byte ranges**
   grapheme boundaries. Leading indentation and trailing space runs are *shown*
   (so the cursor after a trailing space is visible) and wrap exactly like words,
   so no row — and no cursor column — ever grows wider than the field.
+- **Three kinds of unit**, because a terminal line's break opportunities are not
+  just spaces (the tokenizer in `src/textarea.rs`):
+  a run of ASCII spaces; one **wide grapheme** (CJK, a fullwidth form, an
+  emoji) on its own; and everything else — a Latin word, a `[Image #N]`
+  paste placeholder (`paste::image_placeholder_len`) — as one unbreakable
+  unit. A Chinese sentence has no spaces, so treating the whole run as one
+  "word" made it jump whole to the next row and leave the rest of the line
+  blank; breaking between ideographs fills the row the way every terminal
+  editor does, and the paste placeholder moves whole rather than splitting
+  into `[Image` / `#1]` on two rows. Only a placeholder wider than the whole
+  field hard-breaks, like any over-long word.
 - Consecutive rows may have a byte *gap* between them — the whitespace consumed
   at a soft break — so the ranges are display ranges, not a strict tiling.
 - A row may fill every column of `width`, and the cursor at the end of such

@@ -137,6 +137,39 @@ pub fn next_image_placeholder<T>(existing: &[(String, T)]) -> String {
     format!("[Image #{}]", max + 1)
 }
 
+/// The byte length of a `[Image #N]` placeholder at the head of `text`, if one
+/// starts there — the one spelling of the token, shared by the attachment
+/// walk below and the composer's wrapper (`textarea::wrap_rows`), so the
+/// placeholder the composer keeps whole is exactly the one the send path
+/// recognises (`docs/input/image-paste.md`).
+#[must_use]
+pub fn image_placeholder_len(text: &str) -> Option<usize> {
+    let rest = text.strip_prefix("[Image #")?;
+    let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+    (digits > 0 && rest[digits..].starts_with(']')).then_some("[Image #".len() + digits + 1)
+}
+
+/// Every `[Image #N]` placeholder occurrence in `text` as a byte range, in
+/// text order, duplicates kept.
+#[must_use]
+pub fn image_placeholder_ranges(text: &str) -> Vec<std::ops::Range<usize>> {
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while let Some(head) = text[pos..].find("[Image #") {
+        let start = pos + head;
+        match image_placeholder_len(&text[start..]) {
+            Some(len) => {
+                out.push(start..start + len);
+                pos = start + len;
+            }
+            // Not a placeholder (a stray `[Image #x]`, or one still being
+            // typed): step past the prefix and keep looking.
+            None => pos = start + "[Image #".len(),
+        }
+    }
+    out
+}
+
 /// Every `[Image #N]` placeholder occurrence in `text`, **in text order,
 /// duplicates kept** — not deduplicated or number-sorted, because placeholder
 /// numbering restarts per draft (see [`next_image_placeholder`]): two drafts
@@ -147,17 +180,10 @@ pub fn next_image_placeholder<T>(existing: &[(String, T)]) -> String {
 /// with a message's recorded paths exactly. See `docs/input/image-paste.md`.
 #[must_use]
 pub fn image_placeholder_occurrences(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = text;
-    while let Some(start) = rest.find("[Image #") {
-        rest = &rest[start + "[Image #".len()..];
-        if let Some(end) = rest.find(']')
-            && rest[..end].parse::<usize>().is_ok()
-        {
-            out.push(format!("[Image #{}]", &rest[..end]));
-        }
-    }
-    out
+    image_placeholder_ranges(text)
+        .into_iter()
+        .map(|range| text[range].to_string())
+        .collect()
 }
 
 /// Split a batch's `(placeholder, path)` pairs among its texts for recording:
