@@ -16,7 +16,36 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **The project's own name replaces the upstream author's throughout.** The
+  crate's `authors` field, the dummy backend's calling card and its three
+  scripted replies, and every test fixture, doc example and smoke assertion
+  that spelled the old handle now name the Zeroth contributors and
+  `yxxbc/zeroth`. Left alone, deliberately: `LICENSE` and `NOTICE` (the
+  Apache-2.0 attribution this fork inherits), the released `CHANGELOG`
+  history, the upstream issue links in `docs/architecture/multithread-core.md`,
+  `github.com/linuztx/flaredantic` (a third-party project a skill
+  documents), and `update::NPM_PACKAGE` — the name older releases were really
+  published under, which is what lets `zeroth update` recognise an
+  npm-owned install and hand it back to npm
+  (`docs/architecture/naming.md`).
+
 ### Added
+
+- **`/donate` lists the sponsorship links beside the project's X Layer
+  address.** The page opens with three off-chain rows — Afdian, the contact
+  mailbox and a link to the WeChat code in the README — each shown address an
+  OSC 8 hyperlink that opens its page or mailbox on a click, so a reader
+  without a wallet has a path that needs no address to transcribe. Below them
+  the catalog lists one address, `XKO`: X Layer's prefix on a standard
+  twenty-byte EVM account, with its network captioned under the box. The
+  retired BTC, ETH and SOL rows are gone; the links yield whole before the
+  address box does on a short terminal, and `/donate` itself is unchanged in
+  grammar — navigation and copy (`docs/ui/donate.md`). The WeChat Pay 赞赏码
+  ships as `assets/wechat-donate.jpg` and is scanned from a phone: it is a
+  personal, WeChat-specific code, not a QR symbol the app can re-encode for a
+  terminal.
 
 - **OpenCode Go is a shipped provider.** `/login` → **Sign in with an API
   key** → **OpenCode Go** saves the key from [OpenCode Console](https://opencode.ai/console/go)
@@ -34,12 +63,14 @@ release heading when a version is cut.
 
 - **The full-screen mode has a sidebar and a scrollbar.** The right column
   carries the brand, the session's facts (model, cwd, context meter, permission
-  mode) and what is running (tasks, subagents, background shells); it shows at
-  96 columns and wider, in two widths, and folds away below that. Its sections
-  are a registry, so a new one is an addition rather than a layout edit. The
-  conversation's rightmost column carries a scrollbar so a long reply says
-  where in it you are (thumb only — a drawn track beside the sidebar's seam
-  read as a second divider); both columns are outside the wrapping width.
+  mode) and what is running (tasks, subagents, background shells). It is
+  **opt-in**: a `/settings` row (**Sidebar**, off by default; `ZEROTH_SIDEBAR`
+  for one run) turns it on, and then it shows at 96 columns and wider, in two
+  widths, folding away below that. Its sections are a registry, so a new one is
+  an addition rather than a layout edit. The conversation's rightmost column
+  carries a scrollbar so a long reply says where in it you are (thumb only — a
+  drawn track beside the sidebar's seam read as a second divider); both columns
+  are outside the wrapping width.
 
 - **`--inline` switches back to the conversation-in-scrollback viewport, and
   `ZEROTH_TUI=inline` matches it.** Asking for both viewports at once is
@@ -57,6 +88,30 @@ release heading when a version is cut.
   position and expanded cells.
 
 ### Changed
+
+- **Live tool and thinking cells grow in the full-screen conversation.** A
+  running tool's tail, an open read/search group and a thinking phase used to
+  sit in one fixed slot above the composer, showing only the newest rows of
+  whatever was happening now — a thought's block showed its last three rows and
+  nothing of the phases before it. The screen-owning frame is rebuilt from
+  state, so those cells now append to the conversation after the streaming
+  reply, in the order the turn produced them, and scroll with it; the block
+  shows the **whole** thought. When a call or phase settles, the committed cell
+  or `Thought for …` line takes their place (`docs/ui/full-screen.md`,
+  `docs/ui/thinking-stream.md`). Inline mode keeps the strip, where a
+  committed row cannot be taken back.
+
+- **The composer breaks a Chinese sentence where the line ends, and a pasted
+  picture is a chip.** The field's wrapper treated a run of ideographs as one
+  word, so a 9-column sentence at 8 columns jumped whole to the next row and
+  left the rest of the line blank; wide graphemes now break between themselves
+  the way every terminal editor breaks them (`docs/input/textarea.md`). A
+  `[Image #N]` placeholder is never split — it moves whole — and it wears the
+  link dress, underlined, with the picture's `file://` target: the terminal's
+  OSC 8 path and a click in the screen-owning mode both open the image
+  (`ui::composer_image_at`, `docs/input/image-paste.md`). The pasted picture is
+  no longer drawn under the user's own bubble — they picked it off their own
+  screen; the wire still carries it (`docs/ui/images.md`).
 
 - **Full-screen mode is now the default.** A bare `zeroth` lays the conversation
   out inside the window, with its own scrolling, mouse, drag-copy,
@@ -80,13 +135,14 @@ release heading when a version is cut.
 
 ### Fixed
 
-- **A thinking phase keeps its `● Thinking…` header in full-screen mode.** With
-  the sidebar up, the live region's height was reserved from the full screen
-  width while the region is painted one sidebar narrower, so the block wrapped
-  into one more row than had been paid for; the strip's bottom-anchored flow
-  then kept its newest rows and dropped the header. The height is now computed
-  at the painted width (`ui::live_text_width`). Inline mode is unchanged — it
-  has no sidebar.
+- **A thinking phase's `● Thinking…` header can no longer be flowed away in
+  full-screen mode.** It used to live in the strip above the composer, sized at
+  the full screen width while the region is painted one sidebar narrower, so
+  with the sidebar up it wrapped into one more row than had been paid for and
+  the strip's bottom-anchored flow kept its newest rows and dropped the header.
+  The height is computed at the painted width (`ui::live_text_width`), and the
+  block itself is part of the conversation now, where nothing can flow it
+  away.
 
 - **The full-screen scrollbar is a control now.** Click its track to jump the
   window there (the last row is the tail) and drag its thumb to slide the
