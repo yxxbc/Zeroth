@@ -16,11 +16,13 @@ turn.
 The page shows every **subscription** the app is signed in to — the ones
 `/login` lists under *Sign in with an account* (`docs/providers/llm.md`) — each with its plan,
 a meter per limit, when each one resets, and anything the provider says is
-stopping requests now. A pasted API key bills per token and has no plan to
-measure against, so API-key providers are not on the page. With no
-subscription signed in at all there is nothing to show, and `/usage` opens no
-page: a toast says so and points at `/login` → *Sign in with an account* — the
-`/export` empty rule.
+stopping requests now. **OpenCode Go** joins them even though it is a pasted
+key: its key carries a real monthly allowance, and the provider publishes the
+meter (OpenCode Go, below). A pasted key for any other provider bills per
+token and has no plan to measure against, so those are not on the page. With
+no subscription signed in and no Go key saved there is nothing to show, and
+`/usage` opens no page: a toast says so and points at `/login` — the `/export`
+empty rule.
 
 ## The page
 
@@ -223,12 +225,13 @@ zone.
 ## Where each number comes from
 
 Every read runs on a worker thread of its own (`tui::workers::spawn_usage_fetch`
-→ `llm::usage::fetch_usage`), one per subscription, so a slow provider never
-holds the others back. Each one reuses the credential seam its chat requests
-use (`llm::auth::request_auth`): the stored token minted and cached the same
-way, a rotated refresh token written back to the `.env` store the same way
-(`docs/providers/chatgpt.md`, `docs/providers/cline.md`). Each section's link is the provider's
-own usage page (`llm::usage::dashboard_url`, by sign-in scheme).
+→ `llm::usage::fetch_usage`), one per section — every subscription, plus
+OpenCode Go — so a slow provider never holds the others back. Each one reuses
+the credential seam its chat requests use (`llm::auth::request_auth`): the
+stored token minted and cached the same way, a rotated refresh token written
+back to the `.env` store the same way (`docs/providers/chatgpt.md`,
+`docs/providers/cline.md`). Each section's link is the provider's
+own usage page (`llm::usage::dashboard_url_for`).
 
 ### ChatGPT
 
@@ -300,6 +303,27 @@ its own row, and one amber line says what to do about it, naming the window
 that resets **last** — how long the pause lasts — the dashboard's banner.
 Verified live.
 
+### OpenCode Go
+
+`GET {origin}/inference/go/v1/usage` with the Go key as a `Bearer` and this
+client's `User-Agent` — the edge refuses a generic library string, the same
+rule the chat request follows (`docs/providers/opencode.md`). The answer has
+one meter per window: `rolling` (the 5-hour one), `weekly` and `monthly`, each
+`{status, percent, resetsAt}` where `status` is `ok` or `rate-limited`. A
+window is drawn as a bar of the percent used, its reset as the page draws
+every other one, and `limit reached` on the row the status names; one amber
+line names the spent window that resets **last**, since that is how long the
+pause lasts. The answer names no plan or account, so the section shows
+neither. Verified live.
+
+A refusal is worded for the key (`llm::usage::opencode_go_advice`): Go's `403`
+with an `EntitlementError` says the key's workspace has no active Go
+subscription and links the Go page; a `401` says the key was refused and where
+to copy it again; any other `403` — an edge refusal, a proxy, not Go's typed
+one — keeps the generic wording rather than claiming a subscription is
+missing. These are exactly the cases a pasted key can hit without `/login`
+having anything to fix.
+
 ### Google Antigravity
 
 One read, the catalog's: `POST {base}/v1internal:fetchAvailableModels` for the
@@ -329,7 +353,10 @@ A refused read is worded for what to do (`llm::usage::usage_advice`): a `401`
 asks for `/login`, a `429` to wait a minute, a server error to try again
 shortly — with the provider's own words after it when they are showable (a
 JSON `message`, never an intercepting proxy's HTML page). A sign-in that no
-longer mints fails with the sign-in module's own sentence.
+longer mints fails with the sign-in module's own sentence. OpenCode Go has its
+own wording (`llm::usage::opencode_go_advice`), because a key can be valid
+while the workspace behind it has no subscription: the fix is the Go page, not
+another sign-in.
 
 ## The seams
 

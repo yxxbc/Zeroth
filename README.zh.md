@@ -151,6 +151,7 @@ zeroth
 | **Cline** | API key。 | Cline 扩展与 CLI 背后的那些模型，经 [Cline 的 OpenAI 兼容 API](https://app.cline.bot) —— Anthropic、OpenAI、Google 等等，记在你账号的额度上。 |
 | **ClinePass** | 订阅（每月 $9.99），需 Cline 账号登录。 | 在 Cline 精选的开源编码模型上 2-5 倍用量 —— 这个方案的 `cline-pass/…` 模型会出现在 `/model` 里。 |
 | **Google Antigravity** | 在浏览器里用 Google 账号登录。 | 用你的 Antigravity 额度跑 Gemini、Claude 与 GPT-OSS。非官方：Google 可能限制在 Antigravity 之外使用的账号（[细节](docs/providers/antigravity.md)）。 |
+| **OpenCode Go** | 订阅（每月 $10），用 [OpenCode Console](https://opencode.ai/console/go) 里的 API key。 | OpenCode 精选的开源编码模型 —— DeepSeek、Kimi、GLM、Qwen 等 —— 共用一份月度额度（[细节](docs/providers/opencode.md)）。 |
 | **OpenRouter** | API key。 | 用一个账号访问多家供应商的模型。 |
 | **Ollama** | 本地模型：填你服务器的地址，保存前会先测一遍；不需要 key。 | 用本地托管的模型在自己的机器上跑推理。 |
 | **LM Studio** | 本地模型：填你服务器的地址，测法相同；只有服务器要 token 时才需要 token。 | 跑你在 [LM Studio](https://lmstudio.ai/download) 里下好的模型；先把它自己的服务器启起来。 |

@@ -217,6 +217,28 @@ api_key_env = "OLLAMA_API_KEY"
 [providers.ollama_cloud.kwargs]
 api_base = "https://ollama.com"
 
+# OpenCode Go: OpenCode's own $10/month subscription for a curated set of open
+# coding models, served by the same gateway the official CLI talks to. It is a
+# pasted key, not an OAuth sign-in — copy it from the Go page in OpenCode
+# Console — so it lives under /login's API-key list, as the official client's
+# `/connect` does. Two details are not optional to the backend and are added
+# in code, not here (`src/llm/opencode.rs`): a named `User-Agent` (the edge
+# answers a generic library's with Cloudflare's `403 error code: 1010`) and a
+# stable `x-opencode-session` per conversation (without it the gateway answers
+# `400 MissingSessionID` and cannot route efficiently). The listing is Go's own
+# richer `/models` — context, modalities and the Ctrl+T ladder — which is why
+# it is a separate base from the chat endpoint (`docs/providers/opencode.md`).
+[providers.opencode_go]
+name = "OpenCode Go"
+api_key_env = "OPENCODE_API_KEY"
+api_key_url = "https://opencode.ai/console/go"
+api_model_base = "https://opencode.ai/inference/go/v1"
+reasoning_param = "reasoning_effort"
+description = "OpenCode's $10/month subscription for a curated set of open coding models — DeepSeek, Kimi, GLM, Qwen and more — reached with the API key from your Go page."
+
+[providers.opencode_go.kwargs]
+api_base = "https://opencode.ai/inference/go/openai/v1"
+
 [providers.openrouter]
 name = "OpenRouter"
 description = "One key for hundreds of models from every major lab — OpenAI, Anthropic, Google, Meta and more — billed from a single balance."

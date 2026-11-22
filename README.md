@@ -138,6 +138,7 @@ Connect to a supported subscription service, API provider, or local model server
 | **Cline** | API key. | The models behind the Cline extension and CLI, through [Cline's OpenAI-compatible API](https://app.cline.bot) — Anthropic, OpenAI, Google and more, billed to your account's credits. |
 | **ClinePass** | Subscription ($9.99/month), with a Cline account sign-in. | 2-5x usage on Cline's curated open coding models — the plan's `cline-pass/…` models appear in `/model`. |
 | **Google Antigravity** | Google account sign-in in the browser. | Gemini, Claude and GPT-OSS on your Antigravity quota. Unofficial: Google may restrict accounts used outside Antigravity ([details](docs/providers/antigravity.md)). |
+| **OpenCode Go** | Subscription ($10/month), with an API key from [OpenCode Console](https://opencode.ai/console/go). | OpenCode's curated open coding models — DeepSeek, Kimi, GLM, Qwen and more — on one monthly allowance ([details](docs/providers/opencode.md)). |
 | **OpenRouter** | API key. | Access models from multiple providers through one account. |
 | **Ollama** | Local model: enter your server's address, which is tested before it's saved; no key required. | Run inference on your own machine with locally hosted models. |
 | **LM Studio** | Local model: enter your server's address, tested the same way; a token only if the server requires one. | Run the models you downloaded in [LM Studio](https://lmstudio.ai/download); start its server first. |

@@ -13,10 +13,12 @@ Copilot 席位有一份月度额度，ClinePass 有三个滚动窗口——而�
 
 这个页面显示应用登录着的每一个**订阅**——即 `/login` 在 *Sign in with an
 account* 下所列的那些（`docs/providers/llm.md`）——每个都带它的套餐、每个限额
-一个量表、每个限额何时重置，以及 provider 说现在正在阻止请求的任何东西。一个
-粘贴的 API key 按 token 计费，没有套餐可衡量，所以 API-key provider 不在这个页
-上。一个订阅都没登录时没有东西可显示，`/usage` 就不打开页面：一个 toast 说明
-缘由并指向 `/login` → *Sign in with an account*——`/export` 的空规则。
+一个量表、每个限额何时重置，以及 provider 说现在正在阻止请求的任何东西。
+**OpenCode Go** 也加入其中，尽管它是一个粘贴的 key：它的 key 带着真实的月度额度，
+而 provider 发布了那个量表（见下文 *OpenCode Go*）。其他 provider 的粘贴 key 按
+token 计费，没有套餐可衡量，所以它们不在这个页上。一个订阅都没登录、也没有保存
+Go key 时没有东西可显示，`/usage` 就不打开页面：一个 toast 说明缘由并指向
+`/login`——`/export` 的空规则。
 
 ## 这一页
 
@@ -190,11 +192,12 @@ ChatGPT 端点的节奏——或者用 `r` 立刻重读。一次刷新把每份�
 ## 每个数字从哪来
 
 每次读取都跑在它自己的 worker 线程上（`tui::workers::spawn_usage_fetch`
-→ `llm::usage::fetch_usage`），每个订阅一个，于是一个慢 provider 永远不拖住
-其余。每一次都复用它的 chat 请求所用的凭据接缝（`llm::auth::request_auth`）：
-同样铸造并缓存的已存 token，同样写回 `.env` 存储的轮换 refresh token
-（`docs/providers/chatgpt.md`、`docs/providers/cline.md`）。每节的链接是
-provider 自己的用量页（`llm::usage::dashboard_url`，按登录方案）。
+→ `llm::usage::fetch_usage`），每节一个 —— 每个订阅，再加上 OpenCode Go ——
+于是一个慢 provider 永远不拖住其余。每一次都复用它的 chat 请求所用的凭据接缝
+（`llm::auth::request_auth`）：同样铸造并缓存的已存 token，同样写回 `.env`
+存储的轮换 refresh token（`docs/providers/chatgpt.md`、
+`docs/providers/cline.md`）。每节的链接是 provider 自己的用量页
+（`llm::usage::dashboard_url_for`）。
 
 ### ChatGPT
 
@@ -259,6 +262,23 @@ resetsAt?}`，针对 `five_hour`、`weekly` 和 `monthly` 三个窗口。两者�
 `docs/providers/cline.md`）。一个用尽的窗口在它自己那行达到，而一行琥珀说该怎么
 办，点名**最后**重置的那个窗口——即暂停持续多久——仪表盘的横幅。实测过。
 
+### OpenCode Go
+
+`GET {origin}/inference/go/v1/usage`，带 Go key 作为 `Bearer`，再加这个客户端
+自己的 `User-Agent`——边缘拒绝通用库字符串，与 chat 请求同一条规则
+（`docs/providers/opencode.md`）。答案每个窗口一个量表：`rolling`（5 小时那个）、
+`weekly` 和 `monthly`，各是 `{status, percent, resetsAt}`，其中 `status` 是
+`ok` 或 `rate-limited`。一个窗口画成已用百分比的条，重置时间按页面对待其他所有
+窗口的方式画，状态点名的那个窗口行上写 `limit reached`；一行琥珀点名**最后**重置
+的用尽窗口，因为暂停就持续到那时。答案里没有套餐和账户，所以这一节两者都不显示。
+实测过。
+
+一次拒绝按 key 的语言措辞（`llm::usage::opencode_go_advice`）：Go 带
+`EntitlementError` 的 `403` 说这个 key 的 workspace 没有生效中的 Go 订阅，并链接
+Go 页面；`401` 说 key 被拒绝，以及去哪里重新复制；任何别的 `403`——边缘的拒绝、
+代理，而不是 Go 的类型化答复——保留通用措辞，而不是声称订阅不见了。这些正是一个
+粘贴 key 可能撞上、而 `/login` 无事可修的情形。
+
 ### Google Antigravity
 
 一次读取，即目录那次：`POST {base}/v1internal:fetchAvailableModels`，取该账户
@@ -285,7 +305,9 @@ refresh token。
 一次被拒的读取按该做什么来措辞（`llm::usage::usage_advice`）：`401` 要求
 `/login`，`429` 等一分钟，服务器错误稍后再试——当 provider 自己的话可以展示时
 （一个 JSON `message`，绝不是拦截代理的 HTML 页）跟在后面。一个不再能铸造的
-登录，以登录模块自己的句子失败。
+登录，以登录模块自己的句子失败。OpenCode Go 有它自己的措辞
+（`llm::usage::opencode_go_advice`），因为一个 key 可以有效，而它背后的
+workspace 没有订阅：要修的是 Go 页面，不是再登录一次。
 
 ## 接缝
 

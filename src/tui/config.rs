@@ -410,6 +410,34 @@ pub(crate) fn subscription_choices(
         .collect()
 }
 
+/// The providers `/usage` reads: every signed-in subscription, plus OpenCode
+/// Go. Go is a **pasted key**, so [`subscription_choices`] leaves it out — but
+/// its key carries a real monthly allowance and a usage endpoint, which is
+/// exactly what the page exists to show (`docs/providers/opencode.md`). Gated
+/// on the **base**, so a renamed or copied Go block is read the same way; a
+/// key for any other per-token provider still has no plan to report.
+pub(crate) fn usage_choices(
+    providers: &ProvidersFile,
+    env_file: &EnvFile,
+) -> Vec<SubscriptionChoice> {
+    let mut choices = subscription_choices(providers, env_file);
+    for (id, provider) in &providers.providers {
+        if provider.auth.is_subscription() || !llm::opencode::is_go_base(&provider.kwargs.api_base)
+        {
+            continue;
+        }
+        choices.push(SubscriptionChoice {
+            id: id.clone(),
+            name: provider.name.clone(),
+            description: provider.description.clone().unwrap_or_default(),
+            configured: resolve_api_key(providers, env_file, id).is_some(),
+            // Usage-only: Go signs in with a key, never a device flow.
+            kinds: Vec::new(),
+        });
+    }
+    choices
+}
+
 /// Which sign-in pages a scheme offers, the first being its default. The
 /// provider file decides, so a row's page is never guessed from what the
 /// flow happens to have filled in yet — and a scheme listing two puts the
@@ -1501,6 +1529,32 @@ pub(crate) fn prompt_context(cwd: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn usage_choices_adds_a_configured_opencode_go_key_only() {
+        // Go is a pasted key, so the sign-in list leaves it out; the usage
+        // page still reads it because its key has a plan
+        // (docs/providers/opencode.md).
+        let providers = ProvidersFile::builtin();
+        let env = EnvFile::parse("OPENCODE_API_KEY=oc_test\n");
+        let choices = usage_choices(&providers, &env);
+        let go = choices
+            .iter()
+            .find(|choice| choice.id == "opencode_go")
+            .expect("Go is a usage target");
+        assert!(go.configured);
+        assert!(
+            choices.iter().all(|choice| choice.id != "openrouter"),
+            "a per-token key has no usage page"
+        );
+
+        let unset = usage_choices(&providers, &EnvFile::parse(""));
+        let go = unset
+            .iter()
+            .find(|choice| choice.id == "opencode_go")
+            .expect("the row exists, unconfigured");
+        assert!(!go.configured, "no key, no read");
+    }
 
     #[test]
     fn logout_masks_specific_and_generic_credentials_and_login_restores_resolution() {

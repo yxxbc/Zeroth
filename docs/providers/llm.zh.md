@@ -34,6 +34,7 @@ picker。
 | `llm/reasoning.rs` | `ThinkingMode`/`ReasoningSupport` —— Ctrl+T 的思考模式循环 + 它的请求 body（`docs/providers/reasoning.md`） | **纯** |
 | `llm/service_tier.rs` | `ServiceTier`/`SpeedState` —— codex 的 fast mode：一个 ChatGPT 模型列出的速度档位，每一档都是自己的 palette 命令（`/fast`、`/ultrafast`）来切换，并作为 `service_tier` 搭在请求上（`docs/providers/fast-mode.md`） | **纯** |
 | `llm/openai.rs` | `OpenAiClient` —— 端点/payload 构造（纯）+ 阻塞式 SSE 流（边界）。请求是从消息按引用写出的带类型 `ChatRequest`；`build_payload` 是测试所读的那份 JSON 树视图 | 分裂 |
+| `llm/opencode.rs` | OpenCode Go 的请求身份：它的网关要求的具名 `User-Agent` 和每会话 `x-opencode-session`，对任何 `/inference/go/` 下的 base 都加上（`docs/providers/opencode.md`） | **纯** |
 | `llm/body.rs` | 一个请求如何离开进程（`docs/architecture/memory.md`）：`BodySource`，即每种 wire 的持有式请求通过写出它带类型的、借用的形式来实现的 trait；`streamed_request`，在自己的线程上把它序列化进一条 64 KB 块的有界管道让 transport 抽走，`Content-Length` 来自一次计数遍历——于是一个带图片的 body 从不会整体驻留内存 | **纯** |
 | `llm/models.rs` | `/v1/models` 响应 → `Vec<ModelEntry>`（解析纯；获取是边界；每个条目携带它模型的推理能力——`docs/providers/reasoning.md`；记录一次解码一条，落在借用的 `RawValue` 切片上，从不是整表的树——`docs/architecture/memory.md`；Ollama wire 的 `/api/tags` + `/api/show` 走查也在这里，Cline 登录的也是：ClinePass 计划发布的清单，每个模型的事实借用自 Cline 的目录——`docs/providers/cline.md`） | 分裂 |
 | `llm/ollama.rs` | Ollama 的**原生** wire format（`wire_api = "ollama"`）：`OLLAMA_HOST` 的语法、`/api/chat` 的 body（`options.num_ctx`——它在 Ollama 的 `/v1` 之外存在的原因）、NDJSON 折叠、带上下文窗口规则的目录解析，以及带解释的拒绝（`docs/providers/ollama.md`） | **纯** |

@@ -17,6 +17,17 @@ Zeroth 的所有值得注意的变更都记录在这里。格式遵循
 
 ### 新增
 
+- **OpenCode Go 成为内置 provider。** `/login` → **Sign in with an API key** →
+  **OpenCode Go** 会把 [OpenCode Console](https://opencode.ai/console/go) 里的 key
+  存到 `OPENCODE_API_KEY` 下 —— 官方 CLI 自己的变量 —— 而 `/model` 列出套餐的
+  模型，带着真实的上下文窗口、视觉支持和 Ctrl+T 档位。请求会带上 Go 网关要求的两个
+  header：一个有名字的 `User-Agent`（通用库字符串会被 Cloudflare 回 403）和一个
+  稳定的 `x-opencode-session`（没有它网关回 `400 MissingSessionID`，无法高效路由）。
+  直连取代了 Go 前面的本地路由器 —— 它多出的一跳和每请求的遮罩，正是它比 OpenCode
+  自己的 CLI 慢的原因（`docs/providers/opencode.md`）。`/usage` 从 Go 自己的计量里
+  读 5 小时、每周和每月三个窗口；一个 workspace 没有订阅的 key 会被告知这一点、并被
+  指向 Go 页面，而不是被要求再登录一次。
+
 - **全屏模式有了侧栏和滚动条。** 右列装品牌、会话事实（模型、目录、上下文表、权限
   模式）和正在运行的东西（任务、子 agent、后台 shell）；96 列起显示、两档宽度，
   更窄时收起。它的小节是一个注册表，加一节是新增而不是改布局。对话最右一列是滚动条

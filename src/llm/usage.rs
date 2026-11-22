@@ -775,6 +775,143 @@ fn timestamp_seconds(text: &str) -> Option<i64> {
 }
 
 // ---------------------------------------------------------------------------
+// OpenCode Go (pure)
+// ---------------------------------------------------------------------------
+
+/// Where a Go member's plan and usages are shown. The subscription is managed
+/// on the same page (`docs/providers/opencode.md`).
+pub const OPENCODE_GO_DASHBOARD: &str = super::opencode::DASHBOARD;
+
+/// Go's usage answer: `{"usage":{"rolling":{…},"weekly":{…},"monthly":{…}}}`,
+/// one meter per window, each read on its own so a window this parse no longer
+/// understands costs only itself (`docs/providers/usage.md`).
+#[derive(Deserialize)]
+struct GoUsage<'a> {
+    #[serde(default, borrow)]
+    usage: Option<&'a RawValue>,
+}
+
+#[derive(Deserialize)]
+struct GoWindows<'a> {
+    #[serde(default, borrow)]
+    rolling: Option<&'a RawValue>,
+    #[serde(default, borrow)]
+    weekly: Option<&'a RawValue>,
+    #[serde(default, borrow)]
+    monthly: Option<&'a RawValue>,
+}
+
+#[derive(Deserialize)]
+struct GoMeter {
+    #[serde(default)]
+    percent: Option<f64>,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default, rename = "resetsAt")]
+    resets_at: Option<String>,
+}
+
+/// Parse Go's usage answer. The three windows are named for what they meter,
+/// not by their JSON keys, and a `rate-limited` status marks the window spent
+/// even before its percent reaches 100 (`docs/providers/usage.md`).
+pub fn parse_opencode_go_usage(body: &str) -> Result<UsageReport> {
+    let response: GoUsage<'_> = object(body)?;
+    let Some(windows) = lenient::<GoWindows<'_>>(response.usage) else {
+        return Err(LlmError::Decode(
+            "OpenCode Go's usage answer carried no `usage` object".to_string(),
+        ));
+    };
+    let mut meters = Vec::new();
+    let mut spent: Option<(Option<i64>, String)> = None;
+    for (raw, label) in [
+        (windows.rolling, "5-hour limit"),
+        (windows.weekly, "Weekly limit"),
+        (windows.monthly, "Monthly limit"),
+    ] {
+        let Some(window) = lenient::<GoMeter>(raw) else {
+            continue;
+        };
+        let percent = window.percent.unwrap_or(0.0);
+        let resets_at = window.resets_at.as_deref().and_then(timestamp_seconds);
+        let reached = window
+            .status
+            .as_deref()
+            .is_some_and(|status| status.eq_ignore_ascii_case("rate-limited"))
+            || percent >= 100.0;
+        if reached && spent.as_ref().is_none_or(|(at, _)| resets_at > *at) {
+            spent = Some((resets_at, label.to_string()));
+        }
+        meters.push(UsageMeter {
+            group: None,
+            label: label.to_string(),
+            value: MeterValue::Limit(Limit {
+                used_percent: percent,
+                counts: None,
+                resets_at,
+                reached,
+            }),
+        });
+    }
+    if meters.is_empty() {
+        return Err(LlmError::Decode(
+            "OpenCode Go's usage answer carried no window to show".to_string(),
+        ));
+    }
+    // The window with the latest reset is the one that gates: a spent 5-hour
+    // window would recover first while a spent month still blocks.
+    let notes = spent
+        .map(|(_, label)| {
+            UsageNote::new(
+                NoteTone::Warning,
+                format!(
+                    "Paused until the {} resets — switch to a free model, or turn on Extra \
+                     Usage on the Go page.",
+                    label.to_lowercase()
+                ),
+            )
+        })
+        .into_iter()
+        .collect();
+    Ok(UsageReport {
+        plan: None,
+        account: None,
+        meters,
+        notes,
+    })
+}
+
+/// A refused Go usage read, in the key's own terms rather than "sign in
+/// again": the key may be perfectly valid and its workspace simply not
+/// subscribed (`docs/providers/usage.md`).
+#[must_use]
+pub fn opencode_go_advice(status: u16, body: &str) -> String {
+    let said = provider_said(body);
+    let go = match status {
+        401 => Some(
+            "the OpenCode Go key was refused — copy it again from \
+             https://opencode.ai/console/go, or save a new one with /login",
+        ),
+        403 if body.contains("EntitlementError")
+            || said
+                .as_deref()
+                .is_some_and(|text| text.to_ascii_lowercase().contains("subscription")) =>
+        {
+            Some(
+                "this key's workspace has no active OpenCode Go subscription — subscribe, or \
+                 check the workspace, at https://opencode.ai/console/go",
+            )
+        }
+        429 => Some("OpenCode Go is rate limiting usage reads — try again in a minute"),
+        _ => None,
+    };
+    match (go, said) {
+        (Some(advice), Some(said)) => format!("{advice} ({said})"),
+        (Some(advice), None) => advice.to_string(),
+        (None, _) => usage_advice(status, body),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // GitHub Copilot (pure)
 // ---------------------------------------------------------------------------
 
@@ -1204,6 +1341,18 @@ pub fn dashboard_url(auth: AuthScheme) -> Option<&'static str> {
     }
 }
 
+/// [`dashboard_url`] with the one exception a scheme cannot see: OpenCode Go
+/// is a pasted key, but its key has a plan behind it, and Go's page is where
+/// that plan lives (`docs/providers/opencode.md`). Everything else keeps its
+/// scheme's answer.
+#[must_use]
+pub fn dashboard_url_for(cfg: &ModelConfig) -> Option<&'static str> {
+    if super::opencode::is_go_base(&cfg.api_base) {
+        return Some(OPENCODE_GO_DASHBOARD);
+    }
+    dashboard_url(cfg.auth)
+}
+
 // ---------------------------------------------------------------------------
 // The fetch (boundary)
 // ---------------------------------------------------------------------------
@@ -1364,6 +1513,21 @@ fn copilot_usage(url: &str, oauth_token: &str) -> Result<UsageReport> {
     parse_copilot_user(&get_ok(url, &super::copilot::user_headers(oauth_token))?)
 }
 
+/// OpenCode Go's plan usage, read from `url` with the Go key and the client
+/// headers of the configuration (`User-Agent` included — the edge refuses a
+/// generic one, `docs/providers/opencode.md`).
+fn opencode_go_usage(url: &str, headers: &[(String, String)]) -> Result<UsageReport> {
+    let (status, body) = get_body(url, headers)?;
+    if (200..300).contains(&status) {
+        parse_opencode_go_usage(&body)
+    } else {
+        Err(LlmError::Api {
+            status,
+            body: opencode_go_advice(status, &body),
+        })
+    }
+}
+
 /// A ClinePass plan's windows: the plan first — the dashboard's own order,
 /// since an account with no plan has no windows to read (Cline answers
 /// `402`/`404`, or a plan of `null`) — then its usage limits.
@@ -1452,12 +1616,37 @@ pub fn fetch_usage(cfg: &ModelConfig, cancel: &CancelToken) -> Result<UsageRepor
                 super::antigravity::account_email(&access.bearer),
             )
         }
+        // A pasted key normally bills per token and has no plan; OpenCode Go
+        // is the exception — its key carries a real monthly allowance, and
+        // the meter is its own endpoint (`docs/providers/opencode.md`).
         AuthScheme::ApiKey | AuthScheme::OptionalKey => {
-            return Err(refusal(format!(
-                "{} bills per token through an API key — there is no subscription plan to \
-                 report usage against",
-                cfg.provider_name
-            )));
+            if !super::opencode::is_go_base(&cfg.api_base) {
+                return Err(refusal(format!(
+                    "{} bills per token through an API key — there is no subscription plan to \
+                     report usage against",
+                    cfg.provider_name
+                )));
+            }
+            let key = cfg
+                .api_key
+                .as_deref()
+                .map(str::trim)
+                .filter(|key| !key.is_empty())
+                .ok_or_else(|| {
+                    refusal(
+                        "no OpenCode Go key is stored — run /login and choose Sign in with an \
+                         API key, or set OPENCODE_API_KEY",
+                    )
+                })?;
+            let url = super::opencode::usage_url(&cfg.api_base).ok_or_else(|| {
+                refusal(format!(
+                    "{} is not an OpenCode Go inference base — there is no usage meter to read",
+                    cfg.api_base
+                ))
+            })?;
+            let mut headers = vec![("authorization".to_string(), format!("Bearer {key}"))];
+            headers.extend(cfg.extra_headers.iter().cloned());
+            opencode_go_usage(&url, &headers)?
         }
     };
     if cancel.is_cancelled() {
@@ -1584,6 +1773,111 @@ mod tests {
         assert_eq!(usage_advice(418, r#"{"error":"teapot"}"#), "teapot");
         assert!(usage_advice(404, r#"{"error":{"message":"nope"}}"#).contains("nope"));
         assert!(usage_advice(403, r#"{"detail":"Forbidden"}"#).contains("Forbidden"));
+    }
+
+    // --- OpenCode Go (docs/providers/opencode.md) ---
+
+    /// The live answer's shape for a member inside every window.
+    const GO_USAGE: &str = r#"{"usage":{
+        "rolling":{"status":"ok","percent":3,"resetsAt":"2026-11-22T17:35:55.000Z"},
+        "weekly":{"status":"ok","percent":1,"resetsAt":"2026-11-23T00:00:00.000Z"},
+        "monthly":{"status":"ok","percent":0,"resetsAt":"2026-12-22T12:24:25.000Z"}}}"#;
+
+    #[test]
+    fn opencode_go_usage_is_the_three_windows_in_order() {
+        let report = parse_opencode_go_usage(GO_USAGE).unwrap();
+        assert_eq!(report.meters.len(), 3);
+        let labels: Vec<&str> = report.meters.iter().map(|m| m.label.as_str()).collect();
+        assert_eq!(labels, ["5-hour limit", "Weekly limit", "Monthly limit"]);
+        let MeterValue::Limit(rolling) = &report.meters[0].value else {
+            panic!("a limit row");
+        };
+        assert_eq!(rolling.used_percent, 3.0);
+        assert!(rolling.resets_at.is_some());
+        assert!(!rolling.reached);
+        assert!(report.notes.is_empty());
+    }
+
+    #[test]
+    fn opencode_go_rate_limited_window_is_spent_and_explained() {
+        let body = r#"{"usage":{
+            "rolling":{"status":"rate-limited","percent":100,"resetsAt":"2026-11-22T17:35:55.000Z"},
+            "weekly":{"status":"ok","percent":20,"resetsAt":"2026-11-23T00:00:00.000Z"},
+            "monthly":{"status":"ok","percent":5,"resetsAt":"2026-12-22T12:24:25.000Z"}}}"#;
+        let report = parse_opencode_go_usage(body).unwrap();
+        let MeterValue::Limit(rolling) = &report.meters[0].value else {
+            panic!("a limit row");
+        };
+        assert!(rolling.reached);
+        let note = report.notes.first().expect("a paused note");
+        assert_eq!(note.tone, NoteTone::Warning);
+        assert!(note.text.contains("5-hour limit"), "{}", note.text);
+        assert!(note.text.contains("Extra Usage"), "{}", note.text);
+    }
+
+    #[test]
+    fn opencode_go_refusals_name_the_key_and_the_go_page() {
+        // The case the user hits with a valid key and no subscription: Go
+        // says so in a typed body, and the page must not say "sign in again".
+        let entitlement = r#"{"type":"error","error":{"type":"EntitlementError",
+            "message":"OpenCode Go subscription required."}}"#;
+        let denied = opencode_go_advice(403, entitlement);
+        assert!(
+            denied.contains("no active OpenCode Go subscription"),
+            "{denied}"
+        );
+        assert!(denied.contains("opencode.ai/console/go"), "{denied}");
+        assert!(
+            denied.contains("OpenCode Go subscription required"),
+            "{denied}"
+        );
+        assert!(!denied.contains("/login"), "{denied}");
+
+        let refused = opencode_go_advice(
+            401,
+            r#"{"type":"error","error":{"type":"AuthError","message":"Unauthorized"}}"#,
+        );
+        assert!(refused.contains("copy it again"), "{refused}");
+        assert!(refused.contains("opencode.ai/console/go"), "{refused}");
+        assert!(refused.contains("Unauthorized"), "{refused}");
+
+        // A body that is not Go's own (an edge refusal, a proxy) keeps the
+        // generic wording rather than claiming the subscription is missing.
+        let generic = opencode_go_advice(403, "error code: 1010");
+        assert!(!generic.contains("subscription"), "{generic}");
+    }
+
+    #[test]
+    fn opencode_go_usage_reads_with_its_key_and_user_agent() {
+        let (base, server) = serve(vec![(200, GO_USAGE)]);
+        let report = opencode_go_usage(
+            &format!("{base}/inference/go/v1/usage"),
+            &[
+                header("authorization", "Bearer oc_test"),
+                header("user-agent", super::super::opencode::USER_AGENT),
+            ],
+        )
+        .unwrap();
+        assert_eq!(report.meters.len(), 3);
+        let request = &server.join().unwrap()[0];
+        assert!(
+            request.starts_with("get /inference/go/v1/usage "),
+            "{request}"
+        );
+        assert!(
+            request.contains("authorization: bearer oc_test"),
+            "{request}"
+        );
+        assert!(request.contains("user-agent: zeroth/"), "{request}");
+    }
+
+    #[test]
+    fn the_go_dashboard_is_its_own_page_even_for_a_pasted_key() {
+        let mut cfg = ModelConfig::fallback();
+        cfg.api_base = "https://opencode.ai/inference/go/openai/v1".to_string();
+        assert_eq!(dashboard_url_for(&cfg), Some(OPENCODE_GO_DASHBOARD));
+        cfg.api_base = "https://api.openai.com/v1".to_string();
+        assert_eq!(dashboard_url_for(&cfg), None);
     }
 
     #[test]

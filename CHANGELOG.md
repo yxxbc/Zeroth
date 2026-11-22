@@ -18,6 +18,20 @@ release heading when a version is cut.
 
 ### Added
 
+- **OpenCode Go is a shipped provider.** `/login` → **Sign in with an API
+  key** → **OpenCode Go** saves the key from [OpenCode Console](https://opencode.ai/console/go)
+  under `OPENCODE_API_KEY` — the official CLI's own variable — and `/model`
+  lists the plan's models with their real context window, vision support and
+  Ctrl+T effort ladder. Requests carry the two headers Go's gateway requires:
+  a named `User-Agent` (a generic library string is a Cloudflare 403) and a
+  stable `x-opencode-session` (without it the gateway answers `400
+  MissingSessionID` and cannot route efficiently). The direct route replaces a
+  local router in front of Go, whose extra hop and per-request masking is what
+  made it feel slower than OpenCode's own CLI (`docs/providers/opencode.md`).
+  `/usage` reads Go's five-hour, weekly and monthly windows from its own meter,
+  and a key whose workspace has no subscription is told so — and sent to the
+  Go page — rather than asked to sign in again.
+
 - **The full-screen mode has a sidebar and a scrollbar.** The right column
   carries the brand, the session's facts (model, cwd, context meter, permission
   mode) and what is running (tasks, subagents, background shells); it shows at

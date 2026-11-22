@@ -1657,7 +1657,7 @@ impl ModelSession {
     /// one the session is running on, which the dummy never is.
     pub(crate) fn usage_targets(&self) -> Vec<(UsageTarget, ModelConfig)> {
         let mut targets: Vec<(UsageTarget, ModelConfig)> =
-            config::subscription_choices(&self.providers, &self.env_file)
+            config::usage_choices(&self.providers, &self.env_file)
                 .into_iter()
                 .filter(|choice| choice.configured)
                 .filter_map(|choice| {
@@ -1670,7 +1670,7 @@ impl ModelSession {
                             provider: choice.id,
                             name: choice.name,
                             in_use,
-                            dashboard: llm::usage::dashboard_url(cfg.auth).map(str::to_string),
+                            dashboard: llm::usage::dashboard_url_for(&cfg).map(str::to_string),
                         },
                         cfg,
                     ))

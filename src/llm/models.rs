@@ -457,6 +457,41 @@ fn reasoning_support_of(record: &serde_json::Value) -> Option<ReasoningSupport> 
     if let Some(caps) = anthropic_capabilities(record) {
         return anthropic_reasoning(caps);
     }
+    // models.dev's `capabilities.reasoning` object — the catalog the OpenCode
+    // catalogs publish (`docs/providers/opencode.md`): `supported` plus the
+    // exact `effort` ladder the model takes. A gateway's flat
+    // `capabilities.reasoning: true` is a boolean, not this object, and never
+    // reaches here; nor does LM Studio's (handled above).
+    if let Some(reasoning) = record
+        .get("capabilities")
+        .and_then(|caps| caps.get("reasoning"))
+        .filter(|r| r.is_object())
+    {
+        if !reasoning
+            .get("supported")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+        {
+            return None;
+        }
+        let mut efforts: Vec<ReasoningEffort> = reasoning
+            .get("effort")
+            .and_then(serde_json::Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .filter_map(ReasoningEffort::parse)
+                    .collect()
+            })
+            .unwrap_or_default();
+        efforts.sort_by_key(|e| ReasoningEffort::LADDER.iter().position(|l| l == e));
+        efforts.dedup();
+        return Some(ReasoningSupport {
+            efforts,
+            can_disable: true,
+            default_effort: None,
+        });
+    }
     // The OpenRouter `reasoning` object.
     if let Some(reasoning) = record.get("reasoning").filter(|r| r.is_object()) {
         let mandatory = reasoning
@@ -687,6 +722,23 @@ fn vision_support_of(record: &serde_json::Value) -> Option<bool> {
     {
         return Some(inputs.iter().any(|m| m.as_str() == Some("image")));
     }
+    // models.dev's top-level `modalities.input` — the shape the OpenCode
+    // catalogs use (`docs/providers/opencode.md`). It spells an image as a
+    // MIME type (`image/jpeg`) rather than the word, so the test is a prefix.
+    if let Some(inputs) = record
+        .get("modalities")
+        .and_then(|m| m.get("input"))
+        .and_then(serde_json::Value::as_array)
+    {
+        return Some(
+            inputs
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .any(|m| {
+                    m.eq_ignore_ascii_case("image") || m.to_ascii_lowercase().starts_with("image/")
+                }),
+        );
+    }
     // That gateway names modalities only for a model whose modalities it
     // knows; its flat `capabilities.vision` still answers for the rest.
     if let Some(sees) = flat_capability(record, "vision") {
@@ -736,6 +788,14 @@ fn context_window_of(record: &serde_json::Value) -> Option<u64> {
             record
                 .get("max_input_tokens")
                 .and_then(serde_json::Value::as_u64)
+        })
+        .or_else(|| {
+            // models.dev's `limit` tree (`limit.context`, with `limit.output`
+            // beside it) — the shape the OpenCode catalogs publish
+            // (`docs/providers/opencode.md`). Not a gateway's
+            // `context_length`, and not `max_tokens`, which is the *output*
+            // cap beside it.
+            record.get("limit")?.get("context")?.as_u64()
         })
         .or_else(|| {
             record
@@ -1503,6 +1563,58 @@ mod tests {
             "{:?}",
             reasoning.modes()
         );
+    }
+
+    // --- models.dev's catalog (OpenCode Go — docs/providers/opencode.md) ---
+
+    /// One record in the shape `https://opencode.ai/inference/go/v1/models`
+    /// (and models.opencode.ai) sends: the window under `limit.context`, the
+    /// modalities under `modalities.input` as MIME types, and the Ctrl+T
+    /// ladder under `capabilities.reasoning.effort`.
+    fn models_dev_record(id: &str, context: u64, modalities: &str, reasoning: &str) -> String {
+        format!(
+            r#"{{"object":"list","data":[{{"id":"{id}","object":"model",
+                "owned_by":"opencode","name":"A Model",
+                "modalities":{{"input":{modalities},"output":["text"]}},
+                "capabilities":{{{reasoning}}},
+                "limit":{{"context":{context},"output":384000}}}}]}}"#
+        )
+    }
+
+    #[test]
+    fn a_models_dev_record_reports_its_window_vision_and_ctrl_t_ladder() {
+        let body = models_dev_record(
+            "deepseek-v4.1-flash",
+            1_000_000,
+            r#"["text","image/jpeg","image/png"]"#,
+            r#""tools":{"supported":true},"reasoning":{"supported":true,"effort":["low","high","max"]}"#,
+        );
+        let model = &parse_models(&body, "opencode_go").unwrap()[0];
+        assert_eq!(model.context, Some(1_000_000), "limit.context");
+        assert_eq!(model.vision, Some(true), "modalities.input MIME types");
+        let reasoning = model.reasoning.clone().expect("a reasoning model");
+        assert_eq!(
+            reasoning.efforts,
+            vec![
+                ReasoningEffort::Low,
+                ReasoningEffort::High,
+                ReasoningEffort::Max
+            ]
+        );
+        assert!(reasoning.can_disable, "omitting reasoning_effort is Off");
+    }
+
+    #[test]
+    fn a_models_dev_text_only_record_says_so() {
+        let body = models_dev_record(
+            "longcat-2.0",
+            128_000,
+            r#"["text"]"#,
+            r#""tools":{"supported":true},"reasoning":{"supported":false}"#,
+        );
+        let model = &parse_models(&body, "opencode_go").unwrap()[0];
+        assert_eq!(model.vision, Some(false));
+        assert!(model.reasoning.is_none());
     }
 
     #[test]

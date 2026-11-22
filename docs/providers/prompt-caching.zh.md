@@ -191,6 +191,14 @@ backend 都是同一个 key），每个 backend 以它真正据以做 key 的形
   `openai::chatgpt_request_headers` 负责附上它们，闸门与 Copilot 的按请求
   header 一样，精确地按 `ChatGptCodex` 认证方案设：一个粘贴 key 的 provider
   永远看不到它没要的 header。
+- 作为 header 的 **`x-opencode-session`** —— OpenCode Go
+  （`opencode.ai/inference/go/…`，`docs/providers/opencode.md`）。网关要求它：
+  没有就是 `400 MissingSessionID`，*"Request is missing x-opencode-session and
+  cannot be routed efficiently"*（已在 live 上验证），所以同一个每会话 key 一边
+  放在 header 里，一边放在请求体的 `prompt_cache_key` 里。
+  `llm::opencode::request_headers` 为任何 `/inference/go/` 下的 base 加上它
+  —— 连带这个客户端自己的 `User-Agent`，边缘也要求那个 —— 每个别的 provider
+  都不受影响。
 - **什么也不带** —— GitHub Copilot。它的代理对无法识别的请求体形状回以
   `model_not_supported`，而它的缓存是服务端的；这个 key 只是为了支持工作才搭
   `X-Request-Id` 的车（`docs/providers/copilot.md`）。

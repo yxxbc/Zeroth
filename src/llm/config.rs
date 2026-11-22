@@ -541,6 +541,7 @@ impl ProvidersFile {
             Some(explicit) if override_base.is_none() => explicit.trim_end_matches('/').to_string(),
             _ => api_base.trim_end_matches('/').to_string(),
         };
+        let extra_headers = headers_for(provider, &api_base, sel.cache_key.as_deref());
         Some(ModelConfig {
             provider_id: sel.provider_id.clone(),
             provider_name: provider.name.clone(),
@@ -556,16 +557,40 @@ impl ProvidersFile {
             context: sel.context,
             cache_key: sel.cache_key.clone(),
             service_tier: sel.service_tier.clone(),
-            extra_headers: provider
-                .extra_headers
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
+            extra_headers,
             extra_body: provider.extra_body(),
             drop_params: provider.drop_params.clone(),
             reasoning_param: provider.reasoning_param,
         })
     }
+}
+
+/// The static and credential-less per-request headers a resolved config
+/// carries: the block's `extra_headers` plus whatever the base itself asks
+/// for. OpenCode Go is the one backend that needs the latter — a named
+/// `User-Agent` and the session's routing id (`docs/providers/opencode.md`) —
+/// and a header the user already spelled in the block wins, so a custom
+/// client identity stays the user's to choose. Pure.
+fn headers_for(
+    provider: &Provider,
+    api_base: &str,
+    cache_key: Option<&str>,
+) -> Vec<(String, String)> {
+    let mut headers: Vec<(String, String)> = provider
+        .extra_headers
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    for (name, value) in super::opencode::request_headers(api_base, cache_key) {
+        if headers
+            .iter()
+            .any(|(existing, _)| existing.eq_ignore_ascii_case(&name))
+        {
+            continue;
+        }
+        headers.push((name, value));
+    }
+    headers
 }
 
 /// The shipped file's `[providers.*]` blocks as written — what a user's own
@@ -1614,6 +1639,90 @@ api_base = "https://a/v1"
     }
 
     #[test]
+    fn an_opencode_go_config_carries_the_gateways_identity_headers() {
+        // Go's gateway requires both: the edge refuses a generic library
+        // User-Agent (Cloudflare 1010) and the request is a 400 without a
+        // session id (`docs/providers/opencode.md`). The build adds them from
+        // the base, not the block, so a user's overridden base under the same
+        // path still gets them.
+        let file = ProvidersFile::builtin();
+        let cfg = file
+            .model_config(&Selection {
+                provider_id: "opencode_go".to_string(),
+                model: "deepseek-v4.1-flash".to_string(),
+                api_key: Some("oc_test".to_string()),
+                cache_key: Some("zeroth-42".to_string()),
+                ..Default::default()
+            })
+            .expect("shipped");
+        assert_eq!(cfg.api_base, "https://opencode.ai/inference/go/openai/v1");
+        assert_eq!(cfg.api_model_base, "https://opencode.ai/inference/go/v1");
+        assert_eq!(cfg.reasoning_param, ReasoningParam::ReasoningEffort);
+        assert_eq!(
+            file.get("opencode_go").unwrap().key_env("opencode_go"),
+            "OPENCODE_API_KEY"
+        );
+        let header = |name: &str| {
+            cfg.extra_headers
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(name))
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(
+            header("user-agent"),
+            Some(super::super::opencode::USER_AGENT)
+        );
+        assert_eq!(header("x-opencode-session"), Some("zeroth-42"));
+
+        // Every other provider keeps the headers its block wrote — none of
+        // the Go identity.
+        let plain = file
+            .model_config(&Selection {
+                provider_id: "venice".to_string(),
+                model: "qwen3-235b".to_string(),
+                api_key: Some("k".to_string()),
+                cache_key: Some("zeroth-42".to_string()),
+                ..Default::default()
+            })
+            .expect("shipped");
+        assert!(plain.extra_headers.is_empty());
+    }
+
+    #[test]
+    fn a_providers_own_user_agent_wins_over_the_opencode_one() {
+        // A custom client identity is the user's to choose; the session
+        // header is not static and is still added.
+        let text = r#"
+[providers.opencode_go]
+name = "OpenCode Go"
+
+[providers.opencode_go.extra_headers]
+User-Agent = "my-agent/2.0"
+
+[providers.opencode_go.kwargs]
+api_base = "https://opencode.ai/inference/go/openai/v1"
+"#;
+        let file = ProvidersFile::parse(text).expect("parses");
+        let cfg = file
+            .model_config(&Selection {
+                provider_id: "opencode_go".to_string(),
+                model: "m".to_string(),
+                api_key: Some("k".to_string()),
+                cache_key: Some("zeroth-42".to_string()),
+                ..Default::default()
+            })
+            .expect("resolves");
+        let header = |name: &str| {
+            cfg.extra_headers
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(name))
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(header("user-agent"), Some("my-agent/2.0"));
+        assert_eq!(header("x-opencode-session"), Some("zeroth-42"));
+    }
+
+    #[test]
     fn model_config_is_none_for_unknown_provider() {
         let file = ProvidersFile::builtin();
         let sel = Selection {
@@ -2326,14 +2435,18 @@ api_base = "http://localhost:20128/v1"
         };
         let cfg = file.model_config(&sel).expect("defined");
         assert_eq!(cfg.reasoning_param, ReasoningParam::ReasoningEffort);
-        // Every shipped provider, and the fallback, keeps the object.
+        // Every shipped provider but OpenCode Go keeps the object; Go reads the
+        // OpenAI top-level string its own catalog names
+        // (`docs/providers/opencode.md`).
         let shipped = ProvidersFile::builtin();
-        assert!(
-            shipped
-                .providers
-                .values()
-                .all(|p| p.reasoning_param == ReasoningParam::Reasoning)
-        );
+        for (id, provider) in &shipped.providers {
+            let expected = if id == "opencode_go" {
+                ReasoningParam::ReasoningEffort
+            } else {
+                ReasoningParam::Reasoning
+            };
+            assert_eq!(provider.reasoning_param, expected, "{id}");
+        }
         assert_eq!(
             ModelConfig::fallback().reasoning_param,
             ReasoningParam::Reasoning

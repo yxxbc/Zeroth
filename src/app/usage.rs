@@ -24,8 +24,8 @@ pub const USAGE_REFRESH_SECS: i64 = 60;
 
 /// The toast `/usage` raises with no subscription signed in — nothing to
 /// show, so no page (the `/export` and `/compact` empty rule).
-pub const USAGE_EMPTY_NOTICE: &str =
-    "No subscription signed in — use /login → Sign in with an account";
+pub const USAGE_EMPTY_NOTICE: &str = "No subscription signed in and no OpenCode Go key saved — \
+     use /login → Sign in with an account, or Sign in with an API key";
 
 /// A subscription the page reads, as the boundary found it: the provider's
 /// id and name, whether it is the one the session is running on, and its

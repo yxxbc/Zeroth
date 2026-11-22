@@ -41,6 +41,7 @@ pub mod models;
 mod oauth;
 pub mod ollama;
 pub mod openai;
+pub mod opencode;
 pub mod reasoning;
 pub mod responses;
 pub mod retry;

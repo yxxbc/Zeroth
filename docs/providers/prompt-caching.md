@@ -226,6 +226,14 @@ gets it in the form it actually keys on:
   `ChatGptCodex` auth scheme exactly as Copilot's per-request headers are
   gated on its own — a pasted-key provider never sees a header it did not
   ask for.
+- **`x-opencode-session` as a header** — OpenCode Go
+  (`opencode.ai/inference/go/…`, `docs/providers/opencode.md`). The gateway
+  requires it: without it the request is a `400 MissingSessionID`, *"Request
+  is missing x-opencode-session and cannot be routed efficiently"* (verified
+  live), so the same per-session key rides the header beside the body's
+  `prompt_cache_key`. `llm::opencode::request_headers` adds it — with this
+  client's `User-Agent`, which the edge also requires — for any base under
+  `/inference/go/`; every other provider is untouched.
 - **Nothing** — GitHub Copilot. Its proxy answers an unrecognised body shape
   with `model_not_supported`, and its caching is server-side; the key rides
   `X-Request-Id` for support's sake only (`docs/providers/copilot.md`).
