@@ -259,6 +259,34 @@ pub(super) const fn fit_preview_rows(height: u16, want: u16, other: u16) -> u16 
     if want < room { want } else { room }
 }
 
+/// The columns the **live region** is painted at — the strip, the composer,
+/// the band, the footer and the roster — as opposed to the conversation's.
+///
+/// In the screen-owning mode that is the screen minus the sidebar's column
+/// (`docs/ui/sidebar.md`), because the sidebar is the screen's right edge and
+/// the region starts at column 0. It is deliberately **one column wider than
+/// the conversation**: the scrollbar owns the conversation's rightmost column
+/// and nothing else (`term::InlineViewport::draw_full_with_tail` paints the
+/// region into the full `rest`, the bar only into `conv`).
+///
+/// The inline mode has no sidebar, so this is the screen width exactly.
+///
+/// Every count that sizes the region — [`live_height`]'s width (the composer's
+/// wrapped rows), [`fitted_preview_rows`], `hang_rows`, `queued_rows`,
+/// `band_rows`, `footer_rows` — must use this, not the screen's. Sized from the
+/// full screen while the paint happens here, a wrapped row that the narrower
+/// width adds is one the reservation never paid for; the strip then bottom-
+/// anchors and its head — the `● Thinking…` header — flows away
+/// (`docs/ui/full-screen.md` *The live region's width*).
+#[must_use]
+pub fn live_text_width(app: &App, screen_width: u16) -> u16 {
+    if app.fullscreen() {
+        screen_width.saturating_sub(super::sidebar::width(screen_width))
+    } else {
+        screen_width
+    }
+}
+
 /// [`preview_rows`] clamped to [`preview_budget`]: the rows the strip actually
 /// reserves *and* draws in a live region of `height`. The single source of
 /// truth the conversation view's geometry sizes by — [`live_height`],

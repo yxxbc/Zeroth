@@ -450,3 +450,80 @@ fn a_settled_thought_repaints_in_the_conversation_and_the_transcript() {
         "and expands in Ctrl+O: {full:?}"
     );
 }
+
+#[test]
+fn the_live_thinking_header_survives_the_sidebar_at_every_width() {
+    // The reported bug: in full-screen mode with the sidebar up, a thinking
+    // phase painted its `⎿` body with the `● Thinking…` header gone. The live
+    // region's *height* was reserved from the FULL screen width while the
+    // paint happens at the screen minus the sidebar, so the block wrapped into
+    // one more row at the painted width than the reservation had paid for; the
+    // strip's bottom-anchored flow then kept its newest rows and dropped the
+    // head (`docs/ui/thinking-stream.md`, `docs/ui/strip-flow.md`).
+    //
+    // The width rule lives in `ui::live_text_width`; the boundary's use of it
+    // is asserted where the boundary lives (`tui::view`'s own test), which is
+    // where the reservation used to be spelled from `screen.width`. This is
+    // the visible half: at every width where the sidebar is up, a region sized
+    // and painted at the width the helper names keeps the header.
+    let mut full = App::new();
+    full.set_fullscreen(true);
+    full.begin_stream();
+    full.begin_reasoning();
+    full.push_thinking(
+        "Interesting: tmux output missing version. Let me check tmux and also run a \
+         quick sanity test to demonstrate. The user wants all capabilities shown: read \
+         code, run a targeted test, use a subagent, web search. Let me check the \
+         uncommitted docs changes too.",
+    );
+    full.set_status_times(Duration::from_secs(12), None);
+    let term_h = 31;
+    let mut saw_sidebar = false;
+    for screen_w in [96u16, 120, 149, 160, 180, 200] {
+        let live_w = live_text_width(&full, screen_w);
+        assert_eq!(
+            live_w,
+            screen_w - crate::ui::sidebar_width(screen_w),
+            "the region paints in the screen minus the sidebar"
+        );
+        if live_w == screen_w {
+            continue; // no sidebar at this width: there is nothing to disagree about
+        }
+        saw_sidebar = true;
+        let band = band_rows(&full, live_w);
+        let height = live_height(
+            &full.input,
+            live_w,
+            term_h,
+            strip_has_status(&full),
+            fitted_preview_rows(&full, live_w, term_h),
+            hang_rows(&full, live_w),
+            queued_rows(&full, live_w),
+            toast_rows(&full),
+            band,
+            footer_rows(&full, band),
+            agent_list_rows(&full),
+        );
+        let mut buf = buffer(live_w, height);
+        render_workspace_live(buf.area, &mut buf, &full, Some(&[]));
+        let rows: Vec<String> = (0..height).map(|y| row(&buf, y, live_w)).collect();
+        assert!(
+            rows.iter().any(|r| r.contains("Thinking…")),
+            "screen_w={screen_w} (painted at {live_w}): the live block's header was \
+             dropped:\n{}",
+            rows.join("\n")
+        );
+    }
+    assert!(
+        saw_sidebar,
+        "the sweep must include widths that show a sidebar"
+    );
+
+    // Inline has no sidebar: the helper must hand back the full width, or the
+    // inline region would reserve rows for a column nothing paints.
+    let inline = App::new();
+    assert!(!inline.fullscreen());
+    for screen_w in [80u16, 96, 149, 200] {
+        assert_eq!(live_text_width(&inline, screen_w), screen_w);
+    }
+}
