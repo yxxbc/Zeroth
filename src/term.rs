@@ -595,7 +595,12 @@ impl InlineViewport {
                         bar_cols,
                         conv_h,
                     );
-                    crate::ui::render_scrollbar(bar, buf, &scrollbar, 0);
+                    // The bar tracks the conversation **window**, which sits at
+                    // the bottom of the area when the pinned prompt takes its
+                    // first row — so it starts there, not at the area's top.
+                    let bar_top =
+                        conv_h.saturating_sub(u16::try_from(scrollbar.len()).unwrap_or(u16::MAX));
+                    crate::ui::render_scrollbar(bar, buf, &scrollbar, bar_top);
                 }
                 let live = Rect::new(rest.x, rest.y + conv_h, rest.width, live_h);
                 render(live, buf);

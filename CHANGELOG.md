@@ -80,6 +80,13 @@ release heading when a version is cut.
 
 ### Fixed
 
+- **The full-screen scrollbar is a control now.** Click its track to jump the
+  window there (the last row is the tail) and drag its thumb to slide the
+  window proportionally; both ends clamp, and reaching the bottom resumes
+  follow-tail. The wheel and PageUp/PageDown keep their three-line and
+  page-sized steps. The bar also sits on the conversation window itself rather
+  than one row above it when a pinned prompt takes the first row.
+
 - **Full-screen mode no longer leaves ghost blocks behind when the conversation
   scrolls.** Its banner draws the text badge instead of the graphic mascot: a
   terminal image is anchored to the screen's cells, and this frame repaints and

@@ -210,6 +210,53 @@ fi
 # the bar's (`docs/ui/full-screen.md` *The frame's own chrome*).
 expect_has "$narrow" -F "▐" "the conversation's scrollbar is missing while scrolled"
 
+# The bar is a control, not just chrome: a drag on the thumb moves the window
+# with the pointer, a click on the track jumps to the row it landed on, and
+# the wheel still moves three lines (`docs/ui/full-screen.md`). One-based SGR
+# mouse sequences: press, drag, release.
+tmux send-keys -t "$S_FULL" C-End
+sleep 0.5
+at_tail="$(tmux capture-pane -p -t "$S_FULL")"
+# Press the **bottom** row of the thumb and drag it to the pane's first row:
+# the mapping's travel ratio carries the window all the way to the top, where
+# the banner and the user's message are.
+thumb_row="$(printf '%s\n' "$at_tail" | grep -nF '▐' | tail -1 | cut -d: -f1)"
+if [ -z "$thumb_row" ]; then
+	fail "the scrollbar's thumb is not on screen at the tail"
+fi
+tmux send-keys -t "$S_FULL" -l "$(printf '\033[<0;80;%sM\033[<32;80;1M\033[<0;80;1m' "$thumb_row")"
+if ! wait_for 3 "$S_FULL" -F "Connect a model"; then
+	fail "dragging the scrollbar thumb to the top did not scroll to the banner"
+fi
+dragged="$(tmux capture-pane -p -t "$S_FULL")"
+echo "==== Phase 156: captured pane (dragging the scrollbar thumb scrolled to the top) ===="
+printf '%s\n' "$dragged" | sed -n '1,4p'
+expect_has "$dragged" -F "❯ hello" "dragging the thumb to the top did not show the user's message"
+
+# The wheel still moves three lines: from the top, three wheel-down events
+# take the banner's first row off screen.
+tmux send-keys -t "$S_FULL" -l $'\033[<65;40;10M\033[<65;40;10M\033[<65;40;10M'
+sleep 0.5
+wheeled="$(tmux capture-pane -p -t "$S_FULL")"
+echo "==== Phase 156: captured pane (three wheel-down lines) ===="
+printf '%s\n' "$wheeled" | sed -n '1,3p'
+if printf '%s\n' "$wheeled" | grep -qF "Zeroth (v"; then
+	fail "the wheel did not move the conversation (the banner is still at the top)"
+fi
+
+# A click on the track's last row is the tail: the window jumps there, so the
+# closing rows are back. The composer's top rule is the first full-width rule
+# below the conversation.
+rule_row="$(printf '%s\n' "$wheeled" | grep -n '^──' | head -1 | cut -d: -f1)"
+track_bottom=$((${rule_row:-0} - 1))
+if [ "$track_bottom" -le 0 ]; then
+	fail "the composer's rule is not below the conversation"
+fi
+tmux send-keys -t "$S_FULL" -l "$(printf '\033[<0;80;%sM\033[<0;80;%sm' "$track_bottom" "$track_bottom")"
+if ! wait_for 3 "$S_FULL" -F "Review the current worktree with /diff"; then
+	fail "a click on the scrollbar's track did not jump to the tail"
+fi
+
 # Quit, then read the recording: entry and exit must both be real
 # alternate-screen switches, so the shell is never stranded on the alt screen.
 tmux send-keys -t "$S_FULL" C-c

@@ -116,7 +116,8 @@ pub use self::conversation::{
 pub use self::diff_view::{diff_body_rows, render_diff_view};
 pub use self::scrollbar::{
     COLUMNS as SCROLLBAR_COLUMNS, Cell as ScrollbarCell, render as render_scrollbar,
-    rows as scrollbar_rows,
+    rows as scrollbar_rows, thumb as scrollbar_thumb, top_after_drag as scrollbar_top_after_drag,
+    top_for_row as scrollbar_top_for_row,
 };
 pub use self::selection::{highlight, slice};
 pub use self::sidebar::{

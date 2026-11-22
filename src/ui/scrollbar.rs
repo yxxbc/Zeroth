@@ -10,7 +10,10 @@
 //! when the reader is following the text.
 //!
 //! Pure: [`rows`] turns the scroll state into one cell per row, so the shape of
-//! the thumb (its size, its clamped ends) is unit-tested without a terminal.
+//! the thumb (its size, its clamped ends) is unit-tested without a terminal;
+//! [`top_for_row`] and [`top_after_drag`] are its inverse for the pointer, so a
+//! track click and a thumb drag map to a scroll position the same way without
+//! a terminal too.
 
 use super::theme::*;
 use super::*;
@@ -26,6 +29,52 @@ pub enum Cell {
     Thumb,
 }
 
+/// The geometry both the painter and the pointer mapping share: a `height`-row
+/// track, the thumb's size, the travel left for it, and the largest top.
+struct Track {
+    height: usize,
+    size: usize,
+    travel: usize,
+    max_top: usize,
+}
+
+/// The track for a conversation of `len` rows showing `window` of them, or
+/// `None` when there is nothing to scroll (the one rule [`rows`] and the
+/// pointer mappings agree on).
+fn track(len: usize, window: usize, height: u16) -> Option<Track> {
+    let height = usize::from(height);
+    if height == 0 || window == 0 {
+        return None;
+    }
+    let max_top = len.saturating_sub(window);
+    if max_top == 0 {
+        return None;
+    }
+    let size = ((height * window) / len.max(1)).clamp(1, height);
+    Some(Track {
+        height,
+        size,
+        travel: height - size,
+        max_top,
+    })
+}
+
+/// The thumb's first row and length on a `height`-row track for `top` — what a
+/// press needs to tell a grab on the thumb from a click on the track.
+#[must_use]
+pub fn thumb(len: usize, window: usize, top: usize, height: u16) -> Option<(usize, usize)> {
+    let track = track(len, window, height)?;
+    let top = top.min(track.max_top);
+    // Travel 0 means the thumb fills the track (a one-row window): there is
+    // nowhere to put a position, so the thumb stays at the start.
+    let offset = if track.travel == 0 {
+        0
+    } else {
+        (top * track.travel + track.max_top / 2) / track.max_top
+    };
+    Some((offset, track.size))
+}
+
 /// The bar for a conversation of `len` rows showing `window` of them from
 /// `top`, in a `height`-row column.
 ///
@@ -37,23 +86,61 @@ pub enum Cell {
 /// than painting a full-length thumb that says nothing.
 #[must_use]
 pub fn rows(len: usize, window: usize, top: usize, height: u16) -> Option<Vec<Cell>> {
-    let height = usize::from(height);
-    if height == 0 || window == 0 {
-        return None;
-    }
-    let max_top = len.saturating_sub(window);
-    if max_top == 0 {
-        return None;
-    }
-    let thumb = ((height * window) / len.max(1)).clamp(1, height);
-    let travel = height - thumb;
-    let top = top.min(max_top);
-    let offset = (top * travel + max_top / 2) / max_top;
-    let mut cells = vec![Cell::Track; height];
-    for cell in cells.iter_mut().skip(offset).take(thumb) {
+    let track = track(len, window, height)?;
+    let top = top.min(track.max_top);
+    let offset = if track.travel == 0 {
+        0
+    } else {
+        (top * track.travel + track.max_top / 2) / track.max_top
+    };
+    let mut cells = vec![Cell::Track; track.height];
+    for cell in cells.iter_mut().skip(offset).take(track.size) {
         *cell = Cell::Thumb;
     }
     Some(cells)
+}
+
+/// The conversation top for a click on the track's `row`: the pointer's row
+/// becomes the thumb's first row, so a click near the bottom lands at the tail.
+///
+/// `None` when there is nothing to scroll — the bar is not painted and the
+/// column takes no click (`Session::full_bar_row`).
+#[must_use]
+pub fn top_for_row(len: usize, window: usize, height: u16, row: u16) -> Option<usize> {
+    let track = track(len, window, height)?;
+    if track.travel == 0 {
+        return Some(0);
+    }
+    let start = usize::from(row).min(track.travel);
+    Some((start * track.max_top + track.travel / 2) / track.travel)
+}
+
+/// The conversation top after dragging a grabbed thumb `delta` track rows,
+/// starting from `top`.
+///
+/// The travel is proportional — a short thumb covers many rows of conversation
+/// per row of track — and a `delta` of zero keeps `top` exactly, so a press
+/// with no movement never jumps under the pointer. Both ends clamp.
+#[must_use]
+pub fn top_after_drag(
+    len: usize,
+    window: usize,
+    height: u16,
+    top: usize,
+    delta: isize,
+) -> Option<usize> {
+    let track = track(len, window, height)?;
+    let top = top.min(track.max_top);
+    if track.travel == 0 {
+        return Some(0);
+    }
+    // Round half away from zero, so a drag of `travel` rows is the whole
+    // conversation in either direction.
+    let steps = (delta.unsigned_abs() as i128 * track.max_top as i128 + (track.travel / 2) as i128)
+        / track.travel as i128;
+    let sign = if delta < 0 { -1 } else { 1 };
+    let target = top as i128 + sign * steps;
+    Some(target.clamp(0, track.max_top as i128) as usize)
 }
 
 /// Paint a bar down the right edge of `area`, which must be one column wide.

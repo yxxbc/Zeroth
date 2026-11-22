@@ -433,6 +433,7 @@ impl Session<'_> {
                 self.full_hover = None;
                 self.full_press = None;
                 self.full_select = None;
+                self.full_bar_drag = None;
                 self.full_items.clear();
                 self.full_anchor = None;
             }

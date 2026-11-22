@@ -584,6 +584,7 @@ impl<'t> Session<'t> {
             full_hover: None,
             full_press: None,
             full_select: None,
+            full_bar_drag: None,
             full_start: 0,
             full_expanded: std::collections::HashSet::new(),
             full_items: Vec::new(),

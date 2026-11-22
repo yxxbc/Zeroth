@@ -187,6 +187,12 @@ pub(crate) struct Session<'t> {
     /// release to tell a click (open a link) from a drag (copy).
     full_press: Option<(usize, u16)>,
     full_select: Option<((usize, u16), (usize, u16))>,
+    /// A drag in progress on the scrollbar: the screen row the left button
+    /// went down on and the conversation top at that moment. Kept beside the
+    /// selection anchors because the bar is chrome, not conversation — a drag
+    /// there must move the window, not select text
+    /// (`docs/ui/full-screen.md`).
+    full_bar_drag: Option<(u16, usize)>,
     /// The tail index of the first painted conversation row — how screen rows
     /// map back to `full_select`/`full_tail`.
     full_start: usize,

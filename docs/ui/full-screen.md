@@ -234,7 +234,13 @@ still applies.
   thumb sized to the share on show and placed on the track by the scroll
   position (`ui::scrollbar_rows`, `ui::render_scrollbar`). Nothing else says
   where in a long conversation the window sits, and a wheel that moves the
-  conversation without a mark is the inline mode's one advantage lost.
+  conversation without a mark is the inline mode's one advantage lost. The bar
+  is also a **control**: a click on the track jumps the window so the clicked
+  row becomes the thumb (a click on the last row is the tail), a press on the
+  thumb and a drag slide the window proportionally with the pointer, and both
+  ends clamp — reaching the bottom resumes follow-tail like every other
+  scroll (`ui::scrollbar_top_for_row`, `ui::scrollbar_top_after_drag`,
+  `full_bar_drag`).
 - **Mouse.** Capture is on for the session (and disabled on exit). The last
   painted conversation rows are the hit map (`full_window`): moving over a link
   underlines its run, a left click with no drag opens it through the platform
