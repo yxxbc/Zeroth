@@ -36,6 +36,8 @@
 - [`architecture/concurrency.md`](architecture/concurrency.md)：并发 —— 回合在哪里阻塞，什么在同时跑
 - [`architecture/context-usage.md`](architecture/context-usage.md)：`/context` —— 什么在占用上下文窗口
 - [`architecture/context.md`](architecture/context.md)：对话上下文、视觉附件与 Ctrl+D 调试视图
+- [`architecture/core-seam-decision.md`](architecture/core-seam-decision.md)：内核接缝 —— 推迟 host 重构，以及让它保持便宜的规则
+- [`architecture/core-host-split.md`](architecture/core-host-split.md)：core/host 拆分 —— 分阶段方案，从一个小切片开始
 - [`architecture/dummy-backend.md`](architecture/dummy-backend.md)：dummy 后端及其场景注册表
 - [`architecture/environment.md`](architecture/environment.md)：系统提示里的环境上下文 —— 设计
 - [`architecture/herdr.md`](architecture/herdr.md)：herdr 支持 —— 由 agent 自己上报的窗格状态

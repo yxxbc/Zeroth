@@ -19,6 +19,8 @@ How the crate is put together: module layout, the async loop, the context, token
 - [`architecture/concurrency.md`](architecture/concurrency.md): Concurrency — where the turn blocks, and what runs at once
 - [`architecture/context-usage.md`](architecture/context-usage.md): `/context` — what fills the context window
 - [`architecture/context.md`](architecture/context.md): The conversation context, vision attachments, and the Ctrl+D debug view
+- [`architecture/core-seam-decision.md`](architecture/core-seam-decision.md): The core seam — a host refactor deferred, and the rules that keep it cheap
+- [`architecture/core-host-split.md`](architecture/core-host-split.md): The core/host split — a phased plan, starting with one small slice
 - [`architecture/dummy-backend.md`](architecture/dummy-backend.md): The dummy backend and its scenario registry
 - [`architecture/environment.md`](architecture/environment.md): Environment context in the system prompt — Design
 - [`architecture/herdr.md`](architecture/herdr.md): herdr support — the pane's state, reported by the agent itself
