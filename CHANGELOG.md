@@ -80,6 +80,14 @@ release heading when a version is cut.
 
 ### Fixed
 
+- **A thinking phase keeps its `● Thinking…` header in full-screen mode.** With
+  the sidebar up, the live region's height was reserved from the full screen
+  width while the region is painted one sidebar narrower, so the block wrapped
+  into one more row than had been paid for; the strip's bottom-anchored flow
+  then kept its newest rows and dropped the header. The height is now computed
+  at the painted width (`ui::live_text_width`). Inline mode is unchanged — it
+  has no sidebar.
+
 - **The full-screen scrollbar is a control now.** Click its track to jump the
   window there (the last row is the tail) and drag its thumb to slide the
   window proportionally; both ends clamp, and reaching the bottom resumes

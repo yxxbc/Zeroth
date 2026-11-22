@@ -1176,22 +1176,34 @@ pub(crate) fn recheck_pictures(history: &[HistoryItem]) {
 ///
 /// A free function (not a [`Session`] method) because the commit paths call it
 /// while `app` is already borrowed out of `self`.
+///
+/// Every count is taken at [`ui::live_text_width`] — the width the region is
+/// actually **painted** at, which in the screen-owning mode is the screen minus
+/// the sidebar, not the screen. Reserving from the wider number paid for fewer
+/// wrapped rows than the paint took, so an open thinking phase's strip
+/// overflowed by one row and its bottom-anchored flow ate the `● Thinking…`
+/// header (the reported bug, `docs/ui/full-screen.md` *The live region's
+/// width*).
 fn live_region_height(app: &App, screen: ratatui::layout::Rect) -> u16 {
+    // The width the region is **painted** at — the screen minus the sidebar in
+    // the screen-owning mode, the screen itself inline. Every height below is
+    // a wrap count, so all of them are this width's (`ui::live_text_width`).
+    let width = ui::live_text_width(app, screen.width);
     // The `AskUserQuestion` modal replaces the whole region — checked first,
     // like its render branch (the two modals queue, so at most one is open;
     // docs/tools/ask.md).
-    if let Some(height) = ui::ask_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::ask_height(app, width, screen.height) {
         return height;
     }
     // A pending tool-permission request replaces the whole region — the
     // streaming strip included, since the turn is blocked on the answer. It is
     // modal, so it is checked first (docs/state/permissions.md).
-    if let Some(height) = ui::permission_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::permission_height(app, width, screen.height) {
         return height;
     }
     // The startup review replaces the composer next — only a modal outranks
     // it, its render branch's order (docs/state/config-review.md).
-    if let Some(height) = ui::config_review_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::config_review_height(app, width, screen.height) {
         return height;
     }
     // The inline `/model` picker, `/login` flow, `/settings` menu and ↓
@@ -1200,68 +1212,68 @@ fn live_region_height(app: &App, screen: ratatui::layout::Rect) -> u16 {
     // themselves so opening one mid-turn can't hide the running turn (see
     // docs/providers/llm.md / docs/state/settings.md / docs/tools/background.md); the open one's
     // height stands in for the composer's.
-    if let Some(height) = ui::model_picker_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::model_picker_height(app, width, screen.height) {
         return height;
     }
-    if let Some(height) = ui::key_onboarding_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::key_onboarding_height(app, width, screen.height) {
         return height;
     }
     // The inline `/settings` menu, likewise (docs/state/settings.md).
-    if let Some(height) = ui::settings_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::settings_height(app, width, screen.height) {
         return height;
     }
     // The inline `/mascot` picker, likewise (docs/ui/mascot.md).
-    if let Some(height) = ui::mascot_picker_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::mascot_picker_height(app, width, screen.height) {
         return height;
     }
     // The inline `/spinner` picker, likewise (docs/ui/spinner.md).
-    if let Some(height) = ui::spinner_picker_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::spinner_picker_height(app, width, screen.height) {
         return height;
     }
     // The inline `/theme` picker, likewise (docs/ui/theme.md).
-    if let Some(height) = ui::theme_picker_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::theme_picker_height(app, width, screen.height) {
         return height;
     }
     // The inline `/skills` menu, likewise (docs/tools/skills.md).
-    if let Some(height) = ui::skills_menu_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::skills_menu_height(app, width, screen.height) {
         return height;
     }
     // The read-only `/hooks` menu, likewise (docs/tools/hooks-menu.md).
-    if let Some(height) = ui::hooks_menu_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::hooks_menu_height(app, width, screen.height) {
         return height;
     }
     // The `/secrets` page, likewise (docs/state/secrets.md).
-    if let Some(height) = ui::secrets_picker_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::secrets_picker_height(app, width, screen.height) {
         return height;
     }
     // The read-only `/donate` page, likewise (docs/ui/donate.md).
-    if let Some(height) = ui::donate_picker_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::donate_picker_height(app, width, screen.height) {
         return height;
     }
     // The read-only `/export` page, likewise (docs/ui/export.md).
-    if let Some(height) = ui::export_picker_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::export_picker_height(app, width, screen.height) {
         return height;
     }
     // The read-only `/context` page, likewise (docs/architecture/context-usage.md).
-    if let Some(height) = ui::context_usage_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::context_usage_height(app, width, screen.height) {
         return height;
     }
     // The read-only `/usage` page, likewise (docs/providers/usage.md).
-    if let Some(height) = ui::usage_page_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::usage_page_height(app, width, screen.height) {
         return height;
     }
-    if let Some(height) = ui::background_view_height(app, screen.width, screen.height) {
+    if let Some(height) = ui::background_view_height(app, width, screen.height) {
         return height;
     }
-    let band = ui::band_rows(app, screen.width);
+    let band = ui::band_rows(app, width);
     ui::live_height(
         &app.input,
-        screen.width,
+        width,
         screen.height,
         ui::strip_has_status(app),
-        ui::fitted_preview_rows(app, screen.width, screen.height),
-        ui::hang_rows(app, screen.width),
-        ui::queued_rows(app, screen.width),
+        ui::fitted_preview_rows(app, width, screen.height),
+        ui::hang_rows(app, width),
+        ui::queued_rows(app, width),
         ui::toast_rows(app),
         band,
         ui::footer_rows(app, band),
@@ -1378,5 +1390,107 @@ impl Session<'_> {
                 self.frame.schedule_frame_in(deadline - now);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+
+    use zeroth::app::App;
+    use zeroth::ui;
+
+    use super::live_region_height;
+
+    /// A full-screen app with an open thinking phase whose block wraps into a
+    /// different number of display rows on either side of the sidebar's edge.
+    fn thinking_app() -> App {
+        let mut app = App::new();
+        app.set_fullscreen(true);
+        app.begin_stream();
+        app.begin_reasoning();
+        app.push_thinking(
+            "Interesting: tmux output missing version. Let me check tmux and also run a \
+             quick sanity test to demonstrate. The user wants all capabilities shown: read \
+             code, run a targeted test, use a subagent, web search. Let me check the \
+             uncommitted docs changes too.",
+        );
+        app
+    }
+
+    /// The region's height from the `ui` counts alone, at the width it is
+    /// painted at — what the boundary must reserve. Spelled here rather than
+    /// read back out of [`live_region_height`], so the two are independent.
+    fn wanted_height(app: &App, painted_w: u16, term_h: u16) -> u16 {
+        let band = ui::band_rows(app, painted_w);
+        ui::live_height(
+            &app.input,
+            painted_w,
+            term_h,
+            ui::strip_has_status(app),
+            ui::fitted_preview_rows(app, painted_w, term_h),
+            ui::hang_rows(app, painted_w),
+            ui::queued_rows(app, painted_w),
+            ui::toast_rows(app),
+            band,
+            ui::footer_rows(app, band),
+            ui::agent_list_rows(app),
+        )
+    }
+
+    #[test]
+    fn the_live_region_reserves_its_height_at_the_width_it_paints() {
+        // The reported bug: full screen, sidebar up, and a thinking phase
+        // painted its `⎿` body with the `● Thinking…` header gone. The live
+        // region's height was reserved from the **full screen width** while
+        // `term::InlineViewport::draw_full_with_tail` paints it into the
+        // screen minus the sidebar, so the block wrapped into one more display
+        // row at the painted width than the reservation had paid for — and the
+        // strip's bottom-anchored flow kept its newest rows and dropped the
+        // head (`docs/ui/strip-flow.md`, `docs/ui/full-screen.md`).
+        //
+        // This is the boundary's own width decision, which a `ui` test cannot
+        // reach: the height must be reserved from the width the region is
+        // painted at. Widths where the sidebar is hidden are skipped — there
+        // the two are the same number and nothing can disagree.
+        let app = thinking_app();
+        let term_h = 31;
+        let mut checked = 0;
+        for screen_w in [96u16, 111, 112, 120, 149, 160, 180, 200] {
+            let painted_w = screen_w - ui::sidebar_width(screen_w);
+            if painted_w == screen_w {
+                continue;
+            }
+            checked += 1;
+            let screen = Rect::new(0, 0, screen_w, term_h);
+            let reserved = live_region_height(&app, screen);
+            let want = wanted_height(&app, painted_w, term_h);
+            // Paint the region into exactly the rect the boundary gives it:
+            // the screen minus the sidebar, the reserved height.
+            let mut buf = Buffer::empty(Rect::new(0, 0, painted_w, reserved));
+            ui::render_workspace_live(buf.area, &mut buf, &app, Some(&[]));
+            let painted: Vec<String> = (0..reserved)
+                .map(|y| (0..painted_w).map(|x| buf[(x, y)].symbol()).collect())
+                .collect();
+            let header = painted.iter().any(|row| row.contains("Thinking…"));
+            assert_eq!(
+                reserved,
+                want,
+                "screen_w={screen_w} (painted at {painted_w}): the region reserved \
+                 {reserved} rows but its content needs {want}\n{}",
+                painted.join("\n")
+            );
+            assert!(
+                header,
+                "screen_w={screen_w} (painted at {painted_w}): the live block's \
+                 header was dropped\n{}",
+                painted.join("\n")
+            );
+        }
+        assert!(
+            checked >= 4,
+            "the sweep must cover the sidebar's three bands"
+        );
     }
 }

@@ -118,6 +118,32 @@ the inline strip uses. Because the frame is rebuilt from history, `/resume`, a
 rewind, `/clear` and a resize are just a redraw — no purge/rebuild dance, no
 `insert_before` queue, no viewport pinning.
 
+#### The live region's width
+
+The region's **height** is computed at the width the region is **painted** at,
+not at the screen's: `ui::live_text_width` is the screen minus the sidebar's
+column (`docs/ui/sidebar.md`), and every count that sizes the region — the
+composer's wrapped rows, `ui::fitted_preview_rows`, `hang_rows`, `queued_rows`,
+`band_rows`, `footer_rows` — is taken at it (`tui::view`'s
+`live_region_height`). It is deliberately one column wider than the
+conversation, which also gives up the scrollbar's column: `draw_full_with_tail`
+paints the live region into the whole `rest` and the bar only into `conv`.
+Inline has no sidebar, so there the helper returns the screen width and that
+mode's geometry is untouched.
+
+Sizing it from `screen.width` was a real bug, and the symptom is worth keeping:
+with the sidebar up during a thinking phase, the live block showed its `⎿` rows
+with the `● Thinking…` header **missing**, above a blank gap and the status
+line. The reservation was made for the wide width, where the three-row think
+wrapped into three rows; at the painted width it wrapped into four. The strip's
+content is built at the full ask while the region only reserved the fit, so it
+overflowed by exactly one row — and the strip's bottom-anchored flow
+(`docs/ui/strip-flow.md`), correctly, kept its newest rows and flowed the head
+away. The flow rule was never wrong; the row count reserved before the paint
+was. At 149 columns the region reserved ten rows and its content needed eleven.
+An 80-column smoke phase could not see it, because the sidebar only exists at
+96 columns and wider.
+
 ### Scrolling
 
 The conversation is taller than the screen, so the mode owns a scroll model

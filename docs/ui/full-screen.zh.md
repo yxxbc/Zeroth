@@ -104,6 +104,25 @@ transcript 缓存（`ui::transcript::TranscriptCache`）已经按宽度渲染一
 和 resize 都只是重画一次 —— 没有 purge/rebuild 的舞步，没有 `insert_before`
 队列，也没有 viewport 钉住。
 
+#### live 区域的宽度
+
+区域的高度按它**真正被画上去**的宽度计算，而不是按屏幕宽度：
+`ui::live_text_width` 是屏幕减去侧栏那一列（`docs/ui/sidebar.md`），而给区域定
+高的每一个计数 —— composer 换行后的行数、`ui::fitted_preview_rows`、
+`hang_rows`、`queued_rows`、`band_rows`、`footer_rows` —— 都按它来
+（`tui::view` 的 `live_region_height`）。它比对话**故意宽一列**：对话还让出了
+滚动条那一列，`draw_full_with_tail` 把 live 区域画进整个 `rest`，滚动条只画进
+`conv`。内联模式没有侧栏，所以那里助手返回屏幕宽度，那个模式的几何一点没变。
+
+按 `screen.width` 来算是一个真实的 bug，它的症状值得记住：开着侧栏的思考阶段里，
+live 区块只剩 `⎿` 正文行，`● Thinking…` 表头**不见了**，上方一条空白，下面是
+状态行。预留是按宽的那个宽度做的 —— 那里三行思考只折成三行；而在真正画上去的
+宽度它折成了四行。条带的内容按完整的需求量构建，区域却只预留了放得下的行数，
+于是恰好溢出一行 —— 条带贴底锚定的流动（`docs/ui/strip-flow.md`）于是（正确地）
+保住了最新的行，把表头流走了。流动规则从来没错；错的是画之前预留的行数。在 149 列
+时，区域预留了十行，而内容需要十一行。80 列的 smoke 阶段看不到它，因为侧栏只在
+96 列及以上才存在。
+
 ### 滚动
 
 对话比屏幕高，所以这个模式拥有一个滚动模型（参考实现 `BodyView`）：

@@ -110,6 +110,16 @@ something is still happening.
 `ui::preview_rows` sizes the same block from the same state (the strip's
 `debug_assert` holds it to that), so the box and cursor stay seated.
 
+That count is of **display rows**, so it moves with the wrap width — which is
+why the region above it must be reserved at the width it is painted at. It was
+not, in full-screen mode with the sidebar up: the height came from the full
+screen while the block was painted one sidebar narrower, so the three-row tail
+wrapped onto a fourth row the reservation had never paid for and the strip's
+bottom-anchored flow kept the body and dropped the `● Thinking…` header
+(`docs/ui/full-screen.md` *The live region's width*). A block whose width
+changes the row count is the shape that exposes it; nothing about the block
+itself was wrong.
+
 The reasoning branch sits **after** the agent/tool branches and **before** the
 streaming-reply branch. In practice they never collide — reasoning precedes
 both the text and the tool calls of its round — but a tool that is genuinely
