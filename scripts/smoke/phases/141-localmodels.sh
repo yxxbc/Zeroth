@@ -165,14 +165,14 @@ l_clear() {
 # l_server SESSION NAME DOWNS — /login → Sign in with a local model → the server DOWNS
 # rows down the list, and print its page.
 l_server() {
-	local _
+	local step
 	submit "$1" "/login"
 	wait_for 5 "$1" -F "Sign in with a local model" || fail "/login did not open"
 	keys "$1" Home Down Down # the local-model row precedes management
 	sleep 0.2
 	keys "$1" Enter
 	wait_for 5 "$1" -F "enter connect" || fail "Sign in with a local model did not open the server list"
-	for _ in $(seq 1 "$3"); do keys "$1" Down; done
+	for (( step = 0; step < $3; step++ )); do keys "$1" Down; done
 	sleep 0.2
 	keys "$1" Enter
 	wait_pane 5 "$1" -F "Enter your $2 server URL"
@@ -381,6 +381,14 @@ l_saved LLAMACPP_HOST "$llama" || fail "LLAMACPP_HOST=$llama was not saved to .e
 grep -qF "llama.cpp GET /v1/models" "$L_LOG" || fail "the test did not read llama.cpp's listing"
 submit "$S141K" "/model"
 picker="$(wait_pane 10 "$S141K" -F "local-gguf")" || fail "/model did not list llama.cpp's model"
+# Multiple configured servers use provider headings instead of per-row tags.
+# Filter to this model: a single-provider result must keep its source tag
+# (docs/providers/llm.md), independently of which other servers answered first.
+for _ in $(seq 1 32); do keys "$S141K" BSpace; done
+sleep 0.2
+type_text "$S141K" "local-gguf"
+picker="$(wait_pane 10 "$S141K" -E "local-gguf +\[llamacpp\]")" || fail "the filtered model is not tagged with llama.cpp"
+dump "llama.cpp's filtered model" "$picker"
 expect_has "$picker" -E "local-gguf +\[llamacpp\]" "the model is not tagged with llama.cpp"
 tmux kill-session -t "$S141K" 2>/dev/null
 note "Sign in with a local model tests and saves LM Studio, Ollama and llama.cpp addresses, and explains refusals, overrides and context overflow"
