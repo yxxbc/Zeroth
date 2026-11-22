@@ -34,7 +34,7 @@ printf '%s\n' "$settings_open"
 # instead of in that feature's own phase. A row past the window is reached the
 # way a user reaches it: the type-to-search this phase drives next.
 for expect in "Settings" "Changes take effect at once and persist across sessions" \
-	"Hide thinking" "Auto-resize images" \
+	"Hide thinking" "Sidebar" "Show images" \
 	"Type to search · Enter/Space to change · Esc to cancel"; do
 	expect_has "$settings_open" -F "$expect" "the settings menu is missing '$expect'"
 done
