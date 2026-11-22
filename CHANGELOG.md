@@ -16,6 +16,64 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **`--inline` switches back to the conversation-in-scrollback viewport, and
+  `ZEROTH_TUI=inline` matches it.** Asking for both viewports at once is
+  refused; the flag is what pins the old mode in an alias or a script.
+
+- **Clicks answer the permission prompt and pick a `/resume` session.** A click
+  highlights an option (or row); a click on the highlighted one chooses it — two
+  steps, so a stray click on a destructive prompt never becomes consent.
+
+- **Full-screen mode switches conversations from a session bar.** The bottom
+  row lists the main conversation then the visible subagents; `↓` from an empty
+  composer focuses it, `←`/`→` move the focus, `Enter` switches, `↑` returns to
+  the composer, and a click on a tab switches directly. Background shells never
+  take a tab. Switching restores each conversation's draft, cursor, scroll
+  position and expanded cells.
+
+### Changed
+
+- **Full-screen mode is now the default.** A bare `zeroth` lays the conversation
+  out inside the window, with its own scrolling, mouse, drag-copy,
+  click-to-expand and the session bar; `--inline` (or `ZEROTH_TUI=inline`) keeps
+  the conversation in the terminal's scrollback and is still fully supported.
+
+- **Ctrl+O keeps its role in full-screen mode.** It stays the whole-transcript
+  pager (every cell expanded at once) and the Esc-Esc backtrack surface; a
+  collapsed cell there opens either by clicking it in place or through that
+  page.
+
+- **Leaving full-screen mode restores the shell's screen, and the exit hint
+  keeps the conversation reachable.** Quitting prints the session's
+  `zeroth --resume <id>` line below the restored terminal instead of leaving a
+  screen of conversation in scrollback.
+
+- **The pinned prompt is a summary of the whole message.** It appears only once
+  the message has scrolled entirely off the top, folds its breaks onto one line
+  with `…` when too long, lights up under the pointer, and scrolls back to the
+  prompt when clicked.
+
+### Fixed
+
+- **Selecting text in full-screen mode highlights exactly what it copies.** The
+  selection is cut on grapheme boundaries, so a wide glyph or a joined emoji is
+  never split, and the spans are split at the selection's edges — picking three
+  characters inside a word no longer flashes the whole word as selected.
+- **Full-screen mode no longer re-renders the whole conversation on every
+  streaming chunk.** The finished rows are cached and the in-flight reply is
+  drawn over them, which is 18–29× cheaper per chunk — a 1,000-turn session
+  went from 8.2 ms to 0.29 ms — so long sessions stream without dropping frames.
+- **`/compact` no longer fails when the summarization request is larger than the
+  model's input limit.** It retries without the oldest history unit — a tool
+  call travels with its results — up to four trims, and leaves the transcript
+  untouched.
+- **A release bumps the Chinese README's version badge too.** `prepare` and
+  `check` covered `README.md` only, so the translation's badge would have stayed
+  on the old version while the docs parity script — which compares code spans
+  and links — saw nothing wrong.
+
 ## [0.21.0] - 2026-11-21
 
 ### Fixed
