@@ -68,7 +68,7 @@ pub const NARROW_COLS: u16 = 24;
 ///
 /// Three bands, the policy every terminal sidebar follows: wide screens get
 /// the full column, a middle band a narrowed one, and narrower than
-/// [`MIN_SCREEN_COLS`] nothing at all. A hidden sidebar costs the conversation
+/// `MIN_SCREEN_COLS` nothing at all. A hidden sidebar costs the conversation
 /// nothing, which is the point of the middle band existing rather than the
 /// column shrinking to nothing.
 #[must_use]

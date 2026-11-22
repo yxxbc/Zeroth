@@ -83,7 +83,7 @@ fn styled(span: &Span<'static>, text: String, inside: bool) -> Span<'static> {
 /// The text of `line` in display columns `[from, to)`, cut on grapheme
 /// boundaries and with its trailing blanks trimmed.
 ///
-/// The same [`selected`] test [`highlight`] paints with, so what is copied is
+/// The same `selected` test [`highlight()`] paints with, so what is copied is
 /// what was shown as copied.
 #[must_use]
 pub fn slice(line: &Line<'static>, from: u16, to: u16) -> String {
