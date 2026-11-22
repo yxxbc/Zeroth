@@ -164,7 +164,7 @@ impl Session<'_> {
         let prompt = texts.join("\n");
         self.app.count_user_input(&prompt);
         self.app.count_input_images(image_count);
-        self.render.reset();
+        self.view.render.reset();
         // Start the turn clock; the draw branch keeps the status animated from
         // here.
         self.clocks.start_turn();
@@ -268,7 +268,7 @@ impl Session<'_> {
             self.term
                 .insert_before(ui::message_lines(Role::Shell, &command, width));
         }
-        self.render.reset();
+        self.view.render.reset();
         self.clocks.start_turn();
         // The `!` shell run IS the command (no separate ToolStart), so start its
         // Ctrl+B-hint clock here — a quick `!` command never flashes the hint.
@@ -302,7 +302,7 @@ impl Session<'_> {
             .collect::<Vec<_>>()
             .join("\n\n");
         self.app.count_user_input(&prompt);
-        self.render.reset();
+        self.view.render.reset();
         // A follow-up turn about background completions — text, no command yet.
         self.clocks.start_turn();
         // The agent that just finished in the background may have written a
@@ -333,7 +333,7 @@ impl Session<'_> {
             .compact_backend(self.app.thinking.as_ref().map(|t| t.mode), auto);
         self.app.begin_compact(auto);
         self.app.count_user_input(context::SUMMARIZATION_PROMPT);
-        self.render.reset();
+        self.view.render.reset();
         self.clocks.start_turn();
         let cancel = CancelToken::new();
         // The summarizer reads the same window the model does — the AGENTS.md

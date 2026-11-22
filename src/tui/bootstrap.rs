@@ -568,38 +568,15 @@ impl<'t> Session<'t> {
             term,
             app,
             models,
-            render,
-            agent_render,
-            transcript: ui::TranscriptCache::new(),
-            full_tail: None,
-            full_stream_lines: Vec::new(),
-            full_top: None,
-            full_tail_dirty: false,
-            full_tab_hits: ui::SessionBarHits::default(),
-            full_tab_press: None,
-            full_reading: HashMap::new(),
-            full_len: 0,
-            full_conv_h: 0,
-            full_window: Vec::new(),
-            full_hover: None,
-            full_press: None,
-            full_select: None,
-            full_bar_drag: None,
-            full_start: 0,
-            full_expanded: std::collections::HashSet::new(),
-            full_items: Vec::new(),
-            full_anchor: None,
-            cards,
-            card_pending: std::collections::HashSet::new(),
+            view: super::view::ConversationView {
+                render,
+                agent_render,
+                cards,
+                ..super::view::ConversationView::default()
+            },
             card_tx,
             card_rx,
             link_cards,
-            full_prompts: Vec::new(),
-            full_sticky_rows: 0,
-            full_pin_row: None,
-            full_pin_hover: false,
-            full_pin_press: false,
-            context: ui::ContextCache::new(),
             burst: PasteBurst::new(),
             clocks: StatusClocks::started_now(),
             toast_deadline: None,
@@ -1241,7 +1218,7 @@ impl<'t> Session<'t> {
         // it here, at the boundary, is what makes the Ctrl+O keypress itself
         // O(live tail): the overlay never opens cold.
         let width = self.term.screen().width;
-        self.transcript.warm(&self.app, width);
+        self.view.transcript.warm(&self.app, width);
         // Reap detached backend threads (interrupt / `/clear` abandonments) that
         // have finished. `is_finished()` never blocks, so this can't stall the
         // loop; a thread still parked in its final network read is left until it

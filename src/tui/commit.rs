@@ -191,9 +191,10 @@ impl Session<'_> {
         if let Some(segment) = self.app.flush_streaming_segment()
             && committing
         {
-            self.term.insert_before(self.render.finish(&segment, width));
+            self.term
+                .insert_before(self.view.render.finish(&segment, width));
             self.term.insert_before(vec![Line::default()]);
-            self.render.reset();
+            self.view.render.reset();
         }
         record(&mut self.app, text);
         if committing {
@@ -252,7 +253,8 @@ impl Session<'_> {
         let height = self.live_region_height();
         self.term.set_view_height(height);
         if let Some(partial) = partial {
-            self.term.insert_before(self.render.finish(&partial, width));
+            self.term
+                .insert_before(self.view.render.finish(&partial, width));
             self.term.insert_before(vec![Line::default()]);
         }
         // Every call the death resolved — the running one and each `⎿

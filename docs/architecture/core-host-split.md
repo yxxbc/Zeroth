@@ -80,9 +80,11 @@ does not start until the one before it is green on CI and in the smoke suite.
 
 **What**: move the 23 full-screen view fields — and, while here, the
 screen-agnostic renderers (`render`, `agent_render`, `transcript`, `context`),
-the link cards, and the frames' hit caches — off `Session` into one
-`ConversationView` value in `src/tui/view.rs`, constructed from `App` plus a
-size and rebuilt from them at will.
+the frame's pin/hit offsets and the link-card previews — off `Session` into one
+`ConversationView` value in `src/tui/view.rs`. The frame rows rebuild from
+`App` plus a size; the pointer, scroll anchor and expanded set are interaction
+state carried with the view, and the link-card previews are a display cache
+restored from the process cache (`link_cards::load`, not product state).
 
 **Why it pays off alone**: 23 of 113 fields become one value with one owner;
 the frame cache becomes testable without a terminal; the "same screen always
@@ -96,15 +98,18 @@ needs no `Screen` seam.
   `Session` gains `view: ConversationView`.
 - `src/tui/view.rs` — the new type, its `Default`, and the frame builders
   moved onto it (`full_tail_lines`, `tailed_with_stream`, `draw_conversation`,
-  `apply_hover`, `apply_selection`, `full_window`, …).
+  `apply_hover`, `apply_selection`, `full_window`, …), with the history half
+  extracted as the free `frame_history(app, view, width, screen_width, …)` so
+  its cache is testable without a terminal.
 - `src/tui/actions.rs`, `src/tui/commit.rs`, `src/tui/stream.rs` — the call
   sites (`self.full_x` → `self.view.full_x`), mechanical.
 - `src/tui/view.rs`'s tests — construct a view explicitly; add
   `a_fresh_view_rebuilds_the_same_frame`.
 
 **Invariants**: no new public API (the TUI is binary-private); no behaviour
-change; a view cache is never the only copy of anything (it must rebuild from
-`App` + size). `src/ui` untouched.
+change; a view cache is never the only copy of anything the product needs (the
+frame rows rebuild from `App` + size; the link cards are a display cache over
+the wire's URLs). `src/ui` untouched.
 
 **Verify**: `cargo test --bin zeroth` (the view tests), the broad lib sweep from
 `AGENTS.md`, `cargo build && scripts/smoke.sh 156 164` plus one inline phase

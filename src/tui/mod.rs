@@ -71,12 +71,12 @@ use zeroth::frame::FrameRequester;
 use zeroth::paste::PasteBurst;
 use zeroth::stream::{CancelToken, StreamEvent};
 use zeroth::term::InlineViewport;
-use zeroth::ui;
 
 use self::history_store::InputHistoryStore;
 use self::models::ModelSession;
 use self::permission::PermissionStore;
 use self::recorder::SessionRecorder;
+use self::view::ConversationView;
 use self::workers::{DeviceEvent, FileSearchResult, ModelFetch};
 
 pub(crate) mod actions;
@@ -136,112 +136,16 @@ pub(crate) struct Session<'t> {
     app: App,
     /// Who replies, and how (`docs/providers/llm.md`).
     models: ModelSession,
+    /// The screen's own state — renderers, the frame cache, the scroll anchor,
+    /// the hit map, the pointer and the expanded set, all derived from `App`
+    /// plus a size (`docs/architecture/core-host-split.md` Phase 1).
+    view: ConversationView,
 
-    // ----- renderers and caches (all incremental; see docs/ui/markdown.md) -----
-    /// Commits the in-flight reply to scrollback as it streams — O(reply) over
-    /// the whole stream, and the strip's cheap preview line.
-    render: ui::StreamRender,
-    /// The same, for an open agent session view's own transcript
-    /// (`docs/agents/agent-tool.md`).
-    agent_render: ui::StreamRender,
-    /// The Ctrl+O overlay's incrementally-built transcript, retained across
-    /// closes and warmed at the loop bottom so it never opens cold
-    /// (`docs/ui/tool-view-performance.md`).
-    transcript: ui::TranscriptCache,
-    /// The screen-owning mode's **history** rows — the finished conversation,
-    /// not the reply streaming over it — cached by what can change those rows
-    /// ([`FullTail`]). The in-flight reply is appended per frame, so a chunk
-    /// costs O(reply) rather than O(session); keying this on the stream length
-    /// re-rendered the whole session every chunk (`docs/ui/full-screen.md`
-    /// *Performance*).
-    full_tail: Option<FullTail>,
-    /// The screen-owning mode's scroll anchor: the tail line shown at the top
-    /// of the conversation, or `None` to follow the tail. Indexes
-    /// `full_tail`'s rows, so it survives new output (the view does not move
-    /// when scrolled up) and is clamped to what the last frame painted
-    /// (`full_len`/`full_conv_h`).
-    full_top: Option<usize>,
-    full_tail_dirty: bool,
-    full_tab_hits: ui::SessionBarHits,
-    full_tab_press: Option<Option<String>>,
-    full_reading: HashMap<Option<String>, FullReading>,
-    /// The painted tail's length and conversation-window height — what the
-    /// scroll keys clamp against between frames.
-    full_len: usize,
-    full_conv_h: usize,
-    /// This frame's **streaming** rows — the in-flight reply and any flowed
-    /// page — appended after [`full_tail`](Self::full_tail)'s history rows.
-    /// Kept apart so a chunk re-renders only these: selection reads both
-    /// halves in order, and nothing has to copy the history to complete the
-    /// picture (`docs/ui/full-screen.md` *Performance*).
-    full_stream_lines: Vec<ratatui::text::Line<'static>>,
-    /// The conversation rows exactly as the last frame painted them (the
-    /// scroll window, hover applied) — the hit map for link clicks and hover.
-    full_window: Vec<ratatui::text::Line<'static>>,
-    /// The cell the pointer is over in the conversation area, if any.
-    full_hover: Option<(u16, u16)>,
-    /// Where a left-button drag began in the **tail** (line, column): the
-    /// selection anchors are absolute, so a scroll or new output moves the
-    /// highlight with the text instead of stranding it
-    /// (`docs/ui/full-screen.md`). `full_press` is the same point, kept until
-    /// release to tell a click (open a link) from a drag (copy).
-    full_press: Option<(usize, u16)>,
-    full_select: Option<((usize, u16), (usize, u16))>,
-    /// A drag in progress on the scrollbar: the screen row the left button
-    /// went down on and the conversation top at that moment. Kept beside the
-    /// selection anchors because the bar is chrome, not conversation — a drag
-    /// there must move the window, not select text
-    /// (`docs/ui/full-screen.md`).
-    full_bar_drag: Option<(u16, usize)>,
-    /// The tail index of the first painted conversation row — how screen rows
-    /// map back to `full_select`/`full_tail`.
-    full_start: usize,
-    /// History items the user expanded by clicking in the screen-owning mode
-    /// (`docs/ui/full-screen.md`): rendered in their Ctrl+O form.
-    full_expanded: std::collections::HashSet<usize>,
-    /// Expandable tail rows as `(start line, line count, history index)`,
-    /// already offset past the banner — what a click maps back to an item.
-    full_items: Vec<(usize, usize, usize)>,
-    /// A just-toggled item as `(item's first tail line, the content row it
-    /// should keep)` — the next rebuild pins it there so the cell does not
-    /// jump under the pointer.
-    full_anchor: Option<(usize, usize)>,
-    /// Link preview cards by URL (`docs/ui/rich-links.md`): a lone URL line in
-    /// an assistant reply is replaced by the card's rows once fetched.
-    cards: std::collections::HashMap<String, zeroth::link_card::LinkCard>,
-    /// URLs already handed to a fetch this session — a failure is not retried
-    /// in a loop, and a card's line does not re-enqueue it every frame.
-    card_pending: std::collections::HashSet<String>,
+    // ----- the view's channels: link-card fetches and paste bursts -----
     card_tx: tokio::sync::mpsc::UnboundedSender<(String, Option<zeroth::link_card::LinkCard>)>,
     card_rx: tokio::sync::mpsc::UnboundedReceiver<(String, Option<zeroth::link_card::LinkCard>)>,
     /// Whether previews are on for this process (`ZEROTH_LINK_CARDS`).
     link_cards: bool,
-    /// Every user message's rows in the built tail, for the pinned prompt
-    /// strip: the turn the window's top sits in is drawn on one reserved row
-    /// — as a one-line summary of the whole message — while the reply below it
-    /// is scrolled (`docs/ui/conversation-tool-details-and-pin.md`). Rebuilt
-    /// with the tail, so it shares the frame cache's invalidation.
-    full_prompts: Vec<ui::UserPrompt>,
-    /// How many rows at the top of the conversation area the pinned prompt
-    /// takes (0 or 1) — mouse coordinates are relative to the content below it.
-    full_sticky_rows: usize,
-    /// The tail row the pinned strip stands for, when one is showing: the
-    /// scroll target a click on it returns to.
-    full_pin_row: Option<usize>,
-    /// Whether the pointer is over that strip — it is a control, so pointing
-    /// at it has to say so.
-    full_pin_hover: bool,
-    /// A left button went down on that strip. Kept beside [`full_press`]
-    /// because the strip is not conversation: it has no content cell, so a
-    /// press on it records nothing there and the release must still know the
-    /// click was the strip's.
-    ///
-    /// [`full_press`]: Self::full_press
-    full_pin_press: bool,
-    /// The Ctrl+D overlay's built context window, rebuilt only when its
-    /// signature changes — per frame the O(conversation) derivation starved
-    /// the scroll keys on a big context (`docs/architecture/context.md`).
-    context: ui::ContextCache,
     /// Detects a paste / fast-type burst so its redraws coalesce.
     burst: PasteBurst,
 
@@ -569,39 +473,4 @@ impl StatusClocks {
         self.turn_start = None;
         self.thinking_start = None;
     }
-}
-
-#[derive(Default)]
-struct FullReading {
-    top: Option<usize>,
-    expanded: std::collections::HashSet<usize>,
-    generation: u64,
-}
-
-/// The screen-owning frame's **history** rows, cached apart from the reply
-/// that streams over them.
-///
-/// The split is the whole point. Keying one cache on the streaming text's
-/// length re-rendered the entire conversation on every chunk — measured at
-/// 12.8 ms for a 1,000-turn session, 77% of a 60 fps frame, *per chunk*
-/// (`docs/ui/full-screen.md` *Performance*). Everything here is keyed on what
-/// can change what the finished rows **are**, and the in-flight reply is
-/// appended per frame on top: a chunk then costs O(reply), not O(session).
-#[derive(Default)]
-struct FullTail {
-    /// The conversation these rows belong to: `None` for the main one, else
-    /// the viewed agent's id.
-    agent: Option<String>,
-    /// The conversation's identity — its generation and length — so a
-    /// `/clear`, a rewind or a `/resume` rebuilds, and an ordinary append does
-    /// not (the streaming reply is not in `history` until it settles).
-    generation: (u64, usize),
-    width: u16,
-    theme: zeroth::app::Theme,
-    /// Banner and finished items. The per-item offsets the pin and the hit
-    /// map read live beside it, in
-    /// [`full_prompts`](Session::full_prompts) and
-    /// [`full_items`](Session::full_items), and are written when this
-    /// rebuilds.
-    lines: Vec<ratatui::text::Line<'static>>,
 }

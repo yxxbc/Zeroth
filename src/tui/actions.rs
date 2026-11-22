@@ -404,11 +404,11 @@ impl Session<'_> {
     /// the inline viewport (its history is the terminal's scrollback) or before
     /// the first frame has measured the painted tail.
     fn scroll_full(&mut self, scroll: Scroll) {
-        if !self.term.fullscreen() || self.full_len == 0 {
+        if !self.term.fullscreen() || self.view.full_len == 0 {
             return;
         }
-        let conv = self.full_conv_h;
-        let max_top = self.full_len.saturating_sub(conv);
+        let conv = self.view.full_conv_h;
+        let max_top = self.view.full_len.saturating_sub(conv);
         let current = self.full_top_now();
         let page = conv.saturating_sub(2).max(1) as isize;
         let target = match scroll {
@@ -421,8 +421,8 @@ impl Session<'_> {
         let target = target.clamp(0, max_top as isize) as usize;
         // Reaching the bottom resumes follow-tail; anywhere above it anchors
         // the view to that line, so new output does not move it.
-        self.full_top = ui::scroll_anchor(target, self.full_len, conv);
-        self.full_hover = None;
+        self.view.full_top = ui::scroll_anchor(target, self.view.full_len, conv);
+        self.view.full_hover = None;
         self.frame.schedule_frame();
     }
 
@@ -439,17 +439,17 @@ impl Session<'_> {
         // the one modal whose answer a click can give, and a click must never
         // reach the conversation through it (`docs/state/permissions.md`).
         if self.app.permission().is_some() {
-            self.full_bar_drag = None;
+            self.view.full_bar_drag = None;
             return self.on_permission_mouse(mouse);
         }
         // The `/resume` picker is a page of rows, so a click picks one
         // (`docs/state/resume.md`).
         if self.app.view == View::ResumePicker {
-            self.full_bar_drag = None;
+            self.view.full_bar_drag = None;
             return self.on_resume_mouse(mouse);
         }
         if self.app.view != View::Conversation || self.app.modal_open() {
-            self.full_bar_drag = None;
+            self.view.full_bar_drag = None;
             return Ok(());
         }
         // The scrollbar owns the conversation's last column, and it takes the
@@ -461,35 +461,37 @@ impl Session<'_> {
             MouseEventKind::Down(MouseButton::Left) => {
                 if let Some(row) = self.full_bar_row(&mouse) {
                     let top = self.full_bar_press(row);
-                    self.full_top = ui::scroll_anchor(top, self.full_len, self.full_conv_h);
+                    self.view.full_top =
+                        ui::scroll_anchor(top, self.view.full_len, self.view.full_conv_h);
                     // The anchor is the **screen** row: a drag is measured in
                     // screen rows, so a pinned prompt appearing mid-drag (it
                     // shifts the track down one) does not teleport the thumb.
-                    self.full_bar_drag = Some((mouse.row, top));
-                    self.full_press = None;
-                    self.full_select = None;
-                    self.full_pin_press = false;
-                    self.full_hover = None;
+                    self.view.full_bar_drag = Some((mouse.row, top));
+                    self.view.full_press = None;
+                    self.view.full_select = None;
+                    self.view.full_pin_press = false;
+                    self.view.full_hover = None;
                     self.frame.schedule_frame();
                     return Ok(());
                 }
             }
             MouseEventKind::Drag(MouseButton::Left) => {
-                if let Some((press_row, press_top)) = self.full_bar_drag {
-                    let height = u16::try_from(self.full_conv_h).unwrap_or(u16::MAX);
+                if let Some((press_row, press_top)) = self.view.full_bar_drag {
+                    let height = u16::try_from(self.view.full_conv_h).unwrap_or(u16::MAX);
                     let delta = i32::from(mouse.row) - i32::from(press_row);
                     let delta = isize::try_from(delta).unwrap_or(0);
                     let top = ui::scrollbar_top_after_drag(
-                        self.full_len,
-                        self.full_conv_h,
+                        self.view.full_len,
+                        self.view.full_conv_h,
                         height,
                         press_top,
                         delta,
                     )
                     .unwrap_or(press_top);
-                    self.full_top = ui::scroll_anchor(top, self.full_len, self.full_conv_h);
-                    self.full_press = None;
-                    self.full_select = None;
+                    self.view.full_top =
+                        ui::scroll_anchor(top, self.view.full_len, self.view.full_conv_h);
+                    self.view.full_press = None;
+                    self.view.full_select = None;
                     self.frame.schedule_frame();
                     return Ok(());
                 }
@@ -497,7 +499,7 @@ impl Session<'_> {
             MouseEventKind::Up(MouseButton::Left) => {
                 // The bar's release ends the drag; it is never a link click or
                 // the end of a copy, and the selection anchors never opened.
-                if self.full_bar_drag.take().is_some() {
+                if self.view.full_bar_drag.take().is_some() {
                     self.frame.schedule_frame();
                     return Ok(());
                 }
@@ -506,22 +508,23 @@ impl Session<'_> {
         }
         // Use the last painted tabs, not a layout recomputed after roster events.
         let tab = self
+            .view
             .full_tab_hits
             .tab_at(mouse.column, mouse.row)
             .filter(|_| self.app.session_tabs_available());
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
-                self.full_tab_press = tab.map(|id| id.map(str::to_string));
-                if self.full_tab_press.is_some() {
-                    self.full_press = None;
-                    self.full_select = None;
+                self.view.full_tab_press = tab.map(|id| id.map(str::to_string));
+                if self.view.full_tab_press.is_some() {
+                    self.view.full_press = None;
+                    self.view.full_select = None;
                     self.frame.schedule_frame();
                     return Ok(());
                 }
             }
-            MouseEventKind::Drag(MouseButton::Left) => self.full_tab_press = None,
+            MouseEventKind::Drag(MouseButton::Left) => self.view.full_tab_press = None,
             MouseEventKind::Up(MouseButton::Left) => {
-                if let Some(pressed) = self.full_tab_press.take() {
+                if let Some(pressed) = self.view.full_tab_press.take() {
                     if tab == Some(pressed.as_deref()) {
                         let action = self.app.select_session_tab(pressed.as_deref());
                         self.on_action(action)?;
@@ -561,65 +564,66 @@ impl Session<'_> {
                         self.toast(format!("Can't open {}", path.display()), ToastKind::Error);
                     }
                 }
-                self.full_press = None;
-                self.full_select = None;
+                self.view.full_press = None;
+                self.view.full_select = None;
                 self.frame.schedule_frame();
                 return Ok(());
             }
             if let Some(cursor) = ui::composer_cursor_at(live, &self.app, mouse.column, mouse.row) {
                 self.app.focus_workspace_composer();
                 self.app.input.set_cursor(cursor);
-                self.full_press = None;
-                self.full_select = None;
+                self.view.full_press = None;
+                self.view.full_select = None;
                 self.frame.schedule_frame();
                 return Ok(());
             }
         }
         match mouse.kind {
             MouseEventKind::ScrollUp => {
-                self.full_press = None;
-                self.full_select = None;
+                self.view.full_press = None;
+                self.view.full_select = None;
                 self.scroll_full(Scroll::Lines(-3));
             }
             MouseEventKind::ScrollDown => {
-                self.full_press = None;
-                self.full_select = None;
+                self.view.full_press = None;
+                self.view.full_select = None;
                 self.scroll_full(Scroll::Lines(3));
             }
             MouseEventKind::Moved => {
                 let hover = self.content_row(&mouse).map(|row| (mouse.column, row));
                 let on_pin = self.on_pin_row(&mouse);
-                let moved = self.full_hover != hover || self.full_pin_hover != on_pin;
-                if self.full_pin_hover != on_pin {
-                    self.full_pin_hover = on_pin;
+                let moved = self.view.full_hover != hover || self.view.full_pin_hover != on_pin;
+                if self.view.full_pin_hover != on_pin {
+                    self.view.full_pin_hover = on_pin;
                 }
-                self.full_hover = hover;
+                self.view.full_hover = hover;
                 if moved {
                     self.frame.schedule_frame();
                 }
             }
             MouseEventKind::Down(MouseButton::Left) => {
-                self.full_pin_press = self.on_pin_row(&mouse);
-                self.full_press = self.full_cell(&mouse);
-                self.full_select = None;
-                self.full_hover = None;
+                self.view.full_pin_press = self.on_pin_row(&mouse);
+                self.view.full_press = self.full_cell(&mouse);
+                self.view.full_select = None;
+                self.view.full_hover = None;
                 self.frame.schedule_frame();
             }
             MouseEventKind::Drag(MouseButton::Left) => {
                 // A drag started on the strip is not a click on it.
-                self.full_pin_press = false;
-                if let (Some(press), Some(current)) = (self.full_press, self.full_cell(&mouse)) {
-                    self.full_select = (press != current).then_some((press, current));
-                    self.full_hover = None;
+                self.view.full_pin_press = false;
+                if let (Some(press), Some(current)) = (self.view.full_press, self.full_cell(&mouse))
+                {
+                    self.view.full_select = (press != current).then_some((press, current));
+                    self.view.full_hover = None;
                     self.frame.schedule_frame();
                 }
             }
             MouseEventKind::Up(MouseButton::Left) => {
                 // A drag copies; a click (no drag) opens the link under it.
                 let text = self.full_selected_text();
-                let clicked = self.full_press.take().is_some();
-                let pin_click = std::mem::take(&mut self.full_pin_press);
-                self.full_select = None;
+                let clicked = self.view.full_press.take().is_some();
+                let pin_click = std::mem::take(&mut self.view.full_pin_press);
+                self.view.full_select = None;
                 if let Some(text) = text {
                     // A selection is not "/copy": say what was copied.
                     match clipboard::copy_to_clipboard(&text) {
@@ -656,9 +660,9 @@ impl Session<'_> {
     /// is not retried in a loop.
     pub(crate) fn on_card(&mut self, url: String, card: Option<zeroth::link_card::LinkCard>) {
         if let Some(card) = card {
-            self.cards.insert(url, card);
-            super::link_cards::save(&self.cards);
-            self.full_tail_dirty = true;
+            self.view.cards.insert(url, card);
+            super::link_cards::save(&self.view.cards);
+            self.view.full_tail_dirty = true;
             self.frame.schedule_frame();
         }
     }
@@ -668,22 +672,23 @@ impl Session<'_> {
     /// next rebuild pins the item's first line where it was so the click does
     /// not move the text under the pointer (`docs/ui/full-screen.md`).
     fn toggle_full_item(&mut self, content_row: u16) {
-        let line = self.full_start + usize::from(content_row);
+        let line = self.view.full_start + usize::from(content_row);
         let Some(&(item_start, _, index)) = self
+            .view
             .full_items
             .iter()
             .find(|(start, count, _)| line >= *start && line < start + count)
         else {
             return;
         };
-        if !self.full_expanded.remove(&index) {
-            self.full_expanded.insert(index);
+        if !self.view.full_expanded.remove(&index) {
+            self.view.full_expanded.insert(index);
         }
         let item_screen_row =
             usize::from(content_row).saturating_sub(line.saturating_sub(item_start));
-        self.full_anchor = Some((item_start, item_screen_row));
-        self.full_tail_dirty = true;
-        self.full_hover = None;
+        self.view.full_anchor = Some((item_start, item_screen_row));
+        self.view.full_tail_dirty = true;
+        self.view.full_hover = None;
         self.frame.schedule_frame();
     }
 
@@ -691,21 +696,21 @@ impl Session<'_> {
     /// painted conversation window below the pinned prompt row.
     fn full_cell(&self, mouse: &MouseEvent) -> Option<(usize, u16)> {
         self.content_row(mouse)
-            .map(|row| (self.full_start + usize::from(row), mouse.column))
+            .map(|row| (self.view.full_start + usize::from(row), mouse.column))
     }
 
     /// Is the pointer on the pinned prompt strip? It occupies the frame's
     /// first conversation row, which [`content_row`](Self::content_row)
     /// deliberately skips — the strip is a control, not conversation.
     fn on_pin_row(&self, mouse: &MouseEvent) -> bool {
-        self.full_sticky_rows == 1 && mouse.row == 0
+        self.view.full_sticky_rows == 1 && mouse.row == 0
     }
 
     /// Where the conversation window starts right now: the anchor, or the
     /// tail when the view has not been scrolled.
     fn full_top_now(&self) -> usize {
-        let max_top = self.full_len.saturating_sub(self.full_conv_h);
-        self.full_top.unwrap_or(max_top).min(max_top)
+        let max_top = self.view.full_len.saturating_sub(self.view.full_conv_h);
+        self.view.full_top.unwrap_or(max_top).min(max_top)
     }
 
     /// The scrollbar's track row under the pointer, when the pointer is on the
@@ -727,13 +732,18 @@ impl Session<'_> {
             return None;
         }
         let row = self.content_row(mouse)?;
-        let height = u16::try_from(self.full_conv_h).ok()?;
+        let height = u16::try_from(self.view.full_conv_h).ok()?;
         if row >= height {
             return None;
         }
         // A conversation that fits paints no bar, so its reserved column takes
         // no pointer either.
-        ui::scrollbar_thumb(self.full_len, self.full_conv_h, self.full_top_now(), height)?;
+        ui::scrollbar_thumb(
+            self.view.full_len,
+            self.view.full_conv_h,
+            self.full_top_now(),
+            height,
+        )?;
         Some(row)
     }
 
@@ -743,14 +753,16 @@ impl Session<'_> {
     /// so mapping a grab through it would jump the window before the drag).
     fn full_bar_press(&self, row: u16) -> usize {
         let current = self.full_top_now();
-        let height = u16::try_from(self.full_conv_h).unwrap_or(u16::MAX);
+        let height = u16::try_from(self.view.full_conv_h).unwrap_or(u16::MAX);
         let index = usize::from(row);
-        let on_thumb = ui::scrollbar_thumb(self.full_len, self.full_conv_h, current, height)
-            .is_some_and(|(start, size)| index >= start && index < start.saturating_add(size));
+        let on_thumb =
+            ui::scrollbar_thumb(self.view.full_len, self.view.full_conv_h, current, height)
+                .is_some_and(|(start, size)| index >= start && index < start.saturating_add(size));
         if on_thumb {
             return current;
         }
-        ui::scrollbar_top_for_row(self.full_len, self.full_conv_h, height, row).unwrap_or(current)
+        ui::scrollbar_top_for_row(self.view.full_len, self.view.full_conv_h, height, row)
+            .unwrap_or(current)
     }
 
     /// Scroll the prompt the pinned strip stands for back into view: its first
@@ -758,12 +770,12 @@ impl Session<'_> {
     /// (the message is visible again, so nothing needs summarising). The
     /// target is clamped like every other scroll anchor.
     fn scroll_to_pinned_prompt(&mut self) {
-        let Some(start) = self.full_pin_row else {
+        let Some(start) = self.view.full_pin_row else {
             return;
         };
-        self.full_top = ui::scroll_anchor(start, self.full_len, self.full_conv_h);
-        self.full_hover = None;
-        self.full_pin_hover = false;
+        self.view.full_top = ui::scroll_anchor(start, self.view.full_len, self.view.full_conv_h);
+        self.view.full_hover = None;
+        self.view.full_pin_hover = false;
         self.frame.schedule_frame();
     }
 
@@ -799,7 +811,7 @@ impl Session<'_> {
         // fresh layout: the prompt is laid out for the live region's height at
         // paint time, and that height can change before the click lands —
         // recomputing then missed the options entirely.
-        let Some(index) = self.full_tab_hits.permission_option_at(mouse.row) else {
+        let Some(index) = self.view.full_tab_hits.permission_option_at(mouse.row) else {
             return Ok(());
         };
         let action = self.app.click_permission_option(index);
@@ -811,8 +823,8 @@ impl Session<'_> {
     /// The conversation-content row under the pointer (0-based, below the
     /// pinned prompt's row), when the pointer is inside it.
     fn content_row(&self, mouse: &MouseEvent) -> Option<u16> {
-        let row = usize::from(mouse.row).checked_sub(self.full_sticky_rows)?;
-        (row < self.full_conv_h).then(|| u16::try_from(row).unwrap_or(u16::MAX))
+        let row = usize::from(mouse.row).checked_sub(self.view.full_sticky_rows)?;
+        (row < self.view.full_conv_h).then(|| u16::try_from(row).unwrap_or(u16::MAX))
     }
 
     /// Open a link the screen-owning mode's mouse found: the same three
@@ -930,7 +942,7 @@ impl Session<'_> {
                     }
                 }
                 self.commit_turn_failure(partial, &tools, agents, notice);
-                self.render.reset();
+                self.view.render.reset();
                 // The receipt closes the turn, under the notice: a background
                 // completion no round read settles above it first — the
                 // `StreamDone` order — and `dispatch_after_turn`'s own settle
@@ -949,7 +961,7 @@ impl Session<'_> {
                     self.dispatch_after_turn();
                 }
             }
-            None => self.render.reset(),
+            None => self.view.render.reset(),
         }
         Ok(())
     }
@@ -966,7 +978,7 @@ impl Session<'_> {
         // dropped receiver, so it can't repopulate the cleared state. See
         // docs/input/interrupt.md.
         self.abandon_inflight();
-        self.render.reset();
+        self.view.render.reset();
         // …and the pictures the wiped conversation kept encoded for the wire
         // (`docs/architecture/memory.md`): nothing re-sends them now.
         zeroth::images::clear_attachments();
@@ -989,15 +1001,15 @@ impl Session<'_> {
         self.agent_registry.clear();
         self.agent_clocks.clear();
         self.agent_expiry.clear();
-        self.full_reading.clear();
-        self.full_tail = None;
-        self.full_top = None;
-        self.full_expanded.clear();
-        self.full_anchor = None;
-        self.full_select = None;
-        self.full_press = None;
-        self.full_hover = None;
-        self.full_bar_drag = None;
+        self.view.full_reading.clear();
+        self.view.full_tail = None;
+        self.view.full_top = None;
+        self.view.full_expanded.clear();
+        self.view.full_anchor = None;
+        self.view.full_select = None;
+        self.view.full_press = None;
+        self.view.full_hover = None;
+        self.view.full_bar_drag = None;
         // …and the permission gate: `clear_conversation` dropped the prompt, the
         // cancelled threads reap themselves, so no unclaimed decision may linger
         // for the next turn (docs/state/permissions.md). The ask gate's board goes
@@ -1044,7 +1056,7 @@ impl Session<'_> {
     fn on_resize(&mut self, width: u16, height: u16) -> std::io::Result<()> {
         let size_changed = self.term.resized(width, height);
         if size_changed && self.app.view == View::Conversation {
-            self.full_tab_press = None;
+            self.view.full_tab_press = None;
             // A resize under an open permission prompt reseats it with this
             // purge; the reflow notes it itself (`term.take_modal_scrolled`) so
             // the prompt's close purge-rebuilds too instead of stranding the box

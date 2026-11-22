@@ -174,10 +174,10 @@ impl Session<'_> {
         // attempt clean, and is rebuilt below once the fold has run.
         let retracted = if matches!(event, StreamEvent::Retrying { .. }) {
             self.agent_thinking_clocks.remove(id);
-            let shown = viewing && self.agent_render.has_committed();
+            let shown = viewing && self.view.agent_render.has_committed();
             let withdrawn = self.app.withdraw_agent_attempt(id);
             if viewing {
-                self.agent_render.reset();
+                self.view.agent_render.reset();
             }
             Some((withdrawn, shown))
         } else {
@@ -354,9 +354,9 @@ impl Session<'_> {
     /// follows (`docs/agents/agent-view-streaming.md`).
     fn flush_agent_segment(&mut self, text: &str, width: u16) {
         self.term
-            .insert_before(self.agent_render.finish(text, width));
+            .insert_before(self.view.agent_render.finish(text, width));
         self.term.insert_before(vec![Line::default()]);
-        self.agent_render.reset();
+        self.view.agent_render.reset();
     }
 
     /// The pre-fold work the session view owes a **local** settle of `id` —
@@ -586,7 +586,7 @@ impl Session<'_> {
                 .viewed_agent()
                 .and_then(|run| run.streaming.as_deref())
             {
-                let lines = self.agent_render.commit(text, width);
+                let lines = self.view.agent_render.commit(text, width);
                 self.term.insert_before(lines);
             }
             return;

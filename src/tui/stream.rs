@@ -75,7 +75,7 @@ impl Session<'_> {
                 // (docs/ui/tool-groups.md).
                 self.close_tool_group(committing, width);
                 self.flush_segment(committing, width);
-                self.render.reset();
+                self.view.render.reset();
                 self.app.start_agent_group(background, &agents);
                 // The delayed Ctrl+B hint clock — a foreground group can be moved
                 // to the background like a running command (docs/tools/background.md).
@@ -117,7 +117,7 @@ impl Session<'_> {
                     self.close_tool_group(committing, width);
                 }
                 if committing && let Some(text) = self.app.streaming_text() {
-                    let lines = self.render.commit(text, width);
+                    let lines = self.view.render.commit(text, width);
                     self.term.insert_before(lines);
                 }
                 false
@@ -139,7 +139,7 @@ impl Session<'_> {
                 // ToolStart flips its front `Waiting` to `Running`. See
                 // `docs/tools/parallel-tools.md`.
                 self.flush_segment(committing, width);
-                self.render.reset();
+                self.view.render.reset();
                 self.app.start_tool_batch(&items);
                 // A batch led by a call that is no read closes the open
                 // read/search group; one led by a read joins it
@@ -163,7 +163,7 @@ impl Session<'_> {
                 // `start_tool` flips the front `Waiting` to `Running`; a lone
                 // call (dummy/shell, no batch) pushes a fresh running call.
                 self.flush_segment(committing, width);
-                self.render.reset();
+                self.view.render.reset();
                 self.app
                     .start_tool_for(call_id.as_deref(), &name, &args, arguments.as_deref());
                 // A call that is no read closes the open read/search group
@@ -307,7 +307,7 @@ impl Session<'_> {
                 // scrollback commit** — the call has no cell; the checklist
                 // under the status line is its whole display.
                 self.flush_segment(committing, width);
-                self.render.reset();
+                self.view.render.reset();
                 self.app
                     .record_task_call(&name, &args, &arguments, &output, ok, tasks);
                 false
@@ -361,7 +361,7 @@ impl Session<'_> {
                     }
                 } else {
                     self.flush_segment(committing, width);
-                    self.render.reset();
+                    self.view.render.reset();
                     self.commit_hook_note(&label, &text, report, committing, width);
                 }
                 false
@@ -380,7 +380,7 @@ impl Session<'_> {
                 // the open read/search group (docs/ui/tool-groups.md).
                 self.flush_segment(committing, width);
                 self.close_tool_group(committing, width);
-                self.render.reset();
+                self.view.render.reset();
                 self.app.deliver_steered(&text);
                 if committing {
                     // The strip loses the pending row as the bubble lands, so
@@ -412,7 +412,7 @@ impl Session<'_> {
                 // it (the HookNote rule).
                 if !self.app.is_compacting() {
                     self.flush_segment(committing, width);
-                    self.render.reset();
+                    self.view.render.reset();
                     self.settle_delivered_notice(seq);
                 }
                 false
@@ -485,7 +485,7 @@ impl Session<'_> {
                     // only ever opens a phase holding a reasoning delta
                     // (`llm::backend`).
                     self.flush_segment(committing, width);
-                    self.render.reset();
+                    self.view.render.reset();
                     self.app.begin_reasoning();
                 }
                 false
@@ -511,7 +511,7 @@ impl Session<'_> {
                 // the blank spacer the committed cell will keep.
                 if self.app.push_tool_call_fragment(&piece) {
                     self.flush_segment(committing, width);
-                    self.render.reset();
+                    self.view.render.reset();
                 }
                 // A `write` is no read — but one into the scratchpad is part
                 // of the group (docs/ui/tool-groups.md *Scratchpad edits*), so
@@ -540,9 +540,9 @@ impl Session<'_> {
                 // next attempt's first byte — a phase it opened goes without
                 // settling, so its clock stops, and rows it had committed are
                 // rebuilt away — then the retry shows live in the status line.
-                let shown = self.render.has_committed();
+                let shown = self.view.render.has_committed();
                 let withdrawn = self.app.withdraw_attempt();
-                self.render.reset();
+                self.view.render.reset();
                 self.clocks.thinking_start = None;
                 self.app.set_retry(attempt, max);
                 // Said only where it was seen: inside an agent's session view
@@ -634,7 +634,7 @@ impl Session<'_> {
                         );
                     }
                 }
-                self.render.reset();
+                self.view.render.reset();
                 self.clocks.end_turn();
                 true
             }
@@ -669,7 +669,7 @@ impl Session<'_> {
                 self.term.insert_before(vec![Line::default()]); // blank spacer
             }
             self.settle_bg_completions();
-            self.render.reset();
+            self.view.render.reset();
             self.clocks.end_turn();
             return true;
         }
@@ -699,7 +699,8 @@ impl Session<'_> {
             let height = self.live_region_height();
             self.term.set_view_height(height);
             if let Some(text) = final_text {
-                self.term.insert_before(self.render.finish(&text, width));
+                self.term
+                    .insert_before(self.view.render.finish(&text, width));
                 self.term.insert_before(vec![Line::default()]); // blank spacer
             }
         }
@@ -709,7 +710,7 @@ impl Session<'_> {
         if let Some(summary) = summary {
             self.commit_turn_summary(summary);
         }
-        self.render.reset();
+        self.view.render.reset();
         self.clocks.end_turn();
         true
     }
@@ -765,7 +766,7 @@ impl Session<'_> {
         // answers). It stays because this is also the settle point for an
         // Esc/error mid-phase, and for a phase whose block never showed.
         self.flush_segment(committing, width);
-        self.render.reset();
+        self.view.render.reset();
         let Some(reasoning) = self.app.finish_reasoning(secs) else {
             return;
         };
@@ -803,7 +804,8 @@ impl Session<'_> {
         if let Some(segment) = self.app.flush_streaming_segment()
             && committing
         {
-            self.term.insert_before(self.render.finish(&segment, width));
+            self.term
+                .insert_before(self.view.render.finish(&segment, width));
             self.term.insert_before(vec![Line::default()]);
         }
     }
@@ -891,7 +893,7 @@ impl Session<'_> {
     /// `dispatch_after_turn` still snapshots and drains the queue.
     fn prompt_blocked(&mut self, reason: &str) {
         self.app.block_prompt(reason);
-        self.render.reset();
+        self.view.render.reset();
         self.clocks.command_start = None;
         // The hook answers on the backend thread, so the block can land while
         // an alternate-screen overlay covers the inline view (the user hit

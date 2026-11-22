@@ -69,9 +69,10 @@ Workspace            the session table, the one terminal, the one runtime
 ### 第 1 阶段 —— `ConversationView`（第一个切片，现在就能合）
 
 **做什么**：把 23 个全屏视图字段 —— 顺带把与屏幕无关的渲染器（`render`、
-`agent_render`、`transcript`、`context`）、链接卡片和帧的命中缓存 —— 从 `Session`
-挪进 `src/tui/view.rs` 里的一个 `ConversationView` 值，从 `App` 加一个尺寸构造，
-随时可以从它们重建。
+`agent_render`、`transcript`、`context`）、帧的钉住/命中偏移和链接卡片预览 ——
+从 `Session` 挪进 `src/tui/view.rs` 里的一个 `ConversationView` 值。帧的行从
+`App` 加一个尺寸重建；指针、滚动锚点和展开集合是跟着视图走的交互状态，而链接卡片
+预览是从进程缓存恢复的显示缓存（`link_cards::load`，不是产品状态）。
 
 **为什么它自己就回本**：113 个字段里的 23 个变成一个值、一个拥有者；帧缓存不借终
 端也能测；「同一块屏幕永远画出同一帧」有了测试 —— 一个全新的视图和一个只增量的
@@ -83,14 +84,17 @@ Workspace            the session table, the one terminal, the one runtime
   `view: ConversationView`。
 - `src/tui/view.rs` —— 新类型、它的 `Default`，以及搬到它上面的帧构建器
   （`full_tail_lines`、`tailed_with_stream`、`draw_conversation`、`apply_hover`、
-  `apply_selection`、`full_window`……）。
+  `apply_selection`、`full_window`……），其中历史那一半抽成自由的
+  `frame_history(app, view, width, screen_width, …)`，让它的缓存在没有终端时也能
+  测。
 - `src/tui/actions.rs`、`src/tui/commit.rs`、`src/tui/stream.rs` —— 调用点，
   机械替换（`self.full_x` → `self.view.full_x`）。
 - `src/tui/view.rs` 的测试 —— 显式构造一个视图；新增
   `a_fresh_view_rebuilds_the_same_frame`。
 
-**不变量**：不新增公开 API（TUI 是二进制私有的）；行为不变；视图缓存永远不是任何
-东西的唯一副本（必须能从 `App` 加尺寸重建）。`src/ui` 不碰。
+**不变量**：不新增公开 API（TUI 是二进制私有的）；行为不变；视图缓存永远不是产品
+需要的任何东西的唯一副本（帧的行从 `App` 加尺寸重建；链接卡片是 wire 上那些 URL
+之上的显示缓存）。`src/ui` 不碰。
 
 **怎么验证**：`cargo test --bin zeroth`（视图测试）、`AGENTS.md` 里的全量 lib 扫
 一遍、`cargo build && scripts/smoke.sh 156 164` 外加一个内联阶段（例如 055）、
