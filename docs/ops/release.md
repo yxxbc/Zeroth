@@ -21,25 +21,24 @@ scripts/release.sh prepare X.Y.Z     # bump + roll the changelog (a commit's wor
 git commit … && git tag -a vX.Y.Z -m "zeroth vX.Y.Z" && git push origin HEAD vX.Y.Z
         │
         ▼  .github/workflows/release.yml
-   check ──► gate ──► smoke ──► build ×4 ──► publish
+   check ──► build ×4 ──► publish
 ```
 
 1. **`check`** — the tag names Cargo.toml's version, and Cargo.lock, the
    README's version badge and `CHANGELOG.md` all agree with it; then the
    tooling's own `selftest` and `shellcheck`. Every mismatch is reported
    before the job fails, so one run names all of them.
-2. **`gate`** — the pre-commit gate from `CLAUDE.md`, unchanged: `cargo fmt
-   --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`,
-   `cargo doc --no-deps --lib`.
-3. **`smoke`** — the terminal I/O boundary over the real binary in tmux
-   (`docs/ops/smoke.md`), the same shape as `ci.yml`'s job: one worker per
-   core, then whatever failed re-runs serially once before the job is red.
-   The unit gate cannot see a terminal path, and a tag is the last place it
-   should first go wrong.
-4. **`build`** — one job per target (the matrix below), each running
+   It also runs `scripts/release.sh gate`: this commit's CI must already
+   have passed (the gate, the macOS gate, the smoke suite and the release
+   tooling jobs) — the same evidence CI produced for the push to `main`,
+   read from GitHub rather than run again. A commit CI never saw, saw fail,
+   or has not finished refuses the release before a single asset is built.
+   One push is one CI run. A commit pushed straight to a tag, with no CI
+   run of its own, has no evidence and is refused.
+3. **`build`** — one job per target (the matrix below), each running
    `scripts/release.sh build TARGET` then `scripts/release.sh verify dist`
    on its own output, and uploading `dist/` as a workflow artifact.
-5. **`publish`** — downloads every `dist/`, verifies them *together*,
+4. **`publish`** — downloads every `dist/`, verifies them *together*,
    renders the notes (`scripts/release.sh notes`) into the job summary, and
    either publishes (`scripts/release.sh publish`) or, on a rehearsal,
    prints the exact `gh` commands it would have run.
@@ -260,13 +259,14 @@ tree, which is how the selftest drives them against fixtures.
 | --- | --- |
 | `version` | Prints Cargo.toml's `[package]` version. |
 | `check [TAG]` | Rules 1–6 below; reads `GITHUB_REF_TYPE`/`GITHUB_REF_NAME` when no TAG is given. |
+| `gate [REPO] [COMMIT]` | The release gate: `COMMIT` (default `HEAD`)'s required CI jobs are each `success`. `--inspect CHECKS [--runs RUNS]` is the pure rule over saved API answers, for the selftest; `--token-var NAME` reads the token from the file NAME holds. |
 | `build [TARGET] [--dist DIR]` | `rustup target add` if needed, the cross-toolchain variables for a Linux GNU target, the documented `cargo build`, then `package_dist` into `dist/`. |
 | `verify [DIST] [--version X]` | Every archive's name, checksum, layout, executable bit, `file` format/CPU, and — when this machine can run it — `--version`; `SHA256SUMS` agreement; no stray files. |
 | `notes VERSION [DIST]` | The markdown above, on stdout. |
 | `publish VERSION [DIST] [--notes FILE] [--dry-run]` | `verify`, assemble `SHA256SUMS`, then `gh release create` **as a draft** with notes and every asset, then `gh release edit --draft=false` (`--latest` unless a pre-release). |
 | `download VERSION [DIST] [--from URL]` | A published release back into an empty `dist/`: its `SHA256SUMS`, then every asset it lists, with curl or wget (no `gh`), each beside its `.sha256` as `build` leaves it, then `verify`. `--from` names another repository root. |
 | `prepare VERSION` | The version bump and changelog roll, then `check`, then the commit/tag/push to run. |
-| `selftest` | 203 fixture-driven assertions over all of the above. |
+| `selftest` | The fixture-driven assertions over all of the above. |
 
 `check`'s rules:
 
@@ -321,7 +321,7 @@ an empty `[Unreleased]` — the notes would be empty too.
 
 **On GitHub, before the first tag**: run the Release workflow by hand
 (Actions → Release → *Run workflow*, `publish` off). It does everything a
-tag push does — `check`, the gate, all four builds, `verify` on each and on
+tag push does — `check`, the gate and all four builds, `verify` on each and on
 all together — renders the notes into the job summary, keeps every `dist/`
 and the notes as artifacts for seven days, and prints the `gh` commands it
 would have run. This is the recommended first run: it exercises the
@@ -392,12 +392,14 @@ prompt "never showed" inside its wait — and both passed alone. So the job
 re-runs whatever failed in the parallel pass serially, once, before it is
 called red, and keeps both passes' logs as an artifact whenever the first
 pass failed, so a flake leaves evidence instead of a green square. The
-release workflow repeats the gate, the smoke suite and the tooling jobs
-rather than trusting a CI run that may not have happened on the tagged
-commit — the tag can be pushed from a branch no CI run ever saw. The smoke
-suite is in both because it is the only automated coverage of the terminal
-I/O boundary (`docs/ops/smoke.md`), and a release is the last place a red
-terminal path should first be seen.
+release workflow does **not** repeat them: one push to `main` is one CI run,
+and the release tag names that same commit. Its `check` job runs
+`scripts/release.sh gate`, which reads those jobs' results from GitHub and
+refuses a commit whose required jobs are missing, failed or unfinished — so
+a tag pushed from a branch CI never saw is refused, without paying for the
+tests twice. The smoke suite stays in CI because it is the only automated
+coverage of the terminal I/O boundary (`docs/ops/smoke.md`), and the release
+gate requires its pass rather than repeating it.
 
 ## Decisions
 
@@ -470,8 +472,9 @@ those three. Grouped, the pair moves in one pull request, and that pull
 request is exercised where it lands: `release.yml` runs as a
 **rehearsal on any pull request that touches it**, the release scripts,
 or `install.sh`. Its check job computes `publish=false` off a tag, so the
-whole pipeline — gate, four platform builds, the artifact handoff,
-`verify`, the notes, `publish --dry-run` — runs and publishes nothing.
+whole pipeline — the gate re-read (it must already have passed),
+four platform builds, the artifact handoff, `verify`, the notes,
+`publish --dry-run` — runs and publishes nothing.
 Without that trigger those two lines ran only on a tag, while every
 check a pull request runs came from `ci.yml`, so a half-moved pair
 merged green; now it is a red check, not a broken release, as is an
@@ -519,8 +522,8 @@ toolchain bump is the one edit it already is.
   absent from `PATH`, `install.sh` end to end against the stand-in
   release server (above), `download` back from that server with curl and
   with wget alone. It needs bash, awk, sed, tar, gzip, `file`, a C compiler
-  and python3, and runs in under half a minute; CI and the release workflow
-  both run it.
+  and python3, and runs in under half a minute; CI runs it, and the release
+  `check` job runs it once more over the tag's tree before anything is built.
 - `shellcheck -x` over the scripts and `install.sh` (which it checks as
   POSIX `sh`, flagging any bashism), in CI and in the release `check` job.
 - The scripts avoid bash 4 (`${var,,}`, associative arrays, `mapfile`),

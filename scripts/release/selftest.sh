@@ -748,6 +748,51 @@ RELEASE_ROOT="$T/fork" expect_ok "…notes identify the first release" bash "$ST
 expect_contains "…listing commits through its tag" "$OUT" "**Full changelog**: https://github.com/example/zeroth/commits/v0.19.0"
 
 # ---------------------------------------------------------------------------
+section "release gate"
+# `gate --inspect` is the pure half of reusing a commit's CI instead of
+# running it twice (`docs/ops/release.md`): the required jobs pass, anything
+# missing is refused, a failure wins over an older success, and a job absent
+# while its workflow is still queued is pending rather than missing.
+gate_checks() {
+	local file="$1"
+	shift
+	{
+		printf '{"check_runs":['
+		local sep=""
+		local pair
+		for pair in "$@"; do
+			printf '%s{"name":"%s","status":"completed","conclusion":"%s"}' "$sep" "${pair%%=*}" "${pair#*=}"
+			sep=","
+		done
+		printf ']}\n'
+	} >"$file"
+}
+gate_all_pass=(
+	"fmt · clippy · test · doc=success"
+	"clippy · test · doc (macOS)=success"
+	"smoke suite (tmux)=success"
+	"release tooling=success"
+)
+gate_checks "$T/checks-pass.json" "${gate_all_pass[@]}"
+expect_ok "every required CI job passed → the gate passes" bash "$STEPS/gate.sh" --inspect "$T/checks-pass.json"
+expect_contains "…naming each job" "$OUT" "smoke suite (tmux)"
+gate_checks "$T/checks-failed.json" "smoke suite (tmux)=failure" "fmt · clippy · test · doc=success"
+expect_fail "a failed required job refuses the release" bash "$STEPS/gate.sh" --inspect "$T/checks-failed.json"
+expect_contains "…naming the job and its state" "$OUT" "smoke suite (tmux): failure"
+gate_checks "$T/checks-missing.json" "fmt · clippy · test · doc=success"
+expect_fail "a commit with no CI for a required job is refused" bash "$STEPS/gate.sh" --inspect "$T/checks-missing.json"
+expect_contains "…naming it missing" "$OUT" "no CI evidence"
+gate_checks "$T/checks-rerun.json" "${gate_all_pass[@]}" "release tooling=failure" "release tooling=success"
+expect_ok "a re-run whose later attempt passed passes" bash "$STEPS/gate.sh" --inspect "$T/checks-rerun.json"
+printf '{"workflow_runs":[{"name":"CI","status":"in_progress"}]}\n' >"$T/runs-pending.json"
+gate_checks "$T/checks-pending.json" "fmt · clippy · test · doc=success"
+expect_fail "a job not created yet while its workflow is queued is pending, not missing" bash "$STEPS/gate.sh" --inspect "$T/checks-pending.json" --runs "$T/runs-pending.json"
+expect_contains "…saying still running" "$OUT" "still running"
+gate_checks "$T/checks-reported.json" "${gate_all_pass[@]}" "clipboard (X11)=failure"
+expect_ok "a non-required job's failure is reported but does not gate" bash "$STEPS/gate.sh" --inspect "$T/checks-reported.json"
+expect_fail "the remote gate needs a token" env -u GITHUB_TOKEN -u GH_TOKEN bash "$STEPS/gate.sh" example/zeroth 0123456789abcdef
+
+# ---------------------------------------------------------------------------
 # Every case stops the stand-in it started; one left running would outlive
 # the selftest itself (they were, once: started inside $(…), their PIDs went
 # with the subshell).

@@ -18,24 +18,22 @@ scripts/release.sh prepare X.Y.Z     # bump + roll the changelog (a commit's wor
 git commit … && git tag -a vX.Y.Z -m "zeroth vX.Y.Z" && git push origin HEAD vX.Y.Z
         │
         ▼  .github/workflows/release.yml
-   check ──► gate ──► smoke ──► build ×4 ──► publish
+   check ──► build ×4 ──► publish
 ```
 
 1. **`check`** —— tag 点名 Cargo.toml 的版本，而 Cargo.lock、README 的版本
    badge 和 `CHANGELOG.md` 都与它一致；然后是工具链自己的 `selftest` 和
    `shellcheck`。每一处不一致都在 job 失败之前报出来，于是一次运行就点名全部。
-2. **`gate`** —— `CLAUDE.md` 里的 pre-commit 闸门，未改动：`cargo fmt
-   --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test`、
-   `cargo doc --no-deps --lib`。
-3. **`smoke`** —— 在 tmux 里对真实二进制跑终端 I/O 边界
-   （`docs/ops/smoke.md`），形状与 `ci.yml` 的 job 相同：每核一个 worker，
-   然后并行那一趟失败的阶段串行重跑一次，才判红。单元闸门看不见终端路径，
-   而一个 tag 是最不该第一次看到它出错的地方。
-4. **`build`** —— 每个 target 一个 job（下面的矩阵），各自跑
+   它还会跑 `scripts/release.sh gate`：这个提交的 CI 必须已经通过（闸门、macOS
+   闸门、smoke 套件和 release tooling 这几个 job）—— 用的是 CI 为推送到 `main`
+   那次运行产生的结果，从 GitHub 读回，而不是再跑一遍。CI 没见过的提交、见过
+   但失败的提交，或还没跑完的提交，都会在构建任何资产之前被拒绝。一次 push 一次
+   CI；直接推到 tag 上、自己没有任何 CI 运行的提交没有证据，同样被拒绝。
+2. **`build`** —— 每个 target 一个 job（下面的矩阵），各自跑
    `scripts/release.sh build TARGET` 再对它的输出跑
    `scripts/release.sh verify dist`，并把 `dist/` 作为一个 workflow artifact
    上传。
-5. **`publish`** —— 下载每一个 `dist/`，*一起*验证它们，把说明
+3. **`publish`** —— 下载每一个 `dist/`，*一起*验证它们，把说明
    （`scripts/release.sh notes`）渲染进 job summary，然后要么发布
    （`scripts/release.sh publish`），要么在彩排时打印它本该运行的确切 `gh`
    命令。
@@ -207,13 +205,14 @@ release、一个被篡改的校验和（什么都不安装，而且输出说明�
 | --- | --- |
 | `version` | 打印 Cargo.toml 的 `[package]` 版本。 |
 | `check [TAG]` | 下面的规则 1–6；没给 TAG 时读 `GITHUB_REF_TYPE`/`GITHUB_REF_NAME`。 |
+| `gate [REPO] [COMMIT]` | release 闸门：`COMMIT`（默认 `HEAD`）必需的 CI job 必须全部为 `success`。`--inspect CHECKS [--runs RUNS]` 是对保存下来的 API 应答做判断的纯规则，供 selftest 使用；`--token-var NAME` 从 NAME 指向的文件读 token。 |
 | `build [TARGET] [--dist DIR]` | 需要时 `rustup target add`、Linux GNU target 的交叉工具链变量、文档里那个 `cargo build`，然后把 `package_dist` 做进 `dist/`。 |
 | `verify [DIST] [--version X]` | 每个归档的名字、校验和、布局、可执行位、`file` 的格式/CPU，以及——当这台机器能跑它时——`--version`；`SHA256SUMS` 的一致性；没有多余文件。 |
 | `notes VERSION [DIST]` | 上面那段 markdown，到 stdout。 |
 | `publish VERSION [DIST] [--notes FILE] [--dry-run]` | `verify`，组装 `SHA256SUMS`，然后 `gh release create` **作为 draft**，带说明和每个资产，然后 `gh release edit --draft=false`（`--latest`，除非是 pre-release）。 |
 | `download VERSION [DIST] [--from URL]` | 把一个已发布的 release 拉回空的 `dist/`：它的 `SHA256SUMS`，然后它列出的每个资产，用 curl 或 wget（不用 `gh`），每个旁边放着 `build` 会留下的那份 `.sha256`，然后 `verify`。`--from` 点名另一个仓库根。 |
 | `prepare VERSION` | 版本 bump 与 changelog 滚动，然后 `check`，然后要运行的 commit/tag/push。 |
-| `selftest` | 203 条由 fixture 驱动的断言，覆盖以上全部。 |
+| `selftest` | 由 fixture 驱动的断言，覆盖以上全部。 |
 
 `check` 的规则：
 
@@ -321,10 +320,12 @@ badge。小节的日期是它被写下的那天；如果不同，把它改成打
 运行在这里让 phase 58 和 61 失败——权限 prompt 在它的等待里「从未出现」——而
 两者单独都通过。于是这个 job 在判红之前，把并行那一趟失败的东西各串行重跑一次，
 并在第一趟失败时把两趟的日志都留作 artifact，于是一个 flake 留下证据而不是一个
-绿方块。release workflow 重跑闸门、smoke 套件和工具链 job，而不是信任一次
-可能没在那个打了 tag 的提交上跑过的 CI——tag 可以从一个 CI 从未见过的分支
-推出去。smoke 套件两边都有，因为它是终端 I/O 边界唯一的自动化覆盖
-（`docs/ops/smoke.md`），而 release 是最不该第一次看到终端路径出错的地方。
+绿方块。release workflow **不**重跑它们：一次推送到 `main` 就是一次 CI，而
+release tag 点的就是同一个提交。它的 `check` job 跑 `scripts/release.sh gate`，
+从 GitHub 读回那些 job 的结果，拒绝必需 job 缺失、失败或尚未完成的提交 ——
+所以从 CI 从未见过它的分支推上来的 tag 会被拒绝，又不必为测试付两次钱。smoke
+套件留在 CI，因为它是终端 I/O 边界唯一的自动化覆盖（`docs/ops/smoke.md`），
+而 release 闸门要求它已经通过，不再重跑它。
 
 ## 决定
 
@@ -380,9 +381,9 @@ request 提议，一对 major 一起动的组合没有绿色的通过之路—�
 major 都是红的——而出路就是关掉那三个的手工 bump。分组之后，这一对在一个 pull
 request 里移动，而那个 pull request 在它落地的地方被演练：`release.yml` 在**任何
 触及它的 pull request** 上作为一次彩排运行，触及 release 脚本或 `install.sh` 也
-一样。它的 check job 从 tag 推出 `publish=false`，所以整条流水线——闸门、四次
-平台构建、artifact 交接、`verify`、说明、`publish --dry-run`——都跑，却什么也不
-发布。没有那个触发，那两条线只在 tag 上跑，而一个 pull request 跑的每一项检查都
+一样。它的 check job 从 tag 推出 `publish=false`，所以整条流水线——重读闸门
+（它必须已经通过）、四次平台构建、artifact 交接、`verify`、说明、
+`publish --dry-run`——都跑，却什么也不发布。没有那个触发，那两条线只在 tag 上跑，而一个 pull request 跑的每一项检查都
 来自 `ci.yml`，于是一半移动的配对会绿着合并；现在它是一个红检查，而不是一个坏
 掉的 release，一个新的 major 里被改名的输入也一样。代价是一个触及那些路径的
 pull request 上两个 macOS runner，而那些按构造就罕见。cooldown 是供应链那一半：
@@ -420,7 +421,8 @@ main 带上那个版本，或那个 pull request 被重新打开。要接受一�
   在 `PATH` 里没有 `gh` 时的 `publish --dry-run`；端到端地对着替身 release
   服务器（见上）跑 `install.sh`；用 curl 和只用 wget 从那个服务器 `download`
   回来。它需要 bash、awk、sed、tar、gzip、`file`、一个 C 编译器和 python3，跑
-  完不到半分钟；CI 和 release workflow 都跑它。
+  完不到半分钟；CI 跑它，release 的 `check` job 在构建任何东西之前再对 tag 的树
+  跑一次。
 - `shellcheck -x` 扫过脚本和 `install.sh`（它按 POSIX `sh` 检查，标出任何
   bashism），在 CI 里和 release 的 `check` job 里。
 - 脚本避开 bash 4（`${var,,}`、关联数组、`mapfile`）、`sed -i`、`readlink -f`

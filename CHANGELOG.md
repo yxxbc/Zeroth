@@ -29,6 +29,14 @@ release heading when a version is cut.
 - A terminal setup failure after command launch stops and reaps that command
   instead of executing it again through the pipe fallback.
 
+### Changed
+
+- **A release reuses its commit's CI instead of running it twice.** The release
+  workflow requires the gate, macOS gate, smoke suite and release tooling to
+  have passed for the tagged commit — a commit CI has not seen, has failed, or
+  has not finished is refused — and then builds the assets. The tag is the
+  push that already ran CI.
+
 ### Removed
 
 - **Local MCP integration is removed.** The `/mcp` manager, `zeroth mcp`
