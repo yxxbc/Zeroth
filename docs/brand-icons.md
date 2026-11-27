@@ -63,8 +63,7 @@ A link's host, matched on its registrable suffix so `docs.anthropic.com` and
 | surface | shape | notes |
 | --- | --- | --- |
 | footer's model segment | glyph + suffix | `◈ deepseek-v4.1-flash`; `[provider]` only for an unknown pair |
-| `/model` picker rows | glyph beside the id | takes the `[provider]` tag's seat; the tag stays for an unknown pair |
-| `/model` provider headings | glyph beside the name | the same table, keyed on the provider |
+| `/model` picker rows | `[provider]` tag (no mark) | the list is where you **choose a route**, so the provider must stay readable — one model name can come from several providers |
 | sidebar `model` fact | glyph + name | inside an agent view, the pinned model's own family |
 | sidebar brand section | **real logo tile** | graphic terminals only (`docs/ui/images.md`) |
 | assistant's lone link line | glyph + clickable host/path | replaces the fetched preview card (`docs/ui/rich-links.md`) |
@@ -100,10 +99,14 @@ and the scrolling-frame suppression that keeps a full-screen scroll from leaving
 ghost blocks (`docs/ui/images.md`, `docs/ui/full-screen.md`).
 
 The sidebar tile is the only graphic surface today, and only in the
-graphic-protocol branch (`images::graphics_available`). The `/model` picker
-deliberately stays glyph-only: its page geometry is exact — the reserved height
-and the painted rows are the same sum (`docs/ui/view-flow.md`) — and a picture
-row would have to be paid for by every one-row rung on a short terminal.
+graphic-protocol branch (`images::graphics_available`).
+
+The `/model` picker carries **no** mark, deliberately. It is where you choose a
+route, and the same model name can come from several providers
+(`cline-pass/glm-5.3` from a subscription beside `glm-5.3` from an API key), so
+replacing its `[provider]` tag with an icon trades the one fact the row exists
+for against a decoration. The mark belongs where the question is "what am I
+talking to", which is the footer and the sidebar.
 
 ## The alternative that lost
 

@@ -392,32 +392,10 @@ fn a_cut_model_id_ends_with_an_ellipsis() {
         .map(|y| row(&buf, y, 40))
         .find(|r| r.contains('→'))
         .expect("the model row");
-    // The id's cut is marked; the provider's seat is now the brand mark —
-    // the model's own family, Claude — rather than the `[openrouter]` tag
-    // (docs/brand-icons.md).
     assert!(
-        first.contains('…') && first.contains('✻'),
-        "the id marks its cut and the mark keeps its seat: {first:?}"
+        first.contains('…') && first.contains("[openrouter]"),
+        "the id marks its cut and the tag keeps its seat: {first:?}"
     );
-    assert!(
-        !first.contains("[openrouter]"),
-        "a known family needs no bracket: {first:?}"
-    );
-}
-
-#[test]
-fn an_unknown_model_keeps_the_provider_tag_in_the_picker() {
-    // Neither table knows this pair, so the row never guesses a mark: the
-    // `[provider]` tag stays right where it always was.
-    let models = vec![model_entry("my-finetune-v3", "my_gateway", "Finetune")];
-    let picker = model_picker(models, 0, "x");
-    let mut buf = buffer(60, 14);
-    render_model_picker(buf.area, &mut buf, &picker);
-    let first = (0..buf.area.height)
-        .map(|y| row(&buf, y, 60))
-        .find(|r| r.contains('→'))
-        .expect("the model row");
-    assert!(first.contains("[my_gateway]"), "{first:?}");
 }
 
 #[test]
@@ -1075,13 +1053,13 @@ fn a_multi_provider_list_heads_each_provider_and_drops_the_tag() {
     assert_eq!(
         &texts[6..11],
         [
-            "  ♛ a0_venice",
-            "  → b/y ♛ ✓",
-            "  ⇄ openrouter",
-            "    a/x ⇄",
-            "    c/z ⇄",
+            "  a0_venice",
+            "  → b/y ✓",
+            "  openrouter",
+            "    a/x",
+            "    c/z",
         ],
-        "one heading per provider, each wearing its mark, and no [provider] tag on the rows"
+        "one heading per provider, no [provider] tag on the rows"
     );
     assert_eq!(texts[11], "    (1/3)", "the counter counts models");
     assert_eq!(
@@ -1110,12 +1088,12 @@ fn the_highlight_moves_over_models_not_provider_headings() {
         .map(|l| plain(l).trim_end().to_string())
         .collect();
     assert_eq!(
-        texts[6], "  ♛ a0_venice",
+        texts[6], "  a0_venice",
         "the heading itself is not selected"
     );
     assert_eq!(
         texts[9],
-        "  → a/x ⇄",
+        "  → a/x",
         "the arrow sits on the first openrouter model: {:?}",
         &texts[6..11]
     );

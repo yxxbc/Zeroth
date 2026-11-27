@@ -61,12 +61,7 @@ fn model_rows_show_marker_provider_tag_and_active_check() {
         first.starts_with("  → anthropic/claude-3-haiku"),
         "{first:?}"
     );
-    // The provider's seat is the brand mark now — the model's own family,
-    // Claude — and the `[openrouter]` tag yields to it (docs/brand-icons.md).
-    assert!(
-        first.contains('✻') && !first.contains("[openrouter]"),
-        "the model's mark stands where the tag did: {first:?}"
-    );
+    assert!(first.contains("[openrouter]"), "provider tag: {first:?}");
     // The selected marker is cyan.
     assert_eq!(buf[(2, 6)].fg, model_selected_color());
     // The active model (row 1, y=7) carries the ✓.

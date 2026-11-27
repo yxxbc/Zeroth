@@ -61,9 +61,7 @@ The two fixed items are worth ~2.4 ms of startup (the git spawn, measured at
 5–6 ms standalone, of which the part inside bootstrap was 2.4 ms across 11
 runs) and the whole of the idle thread and wakeup column. The startup rows
 are the same in-process measurement before and after the git fix; the pty
-harness adds its own shell spawn on top. (The startup row is the
-pty harness, which includes spawning the shell it runs under; the in-process
-figures are the four lines above it.)
+harness adds its own shell spawn on top.
 
 ## What the other numbers are, and why they are not going to move much
 

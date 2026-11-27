@@ -23,7 +23,7 @@ release heading when a version is cut.
 - **`/exit` as an alias of `/quit`.** The palette still lists one row; either
   spelling selects it, and so does any prefix of either (`/exi`).
 - **Brand marks for models, providers and links** (`docs/brand-icons.md`). The
-  footer, the `/model` picker and the sidebar now lead with a single-width
+  footer, a link row and the sidebar now lead with a single-width
   brand mark chosen from the model's own family first and its provider second
   (`◈ deepseek-v4.1-flash`, `✻ claude-sonnet-4`), painted in the active theme's
   palette, with the old `[provider]` bracket kept as the fallback for anything

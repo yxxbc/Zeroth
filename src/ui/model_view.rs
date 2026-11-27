@@ -658,29 +658,15 @@ fn model_row(
     width: u16,
     show_provider_tag: bool,
 ) -> Line<'static> {
-    // The brand mark stands where the `[provider]` tag did — the model's own
-    // family first, then the provider's, and nothing when neither is known,
-    // in which case the tag stays and names the provider itself
-    // (docs/brand-icons.md). A grouped list's heading already names the
-    // provider, so the tag would be redundant there; the mark is a model
-    // fact and stays.
-    let brand = crate::brand::Brand::for_model(&entry.id, &entry.provider);
-    let tag = match brand {
-        Some(_) => String::new(),
-        None if show_provider_tag => format!(" [{}]", entry.provider),
-        None => String::new(),
+    let tag = if show_provider_tag {
+        format!(" [{}]", entry.provider)
+    } else {
+        String::new()
     };
-    let mark = brand.map_or(String::new(), |brand| format!(" {}", brand.glyph()));
     let active_mark = if active { MODEL_ACTIVE_MARK } else { "" };
-    let reserved = row_head_cols() + cols(&mark) + cols(&tag) + cols(active_mark);
+    let reserved = row_head_cols() + cols(&tag) + cols(active_mark);
     let id_room = (width as usize).saturating_sub(reserved).max(1);
     let mut spans = marked_row_head(&ellipsize(&entry.id, id_room), selected);
-    if let Some(brand) = brand {
-        spans.push(Span::styled(
-            mark,
-            Style::new().fg(brand_color(brand.tone())),
-        ));
-    }
     spans.push(Span::styled(tag, Style::new().fg(model_meta_color())));
     spans.push(Span::styled(
         active_mark.to_string(),
@@ -689,29 +675,19 @@ fn model_row(
     Line::from(spans)
 }
 
-/// One provider heading in a grouped list: the provider's brand mark beside
-/// its id, bold and dim, under the list's indent; `…`-cut like any other
-/// single row.
+/// One provider heading in a grouped list: the provider's id, bold and dim,
+/// under the list's indent; `…`-cut like any other single row.
 fn provider_row(provider: &str, width: u16) -> Line<'static> {
-    let brand = crate::brand::Brand::of_provider(provider);
-    let mark_cols = brand.map_or(0, |_| BRAND_MARK_COLS);
-    let room = (width as usize)
-        .saturating_sub(cols(MODEL_INDENT) + mark_cols)
-        .max(1);
-    let mut spans = vec![Span::raw(MODEL_INDENT)];
-    if let Some(brand) = brand {
-        spans.push(Span::styled(
-            format!("{} ", brand.glyph()),
-            Style::new().fg(brand_color(brand.tone())),
-        ));
-    }
-    spans.push(Span::styled(
-        ellipsize(provider, room),
-        Style::new()
-            .fg(model_meta_color())
-            .add_modifier(Modifier::BOLD),
-    ));
-    Line::from(spans)
+    let room = (width as usize).saturating_sub(cols(MODEL_INDENT)).max(1);
+    Line::from(vec![
+        Span::raw(MODEL_INDENT),
+        Span::styled(
+            ellipsize(provider, room),
+            Style::new()
+                .fg(model_meta_color())
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])
 }
 
 /// The picker's list lines: a single placeholder while loading / errored /
