@@ -108,6 +108,29 @@ fn mascot_image_cell() -> &'static RwLock<Option<String>> {
     MASCOT_IMAGE.get_or_init(|| RwLock::new(None))
 }
 
+fn brand_image_cell() -> &'static RwLock<Option<String>> {
+    static BRAND_IMAGES: OnceLock<RwLock<Option<String>>> = OnceLock::new();
+    BRAND_IMAGES.get_or_init(|| RwLock::new(None))
+}
+
+/// Publish the directory the bundled brand logos were materialized into
+/// (`docs/brand-icons.md`), or `None` when the boundary did not materialize
+/// them (no config home) — the roomy surfaces then keep their glyph.
+pub fn set_brand_image_dir(path: Option<String>) {
+    if let Ok(mut guard) = brand_image_cell().write() {
+        *guard = path;
+    }
+}
+
+/// The file a brand's tile lives at, when the boundary materialized the
+/// bundled logos: `<dir>/<Brand::logo()>`.
+#[must_use]
+pub fn brand_image_path(brand: crate::brand::Brand) -> Option<String> {
+    let dir = brand_image_cell().read().ok()?.clone()?;
+    let name = brand.logo()?;
+    Some(format!("{}/{name}", dir.trim_end_matches('/')))
+}
+
 /// Publish the bundled mascot image's session-local cache path.
 pub fn set_mascot_image_path(path: Option<String>) {
     if let Ok(mut guard) = mascot_image_cell().write() {

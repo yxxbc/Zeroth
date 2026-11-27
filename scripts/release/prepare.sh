@@ -39,6 +39,9 @@ if git -C "$RELEASE_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -
 	die "prepare: the tag $tag already exists"
 fi
 grep -q '^## \[Unreleased\]$' "$(changelog_path)" || die "prepare: CHANGELOG.md has no '## [Unreleased]' section to roll"
+if changelog_zh_exists && ! grep -q '^## \[Unreleased\]$' "$(changelog_zh_path)"; then
+	die "prepare: CHANGELOG.zh.md has no '## [Unreleased]' section to roll"
+fi
 [ -n "$(changelog_section Unreleased)" ] || die "prepare: CHANGELOG.md's [Unreleased] section is empty — write the release's entries first"
 
 # Rewrite FILE through a filter, atomically (no `sed -i`: GNU and BSD differ).
@@ -79,19 +82,29 @@ if [ -n "$prev" ]; then
 else
 	link="$repo/releases/tag/$tag"
 fi
-rewrite "$(changelog_path)" awk -v v="$version" -v d="$date" -v repo="$repo" -v link="$link" '
-	state == 0 && /^## \[Unreleased\]$/ { print; print ""; print "## [" v "] - " d; state = 1; next }
-	state == 1 { if ($0 ~ /^[ \t]*$/) next; print ""; state = 2 }
-	/^\[Unreleased\]: / { print "[Unreleased]: " repo "/compare/" "v" v "...HEAD"; print "[" v "]: " link; next }
-	{ print }
-'
+# The same roll, for the Chinese twin (`changelog_zh_path`). Its headings keep
+# the version numbers — the parity script compares headings by level sequence,
+# not by text — so the twin gets the dated heading and the links too, and a
+# release cannot leave the translation holding the entries it just took.
+roll_changelog() {
+	rewrite "$1" awk -v v="$version" -v d="$date" -v repo="$repo" -v link="$link" '
+		state == 0 && /^## \[Unreleased\]$/ { print; print ""; print "## [" v "] - " d; state = 1; next }
+		state == 1 { if ($0 ~ /^[ \t]*$/) next; print ""; state = 2 }
+		/^\[Unreleased\]: / { print "[Unreleased]: " repo "/compare/" "v" v "...HEAD"; print "[" v "]: " link; next }
+		{ print }
+	'
+}
+roll_changelog "$(changelog_path)"
+if changelog_zh_exists; then
+	roll_changelog "$(changelog_zh_path)"
+fi
 
 ok "$name $current → $version ($date) in Cargo.toml, Cargo.lock, the READMEs and CHANGELOG.md"
 bash "$RELEASE_LIB_DIR/check.sh"
 cat >&2 <<EOF
 
 Next, from $RELEASE_ROOT:
-  git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md
+  git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md CHANGELOG.zh.md
   git commit -m "Release $tag"
   git tag -a $tag -m "$name $tag"
   git push origin HEAD $tag          # the tag push runs .github/workflows/release.yml

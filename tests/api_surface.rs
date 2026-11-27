@@ -136,6 +136,8 @@ use zeroth::app::{
     DebugPage,
     AGENT_STOPPED_OUTPUT,
     CHECKPOINT_RESTORED_NOTICE,
+    CD_BUSY_NOTICE,
+    CD_USAGE_NOTICE,
     CHECKPOINT_REWOUND_NOTICE,
     COMMANDS,
     CONNECTION_LOST_NOTICE,
@@ -166,6 +168,16 @@ use zeroth::app::{
     shell_query,
     theme_file_json,
 };
+
+// --- `brand` — the model/provider/link → mark table (`docs/brand-icons.md`) ---
+#[rustfmt::skip]
+#[allow(unused_imports)]
+use zeroth::brand::{Brand, Tone};
+
+// --- `workdir` — the `/cd` handle (`docs/state/change-directory.md`) ---
+#[rustfmt::skip]
+#[allow(unused_imports)]
+use zeroth::workdir::WorkDir;
 
 // --- `stream` — the backend seam and the offline dummy ---
 // `stream.rs` was a single file too, and it split the same way (see

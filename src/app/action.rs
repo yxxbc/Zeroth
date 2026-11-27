@@ -59,6 +59,14 @@ pub enum Action {
     /// A slash command cleared the conversation (`/clear`). [`App::history`] is
     /// already empty; the loop repaints the now-blank inline view.
     Clear,
+    /// `/cd <path>` — move the session's working directory. The loop resolves
+    /// the path, checks it is a directory, retargets the shared
+    /// [`WorkDir`](crate::workdir::WorkDir) (tools, the `!` shell, the footer
+    /// and the path display), and raises a toast; a path that is not a
+    /// directory is a red toast and changes nothing. The conversation, its
+    /// model, its permissions and its rollout stay where they are. See
+    /// `docs/state/change-directory.md`.
+    ChangeDirectory(String),
     /// `/copy` — write the last assistant response ([`App::last_assistant_text`])
     /// to the system clipboard. The decision is pure — with no response to copy
     /// the command returns [`Action::Toast`] instead — and the loop does the

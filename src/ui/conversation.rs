@@ -89,11 +89,11 @@ pub fn conversation_lines_expanded(
     conversation_lines_carded(history, width, paths, verbose, expanded, |_, _| None, built)
 }
 
-/// [`conversation_lines_expanded`] with a **card** transform: after an item's
-/// rows are rendered, each line is offered to `card_for`; `Some(rows)` replaces
-/// it (a lone URL line becoming a link preview card, `docs/ui/rich-links.md`).
+/// [`conversation_lines_expanded`] with a **row** transform: after an item's
+/// rows are rendered, each line is offered to `row_for`; `Some(rows)` replaces
+/// it (a lone URL line becoming the icon + link row, `docs/ui/rich-links.md`).
 /// The transform runs per item, so the item's reported range and every later
-/// offset include the card rows naturally — no post-hoc line arithmetic.
+/// offset include the new rows naturally — no post-hoc line arithmetic.
 #[must_use]
 pub fn conversation_lines_carded(
     history: &[HistoryItem],
@@ -101,7 +101,7 @@ pub fn conversation_lines_carded(
     paths: &PathDisplay,
     verbose: bool,
     expanded: impl Fn(usize) -> bool,
-    card_for: impl Fn(&HistoryItem, &Line<'static>) -> Option<Vec<Line<'static>>>,
+    row_for: impl Fn(&HistoryItem, &Line<'static>) -> Option<Vec<Line<'static>>>,
     mut built: impl FnMut(usize, usize, usize),
 ) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
@@ -160,13 +160,13 @@ pub fn conversation_lines_carded(
             // images are off.
             lines.extend(super::image::image_block_lines(item, width));
         }
-        // A lone-link line becomes its preview card, still inside this item so
-        // `built` and every later offset count the card's rows.
+        // A lone-link line becomes its link row, still inside this item so
+        // `built` and every later offset count the row's columns.
         if lines.len() > start {
             let rendered = lines.split_off(start);
             for line in rendered {
-                if let Some(card) = card_for(item, &line) {
-                    lines.extend(card);
+                if let Some(replacement) = row_for(item, &line) {
+                    lines.extend(replacement);
                 } else {
                     lines.push(line);
                 }

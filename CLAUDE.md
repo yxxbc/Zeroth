@@ -50,6 +50,10 @@ stale link.
 - **`src/app/`, `src/ui/`, `src/stream/`** are directories of per-area modules,
   re-exported by name — never a glob — so `tests/api_surface.rs` locks the public
   surface.
+- **`/cd` moves where work happens, not where the session is filed**
+  (`docs/state/change-directory.md`): one `workdir::WorkDir` handle reaches the
+  tool executor, both shells and the footer; the permissions project,
+  checkpoints, skills and rollout stay keyed to the launch directory.
 - **The backend seam** is `stream::ReplySource`; `llm::LlmBackend` implements it
   and runs the tool loop (`llm::agent::run_agent`) over
   `llm::exec::ToolExecutor`. The offline demo is `stream::dummy` (`DummyAi`), a
@@ -159,6 +163,9 @@ streamed, undoes the submission. Every turn end dispatches **one** queued entry.
   path to …" and stop; every word rides every request.
 - **The agent's own name is one constant**: `zeroth::APP_NAME`. Ported sentences
   keep their source tool's name unless you change it deliberately.
+- **A brand mark is one pure table**: provider/model/host → `brand::Brand` →
+  glyph + tone (`docs/brand-icons.md`). Never inline a lookup at a call site,
+  never add a brand colour — the tone is a palette role.
 - **The README is the front door, not the manual.** Mechanism goes in `docs/`,
   changes in `CHANGELOG.md`.
 - **Working style: TDD.** No production code before a failing test you watched

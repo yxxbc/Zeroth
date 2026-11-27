@@ -80,9 +80,9 @@ pub(crate) struct FullTail {
 }
 
 /// Everything the screen-owning mode derives from `App` plus a size — the
-/// frame cache, its scroll anchor, the hit map, the pointer's state, the
-/// expanded set and the link cards — in one value, so `Session` is not the
-/// owner of the view (`docs/architecture/core-host-split.md` Phase 1).
+/// frame cache, its scroll anchor, the hit map, the pointer's state and the
+/// expanded set — in one value, so `Session` is not the owner of the view
+/// (`docs/architecture/core-host-split.md` Phase 1).
 ///
 /// Every field is rebuildable from `App` + the terminal size; none is the only
 /// copy of anything the product needs. That is what will let a second
@@ -129,10 +129,6 @@ pub(crate) struct ConversationView {
     pub(crate) full_expanded: std::collections::HashSet<usize>,
     pub(crate) full_items: Vec<(usize, usize, usize)>,
     pub(crate) full_anchor: Option<(usize, usize)>,
-    /// Link preview cards by URL (`docs/ui/rich-links.md`).
-    pub(crate) cards: std::collections::HashMap<String, zeroth::link_card::LinkCard>,
-    /// URLs already handed to a fetch this session.
-    pub(crate) card_pending: std::collections::HashSet<String>,
     pub(crate) full_prompts: Vec<ui::UserPrompt>,
     pub(crate) full_sticky_rows: usize,
     pub(crate) full_pin_row: Option<usize>,
@@ -145,14 +141,7 @@ pub(crate) struct ConversationView {
 /// app, the view and a width so the cache can be exercised without a terminal
 /// (and, later, without a `Session`). It also stores the pin/hit offsets the
 /// frame reads beside the rows.
-fn frame_history(
-    app: &App,
-    view: &mut ConversationView,
-    width: u16,
-    screen_width: u16,
-    link_cards: bool,
-    card_tx: &tokio::sync::mpsc::UnboundedSender<(String, Option<zeroth::link_card::LinkCard>)>,
-) {
+fn frame_history(app: &App, view: &mut ConversationView, width: u16, screen_width: u16) {
     let theme = ui::active_theme();
     let agent_id = app.viewed_agent().map(|run| run.id.as_str());
     let viewing_agent = agent_id.is_some();
@@ -216,21 +205,12 @@ fn frame_history(
     // to the buffer above: leaving one in a scrolling row is the reported
     // "noise after scrolling" in `docs/ui/full-screen.md`. Every row built
     // below is therefore pictureless — the `read` cell's fact line is the
-    // text stand-in, the link card keeps its head and description — while
-    // the sidebar's fixed-column art and the Ctrl+O pager, built outside
-    // this scope, keep theirs.
+    // text stand-in — while the sidebar's fixed-column art and the Ctrl+O
+    // pager, built outside this scope, keep theirs.
     let _scrolling = images::scrolling_frame();
-    // Lone URL lines in assistant replies become preview cards once
-    // fetched (`docs/ui/rich-links.md`). The closures capture the fields
-    // directly, so the renderer's mutable borrows (`agent_render`) below
-    // stay disjoint; the URLs that still need a fetch are collected and
-    // enqueued after the build.
-    let cards = &view.cards;
-    let missing_cards = std::cell::RefCell::new(Vec::new());
-    let card_line = |line: &Line<'static>| -> Option<Vec<Line<'static>>> {
-        if !link_cards {
-            return None;
-        }
+    // A lone URL line in an assistant reply becomes the icon + link row
+    // (`docs/ui/rich-links.md`): a pure rewrite, no fetch, no cache.
+    let row_line = |line: &Line<'static>| -> Option<Vec<Line<'static>>> {
         let text: String = line
             .spans
             .iter()
@@ -240,17 +220,10 @@ fn frame_history(
         // The assistant bullet prefixes the message's first row; a link on
         // it is still a lone link.
         let url = trimmed.strip_prefix("● ").unwrap_or(trimmed).trim();
-        if !zeroth::links::is_whole_url(url) {
-            return None;
-        }
-        if let Some(card) = cards.get(url) {
-            return Some(ui::link_card_lines(card, url, width));
-        }
-        missing_cards.borrow_mut().push(url.to_string());
-        None
+        ui::link_line_lines(url, width)
     };
     let card_for = |item: &HistoryItem, line: &Line<'static>| match item {
-        HistoryItem::Message(message) if message.role == Role::Assistant => card_line(line),
+        HistoryItem::Message(message) if message.role == Role::Assistant => row_line(line),
         _ => None,
     };
     let (mut lines, mut prompts, mut items) = match app.viewed_agent() {
@@ -316,18 +289,6 @@ fn frame_history(
             (lines, prompts, items)
         }
     };
-    // Fetch the lone links that have no card yet; a URL is requested once
-    // per session (a failed fetch simply keeps its line).
-    let missing: Vec<String> = missing_cards.borrow_mut().drain(..).collect();
-    for url in missing {
-        // A reply with a wall of links must not spawn a thread per URL.
-        if view.card_pending.len() >= 8 {
-            break;
-        }
-        if view.card_pending.insert(url.clone()) {
-            super::link_cards::spawn(url, card_tx.clone());
-        }
-    }
     // The banner is the inline mode's brand block. In the screen-owning
     // mode the sidebar carries it (`docs/ui/sidebar.md`), so it is left out
     // rather than printed twice — and its rows are then zero.
@@ -747,8 +708,6 @@ impl Session<'_> {
             &mut self.view,
             width,
             self.screen.screen().width,
-            self.link_cards,
-            &self.conversation.card_tx,
         );
         self.tailed_with_stream(width)
     }
@@ -1673,7 +1632,6 @@ mod tests {
                 images: Vec::new(),
             }));
         }
-        let (card_tx, _card_rx) = tokio::sync::mpsc::unbounded_channel();
         let plain = |lines: &[ratatui::text::Line<'static>]| -> Vec<String> {
             lines
                 .iter()
@@ -1681,14 +1639,14 @@ mod tests {
                 .collect()
         };
         let mut built = ConversationView::default();
-        frame_history(&app, &mut built, 80, 80, true, &card_tx);
+        frame_history(&app, &mut built, 80, 80);
         let first = plain(&built.full_tail.as_ref().expect("built").lines);
         // A cache hit rebuilds nothing and paints the same rows.
-        frame_history(&app, &mut built, 80, 80, true, &card_tx);
+        frame_history(&app, &mut built, 80, 80);
         let cached = plain(&built.full_tail.as_ref().expect("cached").lines);
         // A fresh view derives them again from the app and the width.
         let mut fresh = ConversationView::default();
-        frame_history(&app, &mut fresh, 80, 80, true, &card_tx);
+        frame_history(&app, &mut fresh, 80, 80);
         let again = plain(&fresh.full_tail.as_ref().expect("rebuilt").lines);
         assert_eq!(first, cached, "a cache hit repaints the same rows");
         assert_eq!(
@@ -1817,8 +1775,7 @@ mod tests {
         app.push_chunk("我是 Zer");
 
         let mut view = ConversationView::default();
-        let (card_tx, _card_rx) = tokio::sync::mpsc::unbounded_channel();
-        frame_history(&app, &mut view, 80, 80, true, &card_tx);
+        frame_history(&app, &mut view, 80, 80);
         let cached: Vec<String> = view
             .full_tail
             .as_ref()

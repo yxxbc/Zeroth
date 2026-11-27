@@ -86,7 +86,6 @@ pub(crate) mod headless;
 pub(crate) mod herdr;
 pub(crate) mod history_store;
 pub(crate) mod host;
-pub(crate) mod link_cards;
 pub(crate) mod login;
 pub(crate) mod mascot;
 pub(crate) mod models;
@@ -131,9 +130,7 @@ pub(crate) struct Session<'t> {
     /// (`docs/architecture/core-host-split.md` Phase 3).
     conversation: conversation::Conversation,
 
-    // ----- the view's channels: link-card fetches and paste bursts -----
-    /// Whether previews are on for this process (`ZEROTH_LINK_CARDS`).
-    link_cards: bool,
+    // ----- the view's channels: paste bursts -----
     /// Detects a paste / fast-type burst so its redraws coalesce.
     burst: PasteBurst,
 

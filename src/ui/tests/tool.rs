@@ -6,7 +6,7 @@ use crate::ui::theme::{
     CODE_HIGHLIGHT_MAX_BYTES, CODE_TAB_WIDTH, EXPAND_HINT, FILE_PEEK_LINES,
     INLINE_DIFF_MARK_MIN_CONTRAST, TOOL_BULLET, TOOL_FOLD_ROWS, TOOL_HEADER_ELLIPSIS,
     TOOL_HEADER_MAX_COLS, TOOL_HEADER_MAX_LINES, TOOL_HEADER_MAX_ROWS, TOOL_JSON_PRETTY_MAX_BYTES,
-    TOOL_PULSE_PERIOD, TOOL_TRUNCATED_MARKER, tool_args_color, tool_diff_add_bg,
+    TOOL_PULSE_PERIOD, TOOL_TRUNCATED_MARKER, brand_color, tool_args_color, tool_diff_add_bg,
     tool_diff_add_color, tool_diff_add_mark_bg, tool_diff_del_bg, tool_diff_del_color,
     tool_diff_del_mark_bg, tool_dim_color, tool_fail_color, tool_ok_color, tool_output_color,
     tool_running_color, tool_waiting_color,
@@ -4696,6 +4696,36 @@ fn a_web_fetch_cell_shows_its_url_alone_and_counts_what_it_hid() {
             "the boundary stays out of the cell: {rows:?}"
         );
     }
+}
+
+#[test]
+fn a_web_fetch_header_marks_a_known_host() {
+    // The host's brand mark leads the URL the cell names — the same mark a
+    // lone link in a reply wears (docs/ui/rich-links.md) — while an unknown
+    // host keeps the bare URL the test above pins.
+    let call = tool(
+        "WebFetch",
+        "https://github.com/yxxbc/zeroth",
+        ToolStatus::Ok,
+        &fetched(&page()),
+    );
+    let lines = tool_lines(&call, 80, &PathDisplay::VERBATIM);
+    assert_eq!(
+        plain(&lines[0]),
+        "● ⎇ https://github.com/yxxbc/zeroth",
+        "{:?}",
+        lines.iter().map(plain).collect::<Vec<_>>()
+    );
+    let mark = lines[0]
+        .spans
+        .iter()
+        .find(|span| span.content == "⎇ ")
+        .expect("the brand mark");
+    assert_eq!(
+        mark.style.fg,
+        Some(brand_color(crate::brand::Tone::Text)),
+        "the mark wears its brand tone"
+    );
 }
 
 #[test]

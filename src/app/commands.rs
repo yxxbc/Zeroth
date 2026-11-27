@@ -59,6 +59,16 @@ pub const COMPACT_BUSY_NOTICE: &str = "/compact is disabled while a task is in p
 /// and "summarize" nothing. See `docs/architecture/compact.md`.
 pub const COMPACT_EMPTY_NOTICE: &str = "Nothing to compact";
 
+/// The toast a bare `/cd` answers with — the command needs a path, and the
+/// palette row is not a directory browser. See
+/// `docs/state/change-directory.md`.
+pub const CD_USAGE_NOTICE: &str = "Usage: /cd <path> — moves this session's working directory";
+
+/// The rejection a `/cd` gets mid-turn: the running turn's tools are resolved
+/// on the backend thread on its own schedule, so a move would split one turn
+/// across two directories. See `docs/state/change-directory.md`.
+pub const CD_BUSY_NOTICE: &str = "/cd is disabled while a task is in progress";
+
 /// What running a slash command does. The palette dispatches one of these on
 /// select; `App::run_selected_command` turns it into an [`Action`] for the loop.
 /// Wiring a stub up later is just swapping its effect here.
@@ -98,6 +108,13 @@ pub enum CommandEffect {
     /// like `/context` — it only replaces the composer, and it is live. See
     /// `docs/providers/usage.md`.
     Usage,
+    /// Move the session's **working directory** — `/cd <path>`, the path the
+    /// user typed. The tools and the `!` shell run in the new directory from
+    /// the next call on, and the footer follows; the conversation, its model,
+    /// its permissions and its rollout stay where they were. The loop owns the
+    /// filesystem check and the move (`Action::ChangeDirectory`); the row is
+    /// only the door. See `docs/state/change-directory.md`.
+    ChangeDirectory,
     /// Open the `/resume` session picker — or reject with a
     /// [`RESUME_BUSY_NOTICE`] toast while a turn is active (codex blocks it
     /// mid-task; it swaps the whole conversation). See `docs/state/resume.md`.
@@ -180,6 +197,11 @@ pub enum CommandEffect {
 pub struct SlashCommand {
     /// The command name **without** the leading slash (e.g. `"clear"`), lowercase.
     pub name: Cow<'static, str>,
+    /// Other spellings that select this row, without the slash — codex's
+    /// `/exit` for `/quit`. An alias never gets a palette row of its own: it
+    /// rides the one row and is what makes the command findable by either
+    /// name (see [`matching_commands`]).
+    pub aliases: Cow<'static, [&'static str]>,
     /// A one-line description shown dimmed beside the name in the palette.
     pub description: Cow<'static, str>,
     /// What selecting it does.
@@ -194,11 +216,32 @@ impl SlashCommand {
         description: &'static str,
         effect: CommandEffect,
     ) -> Self {
+        Self::builtin_with_aliases(name, &[], description, effect)
+    }
+
+    /// A built-in row with alternate spellings — codex's `/quit` also answers
+    /// to `/exit`. Aliases only widen the lookup; the palette still lists the
+    /// one canonical row.
+    #[must_use]
+    pub const fn builtin_with_aliases(
+        name: &'static str,
+        aliases: &'static [&'static str],
+        description: &'static str,
+        effect: CommandEffect,
+    ) -> Self {
         Self {
             name: Cow::Borrowed(name),
+            aliases: Cow::Borrowed(aliases),
             description: Cow::Borrowed(description),
             effect,
         }
+    }
+
+    /// Whether `query` (lowercase) starts either the name or one of the
+    /// aliases — the palette's filter for one row.
+    #[must_use]
+    fn matches(&self, query: &str) -> bool {
+        self.name.starts_with(query) || self.aliases.iter().any(|alias| alias.starts_with(query))
     }
 
     /// The row for one speed tier the active model lists — codex's
@@ -222,6 +265,7 @@ impl SlashCommand {
         };
         Some(Self {
             name: Cow::Owned(name),
+            aliases: Cow::Borrowed(&[]),
             description: Cow::Owned(description),
             effect: CommandEffect::ServiceTier(tier.clone()),
         })
@@ -276,6 +320,15 @@ pub const COMMANDS: &[SlashCommand] = &[
         CommandEffect::Usage,
     ),
     SlashCommand::builtin("resume", "Resume a saved chat", CommandEffect::Resume),
+    // The directory the tools run in — codex's session-only cousin of `-C`,
+    // and Claude Code's `/cd`: the conversation stays, the work moves. The
+    // path is typed as an argument, so the palette row explains, and Enter on
+    // it bare answers with the usage line. See `docs/state/change-directory.md`.
+    SlashCommand::builtin(
+        "cd",
+        "Move the session to another working directory",
+        CommandEffect::ChangeDirectory,
+    ),
     // The active model's speed tiers list right after this row
     // (`App::commands`).
     SlashCommand::builtin("model", "Switch the active model", CommandEffect::Model),
@@ -329,7 +382,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         "Work iteratively toward a goal",
         CommandEffect::Goal,
     ),
-    SlashCommand::builtin("quit", "Exit the app", CommandEffect::Quit),
+    SlashCommand::builtin_with_aliases("quit", &["exit"], "Exit the app", CommandEffect::Quit),
 ];
 
 /// A category the command page can show. Commands always exists; Skills is
@@ -466,7 +519,7 @@ pub fn command_query(input: &str) -> Option<&str> {
 #[must_use]
 pub fn matching_commands<'a>(commands: &'a [SlashCommand], query: &str) -> Vec<&'a SlashCommand> {
     let q = query.to_lowercase();
-    commands.iter().filter(|c| c.name.starts_with(&q)).collect()
+    commands.iter().filter(|c| c.matches(&q)).collect()
 }
 
 impl App {
@@ -852,6 +905,7 @@ impl App {
                 self.open_secrets_page();
                 Action::OpenSecretsPage
             }
+            CommandEffect::ChangeDirectory => Action::Toast(CD_USAGE_NOTICE.to_string()),
             CommandEffect::Quit => Action::Quit,
             CommandEffect::Loop => Action::Loop(LoopCommand::Autonomous),
             CommandEffect::Goal => Action::Goal(GoalCommand::Help),
@@ -869,6 +923,18 @@ impl App {
         let action = match cmd {
             "/loop" => Action::Loop(parse_loop_command(rest)),
             "/goal" => Action::Goal(parse_goal_command(rest)),
+            // Mid-turn the move is refused like /resume: a running turn's tools
+            // are resolved on the backend thread on its own schedule, and half
+            // a turn in one directory and half in another is never what the
+            // user meant (docs/state/change-directory.md).
+            "/cd" if !rest.is_empty() => {
+                if self.turn_active() {
+                    Action::Toast(CD_BUSY_NOTICE.to_string())
+                } else {
+                    Action::ChangeDirectory(rest.to_string())
+                }
+            }
+            "/cd" => Action::Toast(CD_USAGE_NOTICE.to_string()),
             "/new" if rest.is_empty() => {
                 self.clear_conversation();
                 Action::Clear

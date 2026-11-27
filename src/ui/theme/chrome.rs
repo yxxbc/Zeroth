@@ -593,6 +593,10 @@ pub const TOOL_RUN_SEPARATOR: &str = " · ";
 /// Review entry after a successful turn with recorded project file changes.
 pub const TURN_REVIEW_HINT: &str = "Review the current worktree with /diff";
 
+/// The indent a lone-URL link row shares with the conversation's bullet
+/// column — `docs/ui/rich-links.md`'s link line (the card's replacement).
+pub const LINK_LINE_INDENT: &str = "  ";
+
 // --- The session-context footer: the dim `{model} · {cwd}` row pinned under
 // the input box (codex's footer status line). See docs/ui/footer.md. ---
 
@@ -635,6 +639,24 @@ pub fn footer_cwd_color() -> Color {
 /// resting on the row's dim while there is room.
 pub fn footer_gauge_color(used: u64, window: u64, threshold: Option<u64>) -> Color {
     context_fill_color(used, window, threshold).unwrap_or_else(footer_color)
+}
+
+/// A brand mark's colour — [`crate::brand::Tone`] read off the active palette,
+/// so a model or provider icon in the footer, the `/model` picker or the
+/// sidebar follows `/theme` like every other role (`docs/ui/theme.md`). A
+/// tone names a *meaning* the palette already has (`docs/brand-icons.md`), so
+/// adding a brand never means a new colour in every theme table.
+pub fn brand_color(tone: crate::brand::Tone) -> Color {
+    use crate::brand::Tone;
+    match tone {
+        Tone::Accent => menu_selected_color(),
+        Tone::Link => palette().link,
+        Tone::Success => tool_ok_color(),
+        Tone::Warning => palette().warning,
+        Tone::Purple => palette().purple,
+        Tone::Text => palette().text,
+        Tone::Dim => footer_color(),
+    }
 }
 
 /// The permission mode pinned at the row's right edge, warming with what the

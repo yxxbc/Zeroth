@@ -50,10 +50,6 @@ pub(crate) struct Conversation {
     pub(crate) app: App,
     /// Who replies, and how (`docs/providers/llm.md`).
     pub(crate) models: ModelSession,
-    pub(crate) card_tx:
-        tokio::sync::mpsc::UnboundedSender<(String, Option<zeroth::link_card::LinkCard>)>,
-    pub(crate) card_rx:
-        tokio::sync::mpsc::UnboundedReceiver<(String, Option<zeroth::link_card::LinkCard>)>,
     /// The live status indicator's clocks.
     pub(crate) clocks: StatusClocks,
     /// When the transient toast above the box should self-clear (`docs/ui/toast.md`).
@@ -224,9 +220,20 @@ pub(crate) struct Conversation {
     /// **detached**, swept here when finished. Never joined on the loop — that
     /// was the interrupt-lag freeze (`docs/input/interrupt.md`).
     pub(crate) reaping: Vec<JoinHandle<()>>,
-    /// The working directory: the tasks root, the permissions project key, the
-    /// checkpoint store, the `/resume` filter, and the footer's `~`-relative
-    /// form all key off it.
+    /// The **project** directory the session launched in: the permissions
+    /// key, the checkpoint store, the `/resume` filter, the skills and agents
+    /// found at startup, and the rollout meta all key off it — `/cd` moves the
+    /// tools, never these (`docs/state/change-directory.md`).
     pub(crate) cwd: PathBuf,
+    /// The footer's `~`-relative form of [`cwd`](Self::cwd) — the *project's*
+    /// path, re-seeded by a `/resume` from the file's meta.
     pub(crate) cwd_display: String,
+    /// The directory the **tools** run in — `/cd`'s shared handle. The
+    /// executor, the shell registry, the `!` runner and the footer's live
+    /// path all read it; the pure core only ever sees the display string the
+    /// loop formats ([`App::set_working_dir`]).
+    pub(crate) work_dir: zeroth::workdir::WorkDir,
+    /// The directory `/cd` moved the session to, in the footer's `~`-relative
+    /// form — `cwd_display` until it moves, and back to it if `/cd` returns.
+    pub(crate) work_dir_display: String,
 }

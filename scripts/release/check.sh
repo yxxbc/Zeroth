@@ -19,6 +19,9 @@
 #   6. With a TAG: it is `vX.Y.Z` for that version, and the `[Unreleased]`
 #      section is empty — an entry left there was written for this release
 #      and never rolled into it.
+#   7. When `CHANGELOG.zh.md` exists: it carries the same dated section, the
+#      same date, and the same `[Unreleased]` target (its prose is the
+#      translation's, its structure is not).
 set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=lib.sh
@@ -76,6 +79,37 @@ else
 		fail "CHANGELOG.md: no '[Unreleased]: <url>' link reference"
 	else
 		ok "CHANGELOG.md: [Unreleased] section and link present"
+	fi
+fi
+
+# 7. The Chinese twin, when the tree carries one, names the same release: a
+#    dated section for it and the same version in its [Unreleased] link. The
+#    section's **prose** is the translation's business; this is the half that
+#    went wrong for 0.22.0–0.23.0, where `prepare` rolled the English file
+#    alone and the twin kept the entries the release had taken.
+if changelog_zh_exists; then
+	zh="$(changelog_zh_path)"
+	zh_date="$(changelog_date "$version" "$zh")"
+	if [ -z "$zh_date" ]; then
+		fail "CHANGELOG.zh.md: no '## [$version] - YYYY-MM-DD' section — run scripts/release.sh prepare, or roll it by hand"
+	elif [ -z "$(changelog_section "$version" "$zh")" ]; then
+		fail "CHANGELOG.zh.md: the [$version] section is empty"
+	elif [ "$zh_date" != "$date" ]; then
+		fail "CHANGELOG.zh.md: [$version] is dated $zh_date, CHANGELOG.md says $date"
+	else
+		ok "CHANGELOG.zh.md: [$version] - $zh_date"
+	fi
+	zh_unreleased="$(changelog_link Unreleased "$zh")"
+	en_unreleased="$(changelog_link Unreleased)"
+	if [ -z "$zh_unreleased" ]; then
+		fail "CHANGELOG.zh.md: no '[Unreleased]: <url>' link reference"
+	elif [ -n "$en_unreleased" ] && [ "$zh_unreleased" != "$en_unreleased" ]; then
+		fail "CHANGELOG.zh.md: [Unreleased] points at $zh_unreleased, CHANGELOG.md at $en_unreleased"
+	else
+		ok "CHANGELOG.zh.md: [Unreleased] link agrees"
+	fi
+	if [ -z "$(changelog_link "$version" "$zh")" ]; then
+		fail "CHANGELOG.zh.md: no '[$version]: <url>' link reference at the bottom"
 	fi
 fi
 

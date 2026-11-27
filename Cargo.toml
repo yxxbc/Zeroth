@@ -1,6 +1,6 @@
 [package]
 name = "zeroth"
-version = "0.23.0"
+version = "0.24.0"
 edition = "2024"
 authors = ["the Zeroth contributors"]
 description = "Agent harness for coding, cybersecurity, and automation."

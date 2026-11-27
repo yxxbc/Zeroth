@@ -222,6 +222,16 @@ pub const SIDEBAR_GAUGE_COLS: u16 = 8;
 pub const SIDEBAR_MASCOT_COLS: u16 = 16;
 pub const SIDEBAR_MASCOT_MIN_COLS: u16 = 10;
 pub const SIDEBAR_MASCOT_ROWS: u16 = 8;
+
+/// The brand tile's rows in the sidebar's brand section (`docs/brand-icons.md`):
+/// the session's model/provider logo, drawn under the mascot on a terminal
+/// that paints graphics — a three-row square beside the name, so the column
+/// says *who* this session talks to in the same block that says what the
+/// project is. The glyph already leads the `model` fact row below; this is
+/// the picture for the surface with rows to spare.
+pub const SIDEBAR_BRAND_LOGO_COLS: u16 = 3;
+pub const SIDEBAR_BRAND_LOGO_ROWS: u16 = 3;
+pub const SIDEBAR_BRAND_LOGO_MIN_COLS: u16 = 2;
 pub const SIDEBAR_MASCOT_PX: (u32, u32) = (384, 351);
 
 /// A heading: dim, so the body under it is what the eye lands on.

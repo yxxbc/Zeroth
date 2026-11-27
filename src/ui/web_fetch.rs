@@ -124,13 +124,19 @@ fn unfolded(tool: &ToolCall, text: &str, width: u16) -> Vec<Line<'static>> {
     lines
 }
 
-/// The bullet row: `● {url}`, coloured by lifecycle (the generic header's
-/// bullet, without the `name(args)` shape that would repeat the tool's name on
-/// every fetch). The URL keeps every column the row has while it fits; longer
-/// is cut with an ellipsis rather than wrapped over the `⎿` rows below.
+/// The bullet row: `● {mark} {url}`, coloured by lifecycle (the generic
+/// header's bullet, without the `name(args)` shape that would repeat the tool's
+/// name on every fetch) — the host's brand mark leading the URL, the same one
+/// a lone link in a reply wears (`docs/ui/rich-links.md`). The URL keeps every
+/// column the row has while it fits; longer is cut with an ellipsis rather than
+/// wrapped over the `⎿` rows below.
 fn header(tool: &ToolCall, width: u16, pulse: Option<Duration>) -> Line<'static> {
-    let room = usize::from(width).saturating_sub(cols(TOOL_BULLET)).max(1);
     let url = tool.args.trim();
+    let brand = url_host(url).and_then(|host| crate::brand::Brand::of_host(&host));
+    let mark_cols = brand.map_or(0, |_| BRAND_MARK_COLS);
+    let room = usize::from(width)
+        .saturating_sub(cols(TOOL_BULLET) + mark_cols)
+        .max(1);
     let url = if cols(url) > room {
         format!(
             "{}{TOOL_HEADER_ELLIPSIS}",
@@ -139,13 +145,27 @@ fn header(tool: &ToolCall, width: u16, pulse: Option<Duration>) -> Line<'static>
     } else {
         url.to_string()
     };
-    Line::from(vec![
-        bullet_span(
-            tool_status_color(tool.status),
-            pulse.filter(|_| tool.status == ToolStatus::Running),
-        ),
-        Span::styled(url, Style::new().fg(tool_output_color())),
-    ])
+    let mut spans = vec![bullet_span(
+        tool_status_color(tool.status),
+        pulse.filter(|_| tool.status == ToolStatus::Running),
+    )];
+    if let Some(brand) = brand {
+        spans.push(Span::styled(
+            format!("{} ", brand.glyph()),
+            Style::new().fg(brand_color(brand.tone())),
+        ));
+    }
+    spans.push(Span::styled(url, Style::new().fg(tool_output_color())));
+    Line::from(spans)
+}
+
+/// The host a fetch argument names, for its brand mark — `None` for an
+/// argument that is not a URL (a failed call's raw text still renders).
+fn url_host(url: &str) -> Option<String> {
+    let scheme = url.split_once("://")?.0;
+    matches!(scheme, "http" | "https")
+        .then(|| crate::web::host_of(url))
+        .flatten()
 }
 
 /// The expanded cell (Ctrl+O): the collapsed cell's rows — `● {url}` over its

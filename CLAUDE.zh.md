@@ -47,6 +47,10 @@ scripts/preflight.sh --smoke                # is this machine fit to run the gat
   `impl Session` 块。
 - **`src/app/`、`src/ui/`、`src/stream/`** 是按领域划分的模块目录，按名字重新
   导出 —— 从不用 glob —— 所以 `tests/api_surface.rs` 能锁住公开接口。
+- **`/cd` 移动的是干活的地方，不是会话归档的地方**
+  （`docs/state/change-directory.md`）：一个 `workdir::WorkDir` 句柄到达 tool
+  executor、两个 shell 和页脚；权限项目、checkpoint、skills 与 rollout 仍钉在
+  启动目录上。
 - **后端接缝**是 `stream::ReplySource`；`llm::LlmBackend` 实现它，并在
   `llm::exec::ToolExecutor` 之上跑 tool 循环（`llm::agent::run_agent`）。离线
   demo 是 `stream::dummy`（`DummyAi`），一个场景注册表。
@@ -145,6 +149,9 @@ tick 后面；而 turn 活跃时，绘制分支会重新武装一个 32 ms 的�
   停；每一个词都会随每一次请求旅行。
 - **agent 自己的名字是一个常量**：`zeroth::APP_NAME`。移植来的句子保留它们源
   tool 的名字，除非你有意改掉。
+- **品牌标记是一张纯表**：provider/model/host → `brand::Brand` → 字形 + 色调
+  （`docs/brand-icons.md`）。绝不在调用点内联查找，绝不新增品牌颜色 —— 色调是
+  一个 palette 角色。
 - **README 是前门，不是手册。** 机制写进 `docs/`，改动写进 `CHANGELOG.md`。
 - **工作方式：TDD。** 没看着一个测试先失败，就不写产品代码。`src/main.rs` +
   `src/tui/` 是例外 —— 用 app 和 smoke 来验证。对非平凡的功能：探索、发问、提出

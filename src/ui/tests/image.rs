@@ -161,49 +161,6 @@ fn a_scrolling_frame_reserves_no_picture_rows() {
 }
 
 #[test]
-fn a_scrolling_frame_gives_a_link_card_its_text_without_a_cover() {
-    // A cover is a terminal placement too, laid out in the same scrolling
-    // rows. Without one the card falls back to the text-only shape it already
-    // has for a page with no image.
-    let _guard = drawing(120);
-    let card = crate::link_card::LinkCard {
-        title: "A page".to_string(),
-        site: "example.com".to_string(),
-        cover: Some(crate::link_card::Cover {
-            path: "/tmp/cover.png".to_string(),
-            px: (1600, 1200),
-        }),
-        ..crate::link_card::LinkCard::default()
-    };
-    let url = "https://example.com/x";
-    let cars = |rows: &[Line<'static>]| {
-        rows.iter()
-            .flat_map(|line| line.spans.iter())
-            .filter(|span| {
-                span.style
-                    .underline_color
-                    .and_then(images::carrier_parts)
-                    .is_some()
-            })
-            .count()
-    };
-    assert!(cars(&link_card_lines(&card, url, 80)) > 0, "a cover inline");
-    {
-        let _frame = images::scrolling_frame();
-        let rows = link_card_lines(&card, url, 80);
-        assert_eq!(cars(&rows), 0, "no cover cells in the scrolling frame");
-        assert!(
-            rows[0]
-                .spans
-                .iter()
-                .any(|span| span.content.contains("example.com")),
-            "the text card is still drawn"
-        );
-    }
-    restore();
-}
-
-#[test]
 fn a_read_that_was_not_an_image_reserves_nothing() {
     let _guard = drawing(120);
     let mut tool = match image_read("/tmp/notes.txt", (700, 689)) {

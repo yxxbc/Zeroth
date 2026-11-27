@@ -8,10 +8,10 @@ use crate::ui::layout::live_layout;
 use crate::ui::layout::strip_rows;
 use crate::ui::palette::{palette, with_theme};
 use crate::ui::theme::{
-    FOOTER_INDENT, SEARCH_PROMPT, context_usage_full_color, context_usage_warn_color, error_color,
-    footer_color, footer_cwd_color, footer_focus_bg, footer_focus_fg, footer_mode_color,
-    footer_model_color, footer_qualifier_color, search_query_color, shell_mode_color,
-    status_thinking_color, toast_color, toast_error_color,
+    FOOTER_INDENT, SEARCH_PROMPT, brand_color, context_usage_full_color, context_usage_warn_color,
+    error_color, footer_color, footer_cwd_color, footer_focus_bg, footer_focus_fg,
+    footer_mode_color, footer_model_color, footer_qualifier_color, search_query_color,
+    shell_mode_color, status_thinking_color, toast_color, toast_error_color,
 };
 use crate::ui::wrap::cols;
 
@@ -84,8 +84,8 @@ fn the_footer_pins_the_permission_mode_at_the_right_edge() {
     let line = footer_line(&app, 120);
     let text = plain(&line);
     assert!(
-        text.starts_with("  kimi-k3 · ~/Codes/rust/project/zeroth"),
-        "the left chain keeps its old shape: {text}"
+        text.starts_with("  ☾ kimi-k3 · ~/Codes/rust/project/zeroth"),
+        "the left chain keeps its shape, the brand mark first: {text}"
     );
     assert!(text.ends_with("manual"), "{text}");
     assert_eq!(cols(&text), 120, "flush at the right edge: {text:?}");
@@ -329,20 +329,25 @@ fn an_agent_pinned_to_another_model_names_it_in_its_views_footer() {
     app.set_agent_model(Some("deepseek-v3.2".to_string()));
     app.open_agent_view("a1");
     let view_line = footer_line(&app, 120);
+    let pinned_span = view_line
+        .spans
+        .iter()
+        .find(|span| span.content == "deepseek-v3.2")
+        .expect("the pinned model's span");
     assert_eq!(
-        view_line.spans[1].style.fg,
+        pinned_span.style.fg,
         Some(footer_model_color()),
         "the pinned model wears the model colour"
     );
     let view = plain(&view_line);
-    assert!(view.starts_with("  deepseek-v3.2 · ~"), "{view}");
+    assert!(view.starts_with("  ◈ deepseek-v3.2 · ~"), "{view}");
     assert!(
         !view.contains("medium"),
         "no mode beside a pinned model: {view}"
     );
     app.set_agent_model(None);
     let inherit = plain(&footer_line(&app, 120));
-    assert!(inherit.starts_with("  kimi-k3 medium · ~"), "{inherit}");
+    assert!(inherit.starts_with("  ☾ kimi-k3 medium · ~"), "{inherit}");
 }
 
 // --- message queue (docs/input/queue.md) ---
@@ -1021,17 +1026,17 @@ fn the_footer_appends_the_running_shell_count() {
     app.set_session_info("kimi-k2", "~/repo");
     assert_eq!(
         plain(&footer_line(&app, 80)).trim_end(),
-        "  kimi-k2 · ~/repo"
+        "  ☾ kimi-k2 · ~/repo"
     );
     app.bg_started("bash_1", "ping x.com", None, true, None);
     assert_eq!(
         plain(&footer_line(&app, 80)).trim_end(),
-        "  kimi-k2 · ~/repo · 1 shell"
+        "  ☾ kimi-k2 · ~/repo · 1 shell"
     );
     app.bg_started("bash_2", "ping y.com", None, true, None);
     assert_eq!(
         plain(&footer_line(&app, 80)).trim_end(),
-        "  kimi-k2 · ~/repo · 2 shells"
+        "  ☾ kimi-k2 · ~/repo · 2 shells"
     );
 }
 
@@ -1057,7 +1062,7 @@ fn the_focused_footer_shell_count_lights_up_on_cyan() {
     let focused = footer_line(&app, 80);
     assert_eq!(
         plain(&focused).trim_end(),
-        "  kimi-k2 · ~/repo · 1 shell",
+        "  ☾ kimi-k2 · ~/repo · 1 shell",
         "the other footer segments stay put"
     );
     let lit = shell_span(&focused);
@@ -1207,30 +1212,36 @@ fn footer_line_shows_the_speed_tier_beside_the_thinking_mode() {
 }
 
 #[test]
-fn the_footer_brackets_the_provider_and_shows_the_models_suffix() {
-    // #24 follow-up: the model title under the box reads
-    // `[provider]model-suffix` — the provider in the footer's dim, the model
-    // in its accent — instead of a wire id like
-    // `commandcode/deepseek/deepseek-v4.1-flash`. The full id stays in
-    // `/model` and Ctrl+O.
+fn the_footer_marks_the_model_and_shows_its_suffix() {
+    // #24 follow-up settled the shape: the model title under the box names
+    // the model by its suffix — not a wire id like
+    // `commandcode/deepseek/deepseek-v4.1-flash` — in the footer's accent.
+    // The provider bracket is now the *fallback*: a brand mark carries the
+    // provider instead (docs/brand-icons.md), so the row's first fact is
+    // `◈ deepseek-v4.1-flash` rather than `[magpie]deepseek-v4.1-flash`.
+    // The full id stays in `/model` and Ctrl+O.
     let mut app = App::new();
     app.set_session_info("deepseek/deepseek-v4.1-flash", "~/x");
     app.set_session_provider("magpie");
     let line = footer_line(&app, 120);
     let text = plain(&line);
     assert!(
-        text.starts_with("  [magpie]deepseek-v4.1-flash · ~/x"),
-        "{text}"
+        text.starts_with("  ◈ deepseek-v4.1-flash · ~/x"),
+        "the model's own family decides the mark: {text}"
     );
-    let provider = line
+    assert!(
+        !text.contains("[magpie]"),
+        "a known family needs no bracket: {text}"
+    );
+    let mark = line
         .spans
         .iter()
-        .find(|span| span.content == "[magpie]")
-        .expect("the provider bracket");
+        .find(|span| span.content == "◈ ")
+        .expect("the brand mark");
     assert_eq!(
-        provider.style.fg,
-        Some(footer_color()),
-        "the bracket is dim"
+        mark.style.fg,
+        Some(brand_color(crate::brand::Tone::Link)),
+        "the mark wears its brand tone"
     );
     let model = line
         .spans
@@ -1242,6 +1253,39 @@ fn the_footer_brackets_the_provider_and_shows_the_models_suffix() {
         Some(footer_model_color()),
         "the model keeps the accent"
     );
+}
+
+#[test]
+fn an_unknown_provider_keeps_the_bracket_as_the_fallback() {
+    // A user-added provider and a model name no family table knows: the
+    // footer never guesses a mark, so the bracket stays — the pre-icon
+    // shape, in the footer's dim.
+    let mut app = App::new();
+    app.set_session_info("my-finetune-v3", "~/x");
+    app.set_session_provider("my_gateway");
+    let line = footer_line(&app, 120);
+    let text = plain(&line);
+    assert!(
+        text.starts_with("  [my_gateway]my-finetune-v3 · ~/x"),
+        "{text}"
+    );
+    let bracket = line
+        .spans
+        .iter()
+        .find(|span| span.content == "[my_gateway]")
+        .expect("the provider bracket");
+    assert_eq!(bracket.style.fg, Some(footer_color()), "the bracket is dim");
+}
+
+#[test]
+fn the_footer_falls_back_from_a_model_family_to_the_provider_mark() {
+    // A checkpoint name that says nothing about its family still gets the
+    // provider's mark — the local server is the fact the reader needs.
+    let mut app = App::new();
+    app.set_session_info("my-finetune-v3", "~/x");
+    app.set_session_provider("ollama");
+    let text = plain(&footer_line(&app, 120));
+    assert!(text.starts_with("  ◍ my-finetune-v3 · ~/x"), "{text}");
 }
 
 #[test]

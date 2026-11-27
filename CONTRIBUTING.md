@@ -20,6 +20,8 @@ paid for.
 | **Add a feature** | Open an issue and agree a design before you write it — see [Design before implementing](#design-before-implementing). |
 | **Improve the docs** | A `docs/` page that no longer matches the code is a bug. So is a `CHANGELOG.md` entry that does not say what a user will notice. |
 | **Add a model provider** | Usually a `[providers.<id>]` block in [`providers.toml`](providers.toml) — the file's own header documents every key. For your own use alone, the same block in `~/.zeroth/providers.toml` needs no change here ([`docs/providers/user-providers.md`](docs/providers/user-providers.md)). A provider with a new authentication shape or wire format is a feature: agree it first ([`docs/providers/llm.md`](docs/providers/llm.md)). |
+| **Report an accessibility barrier** | A screen reader, contrast, motion or keyboard problem is a bug like any other. [`ACCESSIBILITY.md`](ACCESSIBILITY.md) says what can already be turned off and which barriers are known to be open. |
+| **Report a vulnerability** | Never in a public issue — use GitHub's private reporting. [`SECURITY.md`](SECURITY.md) has the form, and the list of what is in scope. |
 
 ## Getting set up
 
@@ -375,6 +377,15 @@ gate ([`docs/state/permissions.md`](docs/state/permissions.md)) and the project-
 gate ([`docs/state/project-config.md`](docs/state/project-config.md)) are where that surface
 is decided, so a report against either is worth making even if you are not sure
 it is exploitable.
+
+[`SECURITY.md`](SECURITY.md) is the full policy: supported versions, what is in
+scope, what a good report contains, and how disclosure works.
+
+## Community
+
+By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). A
+question about how something works is better as a Discussion than an issue; a
+barrier is an issue ([`ACCESSIBILITY.md`](ACCESSIBILITY.md)).
 
 ## License
 

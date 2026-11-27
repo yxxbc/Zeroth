@@ -60,6 +60,7 @@
 - [`ui/export.md`](ui/export.md)：`/export` —— 把对话导出为纯文本
 - [`ui/flicker.md`](ui/flicker.md)：无闪烁渲染 —— scrollback 提交并入绘制帧
 - [`ui/footer.md`](ui/footer.md)：输入框下方的会话上下文页脚
+- [`brand-icons.md`](brand-icons.md)：品牌标记 —— 一眼认出模型、供应商与链接
 - [`ui/full-screen.md`](ui/full-screen.md)：自己拥有一块屏幕的 TUI —— 全屏模式（设计）
 - [`ui/header.md`](ui/header.md)：启动横幅
 - [`ui/images.md`](ui/images.md)：内联图片
@@ -172,6 +173,7 @@
 - [`state/project-config.md`](state/project-config.md)：项目级 `.zeroth` 配置 —— hooks、skills、agents
 - [`state/project-doc.md`](state/project-doc.md)：上下文窗口里的 AGENTS.md —— codex 的项目文档（设计）
 - [`state/resume.md`](state/resume.md)：`/resume` —— 接上一个已保存的会话（rollout 文件 + 会话选择器）
+- [`state/change-directory.md`](state/change-directory.md)：`/cd` —— 移动会话的工作目录
 - [`state/rollout-records.md`](state/rollout-records.md)：rollout 对每次调用与请求记录了些什么
 - [`state/secrets.md`](state/secrets.md)：`/secrets` —— agent 使用但从来看不到的凭据
 - [`state/session-model.md`](state/session-model.md)：按会话记的模型 —— 一段对话记得它跑在哪个模型上
@@ -193,6 +195,7 @@ TUI 之前的命令行界面：参数、`[PROMPT]` 快捷形式、headless 模�
 - [`ops/build-time.md`](ops/build-time.md)：构建时间 —— `cargo build --release`
 - [`ops/release.md`](ops/release.md)：发布 —— tag、workflow、产物与发布说明
 - [`ops/smoke.md`](ops/smoke.md)：冒烟套件 —— `scripts/smoke.sh`
+- [`ops/startup.md`](ops/startup.md)：启动、空闲开销与首个回合 —— 实测
 - [`ops/update.md`](ops/update.md)：更新提示 —— 每天一次的版本检查与 `zeroth update`
 
 ## Credits

@@ -55,10 +55,10 @@ pub use payload::{
     set_payload_cache_dir,
 };
 pub use registry::{
-    ImagePolicy, Placement, ScrollingFrame, any_placements, auto_resizing, graphics_available,
-    in_scrolling_frame, known_missing, known_size, mascot_image_path, place, place_in, placement,
-    policy, recheck_pictures, remember_missing, remember_size, scrolling_frame,
-    set_mascot_image_path, set_policy, showing,
+    ImagePolicy, Placement, ScrollingFrame, any_placements, auto_resizing, brand_image_path,
+    graphics_available, in_scrolling_frame, known_missing, known_size, mascot_image_path, place,
+    place_in, placement, policy, recheck_pictures, remember_missing, remember_size,
+    scrolling_frame, set_brand_image_dir, set_mascot_image_path, set_policy, showing,
 };
 pub use store::{
     Detection, GraphicsReply, IMAGE_CELL_SIZE_ENV, IMAGE_PROTOCOL_ENV, IMAGE_RETRANSMIT_ENV,

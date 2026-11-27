@@ -323,16 +323,15 @@ still applies.
   Links are the carriers already painted — OSC 8 URLs, file-tool headers and
   the prose/code file paths `links::find_paths` now marks — so a click opens
   a URL or a file through the same platform opener. A URL **alone on a line**
-  in an assistant reply is fetched and replaced by a preview card (site —
-  title, dim description, and a cover thumbnail when the page has one and the
-  terminal can draw pictures), cached in `~/.zeroth/cache/link-cards.json`
-  (`ZEROTH_LINK_CARDS=0` disables); every text cell carries the link.
+  in an assistant reply is rewritten into the icon + link row — the host's
+  brand mark, the host, the path (`docs/ui/rich-links.md`), no fetch and no
+  cache; every text cell carries the link.
 - Ctrl+O, the context view and every full-screen page paint over the frame
   through the existing overlay path; leaving a page repaints the frame. A
   resize re-wraps from history at the new width.
 - **Not yet:** character-precise selection (the highlight is span-level),
   pointer clicks on the live region's options/pickers (the composer's caret is
-  in), cover images on link cards, suspend (`Ctrl+Z`) / editor handoff, and
+  in), suspend (`Ctrl+Z`) / editor handoff, and
   agent-view parity beyond the transcript tail. They are the phases below.
 
 The [workspace session bar](workspace.md) replaces the vertical agent roster in full-screen mode.

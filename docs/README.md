@@ -43,6 +43,7 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/export.md`](ui/export.md): `/export` — the conversation as plain text
 - [`ui/flicker.md`](ui/flicker.md): Flicker-free rendering — scrollback commits join the draw frame
 - [`ui/footer.md`](ui/footer.md): The session-context footer under the input box
+- [`brand-icons.md`](brand-icons.md): Brand marks — a model, a provider and a link at a glance
 - [`ui/full-screen.md`](ui/full-screen.md): The screen-owning TUI — full-screen mode (Design)
 - [`ui/header.md`](ui/header.md): The startup header banner
 - [`ui/images.md`](ui/images.md): Inline images
@@ -52,7 +53,7 @@ What the screen is made of: the live region, streaming renderers, themes, the fu
 - [`ui/markdown.md`](ui/markdown.md): Assistant markdown rendering
 - [`ui/mascot.md`](ui/mascot.md): The banner mascot and the `/mascot` picker
 - [`ui/overlay-repaint.md`](ui/overlay-repaint.md): Overlay repaint — copying text out of Ctrl+O / Ctrl+D while a turn runs
-- [`ui/rich-links.md`](ui/rich-links.md): Rich links — clickable paths, preview cards, and screen ownership (Design)
+- [`ui/rich-links.md`](ui/rich-links.md): Rich links — clickable paths, link rows, and screen ownership
 - [`ui/shortcuts.md`](ui/shortcuts.md): `?` shortcuts band — keyboard-shortcut help below the box
 - [`ui/slow-stream.md`](ui/slow-stream.md): Slow streams — a few tokens a second through the inline pipeline
 - [`ui/spinner.md`](ui/spinner.md): The status spinner styles and the `/spinner` picker
@@ -155,6 +156,7 @@ What persists and what is trusted: permissions, settings, checkpoints, rollouts,
 - [`state/project-config.md`](state/project-config.md): Project-level `.zeroth` config — hooks, skills, agents
 - [`state/project-doc.md`](state/project-doc.md): AGENTS.md in the context window — codex's project doc (Design)
 - [`state/resume.md`](state/resume.md): /resume — pick up a saved session (rollout files + session picker)
+- [`state/change-directory.md`](state/change-directory.md): `/cd` — moving the session's working directory
 - [`state/rollout-records.md`](state/rollout-records.md): What the rollout records about each call and request
 - [`state/secrets.md`](state/secrets.md): `/secrets` — credentials the agent uses but never sees
 - [`state/session-model.md`](state/session-model.md): Per-session model — a conversation remembers the model it ran on
@@ -176,6 +178,7 @@ Shipping it: releases, updates, the smoke suite, build time and binary size.
 - [`ops/build-time.md`](ops/build-time.md): Build time — `cargo build --release`
 - [`ops/release.md`](ops/release.md): Releases — the tag, the workflow, the assets, the notes
 - [`ops/smoke.md`](ops/smoke.md): The smoke suite — `scripts/smoke.sh`
+- [`ops/startup.md`](ops/startup.md): Startup, idle cost and the first turn — measured
 - [`ops/update.md`](ops/update.md): Update notice — the once-a-day release check and `zeroth update`
 
 ## Credits

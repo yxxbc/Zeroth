@@ -425,7 +425,7 @@ fn a_scrolling_frame_reserves_no_pictures() {
         assert_eq!(
             place_in(path, (100, 60), 30, 6),
             None,
-            "no link-card cover either"
+            "no bounded block either (the boxed place_in)"
         );
     }
     assert!(!in_scrolling_frame(), "the scope put it back");

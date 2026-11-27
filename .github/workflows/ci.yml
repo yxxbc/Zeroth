@@ -2,8 +2,9 @@
 # every pull request (docs/ops/release.md). Each job is one thing a contributor
 # already runs before a commit, unchanged: the pre-commit gate (`cargo fmt
 # --check` + `clippy -D warnings` + `test` + `doc`, all but `fmt` on macOS
-# too), the smoke suite over the real binary in tmux, the release tooling's
-# own fixture tests plus the version/changelog agreement.
+# too), the smoke suite over the real binary in tmux, the docs' bilingual
+# structure, the release tooling's own fixture tests plus the
+# version/changelog agreement.
 # The release workflow does not re-run these: `scripts/release.sh gate` reads
 # this commit's results here, so one push is one CI run (docs/ops/release.md).
 name: CI
@@ -191,6 +192,21 @@ jobs:
           shared-key: debug
       - run: "cargo test --lib clipboard::"
       - run: cargo test --test clipboard_macos -- --ignored --test-threads=1
+
+  docs:
+    # The docs are bilingual by convention: an English page and its `.zh.md`
+    # twin must agree on what a translation may not change — fences, code
+    # spans, link targets and heading levels (`docs/README.zh.md`). Prose
+    # drifts on its own, and a page whose *structure* drifted is the same bug
+    # with nobody able to see it: the reader of the translation cannot read
+    # the original. Offline and fast, and the only place the rule can be
+    # enforced — a contributor runs the same script by hand
+    # (`python3 scripts/docs/zh_parity.py <page>`).
+    name: docs · zh parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/docs/zh_parity.py
 
   release-tooling:
     name: release tooling

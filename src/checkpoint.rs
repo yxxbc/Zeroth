@@ -625,15 +625,23 @@ pub fn enabled_by_env(value: Option<&str>) -> bool {
 /// Whether a `git` binary is on `PATH` — the boundary probes this once to
 /// decide whether checkpoints can run at all (a missing git disables the
 /// feature rather than erroring every turn).
+///
+/// **A `PATH` lookup, not a `git --version` spawn.** The spawn measured 5–6 ms
+/// on an eight-core Mac (measured 2026-11-27: five runs, 5.0–6.1 ms each)
+/// inside the first-paint path, to answer a question a stat answers: is there
+/// an executable file called `git` on `PATH`? On macOS the usual entry is the
+/// Xcode command-line-tools shim, which additionally can *block on a dialog*
+/// the first time it runs. A binary that is on `PATH` but broken still fails
+/// loudly and per-call — [`CheckpointStore::snapshot`] returns `None` and the
+/// turn carries on — which is the failure mode the feature already had.
 #[must_use]
 pub fn git_available() -> bool {
-    std::process::Command::new("git")
-        .arg("--version")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+    crate::subprocess::find_on_path(
+        "git",
+        std::env::var_os("PATH").as_deref(),
+        crate::subprocess::is_executable_file,
+    )
+    .is_some()
 }
 
 /// The isolated git object store behind the checkpoint feature — the I/O
@@ -1507,5 +1515,23 @@ mod tests {
         assert_eq!(parse_size_limit(None, 7), 7);
         assert_eq!(parse_size_limit(Some("lots"), 7), 7);
         assert_eq!(parse_size_limit(Some(""), 7), 7);
+    }
+}
+
+#[cfg(test)]
+mod availability_tests {
+    //! `git_available` is a `PATH` lookup — the first-paint path's contract
+    //! (`docs/ops/startup.md`).
+
+    #[test]
+    fn git_availability_follows_the_path_not_a_child_process() {
+        // The test binary runs where `git` is installed (CI and every dev
+        // machine this suite supports), so the lookup must find it — and it
+        // must do so without spawning: the spawn was 5–6 ms inside the first
+        // frame, on a macOS shim that can block on a dialog.
+        assert!(
+            super::git_available(),
+            "git is on PATH here; the lookup must agree"
+        );
     }
 }

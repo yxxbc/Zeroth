@@ -7,10 +7,11 @@ openai/codex 的页脚**状态行**的移植：单独一行，钉在输入框下
 ────────────────────────────────────────────────────────────
 ❯
 ────────────────────────────────────────────────────────────
-  dummy_model_name · ~/zeroth                      auto
+  ◈ deepseek-v4.1-flash · ~/zeroth                 auto
 ```
 
-—— backend 的模型名与当前工作目录，用 ` · ` 连接，以及 —— 钉在这一行的**右边缘**，
+—— backend 的模型名（前面是它的**品牌标记**，`docs/brand-icons.md`）与当前工作
+目录，用 ` · ` 连接，以及 —— 钉在这一行的**右边缘**，
 即它自己的区域 —— 这个 session 的**权限模式**（`auto`，直到某个项目另存了别的；
 Shift+Tab 循环的那个姿态 —— `docs/state/permissions.md`；权限被禁用时隐藏）。关于
 它在运行时模型里的位置，见 `CLAUDE.md`。
@@ -79,7 +80,7 @@ band，或 `@` 文件 picker（我们对应 codex 的弹窗与快捷键 overlay 
   注入，权限被禁用时为 `None`，那就不显示它；`docs/state/permissions.md`）。它
   的列数加上 `FOOTER_MODE_GAP` 的间隔会事先从链的预算里预留出来，所以 `…` 截断
   总是吃左边的内文，绝不会吃掉那唯一一段有安全含义的东西。一整行读作
-  `deepseek-v3.2 medium · ~/Codes/tmp · 1.3k/160k (0.8%) · 1 shell     auto`；
+  `◈ deepseek-v3.2 medium · ~/Codes/tmp · 1.3k/160k (0.8%) · 1 shell     auto`；
   一个被选中的速度档位跟在思考模式之后 —— `gpt-5.5 medium fast ·
   ~/repo`、`gpt-5.6-sol ultrafast · ~/repo` —— 穿着模型列表给该档位所起的名字
   （`/fast`、`/ultrafast`，`docs/providers/fast-mode.md`），而 standard 什么都不
@@ -109,13 +110,17 @@ Codex 的状态行在主题颜色打开时 —— *cyan model, green path* —�
 颜色标记这一行**点名**的东西；各个名字之间的标点保持暗色：
 
 ```
-  [magpie]deepseek-v4.1-flash medium fast · ~/Codes/rust/zeroth · 0/475k (0.0%)       master
+  ◈ deepseek-v4.1-flash medium fast · ~/Codes/rust/zeroth · 0/475k (0.0%)       master
 ```
 
 - **model** —— `footer_model_color()`，强调色：这个 session 所对话的东西是这一行
-  的第一个事实；`[provider]` 那对括号是这一行的暗色（`footer_color()`），所以
-  provider 为模型取景却不与它争。subagent 被钉住的模型也穿强调色（没有括号 ——
-  钉住不携带 provider）。
+  的第一个事实，而它前面是它的**品牌标记**（`docs/brand-icons.md`）。它以前导的
+  **品牌标记**开头（`◈ deepseek-v4.1-flash`）：先是模型
+  自己的家族，其次才是 provider，各穿它自己的色调（`ui::theme::brand_color`，
+  `docs/brand-icons.md`）。旧的 `[provider]` 括号只作为兜底留下 —— 用户自己加的
+  provider，以及家族表都不认识的模型名 —— 所以陌生的值仍然自己说话，而不是被猜一个
+  标记。subagent 被钉住的模型也穿强调色和它自己家族的标记（钉住不携带 provider，
+  所以表都不认识的名字就没有标记）。
 - **思考模式与速度档位** —— `footer_qualifier_color()`，状态行那个思考紫
   （`status_thinking_color()`），Ctrl+T 与一个档位的命令所改变的东西同一种颜色；
   框之上的 `Thinking for Ns` 从句穿同一个色相，所以这个努力和它所买来的思考读作
@@ -162,7 +167,8 @@ viewport 高度决定（绘制、`StreamDone` 的重新就位、resize）都已�
 
 - `stream`：`DummyAi` 报告它的模型名。
 - `app`：session info 默认未设置；`set_session_info` 存下那些显示字符串。
-- `ui`：`footer_rows` 在没有 session info 时是 0 / 有它时是 1 / 有 band 打开时
+- `ui`：模型段以它的品牌标记开头，对不认识的一对回落到 `[provider]` 括号
+  （`docs/brand-icons.md`）；`footer_rows` 在没有 session info 时是 0 / 有它时是 1 / 有 band 打开时
   是 0 —— 而在打开着 Ctrl+R 搜索或 shell 模式开着时总是 1，无论有没有 session
   info（见 `docs/input/history-search.md` / `docs/input/shell-command.md`，它们
   测试这个槽位的其他占用者）；`footer_line` 渲染 `  {model} · {cwd}`，模型用

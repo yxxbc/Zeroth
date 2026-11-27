@@ -81,9 +81,9 @@ pub use self::ask::{AskAnswerState, AskInput, AskPrompt, AskRow, ask_row_number,
 pub use self::background::{BackgroundNotice, BackgroundShell, BackgroundView, BgCompletion, Held};
 pub use self::backtrack::{Backtrack, CHECKPOINT_RESTORED_NOTICE, CHECKPOINT_REWOUND_NOTICE};
 pub use self::commands::{
-    COMMANDS, COMPACT_BUSY_NOTICE, COMPACT_EMPTY_NOTICE, COPY_EMPTY_NOTICE, COPY_OK_NOTICE,
-    CommandEffect, CommandMenu, CommandTab, INIT_BUSY_NOTICE, INIT_PROMPT, PaletteItem,
-    RESUME_BUSY_NOTICE, SlashCommand, command_query, matching_commands,
+    CD_BUSY_NOTICE, CD_USAGE_NOTICE, COMMANDS, COMPACT_BUSY_NOTICE, COMPACT_EMPTY_NOTICE,
+    COPY_EMPTY_NOTICE, COPY_OK_NOTICE, CommandEffect, CommandMenu, CommandTab, INIT_BUSY_NOTICE,
+    INIT_PROMPT, PaletteItem, RESUME_BUSY_NOTICE, SlashCommand, command_query, matching_commands,
 };
 pub use self::compact::{COMPACT_VERB, Compaction};
 pub(crate) use self::compact::{estimate_messages_tokens, message_tokens};
@@ -1089,6 +1089,21 @@ impl App {
     pub fn set_session_provider(&mut self, provider: impl Into<String>) {
         if let Some(session) = self.session.as_mut() {
             session.provider = provider.into();
+        }
+    }
+
+    /// Move the working directory the footer names — `/cd`'s display half
+    /// (`docs/state/change-directory.md`). The boundary resolves and checks
+    /// the path and formats it `~`-relative, like [`set_session_info`]
+    /// (the pure core never reads the filesystem); the project facts a
+    /// session keeps — permissions, checkpoints, the rollout — stay keyed to
+    /// the directory it launched in, which is why this touches only the
+    /// footer's path. No-op before session info exists.
+    ///
+    /// [`set_session_info`]: App::set_session_info
+    pub fn set_working_dir(&mut self, cwd: impl Into<String>) {
+        if let Some(session) = self.session.as_mut() {
+            session.cwd = cwd.into();
         }
     }
 

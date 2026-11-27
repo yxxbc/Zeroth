@@ -623,11 +623,12 @@ fn typing_filters_and_clamps_the_selection() {
     type_str(&mut app, "/c");
     assert_eq!(
         matching_commands(&app.commands(), "c").len(),
-        4,
-        "/clear, /copy, /compact, /context"
+        5,
+        "/cd, /clear, /copy, /compact, /context"
     );
-    app.on_key(key(KeyCode::Down)); // highlight /copy (index 1)
-    assert_eq!(app.command_menu.as_ref().unwrap().selected(), 1);
+    app.on_key(key(KeyCode::Down)); // highlight /clear, one past /cd
+    app.on_key(key(KeyCode::Down)); // …and on to /copy (index 2)
+    assert_eq!(app.command_menu.as_ref().unwrap().selected(), 2);
     type_str(&mut app, "l"); // "/cl" — only /clear matches now
     assert_eq!(
         matching_commands(&app.commands(), "cl").len(),

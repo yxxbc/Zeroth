@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Phase 9 — Ctrl+C clears a typed draft (codex's composer-clear step) and the /quit comman
+# Phase 9 — Ctrl+C clears a typed draft (codex's composer-clear step), and both
+# /quit and its /exit alias exit the app.
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 smoke_begin
@@ -41,4 +42,31 @@ if [ "$quit_alive" -ne 1 ]; then
 fi
 if [ "$quit_exited" -ne 1 ]; then
 	fail "running /quit did not exit the app"
+fi
+
+# (b) The alias: /exit selects the same row and exits the same way. The palette
+# still lists ONE row — /quit — so this is the alias lookup, not a second entry.
+S9b="${S}_exit"
+launch "$S9b" 80 24
+tmux send-keys -t "$S9b" -l "/exit"
+sleep 0.3
+exit_pane="$(tmux capture-pane -t "$S9b" -p)"
+echo "==== Phase 9: the palette for /exit ===="
+printf '%s\n' "$exit_pane" | tail -12
+expect_has "$exit_pane" -F "/quit" "typing /exit did not highlight the /quit row (the alias is the row)"
+# Exactly one row matched: the alias lookup, not a second registry entry. The
+# counter under the list reads `(1/N)` — a second `/exit` row would read 2.
+expect_has "$exit_pane" -E "^\(1/[0-9]+\)| *\(1/[0-9]+\)" "the /exit query did not match exactly one command"
+tmux send-keys -t "$S9b" Enter
+exit_exited=0
+for _ in $(seq 1 20); do
+	if ! tmux has-session -t "$S9b" 2>/dev/null; then
+		exit_exited=1
+		break
+	fi
+	sleep 0.1
+done
+tmux kill-session -t "$S9b" 2>/dev/null
+if [ "$exit_exited" -ne 1 ]; then
+	fail "running /exit did not exit the app"
 fi

@@ -353,6 +353,11 @@ pub fn model_active_color() -> Color {
     tool_ok_color()
 }
 
+/// The columns a model row's brand mark and its trailing space spend before
+/// the id — one glyph from [`crate::brand::Brand::glyph`] plus the gap, so
+/// the id column stays aligned whether or not a row has a mark.
+pub const BRAND_MARK_COLS: usize = 2;
+
 /// The mark appended to the active model's row.
 pub const MODEL_ACTIVE_MARK: &str = " ✓";
 

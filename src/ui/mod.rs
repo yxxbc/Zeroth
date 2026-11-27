@@ -58,7 +58,7 @@ mod image;
 mod inline;
 mod inline_diff;
 mod layout;
-mod link_card_view;
+mod link_line;
 mod live;
 mod login_view;
 mod mascot_view;
@@ -148,7 +148,7 @@ pub use self::layout::{
     overlay_cursor_seat, permission_height, preview_budget, preview_rows, region_is_modal, repin,
     restore_cursor_row, scroll_anchor, stream_preview_max_rows, strip_has_status,
 };
-pub use self::link_card_view::link_card_lines;
+pub use self::link_line::link_line_lines;
 pub use self::live::{
     composer_cursor_at, composer_image_at, conversation_live_lines, render_live,
     render_live_with_preview, render_workspace_live,

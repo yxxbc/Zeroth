@@ -93,6 +93,10 @@ pub struct RealToolExecutor {
     /// instead of attaching pixels the provider would reject with the whole
     /// turn (`docs/tools/tools.md`). `None`/`Some(true)` attach as normal.
     vision: Option<bool>,
+    /// The directory tools run in — the session's `/cd` handle
+    /// (`docs/state/change-directory.md`). `None` is the process cwd, which
+    /// is what every unit test and a session that never ran `/cd` gets.
+    work_dir: Option<crate::workdir::WorkDir>,
 }
 
 impl RealToolExecutor {
@@ -145,6 +149,23 @@ impl RealToolExecutor {
         self.vision = vision;
         self
     }
+
+    /// Tell the executor which directory tools run in (`/cd`,
+    /// `docs/state/change-directory.md`). Absent, it is the process cwd.
+    #[must_use]
+    pub fn with_work_dir(mut self, dir: crate::workdir::WorkDir) -> Self {
+        self.work_dir = Some(dir);
+        self
+    }
+
+    /// The directory this call's tools run in: the session's `/cd` handle when
+    /// one was attached, else the process cwd read at call time.
+    fn work_dir(&self) -> std::path::PathBuf {
+        self.work_dir.as_ref().map_or_else(
+            || std::env::current_dir().unwrap_or_default(),
+            |dir| dir.path(),
+        )
+    }
 }
 
 impl ToolExecutor for RealToolExecutor {
@@ -167,6 +188,11 @@ impl ToolExecutor for RealToolExecutor {
                 Err(e) => arg_error(e),
             }
         };
+        // The session's `/cd` directory, read once per call so every branch
+        // below — a command's cwd, a file tool's relative path, a display
+        // path — agrees on where the session is working
+        // (`docs/state/change-directory.md`).
+        let work_dir = self.work_dir();
         match call.name.as_str() {
             "bash" => run_bash(
                 &call.arguments,
@@ -175,6 +201,7 @@ impl ToolExecutor for RealToolExecutor {
                 origin,
                 self.detach_helper.as_deref(),
                 &call.id,
+                &work_dir,
                 on_output,
             ),
             tools::BASH_SEND_TOOL => session(
@@ -194,15 +221,20 @@ impl ToolExecutor for RealToolExecutor {
                 tools::parse_args::<tools::SessionArgs>(&call.arguments).map(SessionCall::legacy),
                 on_output,
             ),
-            "read" => run_read(&call.arguments, self.vision),
+            "read" => run_read_in(
+                &call.arguments,
+                self.vision,
+                credential_config_home().as_deref(),
+                Some(&work_dir),
+            ),
             crate::llm::tools::WEB_SEARCH_TOOL => {
                 run_web_search(&call.arguments, self.web.as_deref())
             }
             crate::llm::tools::WEB_FETCH_TOOL => {
                 run_web_fetch(&call.arguments, self.web.as_deref())
             }
-            "write" => run_write(&call.arguments),
-            "edit" => run_edit(&call.arguments),
+            "write" => run_write_in(&call.arguments, Some(&work_dir)),
+            "edit" => run_edit_in(&call.arguments, Some(&work_dir)),
             other => ToolOutcome::error(format!("unknown tool: {other}")),
         }
     }
@@ -287,6 +319,7 @@ fn arg_error(err: String) -> ToolOutcome {
 /// the background. Where no terminal can be had — off Unix, no `setsid` and
 /// no helper, no registry to hold a session — the command runs on a pipe
 /// instead ([`run_piped`]), reporting the same frames.
+#[allow(clippy::too_many_arguments)] // the dispatch's own list, one field at a time
 fn run_bash(
     arguments: &str,
     cancel: &CancelToken,
@@ -294,6 +327,7 @@ fn run_bash(
     origin: Option<&BgOrigin>,
     detach_helper: Option<&Path>,
     call_id: &str,
+    work_dir: &Path,
     on_output: &mut dyn FnMut(ToolProgress<'_>),
 ) -> ToolOutcome {
     let args: BashArgs = match tools::parse_args(arguments) {
@@ -310,7 +344,9 @@ fn run_bash(
         registry.clear_background_request();
     }
     if let Some(registry) = background
-        && let Some(outcome) = run_tty(&args, cancel, registry, origin, call_id, on_output)
+        && let Some(outcome) = run_tty(
+            &args, cancel, registry, origin, call_id, work_dir, on_output,
+        )
     {
         return outcome;
     }
@@ -321,6 +357,7 @@ fn run_bash(
         origin,
         detach_helper,
         call_id,
+        work_dir,
         on_output,
     )
 }
@@ -333,6 +370,7 @@ fn run_bash(
 /// output). A `wait` that passes hands the command to the background
 /// registry, still running, as a session; with no registry to hold it, it is
 /// stopped there.
+#[allow(clippy::too_many_arguments)] // run_bash's list plus the directory
 fn run_piped(
     args: &BashArgs,
     cancel: &CancelToken,
@@ -340,6 +378,7 @@ fn run_piped(
     origin: Option<&BgOrigin>,
     detach_helper: Option<&Path>,
     call_id: &str,
+    work_dir: &Path,
     on_output: &mut dyn FnMut(ToolProgress<'_>),
 ) -> ToolOutcome {
     // Nowhere to keep a background command: a `wait: 0` is refused, while a
@@ -378,10 +417,11 @@ fn run_piped(
     // hang) and has **no controlling terminal** — a `/dev/tty` password
     // prompt (`sudo`) errors at once instead of hijacking the TUI (see
     // `crate::subprocess`, docs/tools/tools.md).
-    let mut child = match crate::subprocess::spawn_detached_in(
+    let mut child = match crate::subprocess::spawn_detached_in_dir(
         detach_helper,
         crate::subprocess::tool_shell(),
         command,
+        work_dir,
     ) {
         Ok(child) => child,
         Err(err) => return ToolOutcome::error(format!("failed to run command: {err}")),
@@ -558,12 +598,14 @@ fn run_piped(
 ///
 /// `None` when no terminal can be given to the command here — the caller
 /// runs it on a pipe instead.
+#[allow(clippy::too_many_arguments)] // run_bash's list minus the detach helper
 fn run_tty(
     args: &BashArgs,
     cancel: &CancelToken,
     registry: &BackgroundRegistry,
     origin: Option<&BgOrigin>,
     call_id: &str,
+    work_dir: &Path,
     on_output: &mut dyn FnMut(ToolProgress<'_>),
 ) -> Option<ToolOutcome> {
     use crate::background::TtyLaunchError;
@@ -571,11 +613,12 @@ fn run_tty(
     use crate::pty::session::WaitEnd;
     use crate::pty::settle::{Settle, WaitKind};
     let background = args.background();
-    let launch = match registry.launch_tty(
+    let launch = match registry.launch_tty_in(
         args.command(),
         args.description.clone(),
         origin.cloned(),
         background,
+        Some(work_dir),
     ) {
         Ok(launch) => launch,
         Err(TtyLaunchError::NoTerminal(_)) => return None,
@@ -1246,20 +1289,30 @@ impl PipeOutput {
 /// (`vision == Some(false)`), an image read fails as a recoverable error
 /// before touching the file — attaching would make the provider fail the
 /// whole turn instead (`docs/tools/tools.md`).
-fn run_read(arguments: &str, vision: Option<bool>) -> ToolOutcome {
-    run_read_with_home(arguments, vision, credential_config_home().as_deref())
-}
-
+#[cfg(test)]
 fn run_read_with_home(
     arguments: &str,
     vision: Option<bool>,
     config_home: Option<&Path>,
 ) -> ToolOutcome {
+    run_read_in(arguments, vision, config_home, None)
+}
+
+/// [`run_read_with_home`] with the directory a relative path resolves
+/// against — the session's `/cd` directory, else the process cwd
+/// (`docs/state/change-directory.md`).
+fn run_read_in(
+    arguments: &str,
+    vision: Option<bool>,
+    config_home: Option<&Path>,
+    work_dir: Option<&Path>,
+) -> ToolOutcome {
     let args: ReadArgs = match tools::parse_args(arguments) {
         Ok(a) => a,
         Err(e) => return arg_error(e),
     };
-    let path = Path::new(&args.path);
+    let resolved = resolve_tool_path(&args.path, work_dir);
+    let path = resolved.as_path();
     if is_credential_store(path, config_home) {
         return ToolOutcome::error(
             "refusing to read a Zeroth credential store; use the relevant sign-in or /secrets command",
@@ -1486,12 +1539,20 @@ fn symlink_refusal(path: &Path, shown: &str) -> Option<ToolOutcome> {
 
 /// `write`: create parent dirs and write the file, reporting a diff vs the old
 /// contents (or a `Wrote …` summary for a new file).
+#[cfg(test)]
 fn run_write(arguments: &str) -> ToolOutcome {
+    run_write_in(arguments, None)
+}
+
+/// [`run_write`] against the session's `/cd` directory
+/// (`docs/state/change-directory.md`).
+fn run_write_in(arguments: &str, work_dir: Option<&Path>) -> ToolOutcome {
     let args: WriteArgs = match tools::parse_args(arguments) {
         Ok(a) => a,
         Err(e) => return arg_error(e),
     };
-    let path = Path::new(&args.path);
+    let resolved = resolve_tool_path(&args.path, work_dir);
+    let path = resolved.as_path();
     if let Some(refusal) = symlink_refusal(path, &args.path) {
         return refusal;
     }
@@ -1507,7 +1568,7 @@ fn run_write(arguments: &str) -> ToolOutcome {
     if let Err(err) = replace_atomically(path, &args.content) {
         return ToolOutcome::error(format!("could not write {}: {err}", args.path));
     }
-    let display = describe_change(&args.path, &old, &args.content, !existed);
+    let display = describe_change_in(&args.path, &old, &args.content, !existed, work_dir);
     // The cell keeps the numbered body; the model reads one line, because the
     // content it just sent replays verbatim on the call itself
     // (`docs/tools/tools.md`, `docs/architecture/context.md`). A write that changed nothing has
@@ -1519,13 +1580,15 @@ fn run_write(arguments: &str) -> ToolOutcome {
 }
 
 /// `edit`: exact-string replacement (the pure [`tools::apply_edit`]), written
-/// back to disk, reported as a diff.
-fn run_edit(arguments: &str) -> ToolOutcome {
+/// back to disk, reported as a diff — against the session's `/cd` directory
+/// (`docs/state/change-directory.md`).
+fn run_edit_in(arguments: &str, work_dir: Option<&Path>) -> ToolOutcome {
     let args: EditArgs = match tools::parse_args(arguments) {
         Ok(a) => a,
         Err(e) => return arg_error(e),
     };
-    let path = Path::new(&args.path);
+    let resolved = resolve_tool_path(&args.path, work_dir);
+    let path = resolved.as_path();
     if let Some(refusal) = symlink_refusal(path, &args.path) {
         return refusal;
     }
@@ -1543,11 +1606,12 @@ fn run_edit(arguments: &str) -> ToolOutcome {
     }
     // [`run_write`]'s split: the diff hunks are the cell, the ack is the
     // conversation. `apply_edit` refuses a no-op, so there is always a change.
-    ToolOutcome::ok(describe_change(
+    ToolOutcome::ok(describe_change_in(
         &args.path,
         &old,
         &result.new_content,
         false,
+        work_dir,
     ))
     .with_context(tools::edit_ack(&args.path, result.replacements))
 }
@@ -1562,8 +1626,16 @@ fn run_edit(arguments: &str) -> ToolOutcome {
 /// cwd-relative display form ([`tools::display_path`] — `../` climbs for a
 /// target outside the cwd), while the cell header keeps the model's own
 /// argument verbatim.
-fn describe_change(path: &str, old: &str, new: &str, created: bool) -> String {
-    let shown = shown_path(path);
+/// The report a `write`/`edit` hands the cell, against the session's `/cd`
+/// directory.
+fn describe_change_in(
+    path: &str,
+    old: &str,
+    new: &str,
+    created: bool,
+    work_dir: Option<&Path>,
+) -> String {
+    let shown = shown_path(path, work_dir);
     if created {
         tools::write_report(&shown, new)
     } else {
@@ -1572,13 +1644,32 @@ fn describe_change(path: &str, old: &str, new: &str, created: bool) -> String {
 }
 
 /// The display form of a tool path — [`tools::display_path`] against the
-/// process cwd (the same directory every relative tool path resolves in), the
-/// path unchanged when the cwd is unreadable.
-fn shown_path(path: &str) -> String {
-    match std::env::current_dir() {
-        Ok(cwd) => tools::display_path(path, &cwd),
-        Err(_) => path.to_string(),
+/// session's working directory (the same directory every relative tool path
+/// resolves in), the path unchanged when it is unreadable.
+fn shown_path(path: &str, work_dir: Option<&Path>) -> String {
+    match work_dir {
+        Some(dir) => tools::display_path(path, dir),
+        None => match std::env::current_dir() {
+            Ok(cwd) => tools::display_path(path, &cwd),
+            Err(_) => path.to_string(),
+        },
     }
+}
+
+/// The filesystem path a tool argument names: an absolute path is itself, a
+/// relative one joins the session's working directory — `/cd`'s directory
+/// when one is attached, else the process cwd. Lexical, like every other path
+/// the session touches; the OS still resolves `..` and symlinks on open.
+fn resolve_tool_path(given: &str, work_dir: Option<&Path>) -> std::path::PathBuf {
+    let given = Path::new(given);
+    if given.is_absolute() {
+        return given.to_path_buf();
+    }
+    let base = work_dir.map_or_else(
+        || std::env::current_dir().unwrap_or_default(),
+        Path::to_path_buf,
+    );
+    base.join(given)
 }
 
 /// Create the parent directories of `path`, if any (a bare filename has none).
@@ -5477,5 +5568,115 @@ mod web_tests {
         std::os::unix::fs::symlink(outside.path().join("missing"), &dangling).unwrap();
         let outcome = run_write(&serde_json::json!({"path": dangling, "content": "x"}).to_string());
         assert!(!outcome.ok, "a dangling link is refused too: {outcome:?}");
+    }
+}
+
+#[cfg(test)]
+mod work_dir_tests {
+    //! The session's `/cd` directory, as the executor's tools see it
+    //! (`docs/state/change-directory.md`): an absolute switch, a move between
+    //! calls, and a relative path resolving against it.
+
+    use super::*;
+    use crate::workdir::WorkDir;
+
+    fn call(name: &str, args: &str) -> ToolCallRequest {
+        ToolCallRequest {
+            id: "c".to_string(),
+            name: name.to_string(),
+            arguments: args.to_string(),
+        }
+    }
+
+    fn exec_in(dir: &WorkDir, name: &str, args: &str) -> ToolOutcome {
+        RealToolExecutor::new().with_work_dir(dir.clone()).execute(
+            &call(name, args),
+            &CancelToken::new(),
+            &mut |_| {},
+        )
+    }
+
+    #[test]
+    fn write_and_read_land_relative_to_the_work_dir() {
+        let one = tempfile::tempdir().unwrap();
+        let two = tempfile::tempdir().unwrap();
+        let dir = WorkDir::new(one.path());
+        let written = exec_in(
+            &dir,
+            "write",
+            &serde_json::json!({"path": "note.txt", "content": "hello\n"}).to_string(),
+        );
+        assert!(written.ok, "{:?}", written.output);
+        assert_eq!(
+            std::fs::read_to_string(one.path().join("note.txt")).unwrap(),
+            "hello\n",
+            "a relative write lands in the session's directory"
+        );
+        assert!(!two.path().join("note.txt").exists(), "…and nowhere else");
+        // The report names the file the way the screen does — relative to the
+        // same directory.
+        assert!(written.output.contains("note.txt"), "{:?}", written.output);
+        // The read finds it by the same relative name.
+        let read = exec_in(&dir, "read", r#"{"path":"note.txt"}"#);
+        assert!(read.ok, "{:?}", read.output);
+        assert!(read.output.contains("hello"), "{:?}", read.output);
+    }
+
+    #[test]
+    fn a_move_between_calls_reaches_the_next_tool_at_once() {
+        let one = tempfile::tempdir().unwrap();
+        let two = tempfile::tempdir().unwrap();
+        let dir = WorkDir::new(one.path());
+        let first = exec_in(
+            &dir,
+            "write",
+            &serde_json::json!({"path": "a.txt", "content": "a\n"}).to_string(),
+        );
+        assert!(first.ok);
+        // `/cd` — the shared handle moves; no executor or backend is rebuilt.
+        dir.set(two.path());
+        let second = exec_in(
+            &dir,
+            "write",
+            &serde_json::json!({"path": "b.txt", "content": "b\n"}).to_string(),
+        );
+        assert!(second.ok);
+        assert!(one.path().join("a.txt").exists());
+        assert!(two.path().join("b.txt").exists());
+        assert!(
+            !one.path().join("b.txt").exists(),
+            "the second write followed the move"
+        );
+    }
+
+    #[test]
+    fn edit_follows_the_work_dir_too() {
+        let one = tempfile::tempdir().unwrap();
+        std::fs::write(one.path().join("f.txt"), "keep\nold\n").unwrap();
+        let dir = WorkDir::new(one.path());
+        let edited = exec_in(
+            &dir,
+            "edit",
+            &serde_json::json!({"path": "f.txt", "old_string": "old", "new_string": "new"})
+                .to_string(),
+        );
+        assert!(edited.ok, "{:?}", edited.output);
+        assert_eq!(
+            std::fs::read_to_string(one.path().join("f.txt")).unwrap(),
+            "keep\nnew\n"
+        );
+    }
+
+    #[test]
+    fn a_bash_command_runs_in_the_work_dir() {
+        let one = tempfile::tempdir().unwrap();
+        let dir = WorkDir::new(one.path());
+        let out = exec_in(&dir, "bash", r#"{"command":"pwd"}"#);
+        assert!(out.ok, "{:?}", out.output);
+        assert!(
+            out.output.contains(&one.path().display().to_string()),
+            "the command runs where the session works: {:?}",
+            out.output
+        );
     }
 }

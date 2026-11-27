@@ -236,6 +236,37 @@ EOF
 [0.4.2]: https://github.com/example/zeroth/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/example/zeroth/releases/tag/v0.4.1
 EOF
+	# The Chinese twin: same headings and links, prose translated. `prepare`
+	# must roll it (and `check` must hold it to the same date) or the release
+	# leaves the translation holding the entries it just took — the
+	# 0.22.0–0.23.0 drift.
+	cat >"$root/CHANGELOG.zh.md" <<'EOF'
+# 变更日志
+
+## [Unreleased]
+
+### 新增
+
+- 尚未滚入版本的一条。
+
+## [0.4.2] - 2026-09-12
+
+**一个修好的东西**
+
+### 修复
+
+- 一个曾经坏掉的东西。
+
+## [0.4.1] - 2026-09-01
+
+### 新增
+
+- 那个东西。
+
+[Unreleased]: https://github.com/example/zeroth/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/example/zeroth/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/example/zeroth/releases/tag/v0.4.1
+EOF
 	printf 'Apache License\n' >"$root/LICENSE"
 }
 
@@ -337,6 +368,25 @@ expect_contains "…pointing at prepare" "$OUT" "prepare"
 
 fixture "$T/no-link" && grep -v '^\[0.4.2\]: ' "$T/fx/CHANGELOG.md" >"$T/no-link/CHANGELOG.md"
 RELEASE_ROOT="$T/no-link" expect_fail "a missing link reference fails" bash "$STEPS/check.sh"
+
+# The Chinese twin must name the same release: a stale date, a missing
+# section or an [Unreleased] pointing somewhere else is a release the
+# translation would not describe.
+fixture "$T/zh-stale" && sed 's/^## \[0\.4\.2\] - 2026-09-12/## [0.4.2] - 2026-08-01/' \
+	"$T/fx/CHANGELOG.zh.md" >"$T/zh-stale/CHANGELOG.zh.md"
+RELEASE_ROOT="$T/zh-stale" expect_fail "a Chinese section with the wrong date fails" bash "$STEPS/check.sh"
+expect_contains "…naming both dates" "$OUT" "CHANGELOG.md says 2026-09-12"
+
+fixture "$T/zh-nosection" && grep -v '^## \[0\.4\.2\]' "$T/fx/CHANGELOG.zh.md" >"$T/zh-nosection/CHANGELOG.zh.md"
+RELEASE_ROOT="$T/zh-nosection" expect_fail "a Chinese twin missing the release's section fails" bash "$STEPS/check.sh"
+
+fixture "$T/zh-link" && sed 's|^\[Unreleased\]: .*|[Unreleased]: https://github.com/example/zeroth/compare/v0.4.1...HEAD|' \
+	"$T/fx/CHANGELOG.zh.md" >"$T/zh-link/CHANGELOG.zh.md"
+RELEASE_ROOT="$T/zh-link" expect_fail "a Chinese [Unreleased] pointing elsewhere fails" bash "$STEPS/check.sh"
+expect_contains "…naming both targets" "$OUT" "CHANGELOG.md at"
+
+fixture "$T/no-zh" && rm "$T/no-zh/CHANGELOG.zh.md"
+RELEASE_ROOT="$T/no-zh" expect_ok "a tree without the Chinese twin skips the rule" bash "$STEPS/check.sh"
 
 fixture "$T/no-changelog" && rm "$T/no-changelog/CHANGELOG.md"
 RELEASE_ROOT="$T/no-changelog" expect_fail "a missing CHANGELOG.md fails" bash "$STEPS/check.sh"
@@ -691,7 +741,8 @@ fi
 
 # ---------------------------------------------------------------------------
 section "prepare"
-fixture "$T/prep" && cp "$T/pending/CHANGELOG.md" "$T/prep/CHANGELOG.md"
+fixture "$T/prep" && cp "$T/pending/CHANGELOG.md" "$T/prep/CHANGELOG.md" \
+	&& awk '/^## \[Unreleased\]$/ { print; print ""; print "### 新增"; print ""; print "- 尚未滚入版本的一条。"; next } { print }' "$T/fx/CHANGELOG.md" >"$T/prep/CHANGELOG.zh.md"
 RELEASE_ROOT="$T/prep" RELEASE_DATE=2026-10-01 expect_ok "prepare rolls a fixture forward" bash "$STEPS/prepare.sh" 0.5.0
 expect_eq "…Cargo.toml bumped (dependencies untouched)" "0.5.0 9.9.9" "$(RELEASE_ROOT="$T/prep" manifest_version) $(grep -c '"9.9.9"' "$T/prep/Cargo.toml" >/dev/null && echo 9.9.9)"
 expect_eq "…Cargo.lock's crate entry bumped" "0.5.0" "$(RELEASE_ROOT="$T/prep" lock_version zeroth)"
@@ -712,7 +763,20 @@ expect_eq "…older sections intact" "**A fixed thing**
 - A thing that was broken." "$(RELEASE_ROOT="$T/prep" changelog_section 0.4.2)"
 expect_eq "…compare link added" "https://github.com/example/zeroth/compare/v0.4.2...v0.5.0" "$(RELEASE_ROOT="$T/prep" changelog_link 0.5.0)"
 expect_eq "…[Unreleased] re-pointed" "https://github.com/example/zeroth/compare/v0.5.0...HEAD" "$(RELEASE_ROOT="$T/prep" changelog_link Unreleased)"
-expect_contains "…and the commit it prints adds it" "$OUT" "git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md"
+# The Chinese twin is rolled in the same run: the heading is dated, it takes
+# the pending body, [Unreleased] empties and re-points — the drift that let
+# 0.23.0 ship a translation still holding its own entries.
+expect_eq "…the Chinese changelog heading dated too" "2026-10-01" \
+	"$(RELEASE_ROOT="$T/prep" changelog_date 0.5.0 "$T/prep/CHANGELOG.zh.md")"
+expect_eq "…taking the pending body too" "### 新增
+
+- 尚未滚入版本的一条。" \
+	"$(RELEASE_ROOT="$T/prep" changelog_section 0.5.0 "$T/prep/CHANGELOG.zh.md")"
+expect_eq "…and leaving its [Unreleased] empty" "" \
+	"$(RELEASE_ROOT="$T/prep" changelog_section Unreleased "$T/prep/CHANGELOG.zh.md")"
+expect_eq "…with its link re-pointed" "https://github.com/example/zeroth/compare/v0.5.0...HEAD" \
+	"$(RELEASE_ROOT="$T/prep" changelog_link Unreleased "$T/prep/CHANGELOG.zh.md")"
+expect_contains "…and the commit it prints adds it" "$OUT" "git add Cargo.toml Cargo.lock README.md README.zh.md CHANGELOG.md CHANGELOG.zh.md"
 RELEASE_ROOT="$T/prep" expect_ok "…and the tree checks out for its tag" bash "$STEPS/check.sh" v0.5.0
 expect_eq "…heading order: Unreleased, 0.5.0, 0.4.2, 0.4.1" "0.5.0 0.4.2 0.4.1" "$(RELEASE_ROOT="$T/prep" changelog_versions | tr '\n' ' ' | sed 's/ $//')"
 

@@ -1,0 +1,14 @@
+# The issue chooser (docs: GitHub "Configuring issue templates"). A security
+# report must never become a public issue — SECURITY.md is where it goes, and
+# the link here is the private advisory form, not the file.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/yxxbc/Zeroth/security/advisories/new
+    about: Never open a public issue for a vulnerability — this form is private (SECURITY.md).
+  - name: Report an accessibility barrier
+    url: https://github.com/yxxbc/Zeroth/issues/new?labels=accessibility&template=accessibility.yml
+    about: A screen-reader, contrast, motion or keyboard barrier — see ACCESSIBILITY.md.
+  - name: Ask a question
+    url: https://github.com/yxxbc/Zeroth/discussions
+    about: How does a feature work, is a provider supported, why did a turn do that? Discussions, not issues.

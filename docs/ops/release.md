@@ -93,6 +93,16 @@ auto-generated "what's changed" commit list was considered and not used:
 a commit subject is written for a reviewer, a changelog entry for a user,
 and the two rarely read the same.
 
+**The Chinese twin is rolled with it.** `CHANGELOG.zh.md` is not prose-only —
+`scripts/docs/zh_parity.py` holds it to the original's headings, code spans,
+fences and link targets — so `prepare` dates a section in both files and
+re-points both `[Unreleased]` links, and `check` refuses a release whose twin
+is missing that section, dates it differently, or points `[Unreleased]`
+somewhere else. This was learned the hard way: `prepare` rolled the English
+file alone through 0.22.0–0.23.0, and the translation kept the entries the
+release had just taken. A tree with no twin (a fixture, an older tag) skips
+the rule rather than failing on a file that was never there.
+
 **A section may carry a title.** Its first line may be a single **bold**
 line — `**Zeroth Initial Release**` — naming the release rather than
 listing one of its changes. It needs no machinery: the section is rendered

@@ -942,7 +942,10 @@ fn render_live_paints_the_focused_count_on_the_footer_row() {
     let mut buf = buffer(60, h);
     render_live(buf.area, &mut buf, &app);
     let last = row(&buf, h - 1, 60);
-    assert!(last.starts_with("  kimi-k2 · ~/repo · 1 shell"), "{last:?}");
+    assert!(
+        last.starts_with("  ☾ kimi-k2 · ~/repo · 1 shell"),
+        "{last:?}"
+    );
     // Column, not byte offset — the ` · ` separators are multi-byte.
     let byte = last.find("1 shell").expect("the count");
     let start = u16::try_from(cols(&last[..byte])).unwrap();

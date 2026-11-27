@@ -26,6 +26,34 @@ const MASCOT_ICON: &[u8] = include_bytes!("../../assets/mascot-crest.png");
 
 /// Materialize the compiled-in icon outside the repository so installed
 /// binaries can draw it too. Failures simply leave the text mascot in place.
+/// Materialize the compiled-in brand tiles beside the mascot icon — same
+/// reason, same cache directory (`docs/brand-icons.md`): the roomy surfaces
+/// draw them through the image pipeline, so they must exist as files at paint
+/// time. Failures leave the glyph in place.
+fn materialize_brand_images() -> Option<PathBuf> {
+    use zeroth::brand::Brand;
+    let dir = config::config_home()?.join("cache/brands");
+    if !dir.is_dir() {
+        std::fs::create_dir_all(&dir).ok()?;
+    }
+    for brand in Brand::ALL {
+        let (Some(name), Some(bytes)) = (brand.logo(), brand.logo_png()) else {
+            continue;
+        };
+        let path = dir.join(name);
+        // The tile's pixels are what the placement is computed from, and the
+        // bytes never change within a version — write once, and register the
+        // size whether or not the write ran.
+        if !path.is_file() {
+            std::fs::write(&path, bytes).ok()?;
+        }
+        if let Some(path) = path.to_str() {
+            images::remember_size(path, Brand::LOGO_PX);
+        }
+    }
+    Some(dir)
+}
+
 fn materialize_mascot_icon() -> Option<PathBuf> {
     // The `v2` in the name is the picture, not the scheme: the icon was
     // re-encoded smaller (a 561 KB PNG for an 18-column mark), and a cache
@@ -269,6 +297,16 @@ impl Session<'_> {
             None
         };
         images::set_mascot_image_path(mascot_path);
+        // The brand tiles ride the same gate: graphic terminals only, and the
+        // same `available` verdict, because a placement into a terminal that
+        // cannot draw one would reserve rows for nothing
+        // (`docs/brand-icons.md`).
+        let brand_dir = if available && protocol.is_some_and(|protocol| protocol != "halfblocks") {
+            materialize_brand_images().and_then(|path| path.to_str().map(str::to_string))
+        } else {
+            None
+        };
+        images::set_brand_image_dir(brand_dir);
     }
 
     /// Apply a setting the menu just cycled: do whatever it takes to make the

@@ -61,6 +61,10 @@ struct ToolRuntimeContext {
     hooks: Arc<dyn HookSink>,
     secrets: Option<crate::secrets::SecretRegistry>,
     wakeup: Option<tools::WakeupSink>,
+    /// The session's working directory (`/cd`,
+    /// `docs/state/change-directory.md`): attached to every executor this
+    /// backend builds, so a move reaches the next tool call without a rebuild.
+    work_dir: Option<crate::workdir::WorkDir>,
 }
 
 impl Default for ToolRuntimeContext {
@@ -77,6 +81,7 @@ impl Default for ToolRuntimeContext {
             hooks: Arc::new(NoHooks),
             secrets: None,
             wakeup: None,
+            work_dir: None,
         }
     }
 }
@@ -386,6 +391,16 @@ impl LlmBackend {
             self.runtime.web = Some(search);
             self.sync_tool_specs();
         }
+        self
+    }
+
+    /// Attach the session's working directory (`/cd`,
+    /// `docs/state/change-directory.md`): every executor this backend builds
+    /// runs its commands and resolves its relative paths there, reading the
+    /// shared handle at each call so a move needs no rebuild.
+    #[must_use]
+    pub fn with_work_dir(mut self, dir: crate::workdir::WorkDir) -> Self {
+        self.runtime.work_dir = Some(dir);
         self
     }
 
@@ -768,6 +783,7 @@ impl ReplySource for LlmBackend {
         // ownership — `self` must not escape into the thread
         // (`docs/tools/web-search.md`).
         let web = self.runtime.web.clone();
+        let work_dir = self.runtime.work_dir.clone();
         thread::spawn(move || {
             // Encoding the attachments reads files — done here on the backend
             // thread so a large image never stalls the event loop. A known
@@ -835,6 +851,9 @@ impl ReplySource for LlmBackend {
                 })
                 .unwrap_or_default();
             let mut executor = RealToolExecutor::new().with_vision(vision);
+            if let Some(dir) = work_dir.clone() {
+                executor = executor.with_work_dir(dir);
+            }
             // The web tools' executor half (`docs/tools/web-search.md`): the
             // same `Search` the spec set was built from, so the cooldown a
             // search records is the one the next search reads.
@@ -1312,6 +1331,9 @@ struct SubagentConfig {
     /// them exactly as the lead's do — and its briefing names them
     /// (`docs/state/secrets.md`).
     secrets: Option<crate::secrets::SecretRegistry>,
+    /// The session's working directory, so a subagent's tools run where the
+    /// session is working (`docs/state/change-directory.md`).
+    work_dir: Option<crate::workdir::WorkDir>,
 }
 
 impl LlmBackend {
@@ -1337,6 +1359,7 @@ impl LlmBackend {
             max_tool_calls: self.max_tool_calls,
             hooks: Arc::clone(&self.runtime.hooks),
             secrets: self.runtime.secrets.clone(),
+            work_dir: self.runtime.work_dir.clone(),
         }
     }
 }
@@ -1762,6 +1785,7 @@ fn spawn_subagent_run(
         .map_or(config.vision, |_| None);
     let client = client.with_tools(specs);
     let detach = config.detach_helper.clone();
+    let work_dir = config.work_dir.clone();
     let background = config.background.clone();
     let permissions = config.permissions.clone();
     let classifier = config.classifier.clone();
@@ -1854,6 +1878,9 @@ fn spawn_subagent_run(
         let mut executor = RealToolExecutor::new()
             .with_vision(vision)
             .with_detach_helper(detach);
+        if let Some(dir) = work_dir.clone() {
+            executor = executor.with_work_dir(dir);
+        }
         // A subagent gets the web tools too — research is the case a side
         // agent exists for (`docs/tools/web-search.md` *Subagents*).
         if let Some(search) = web.clone() {

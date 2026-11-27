@@ -9,4 +9,11 @@ Portions of the interaction design and implementation are ported from
 OpenAI Codex (https://github.com/openai/codex), Copyright OpenAI,
 licensed under the Apache License, Version 2.0.
 
+Brand logo tiles (`assets/brands/*.png`) are rendered by
+`scripts/brand-logos.sh` from the `@yldm-tech/ai-logo-static-svg` set,
+Copyright yldm-tech and the lobe-icons contributors, licensed under the MIT
+License. The brand marks they depict are trademarks of their respective
+owners, included for identification only; no affiliation or endorsement is
+implied.
+
 The full license text is in LICENSE.

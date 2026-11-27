@@ -277,15 +277,13 @@ span 会在选区边界处切开，所以在一个 20 字的 span 里选 3 个�
   `TextArea::set_cursor`）。链接就是已经画出的那些 carrier —— OSC 8 的 URL、
   file tool 的头，以及 `links::find_paths` 现在标记的正文/代码文件路径 —— 所以
   一次点击经同一个平台打开器打开一个 URL 或一个文件。assistant 回复里**单独占
-  一行**的 URL 会被抓取并替换成一张预览卡
-  （站点 —— 标题、暗淡的描述，以及页面有封面图且终端能画图时的封面缩略图），
-  缓存在 `~/.zeroth/cache/link-cards.json`（`ZEROTH_LINK_CARDS=0` 关闭它）；每个
-  文字单元格都带着该链接。
+  一行**的 URL 会被改写成图标 + 链接行 —— 主机的品牌标记、主机、路径
+  （`docs/ui/rich-links.md`），不抓取、不缓存；每个文字单元格都带着该链接。
 - Ctrl+O、context 视图以及每个全屏页面都通过既有的 overlay 路径画在帧之上；
   离开一个页面就重画这一帧。resize 时从历史按新宽度重新换行。
 - **还没有：** 精确到字符的选区（高亮是 span 级的）、在 live 区域的选项/picker
-  上的指针点击（composer 的光标已经有了）、链接卡上的封面图、挂起（`Ctrl+Z`）
-  /编辑器交接，以及超出 transcript 尾部之外的 agent 视图对齐。它们就是下面的
+  上的指针点击（composer 的光标已经有了）、挂起（`Ctrl+Z`）/编辑器交接，以及
+  超出 transcript 尾部之外的 agent 视图对齐。它们就是下面的
   phase。
 
 全屏模式使用[工作窗口会话栏](workspace.md)代替纵向子代理列表。

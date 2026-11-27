@@ -17,6 +17,8 @@
 | **加一个功能** | 先开 issue，在动手写之前把设计议定 —— 见 [先设计再实现](#先设计再实现)。 |
 | **改进文档** | 一页 `docs/` 不再与代码相符，就是一个 bug。一条没说清用户会注意到什么的 `CHANGELOG.md` 条目也是。 |
 | **加一个模型 provider** | 通常是在 [`providers.toml`](providers.toml) 里加一个 `[providers.<id>]` 块 —— 文件自己的头部注释记录了每一个键。只给自己用的话，同一个块放进 `~/.zeroth/providers.toml`，这里不用改（[`docs/providers/user-providers.md`](docs/providers/user-providers.md)）。带新认证形状或新线格式的 provider 是一个功能：先议定（[`docs/providers/llm.md`](docs/providers/llm.md)）。 |
+| **报告无障碍障碍** | 读屏器、对比度、动效或键盘的问题和其他 bug 一样。 [`ACCESSIBILITY.md`](ACCESSIBILITY.md) 说明哪些已经能关掉、哪些障碍是已知尚未修复的。 |
+| **报告漏洞** | 绝不开公开 issue —— 用 GitHub 的私有报告。 [`SECURITY.md`](SECURITY.md) 有那个表单，以及哪些在范围内。 |
 
 ## 把环境搭起来
 
@@ -341,6 +343,15 @@ a vulnerability**），好让修复在问题被公开描述之前发出去。
 （[`docs/state/permissions.md`](docs/state/permissions.md)）和项目配置的信任闸
 门（[`docs/state/project-config.md`](docs/state/project-config.md)）是决定那片
 面的地方，所以对这两者中任何一个的报告都值得提，即使你不确定它可利用。
+
+[`SECURITY.md`](SECURITY.md) 是完整的策略：受支持的版本、什么在范围内、一份好
+的报告包含什么，以及披露如何进行。
+
+## 社区
+
+参与即表示你同意 [行为准则](CODE_OF_CONDUCT.md)。关于某个东西如何工作的问题，
+写在 Discussions 比开 issue 更合适；障碍则是一个 issue
+（[`ACCESSIBILITY.md`](ACCESSIBILITY.md)）。
 
 ## 许可证
 

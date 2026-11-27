@@ -1,20 +1,29 @@
-# 富链接 —— 可点击的路径、预览卡片与屏幕归属
+# 富链接 —— 可点击的路径、链接行与屏幕归属
 
-**状态：路径、点击展开、预览卡片（文本 + 封面）已实现。** assistant 散文与行内
-代码会把形似文件路径的 token 链到两个 viewport 里的 `file://` URI
-（[`links.md`](links.md) *File paths*）；拥有屏幕的那个模式另外加上点击展开、
-composer 的点击定位光标，以及对独占一行的一个 URL 显示**预览卡片**：站点、标题、
-描述，以及 —— 当页面有 `og:image` 且终端能画图时 —— 左侧一张封面缩略图（按需经
-`zeroth::link_card` 取回，缓存在 `~/.zeroth/cache/link-cards.json` +
-`cache/link-cards/` 下，`ZEROTH_LINK_CARDS=0` 可禁用）。B 那套只在 overlay 里
-兜底的方案，以及编辑器交接，仍留待后续阶段
+**状态：路径、点击展开与图标 + 链接行已实现；取回式预览卡片已退役。**
+assistant 散文与行内代码会把形似文件路径的 token 链到两个 viewport 里的
+`file://` URI（[`links.md`](links.md) *File paths*）；拥有屏幕的那个模式另外
+加上点击展开与 composer 的点击定位光标。独占一行的一个 URL 变成一行可点击的
+**图标 + 链接行** —— 主机的品牌标记（`docs/brand-icons.md`）、主机，以及其后的
+暗色路径 —— 完全不发网络请求：
+
+```
+  ⎇ github.com/yxxbc/zeroth
+```
+
+这一行取代了取回式的预览卡片（站点、标题、描述和一张 `og:image` 封面，缓存在
+`~/.zeroth/cache/link-cards/` 下）。那张卡片为每一个孤立链接付一次 HTTP GET，
+抓取的是模型写的文本，还要为封面再下载一次 —— 一次用户从未要求的对外请求
+（`docs/research/harness-network-security.md`）。主机已经说明这个链接去哪，点击
+归终端，所以这一行什么都不用抓；`ZEROTH_LINK_CARDS` 与 `cache/link-cards*` 随之
+一起消失。B 那套只在 overlay 里兜底的方案，以及编辑器交接，仍留待后续阶段
 （[`full-screen.md`](full-screen.md)）。
 
 ## 需求
 
 积压清单要三样当前链接支持给不出的东西：
 
-1. 回复里一个链接的**预览卡片** —— 标题、站点、描述、封面；
+1. 回复里一个链接的**可读、可点击的一行** —— 标记、主机、路径；
 2. **路径可点击** —— 散文里的文件路径、一个 `pwd`、一个 URL，一视同仁；
 3. **单个事件可点击展开** —— 一个 tool 单元格或一条消息，而不是整份 Ctrl+O
    transcript。
@@ -218,7 +227,12 @@ struct RowHit {
 
 `Ctrl+O` 保持它的键盘行为不变；鼠标是一层附加。
 
-### `/links` 页面与卡片
+### `/links` 页面（设计）
+
+一个**设计**，尚未落地：上面的 inline 链接行不需要一个页面，因为每个孤立链接在它
+所在的地方已经可读、可点击。它留在这页上，作为将来真想要一个 `/links` 索引时的
+形状。旧的 inline 预览卡片 —— 连同它的自动取回 —— 已退役
+（`docs/ui/rich-links.md` *Phasing*）。
 
 一个新的 overlay 页面（`/links`，或 `Ctrl+O` 的兄弟页）列出**当前对话里的目标**
 —— A 的检测器找到的 URL 与路径，加上文件 tool 的头部 —— 去重，最新的回复在前。
@@ -283,16 +297,16 @@ struct RowHit {
    `links.rs` 与 inline 渲染器里。没有鼠标，没有新状态。它在两种 viewport 模式里
    都落地了。
 2. **C —— 拥有屏幕的模式 —— 骨架、鼠标、滚动与选择已完成。** 见
-   [`full-screen.md`](full-screen.md)。那一页对本页仍未完成的：点击展开与预览
-   卡片。
-3. **全屏模式里的富链接 —— 卡片已完成（文本 + 封面）。** assistant 回复里独占
-   一行的 URL 变成 `● site — title` 加一行暗色描述，并在取到 `og:image` 且终端
-   能画图时加一张封面缩略图（≤ 1/3 宽、≤ 6 行、保持宽高比）；图片存储在绘制
-   时刻从卡片缓存载入它。取回是每个 URL 一个 worker 线程（最多八个在飞），页面
-   5 s/512 KiB/`text/html`，封面 2 MiB/`image/*`；主机在**解析之后**被拒绝
-   （`host_is_private`：字符串规则加上该名字答出的每一个地址，于是 `nip.io`、
-   IPv6 映射形式与十六进制写法都被抓住），重定向按同样的方式重新检查。卡片跨
-   重启缓存（封面在 32 MiB、最旧先出的预算之下）；`/links` 页面仍然保留。
+   [`full-screen.md`](full-screen.md)。那一页对本页仍未完成的：点击展开。
+3. **全屏模式里的富链接 —— 图标 + 链接行已完成。** assistant 回复里独占一行的
+   URL 由 `ui::link_line_lines` 重写成一行：主机的品牌标记
+   （`docs/brand-icons.md`）、穿着链接装扮的主机、暗色的路径，每个单元格都带着
+   该 URL 的 OSC 8 目标，按行宽以 `…` 截断。纯的：不取回、不缓存、不派 worker、
+   没有 `ZEROTH_LINK_CARDS`。它所取代的取回式预览卡片，为模型写的每一个孤立链接
+   付一次 HTTP GET，再加一次封面下载 —— 一次未受请求的对外请求
+   （`docs/research/harness-network-security.md`），换来的只是主机和路径本就暗示
+   的标题与描述。下文的取回策略留在本页，作为将来 `/links` 页面显式预览的设计 ——
+   那是用户动作，不是渲染时的副作用。
 4. **B —— 只在需要时。** overlay 范围的鼠标与一个 `/links` 页面仍是 inline 模式
    下有用的临时替代，它们的命中图是 C 的子集，但它们不是目标。
 

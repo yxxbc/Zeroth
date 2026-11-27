@@ -153,6 +153,18 @@ readme_alt_version() {
 # ---------------------------------------------------------------------------
 changelog_path() { printf '%s/CHANGELOG.md\n' "$RELEASE_ROOT"; }
 
+# The Chinese twin of CHANGELOG.md (docs/README.zh.md's rule: a translation sits
+# beside its original). It is **not** prose-only — `scripts/docs/zh_parity.py`
+# holds it to the original's headings, code spans, fences and link targets —
+# so a release must roll both, or the twin's [Unreleased] keeps the entries
+# the release just took (which is exactly what happened for 0.22.0–0.23.0).
+changelog_zh_path() { printf '%s/CHANGELOG.zh.md\n' "$RELEASE_ROOT"; }
+
+# Whether the Chinese twin exists here. A checkout without it — an older tag, a
+# fixture that only carries the English file — skips every zh rule rather than
+# failing on a file that was never meant to be there.
+changelog_zh_exists() { [ -f "$(changelog_zh_path)" ]; }
+
 # Releases in this repository, newest first. A dated 0.0.0 section is the
 # fork's development baseline; headings below it are inherited history, not
 # tags on this repository, so they do not define release comparisons.
@@ -165,7 +177,7 @@ changelog_versions() {
 changelog_date() {
 	local re
 	re="$(version_re "$1")"
-	sed -n "s/^## \[$re\] - \([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\)$/\1/p" "$(changelog_path)"
+	sed -n "s/^## \[$re\] - \([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\)$/\1/p" "${2:-$(changelog_path)}"
 }
 # The version released before this one: the heading after its own.
 changelog_previous() {
@@ -191,13 +203,13 @@ changelog_section() {
 			while (e >= s && lines[e] ~ /^[ \t]*$/) e--
 			for (i = s; i <= e; i++) print lines[i]
 		}
-	' "$(changelog_path)"
+	' "${2:-$(changelog_path)}"
 }
 # The URL a version's `[X.Y.Z]: url` reference names.
 changelog_link() {
 	local re
 	re="$(version_re "$1")"
-	sed -n "s/^\[$re\]: \(.*\)$/\1/p" "$(changelog_path)"
+	sed -n "s/^\[$re\]: \(.*\)$/\1/p" "${2:-$(changelog_path)}"
 }
 
 # ---------------------------------------------------------------------------

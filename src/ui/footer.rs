@@ -336,11 +336,35 @@ pub fn footer_line(app: &App, width: u16) -> Line<'static> {
     // (`docs/agents/subagents.md`) — while an inheriting type keeps the session's
     // pair (`docs/agents/agent-context-gauge.md`).
     let mut segments = match app.viewed_agent_model() {
-        Some(pinned) => vec![Span::styled(pinned.to_string(), model_style)],
+        Some(pinned) => {
+            // A pinned model is still a model: the mark follows the id here
+            // too, from the model's own family (the pin carries no provider,
+            // so a model the tables don't know simply has none).
+            let mut model = Vec::with_capacity(2);
+            if let Some(brand) = crate::brand::Brand::of_model(pinned) {
+                model.push(Span::styled(
+                    format!("{} ", brand.glyph()),
+                    Style::new().fg(brand_color(brand.tone())),
+                ));
+            }
+            model.push(Span::styled(pinned.to_string(), model_style));
+            model
+        }
         None => {
             let mut model = Vec::with_capacity(4);
-            if !session.provider.is_empty() {
-                model.push(Span::styled(format!("[{}]", session.provider), dim));
+            // The brand mark by default — the model's own family first, then
+            // the provider's — with the `[provider]` bracket kept as the
+            // fallback for anything neither table knows, so an unfamiliar
+            // value still names itself (docs/brand-icons.md, docs/ui/footer.md).
+            match crate::brand::Brand::for_model(&session.model, &session.provider) {
+                Some(brand) => model.push(Span::styled(
+                    format!("{} ", brand.glyph()),
+                    Style::new().fg(brand_color(brand.tone())),
+                )),
+                None if !session.provider.is_empty() => {
+                    model.push(Span::styled(format!("[{}]", session.provider), dim));
+                }
+                None => {}
             }
             let shown = if session.provider.is_empty() {
                 session.model.clone()

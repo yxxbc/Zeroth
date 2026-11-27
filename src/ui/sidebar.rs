@@ -171,6 +171,7 @@ fn heading(text: &str, width: u16) -> Line<'static> {
 /// question marks.
 fn brand_rows(app: &App, width: u16) -> Vec<Line<'static>> {
     let mut rows = mascot_rows(width);
+    rows.extend(brand_logo_rows(app, width));
     rows.push(Line::from(vec![
         Span::styled(
             SIDEBAR_NAME,
@@ -199,6 +200,53 @@ fn brand_rows(app: &App, width: u16) -> Vec<Line<'static>> {
             Span::styled("/login", Style::new().fg(sidebar_accent_color())),
         ]));
     }
+    rows
+}
+
+/// The session's brand tile — the model's (or its provider's) real logo, on
+/// the graphic terminals that can draw one (`docs/brand-icons.md`). Empty
+/// everywhere else, where the glyph on the `model` fact row is the mark: a
+/// tile is a picture, and a column with no pictures keeps its glyph.
+fn brand_logo_rows(app: &App, width: u16) -> Vec<Line<'static>> {
+    if !images::graphics_available() {
+        return Vec::new();
+    }
+    let Some(session) = &app.session else {
+        return Vec::new();
+    };
+    let brand = app
+        .viewed_agent_model()
+        .and_then(crate::brand::Brand::of_model)
+        .or_else(|| {
+            crate::brand::Brand::of_model(&session.model)
+                .or_else(|| crate::brand::Brand::logo_provider(&session.provider))
+        });
+    let Some(path) = brand.and_then(images::brand_image_path) else {
+        return Vec::new();
+    };
+    let cols = SIDEBAR_BRAND_LOGO_COLS.min(width.saturating_sub(2));
+    if cols < SIDEBAR_BRAND_LOGO_MIN_COLS {
+        return Vec::new();
+    }
+    let Some(place) = images::place_in(
+        &path,
+        crate::brand::Brand::LOGO_PX,
+        cols,
+        SIDEBAR_BRAND_LOGO_ROWS,
+    ) else {
+        return Vec::new();
+    };
+    let mut rows: Vec<Line<'static>> = (0..place.rows)
+        .map(|row| {
+            Line::from(Span::styled(
+                " ".repeat(usize::from(place.cols)),
+                Style::default().underline_color(images::carrier(place.id, row)),
+            ))
+        })
+        .collect();
+    // One blank row sets the tile apart from the name under it, so the block
+    // does not read as the mascot's own art continuing.
+    rows.push(Line::default());
     rows
 }
 
@@ -235,12 +283,20 @@ fn session_rows(app: &App, width: u16) -> Vec<Line<'static>> {
         return Vec::new();
     };
     let mut rows = vec![heading(SIDEBAR_SESSION, width)];
+    // The model row leads with the brand mark, the footer's rule — the
+    // pinned agent's own family, else the session model's, else the
+    // provider's — and falls back to the provider's name in a value that
+    // has room for it (docs/brand-icons.md).
     let model = match app.viewed_agent_model() {
         Some(pinned) => pinned.to_string(),
         None if session.provider.is_empty() => session.model.clone(),
         None => format!("{} · {}", session.model, session.provider),
     };
-    rows.push(fact(SIDEBAR_MODEL, &model, width));
+    let brand = app
+        .viewed_agent_model()
+        .and_then(crate::brand::Brand::of_model)
+        .or_else(|| crate::brand::Brand::for_model(&session.model, &session.provider));
+    rows.push(marked_fact(brand, SIDEBAR_MODEL, &model, width));
     rows.push(fact(SIDEBAR_CWD, &session.cwd, width));
     if let Some((used, window)) = app.context_gauge() {
         rows.push(gauge_row(app, used, window, width));
@@ -249,6 +305,30 @@ fn session_rows(app: &App, width: u16) -> Vec<Line<'static>> {
         rows.push(fact(SIDEBAR_MODE, mode.label(), width));
     }
     rows
+}
+
+/// [`fact`] with a brand mark between the label and the value — the session's
+/// model row. The mark sits in the label's gap so the value's column does not
+/// move, and the truncation budget accounts for its columns.
+fn marked_fact(
+    brand: Option<crate::brand::Brand>,
+    label: &str,
+    value: &str,
+    width: u16,
+) -> Line<'static> {
+    let Some(brand) = brand else {
+        return fact(label, value, width);
+    };
+    let room = usize::from(width).saturating_sub(cols(label) + 1 + BRAND_MARK_COLS);
+    let value = truncate_cols(value, room.max(1));
+    Line::from(vec![
+        Span::styled(format!("{label} "), Style::new().fg(sidebar_meta_color())),
+        Span::styled(
+            format!("{} ", brand.glyph()),
+            Style::new().fg(brand_color(brand.tone())),
+        ),
+        Span::styled(value, Style::new().fg(sidebar_value_color())),
+    ])
 }
 
 /// `label value` with the label dim and the value on the next row when the two

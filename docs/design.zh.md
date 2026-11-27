@@ -232,7 +232,8 @@ README 横幅保留午夜蓝湖面和发光的零环，用幼兽替换兜帽人�
   是 `/clear`、`/copy`、`/export`、`/diff`、`/init`、`/compact`、`/context`、
   `/usage`、`/resume`、`/model`、`/login`、`/settings`、`/theme`、
   `/mascot`、`/spinner`、`/hooks`、`/skills`、`/donate`、
-  `/secrets` 与 `/quit`），随着你在 `/` 之后打字按名字前缀过滤；光一个 `/`
+  `/secrets`、`/cd` 与 `/quit` —— 后者也答 `/exit`），随着你在 `/` 之后打字
+  按名字前缀过滤；光一个 `/`
   匹配全部。↑/↓ 移动高亮，列表在名字那一列上方一行暗色的 `(n/total)` 计数器
   之下，一次最多显示 `MENU_MAX_COMMANDS`（5）条命令 —— 高亮落在哪条，就显示它
   是查询匹配到的第几个、共几个，也就是 picker 们的计数器
@@ -340,12 +341,16 @@ README 横幅保留午夜蓝湖面和发光的零环，用幼兽替换兜帽人�
   composer 全程保持**焦点**：回合流式输出时硬件光标仍显示在框的提示行上
   （codex 在任务运行期间保留 composer 光标；只有 Ctrl+O overlay 会藏起它）。
 - **框下的一条 session 上下文页脚**（codex 的页脚状态行 —— 见
-  `docs/ui/footer.md`）：live 区域的最后一行显示 `{model} · {cwd}` —— 后端的
-  `ReplySource::model_name()` 与相对 home 的工作目录（`display_cwd`：`~`、
-  `~/rel` 或绝对路径）—— 暗色，缩进两列，窄宽度下用省略号截断。从启动起就在
-  那里，空闲与流式中途一样；palette / `?` 快捷键带会**顶掉**它（codex 的弹窗
-  也这样占那一行），带关闭后它回来。这些字符串在 I/O 边界注入一次
-  （`App::set_session_info`，即 `set_clock` 那套模式），所以纯核心从不读环境。
+  `docs/ui/footer.md`）：live 区域的最后一行显示 `{mark} {model} · {cwd}` ——
+  模型的**品牌标记**（`docs/brand-icons.md`：先模型自己的家族，其次它的
+  provider，`[provider]` 作兜底）、后端 `ReplySource::model_name()` 与相对
+  home 的工作目录（`display_cwd`：`~`、`~/rel` 或绝对路径）—— 暗色，缩进两列，
+  窄宽度下用省略号截断。从启动起就在那里，空闲与流式中途一样；palette / `?`
+  快捷键带会**顶掉**它（codex 的弹窗也这样占那一行），带关闭后它回来。这些
+  字符串在 I/O 边界注入一次（`App::set_session_info`，即 `set_clock` 那套模式），
+  所以纯核心从不读环境 —— 而 `/cd` 经同一个接缝移动路径
+  （`App::set_working_dir`），同时工具自己的目录走一个共享的 `workdir::WorkDir`
+  句柄（`docs/state/change-directory.md`）。
 - **后端错误与取消。** 回复后端（`ReplySource`）可能以 `Error(msg)` 而不是
   `StreamDone` 结束；半截回复（如果有）保留，并在它下面显示一条红色错误通
   知。内置的 `DummyAi` 从不报错 —— 这是留给真实模型的接缝。流式中途退出会触

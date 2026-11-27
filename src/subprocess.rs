@@ -349,6 +349,24 @@ pub fn spawn_detached_in(
     spawn_tiers(detach_helper, shell, command, |_| {})
 }
 
+/// [`spawn_detached_in`] running the command in `dir` — the directory `/cd`
+/// points the session's tools at (`docs/state/change-directory.md`). The
+/// child's cwd is set on **every** tier, so the `setsid` and helper paths
+/// start where the attached one does.
+///
+/// # Errors
+/// The underlying spawn error when even the last tier can't start.
+pub fn spawn_detached_in_dir(
+    detach_helper: Option<&Path>,
+    shell: &Path,
+    command: &str,
+    dir: &Path,
+) -> io::Result<Child> {
+    spawn_tiers(detach_helper, shell, command, |cmd| {
+        cmd.current_dir(dir);
+    })
+}
+
 /// [`spawn_detached_shell`] with the caller adjusting each tier's `Command`
 /// first — the same tier walk, the same fall-through rule, the same
 /// `pgid == child.id()` invariant, but a stdio (or cwd, or environment) of the
@@ -372,6 +390,21 @@ pub fn spawn_shell_with(
     configure: impl Fn(&mut Command),
 ) -> io::Result<Child> {
     spawn_tiers(detach_helper, Path::new(DEFAULT_SHELL), command, configure)
+}
+
+/// [`spawn_detached_shell`] in `dir` — the `!` shell's `/cd` form
+/// (`docs/state/change-directory.md`).
+///
+/// # Errors
+/// The underlying spawn error when even the last tier can't start.
+pub fn spawn_detached_shell_in(
+    detach_helper: Option<&Path>,
+    command: &str,
+    dir: &Path,
+) -> io::Result<Child> {
+    spawn_tiers(detach_helper, Path::new(DEFAULT_SHELL), command, |cmd| {
+        cmd.current_dir(dir);
+    })
 }
 
 /// The tier walk every detached spawn shares, under `shell`.

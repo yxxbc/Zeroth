@@ -7,11 +7,12 @@ below the input box's bottom rule, giving ambient session context —
 ────────────────────────────────────────────────────────────
 ❯
 ────────────────────────────────────────────────────────────
-  dummy_model_name · ~/zeroth                      auto
+  ◈ deepseek-v4.1-flash · ~/zeroth                 auto
 ```
 
-— the backend's model name and the current working directory, joined with
-` · `, and — pinned flush at the row's **right edge**, its own zone — the
+— the backend's model name behind its **brand mark** (`docs/brand-icons.md`)
+and the current working directory, joined with ` · `, and — pinned flush at the
+row's **right edge**, its own zone — the
 session's **permission mode** (`auto` until a project saves another, the
 posture Shift+Tab cycles — `docs/state/permissions.md`; hidden when permissions are
 disabled). See `CLAUDE.md` for where this sits in the runtime model.
@@ -94,7 +95,7 @@ footer-mode multiplexing: the Ctrl+R `reverse-i-search: {query}` line
   columns plus a `FOOTER_MODE_GAP` gutter are reserved off the chain's budget
   up front, so the `…` truncation always eats the left content and never the
   one segment with a safety meaning. A full row reads
-  `deepseek-v3.2 medium · ~/Codes/tmp · 1.3k/160k (0.8%) · 1 shell     auto`;
+  `◈ deepseek-v3.2 medium · ~/Codes/tmp · 1.3k/160k (0.8%) · 1 shell     auto`;
   a selected speed tier follows the thinking mode — `gpt-5.5 medium fast ·
   ~/repo`, `gpt-5.6-sol ultrafast · ~/repo` — wearing whatever name the
   model's listing gave the tier its command selected (`/fast`,
@@ -131,14 +132,18 @@ the banner does (`docs/ui/theme.md`). Colour marks what the row **names**; the
 punctuation between the names stays dim:
 
 ```
-  [magpie]deepseek-v4.1-flash medium fast · ~/Codes/rust/zeroth · 0/475k (0.0%)       master
+  ◈ deepseek-v4.1-flash medium fast · ~/Codes/rust/zeroth · 0/475k (0.0%)       master
 ```
 
 - **model** — `footer_model_color()`, the accent: what the session talks to
-  is the row's first fact; the `[provider]` bracket is the row's dim
-  (`footer_color()`), so the provider frames the model without competing with
-  it. A subagent's pinned model wears the accent too (no bracket — the pin
-  carries no provider).
+  is the row's first fact. It leads with the **brand mark**
+  (`◈ deepseek-v4.1-flash`): the model's own family first, then the
+  provider's, in that brand's tone (`ui::theme::brand_color`,
+  `docs/brand-icons.md`). The old `[provider]` bracket survives only as the
+  fallback — a user-added provider and a model name no family table knows —
+  so an unfamiliar value still names itself instead of guessing a mark. A
+  subagent's pinned model wears the accent and its own family's mark (the pin
+  carries no provider, so a name no table knows simply has none).
 - **thinking mode and speed tier** — `footer_qualifier_color()`, the status
   line's thinking purple (`status_thinking_color()`), one colour for what
   Ctrl+T and a tier's command turn; the `Thinking for Ns` clause above the
@@ -198,7 +203,9 @@ reseat, resizes) already accounts for the row.
 - `stream`: `DummyAi` reports its model name.
 - `app`: session info is unset by default; `set_session_info` stores the
   display strings.
-- `ui`: `footer_rows` is 0 without session info / 1 with it / 0 when a band is
+- `ui`: the model segment leads with its brand mark and falls back to the
+  `[provider]` bracket for an unknown pair (`docs/brand-icons.md`);
+  `footer_rows` is 0 without session info / 1 with it / 0 when a band is
   open — and 1 whenever a Ctrl+R search is open or shell mode is on, session
   info or not (see `docs/input/history-search.md` / `docs/input/shell-command.md`, which
   test the slot's other occupants); `footer_line` renders `  {model} · {cwd}`

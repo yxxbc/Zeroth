@@ -1,21 +1,34 @@
-# Rich links — clickable paths, preview cards, and screen ownership
+# Rich links — clickable paths, link rows, and screen ownership
 
-**Status: paths, click-to-expand and preview cards (text + cover) implemented.**
+**Status: paths, click-to-expand and the icon + link line implemented; the
+fetched preview card is retired.**
 Assistant prose and inline code link file-path-like tokens to `file://` URIs in
 both viewports ([`links.md`](links.md) *File paths*); the screen-owning mode
-adds click-to-expand, the composer's click-to-place caret and **preview cards**
-for a URL alone on a line: site, title, description, and — when the page has an
-`og:image` and the terminal draws pictures — a cover thumbnail on the left
-(fetched on demand through `zeroth::link_card`, cached under
-`~/.zeroth/cache/link-cards.json` + `cache/link-cards/`, `ZEROTH_LINK_CARDS=0`
-disables). B's overlay-only fallback and the editor handoff remain later
-phases ([`full-screen.md`](full-screen.md)).
+adds click-to-expand and the composer's click-to-place caret. A **lone URL** on
+a line becomes one clickable **icon + link row** — the host's brand mark
+(`docs/brand-icons.md`), the host, and the path dim after it — with no network
+request at all:
+
+```
+  ⎇ github.com/yxxbc/zeroth
+```
+
+That row replaced the fetched preview card (site, title, description and an
+`og:image` cover, cached under `~/.zeroth/cache/link-cards/`). The card cost one
+HTTP GET per lone link, on content the model wrote, plus a second download for
+the cover — an unsolicited outbound request the user never asked for
+(`docs/research/harness-network-security.md`). The host already says where the
+link goes and the terminal owns the click, so the row needs nothing fetched;
+`ZEROTH_LINK_CARDS` and the `cache/link-cards*` files are gone with it. B's
+overlay-only fallback and the editor handoff remain later phases
+([`full-screen.md`](full-screen.md)).
 
 ## The ask
 
 The backlog asks for three things the current link support does not give:
 
-1. a **preview card** for a link in a reply — title, site, description, a cover;
+1. a **readable, clickable row** for a link in a reply — the mark, the host,
+   the path;
 2. **paths clickable** — a file path in prose, a `pwd`, a URL alike;
 3. a **single event clickable to expand it** — one tool cell or one message,
    not the whole Ctrl+O transcript.
@@ -254,7 +267,13 @@ to the same item.
 
 `Ctrl+O` keeps its keyboard behaviour untouched; mouse is an additive layer.
 
-### The `/links` page and cards
+### The `/links` page (design)
+
+A **design**, not shipped: the inline link row above needs no page, because
+every lone link is already legible and clickable where it stands. This stays on
+the page as the shape a future `/links` index would take if one is ever wanted.
+The old inline preview card — and its automatic fetch — is retired
+(`docs/ui/rich-links.md` *Phasing*).
 
 A new overlay page (`/links`, or `Ctrl+O`'s sibling) lists the **targets in the
 current conversation** — URLs and paths found by A's detectors plus the
@@ -330,18 +349,18 @@ It lands as an opt-in mode first and becomes the default only on parity.
    It landed in both viewport modes.
 2. **C — the screen-owning mode — skeleton, mouse, scrolling and selection
    done.** See [`full-screen.md`](full-screen.md). Still open there for this
-   page: click-to-expand and the preview card.
-3. **Rich links in full mode — cards done (text + cover).** A lone URL line in
-   an assistant reply becomes `● site — title` plus a dim description, and a
-   cover thumbnail (≤ 1/3 width, ≤ 6 rows, aspect kept) when `og:image` was
-   fetched and the terminal can draw pictures; the image store loads it from
-   the card cache at paint time. The fetch is one worker thread per URL (at
-   most eight in flight), 5 s/512 KiB/`text/html` for the page and
-   2 MiB/`image/*` for the cover; hosts are refused after **resolution**
-   (`host_is_private`: the string rules plus every address the name answers,
-   so `nip.io`, IPv6-mapped and hex spellings are caught), and a redirect is
-   re-checked the same way. Cards are cached across restarts (covers under a
-   32 MiB oldest-first budget); the `/links` page remains.
+   page: click-to-expand.
+3. **Rich links in full mode — the icon + link row done.** A lone URL line in
+   an assistant reply is rewritten by `ui::link_line_lines` into one row: the
+   host's brand mark (`docs/brand-icons.md`), the host in the link dress, the
+   path dim, every cell carrying the URL's OSC 8 target, `…`-cut at the row's
+   width. Pure: no fetch, no cache, no worker, no `ZEROTH_LINK_CARDS`. The
+   fetched preview card this replaced cost one HTTP GET per lone link on
+   model-written content plus a cover download — an unsolicited outbound
+   request (`docs/research/harness-network-security.md`) for a title and a
+   description the host and the path already imply. The fetch policy below
+   stays on the page as the design for the `/links` page's explicit preview,
+   which is a user action, not a render-time side effect.
 4. **B — only if needed.** Overlay-scoped mouse and a `/links` page remain a
    useful stopgap for inline mode, and their hit map is a subset of C's, but
    they are not the target.

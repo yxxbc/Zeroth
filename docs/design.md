@@ -299,7 +299,8 @@ hatchling replacing the hooded figure. See `docs/ui/mascot.md`,
   third band in the live region). It lists a registry of `SlashCommand`s
   (`app::COMMANDS`: name + description + effect — currently `/clear`,
   `/copy`, `/export`, `/diff`, `/init`, `/compact`, `/context`, `/usage`, `/resume`, `/model`, `/login`, `/settings`,
-  `/theme`, `/mascot`, `/spinner`, `/hooks`, `/skills`, `/donate`, `/secrets`, and `/quit`),
+  `/theme`, `/mascot`, `/spinner`, `/hooks`, `/skills`, `/donate`, `/secrets`,
+  `/cd`, and `/quit` — which also answers to `/exit`),
   filtered by name-prefix as you type after the `/`; `/` alone matches everything.
   ↑/↓ move the highlight, and the list shows at most `MENU_MAX_COMMANDS` (5)
   commands at a time over a dim `(n/total)` counter in the names' column — which
@@ -441,14 +442,19 @@ hatchling replacing the hooded figure. See `docs/ui/mascot.md`,
   (codex keeps the composer cursor during a running task; only the Ctrl+O
   overlay hides it).
 - **A session-context footer under the box** (codex's footer status line — see
-  `docs/ui/footer.md`): the live region's last row shows `{model} · {cwd}` — the
-  backend's `ReplySource::model_name()` and the home-relativized working
-  directory (`display_cwd`: `~`, `~/rel`, or absolute) — dim, inset two
-  columns, ellipsis-truncated at narrow widths. Present from startup, idle and
+  `docs/ui/footer.md`): the live region's last row shows `{mark} {model} · {cwd}`
+  — the model's **brand mark** (`docs/brand-icons.md`: the model's own family
+  first, its provider second, `[provider]` as the fallback), the backend's
+  `ReplySource::model_name()` and the home-relativized working directory
+  (`display_cwd`: `~`, `~/rel`, or absolute) — dim, inset two columns,
+  ellipsis-truncated at narrow widths. Present from startup, idle and
   mid-stream alike; the palette / `?` shortcuts band **displaces** it (codex's
   popups take the row the same way), and it returns when the band closes. The
   strings are injected once at the I/O boundary (`App::set_session_info`, the
-  `set_clock` pattern) so the pure core never reads the environment.
+  `set_clock` pattern) so the pure core never reads the environment — and
+  `/cd` moves the path through the same seam (`App::set_working_dir`), while
+  the tools' own directory rides a shared `workdir::WorkDir` handle
+  (`docs/state/change-directory.md`).
 - **Backend errors & cancellation.** A reply backend (`ReplySource`) may end with
   `Error(msg)` instead of `StreamDone`; the partial reply (if any) is kept and a
   red error notice is shown below it. The built-in `DummyAi` never errors — this is

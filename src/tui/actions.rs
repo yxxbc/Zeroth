@@ -20,7 +20,7 @@
 
 use ratatui::crossterm::event::{Event, KeyEventKind, MouseButton, MouseEvent, MouseEventKind};
 
-use zeroth::app::{Action, COPY_OK_NOTICE, ToastKind, View};
+use zeroth::app::{Action, CD_BUSY_NOTICE, COPY_OK_NOTICE, ToastKind, View};
 use zeroth::checkpoint;
 use zeroth::clipboard;
 use zeroth::ui;
@@ -193,6 +193,7 @@ impl Session<'_> {
                 self.start_compact_turn(/*auto=*/ false);
             }
             Action::Clear => self.clear_conversation()?,
+            Action::ChangeDirectory(path) => self.change_directory(&path),
             Action::Loop(cmd) => self.handle_loop_command(cmd),
             Action::Goal(cmd) => self.handle_goal_command(cmd),
             Action::KillBackground(id) => self.conversation.kill_background(&id),
@@ -666,19 +667,6 @@ impl Session<'_> {
         Ok(())
     }
 
-    /// A fetched link card: remember it (and persist the cache), then rebuild
-    /// the tail so the lone URL line becomes the card (`docs/ui/rich-links.md`).
-    /// A failed fetch sends nothing and leaves its URL in `card_pending`, so it
-    /// is not retried in a loop.
-    pub(crate) fn on_card(&mut self, url: String, card: Option<zeroth::link_card::LinkCard>) {
-        if let Some(card) = card {
-            self.view.cards.insert(url, card);
-            super::link_cards::save(&self.view.cards);
-            self.view.full_tail_dirty = true;
-            self.frame.schedule_frame();
-        }
-    }
-
     /// Toggle the expandable history item under a conversation row: its cell
     /// switches between the collapsed inline form and the Ctrl+O form, and the
     /// next rebuild pins the item's first line where it was so the click does
@@ -1067,6 +1055,73 @@ impl Session<'_> {
         // the visible screen — the old conversation must be gone from scrollback
         // too, so scrolling up shows nothing.
         self.repaint_conversation()
+    }
+
+    /// `/cd <path>` — move the directory the **tools** run in
+    /// (`docs/state/change-directory.md`). The conversation, its model, its
+    /// permissions, its checkpoints, its rollout and the skills/agents found
+    /// at startup all stay keyed to the launch directory; what moves is where
+    /// work happens: `bash`, `read`/`write`/`edit`, the `!` shell, the footer's
+    /// path and the `file://` links that resolve against it.
+    ///
+    /// A path that is not an existing directory is a red toast and changes
+    /// nothing — the same soft-rejection shape as `/resume` mid-turn. Mid-turn
+    /// the move is refused outright: a running turn's tools are resolved by the
+    /// backend thread on its own schedule, and half a turn in one directory
+    /// and half in another is never what the user meant.
+    fn change_directory(&mut self, given: &str) {
+        // `App` refuses mid-turn before it returns the action; this is the
+        // belt to that braces, for a caller that skipped the key path.
+        if self.conversation.app.turn_active() {
+            self.toast(CD_BUSY_NOTICE, ToastKind::Error);
+            return;
+        }
+        let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+        let target = self.conversation.work_dir.resolve(given, home.as_deref());
+        // Canonicalize through the filesystem: `..`, symlinks and a trailing
+        // slash all have to land on one real directory, or the display and the
+        // tools would disagree about where they are.
+        let resolved = match target.canonicalize() {
+            Ok(path) if path.is_dir() => path,
+            Ok(_) => {
+                self.toast(
+                    format!("Not a directory: {}", target.display()),
+                    ToastKind::Error,
+                );
+                return;
+            }
+            Err(err) => {
+                self.toast(
+                    format!("Cannot move to {}: {err}", target.display()),
+                    ToastKind::Error,
+                );
+                return;
+            }
+        };
+        self.conversation.work_dir.set(resolved.clone());
+        let display = ui::display_cwd(&resolved, home.as_deref());
+        self.conversation.work_dir_display = display.clone();
+        // The footer's path and every `file://` link the conversation paints
+        // resolve against the new directory from the next frame on. The banner
+        // and the sidebar keep the project's path (they name the session, not
+        // its tools); only the footer follows the move.
+        self.conversation.app.set_working_dir(display.clone());
+        self.conversation
+            .app
+            .set_path_display(zeroth::app::PathDisplay::new(resolved.clone(), home));
+        self.view
+            .render
+            .set_paths(Some(self.conversation.app.path_display().clone()));
+        self.view
+            .agent_render
+            .set_paths(Some(self.conversation.app.path_display().clone()));
+        self.view.full_tail = None;
+        self.view.full_tail_dirty = true;
+        // The prompt cache is keyed per process, not per directory, so the
+        // move costs no cache hit — the conversation is untouched
+        // (`docs/state/change-directory.md` *Cache*).
+        self.toast(format!("Working directory: {display}"), ToastKind::Info);
+        self.frame.schedule_frame();
     }
 
     /// A terminal resize. Repaint from history on ANY dimension change (codex

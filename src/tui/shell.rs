@@ -85,9 +85,14 @@ pub(crate) fn spawn_shell_command(
             Some(Ok(expanded)) => Some(expanded),
             None => None,
         };
-        let mut child = match zeroth::subprocess::spawn_detached_shell(
+        // The session's `/cd` directory (`docs/state/change-directory.md`):
+        // the same handle the model's tools read, so `! pwd` and a `bash` call
+        // can never disagree about where the work is.
+        let dir = registry.work_dir();
+        let mut child = match zeroth::subprocess::spawn_detached_shell_in(
             registry.detach_helper().as_deref(),
             expanded.as_deref().unwrap_or(&command),
+            &dir,
         ) {
             Ok(child) => child,
             Err(err) => {

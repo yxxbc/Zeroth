@@ -441,8 +441,12 @@ pub fn looks_like_installer(text: &str) -> bool {
 /// installer, as text.
 pub fn fetch_installer(repo: &str, current_version: &str) -> Result<String, String> {
     let url = installer_url(repo);
-    let client =
-        crate::llm::http_client(crate::llm::openai::NET_OP_TIMEOUT).map_err(|e| e.to_string())?;
+    // An **ephemeral** client, not the cached provider one: this request runs
+    // once a day, and a cached client keeps reqwest's runtime thread alive for
+    // the whole session (measured: the only idle wakeup source —
+    // `docs/ops/startup.md`). Dropped here, the thread goes with it.
+    let client = crate::llm::ephemeral_client(crate::llm::openai::NET_OP_TIMEOUT)
+        .map_err(|e| e.to_string())?;
     let response = client
         .get(&url)
         .header("user-agent", crate::user_agent(current_version))
@@ -472,8 +476,12 @@ pub fn fetch_installer(repo: &str, current_version: &str) -> Result<String, Stri
 /// yet answers 404), or a final URL that names no version, as text.
 pub fn fetch_latest(repo: &str, current_version: &str) -> Result<String, String> {
     let url = latest_url(repo);
-    let client =
-        crate::llm::http_client(crate::llm::openai::NET_OP_TIMEOUT).map_err(|e| e.to_string())?;
+    // An **ephemeral** client, not the cached provider one: this request runs
+    // once a day, and a cached client keeps reqwest's runtime thread alive for
+    // the whole session (measured: the only idle wakeup source —
+    // `docs/ops/startup.md`). Dropped here, the thread goes with it.
+    let client = crate::llm::ephemeral_client(crate::llm::openai::NET_OP_TIMEOUT)
+        .map_err(|e| e.to_string())?;
     let response = client
         .head(&url)
         .header("user-agent", crate::user_agent(current_version))

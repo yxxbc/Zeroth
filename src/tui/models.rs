@@ -179,6 +179,10 @@ pub(crate) struct ModelSession {
     ask: Option<zeroth::ask::AskGate>,
     /// Optional wakeup sink for `schedule_wakeup` (`/loop`, `/goal`).
     wakeup: Option<zeroth::llm::tools::WakeupSink>,
+    /// The session's working directory — the shared `/cd` handle every
+    /// backend build attaches to its executor (`docs/state/change-directory.md`),
+    /// so a move reaches the next tool call without a rebuild.
+    work_dir: Option<zeroth::workdir::WorkDir>,
     /// A headless run's reply budget (`--max-turns`, `docs/cli/headless.md`),
     /// re-attached on every rebuild like the registries; `None` in the TUI.
     round_budget: Option<zeroth::llm::agent::RoundBudget>,
@@ -252,6 +256,7 @@ impl ModelSession {
         hooks: Option<HookSetup>,
         round_budget: Option<&zeroth::llm::agent::RoundBudget>,
         host: Option<&super::host::Host>,
+        work_dir: Option<&zeroth::workdir::WorkDir>,
     ) -> Self {
         let (providers, provider_issues) = match host {
             Some(host) => (host.providers.clone(), host.provider_issues.clone()),
@@ -485,6 +490,7 @@ impl ModelSession {
                 hooks.as_ref(),
                 round_budget,
                 None,
+                work_dir,
             )),
             (None, None) => {
                 // The subagent registry rides the dummy too: the "subagent"
@@ -581,6 +587,7 @@ impl ModelSession {
             permissions: permissions.cloned(),
             ask: ask.cloned(),
             wakeup: None,
+            work_dir: work_dir.cloned(),
             round_budget: round_budget.cloned(),
             tasks: tasks.clone(),
             subagents,
@@ -1012,6 +1019,7 @@ impl ModelSession {
             self.hooks.as_ref(),
             self.round_budget.as_ref(),
             self.wakeup.as_ref(),
+            self.work_dir.as_ref(),
         ));
     }
 
@@ -1861,6 +1869,7 @@ fn session_backend(
     hooks: Option<&HookSetup>,
     round_budget: Option<&zeroth::llm::agent::RoundBudget>,
     wakeup: Option<&zeroth::llm::tools::WakeupSink>,
+    work_dir: Option<&zeroth::workdir::WorkDir>,
 ) -> LlmBackend {
     // Captured before `configure` consumes the config: the hooks payload
     // names the model that is about to answer (docs/tools/hooks.md).
@@ -1895,6 +1904,12 @@ fn session_backend(
     // "not configured" is a dead end the model would walk into.
     if let Some(search) = web_search {
         backend = backend.with_web(search.clone());
+    }
+    // The directory the tools run in (`/cd`, `docs/state/change-directory.md`):
+    // the shared handle, so a move reaches the next tool call on this very
+    // backend without a rebuild.
+    if let Some(dir) = work_dir {
+        backend = backend.with_work_dir(dir.clone());
     }
     // The ask gate (docs/tools/ask.md): enables the `askuserquestion` tool —
     // attached wherever somebody can answer (asking is not a permission),

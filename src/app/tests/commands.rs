@@ -120,9 +120,65 @@ fn matching_commands_filters_by_name_prefix_case_insensitively() {
     let hits = matching_commands(COMMANDS, "CO");
     assert!(hits.iter().any(|c| c.name == "copy"));
     assert!(
-        hits.iter().all(|c| c.name.starts_with("co")),
-        "every match shares the prefix"
+        hits.iter().all(|c| {
+            c.name.starts_with("co") || c.aliases.iter().any(|alias| alias.starts_with("co"))
+        }),
+        "every match shares the prefix by name or alias"
     );
+}
+
+#[test]
+fn exit_is_an_alias_of_quit_and_gets_no_row_of_its_own() {
+    // codex answers `/quit` and `/exit` alike; the palette still lists one
+    // row — the alias only widens the lookup.
+    let mut app = App::new();
+    type_str(&mut app, "/exit");
+    assert_eq!(app.on_key(key(KeyCode::Enter)), Action::Quit);
+    assert!(app.input.is_empty(), "the command was consumed");
+    let matches = matching_commands(COMMANDS, "exit");
+    assert_eq!(matches.len(), 1, "one row answers /exit: {matches:?}");
+    assert_eq!(matches[0].name, "quit");
+    assert_eq!(matches[0].effect, CommandEffect::Quit);
+    // A prefix of the alias selects the same row — and never a second one.
+    let mut app = App::new();
+    type_str(&mut app, "/exi");
+    assert_eq!(
+        app.highlighted_command().map(|c| c.name.into_owned()),
+        Some("quit".to_string())
+    );
+    // `/quit` itself still matches by name, and neither spelling leaks a row
+    // into the registry.
+    assert!(COMMANDS.iter().all(|c| c.name != "exit"));
+    assert_eq!(matching_commands(COMMANDS, "qui").len(), 1);
+}
+
+#[test]
+fn aliases_are_lowercase_slashless_and_never_shadow_a_command_name() {
+    let names: std::collections::HashSet<&str> = COMMANDS.iter().map(|c| c.name.as_ref()).collect();
+    for command in COMMANDS {
+        for alias in command.aliases.iter() {
+            assert!(!alias.is_empty(), "/{} has an empty alias", command.name);
+            assert!(
+                !alias.starts_with('/'),
+                "/{}'s alias carries the slash",
+                command.name
+            );
+            assert_eq!(*alias, alias.to_lowercase(), "aliases are lowercase");
+            assert!(
+                !names.contains(alias),
+                "/{}'s alias {alias:?} shadows a listed command",
+                command.name
+            );
+            assert!(
+                COMMANDS
+                    .iter()
+                    .filter(|c| c.aliases.contains(alias))
+                    .count()
+                    == 1,
+                "alias {alias:?} is claimed twice"
+            );
+        }
+    }
 }
 
 #[test]
@@ -498,4 +554,67 @@ fn a_tier_command_works_mid_turn_for_the_next_turn() {
         Action::SetSpeed(Some(fast_tier()))
     );
     assert!(app.turn_active(), "the turn keeps running underneath");
+}
+
+// ===== /cd (docs/state/change-directory.md) =====
+
+#[test]
+fn cd_is_a_listed_command_that_asks_for_a_path() {
+    let cmd = COMMANDS
+        .iter()
+        .find(|c| c.name == "cd")
+        .expect("/cd is registered");
+    assert_eq!(cmd.effect, CommandEffect::ChangeDirectory);
+    assert!(
+        cmd.description.len() <= 53,
+        "the palette row fits: {:?}",
+        cmd.description
+    );
+    // The palette row alone is the door, not a directory browser: Enter on a
+    // bare `/cd` explains the shape instead of moving anywhere.
+    let mut app = App::new();
+    type_str(&mut app, "/cd");
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::Toast(CD_USAGE_NOTICE.to_string())
+    );
+    assert!(app.command_menu.is_none());
+}
+
+#[test]
+fn cd_with_a_path_hands_the_loop_the_argument() {
+    let mut app = App::new();
+    type_str(&mut app, "/cd ../other-repo");
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::ChangeDirectory("../other-repo".to_string())
+    );
+    assert!(app.input.is_empty(), "the command was consumed");
+    assert!(app.command_menu.is_none());
+    // A path with spaces in it survives verbatim — the loop canonicalizes.
+    let mut app = App::new();
+    type_str(&mut app, "/cd /tmp/My Projects");
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::ChangeDirectory("/tmp/My Projects".to_string())
+    );
+}
+
+#[test]
+fn cd_is_refused_mid_turn_like_resume() {
+    // A move while a turn runs would split one turn across two directories —
+    // its backend thread resolves tools on its own schedule. The rejection is
+    // the /resume toast, not an action the loop has to guard.
+    let mut app = App::new();
+    app.begin_stream();
+    app.push_chunk("streaming…");
+    type_str(&mut app, "/cd /tmp");
+    assert_eq!(
+        app.on_key(key(KeyCode::Enter)),
+        Action::Toast(CD_BUSY_NOTICE.to_string())
+    );
+    // The palette path consumes the token like every command's — the same
+    // shape as `/resume`'s mid-turn toast, and why the retry is a fresh `/cd`.
+    assert!(app.input.is_empty());
+    assert!(app.command_menu.is_none());
 }

@@ -427,6 +427,23 @@ pub(crate) fn http_client(op_timeout: Duration) -> Result<reqwest::blocking::Cli
     cached_client(op_timeout)
 }
 
+/// A blocking client that is **not** cached and not meant to outlive its one
+/// use — the once-a-day update check (`docs/ops/update.md`).
+///
+/// [`http_client`]'s cache is right for provider traffic: a warm pool saves a
+/// TLS handshake per request. It is wrong for a request that runs once a day
+/// and then never again: the client keeps reqwest's internal runtime thread
+/// (and its timer) alive for the whole session — measured 2026-11-27, it was
+/// the session's fourth thread and the only source of idle CPU wakeups
+/// (`docs/ops/startup.md`). Dropped after the request, the thread goes with
+/// it.
+///
+/// # Errors
+/// Returns [`LlmError::Http`] if the client can't be built.
+pub(crate) fn ephemeral_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
+    build_client(op_timeout)
+}
+
 fn cached_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
@@ -439,6 +456,16 @@ fn cached_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
     {
         return Ok(client.clone());
     }
+    let client = build_client(op_timeout)?;
+    if let Ok(mut map) = cache.lock() {
+        map.insert(key, client.clone());
+    }
+    Ok(client)
+}
+
+/// The single place a client's policy is set — both the cached provider
+/// clients and [`ephemeral_client`].
+fn build_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
     let mut builder = reqwest::blocking::Client::builder()
         .pool_idle_timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(10))
@@ -462,11 +489,7 @@ fn cached_client(op_timeout: Duration) -> Result<reqwest::blocking::Client> {
     for cert in extra_root_certificates() {
         builder = builder.add_root_certificate(cert);
     }
-    let client = builder.build().map_err(|e| LlmError::Http(e.to_string()))?;
-    if let Ok(mut map) = cache.lock() {
-        map.insert(key, client.clone());
-    }
-    Ok(client)
+    builder.build().map_err(|e| LlmError::Http(e.to_string()))
 }
 
 /// A transport failure as a person reads it: the classification reqwest knows,

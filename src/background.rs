@@ -569,6 +569,9 @@ pub struct BackgroundRegistry {
     /// call claims it ([`claim_exit`](BackgroundRegistry::claim_exit),
     /// [`with_agents`](BackgroundRegistry::with_agents)).
     agents: Option<crate::agents::AgentRegistry>,
+    /// The directory commands run in — the session's `/cd` handle
+    /// (`docs/state/change-directory.md`). `None` is the process cwd.
+    work_dir: Option<crate::workdir::WorkDir>,
 }
 
 impl std::fmt::Debug for BackgroundRegistry {
@@ -599,7 +602,28 @@ impl BackgroundRegistry {
             terminals: true,
             secrets: None,
             agents: None,
+            work_dir: None,
         }
+    }
+
+    /// Point every shell this registry starts at the session's working
+    /// directory (`docs/state/change-directory.md`): read at each launch, so a
+    /// `/cd` mid-session reaches the next command.
+    #[must_use]
+    pub fn with_work_dir(mut self, dir: crate::workdir::WorkDir) -> Self {
+        self.work_dir = Some(dir);
+        self
+    }
+
+    /// The directory a launch started now runs in: the session's `/cd` handle,
+    /// else the process cwd. Public because the `!` runner reads it too, so the
+    /// two shells can never disagree (`docs/state/change-directory.md`).
+    #[must_use]
+    pub fn work_dir(&self) -> std::path::PathBuf {
+        self.work_dir.as_ref().map_or_else(
+            || std::env::current_dir().unwrap_or_default(),
+            |dir| dir.path(),
+        )
     }
 
     /// Attach the user's secrets (`docs/state/secrets.md`): a task's command is
@@ -705,10 +729,12 @@ impl BackgroundRegistry {
         // (pgid == pid) so kill() reaps grandchildren too, and no controlling
         // terminal, so a `/dev/tty` prompt errors instead of wedging the task
         // (see `crate::subprocess`, the `llm::exec` pattern).
-        let mut child = crate::subprocess::spawn_detached_in(
+        let dir = self.work_dir();
+        let mut child = crate::subprocess::spawn_detached_in_dir(
             self.detach.as_deref(),
             crate::subprocess::tool_shell(),
             command,
+            &dir,
         )
         .map_err(|err| format!("failed to run command: {err}"))?;
 
@@ -762,6 +788,24 @@ impl BackgroundRegistry {
         origin: Option<BgOrigin>,
         announce: bool,
     ) -> Result<TtyLaunch, TtyLaunchError> {
+        self.launch_tty_in(command, description, origin, announce, None)
+    }
+
+    /// [`launch_tty`](BackgroundRegistry::launch_tty) with the session started
+    /// in `dir` — the directory the running call's executor resolved for this
+    /// command. `None` is the registry's own `/cd` handle, else the process
+    /// cwd (`docs/state/change-directory.md`).
+    ///
+    /// # Errors
+    /// As [`launch_tty`](BackgroundRegistry::launch_tty).
+    pub fn launch_tty_in(
+        &self,
+        command: &str,
+        description: Option<String>,
+        origin: Option<BgOrigin>,
+        announce: bool,
+        dir: Option<&std::path::Path>,
+    ) -> Result<TtyLaunch, TtyLaunchError> {
         if !self.terminals {
             return Err(TtyLaunchError::NoTerminal(
                 "this registry gives no command a terminal".to_string(),
@@ -786,8 +830,10 @@ impl BackgroundRegistry {
                     "failed to start the command in a terminal: {err}"
                 ))
             };
+            let dir = dir.map_or_else(|| self.work_dir(), std::path::Path::to_path_buf);
             let mut session =
-                crate::pty::spawn::spawn(self.detach.as_deref(), command).map_err(no_terminal)?;
+                crate::pty::spawn::spawn_dir(self.detach.as_deref(), command, Some(&dir))
+                    .map_err(no_terminal)?;
             // Once the command has started, a setup failure must never be
             // reported as "no terminal": the caller would run the command a
             // second time on a pipe. Tear the started session down instead.

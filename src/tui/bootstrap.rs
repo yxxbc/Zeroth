@@ -128,6 +128,13 @@ impl<'t> Session<'t> {
             |host| host.cwd.clone(),
         );
         let project = host.map_or_else(|| cwd.display().to_string(), |host| host.project.clone());
+        // The directory the **tools** run in — `/cd`'s handle
+        // (`docs/state/change-directory.md`). Seeded with the project the
+        // session launched in; the event loop moves it, and every executor,
+        // shell registry and the `!` runner read it at each call, so a move
+        // needs no rebuild. The project facts above (permissions, checkpoints,
+        // rollout, skills) stay keyed to the launch directory.
+        let work_dir = zeroth::workdir::WorkDir::new(cwd.clone());
         // The banner mascot (docs/ui/mascot.md): this directory's saved `/mascot`
         // choice — or, launched in for the first time, the last choice made
         // anywhere, pinned as this directory's own right here — seeded before
@@ -243,7 +250,8 @@ impl<'t> Session<'t> {
         let registry = BackgroundRegistry::new(bg_tx, scratchpad::tasks_dir(&session_tmp))
             .with_detach_helper(std::env::current_exe().ok())
             .with_secrets(secrets.clone())
-            .with_agents(agent_registry.clone());
+            .with_agents(agent_registry.clone())
+            .with_work_dir(work_dir.clone());
 
         // The tool-permission gate (docs/state/permissions.md), seeded with this
         // project's saved rules BEFORE the backend is built below — every
@@ -294,7 +302,6 @@ impl<'t> Session<'t> {
             // that fails on every call.
             Err(error) => (None, Some(error.to_string())),
         };
-
         // The skills on disk (docs/tools/skills.md): a `<root>/<name>/SKILL.md` walk
         // over the project's and the user's roots, done once here so the
         // listing and the tool set are settled before the backend is built.
@@ -320,6 +327,7 @@ impl<'t> Session<'t> {
                 (found, errors)
             }
         };
+
         let skill_registry = zeroth::skills::SkillRegistry::new(found_skills);
         // …and this project's saved on/off choices from `skills.json`, applied
         // BEFORE the backend is built so a session that starts with its last
@@ -474,6 +482,7 @@ impl<'t> Session<'t> {
             hook_setup,
             round_budget.as_ref(),
             host,
+            Some(&work_dir),
         );
 
         // The `@` file-search pipeline (docs/input/file-search.md): a background worker
@@ -547,9 +556,6 @@ impl<'t> Session<'t> {
         // records the commit when it lands (`docs/state/checkpoint.md`).
         let (checkpoint_tx, checkpoint_rx) = tokio::sync::mpsc::unbounded_channel();
         let (restore_tx, restore_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (card_tx, card_rx) = tokio::sync::mpsc::unbounded_channel();
-        let cards = super::link_cards::load();
-        let link_cards = super::link_cards::enabled();
 
         let cwd_display = ui::display_cwd(&cwd, home.as_deref());
         // The streamed reply carries path links as it commits: give both
@@ -566,10 +572,8 @@ impl<'t> Session<'t> {
             view: super::view::ConversationView {
                 render,
                 agent_render,
-                cards,
                 ..super::view::ConversationView::default()
             },
-            link_cards,
             burst: PasteBurst::new(),
             // Invariant 1: the `EventStream` is created HERE — after
             // `InlineViewport::init` (in `main`) queried the cursor position over
@@ -597,8 +601,6 @@ impl<'t> Session<'t> {
             conversation: super::conversation::Conversation {
                 app,
                 models,
-                card_tx,
-                card_rx,
                 clocks: StatusClocks::started_now(),
                 toast_deadline: None,
                 ask_timer: zeroth::ask::AskTimer::new(),
@@ -662,6 +664,8 @@ impl<'t> Session<'t> {
                 restore_token: 0,
                 inflight: None,
                 reaping: Vec::new(),
+                work_dir,
+                work_dir_display: cwd_display.clone(),
                 cwd,
                 cwd_display,
             },

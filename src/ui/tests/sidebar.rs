@@ -66,7 +66,8 @@ fn the_session_facts_read_as_a_table() {
     let rows = rendered(&app, WIDE_COLS);
     assert!(rows.iter().any(|row| row == "session"), "{rows:?}");
     assert!(
-        rows.iter().any(|row| row.starts_with("model deepseek-v4")),
+        rows.iter()
+            .any(|row| row.starts_with("model ◈ deepseek-v4")),
         "{rows:?}"
     );
     assert!(
@@ -190,4 +191,28 @@ fn the_column_is_opt_in_and_the_setting_gates_the_bands() {
     assert_eq!(sidebar_columns(&app, 140), WIDE_COLS);
     assert_eq!(sidebar_columns(&app, 100), NARROW_COLS);
     assert_eq!(sidebar_columns(&app, 80), 0, "a narrow screen still wins");
+}
+
+#[test]
+fn the_brand_tile_is_a_graphic_only_surface_and_never_a_placeholder() {
+    // docs/brand-icons.md: the tile is a *picture*. On a terminal with no
+    // graphics — every unit test, and the terminal that reports neither a
+    // protocol nor a cell size — the section reserves nothing and the glyph
+    // on the `model` fact row is the mark. The prompt's `drawing()` helper
+    // turns graphics on; without it the policy is untouched.
+    let mut app = App::new();
+    app.set_session_info("deepseek-v4", "~/Projects/zeroth");
+    let plain = rendered(&app, WIDE_COLS);
+    assert!(
+        plain
+            .iter()
+            .any(|row| row.starts_with("model ◈ deepseek-v4")),
+        "the glyph is the mark without graphics: {plain:?}"
+    );
+    assert!(
+        plain
+            .iter()
+            .all(|row| !row.trim().is_empty() || row.is_empty()),
+        "no stray blank tile row: {plain:?}"
+    );
 }

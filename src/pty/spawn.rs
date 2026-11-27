@@ -153,6 +153,20 @@ pub fn spawn(detach_helper: Option<&Path>, command: &str) -> std::io::Result<Pty
     spawn_in(&crate::subprocess::tty_tiers(detach_helper), command)
 }
 
+/// [`spawn`] with the session started in `dir` — the `/cd` form
+/// (`docs/state/change-directory.md`).
+///
+/// # Errors
+/// As [`spawn`].
+#[cfg(unix)]
+pub fn spawn_dir(
+    detach_helper: Option<&Path>,
+    command: &str,
+    dir: Option<&Path>,
+) -> std::io::Result<PtyProcess> {
+    spawn_in_dir(&crate::subprocess::tty_tiers(detach_helper), command, dir)
+}
+
 /// [`spawn`] over an explicit tier list — the seam an integration test uses
 /// to drive the helper tier alone, the way a machine without a `setsid`
 /// binary (macOS) would.
@@ -164,12 +178,30 @@ pub fn spawn_in(
     tiers: &[crate::subprocess::DetachTier<'_>],
     command: &str,
 ) -> std::io::Result<PtyProcess> {
+    spawn_in_dir(tiers, command, None)
+}
+
+/// [`spawn_in`] with the command started in `dir` — the interactive shell's
+/// `/cd` form (`docs/state/change-directory.md`): a session opened after the
+/// move starts where the session now works, exactly like a `bash` call.
+///
+/// # Errors
+/// As [`spawn_in`].
+#[cfg(unix)]
+pub fn spawn_in_dir(
+    tiers: &[crate::subprocess::DetachTier<'_>],
+    command: &str,
+    dir: Option<&Path>,
+) -> std::io::Result<PtyProcess> {
     let (master, slave) = open_terminal()?;
     let shell = crate::subprocess::tool_shell();
     for tier in tiers {
         let Some(mut cmd) = crate::subprocess::tty_command_for(tier, shell, command) else {
             continue;
         };
+        if let Some(dir) = dir {
+            cmd.current_dir(dir);
+        }
         cmd.stdin(Stdio::from(slave.try_clone()?))
             .stdout(Stdio::from(slave.try_clone()?))
             .stderr(Stdio::from(slave.try_clone()?));

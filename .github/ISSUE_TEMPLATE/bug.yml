@@ -1,0 +1,79 @@
+name: Bug report
+description: Something in the app does not do what it says it does.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you file: a `zeroth` build that will not start, a provider that
+        will not answer, or a question about how something works is usually a
+        [Discussion](https://github.com/yxxbc/Zeroth/discussions), not a bug.
+        A vulnerability goes to [SECURITY.md](https://github.com/yxxbc/Zeroth/blob/main/SECURITY.md),
+        never here.
+  - type: input
+    id: version
+    attributes:
+      label: Zeroth version
+      description: The output of `zeroth --version`.
+      placeholder: zeroth 0.24.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and terminal
+      description: Which operating system, which terminal, and which multiplexer if any.
+      placeholder: macOS 26.2, iTerm2 3.6; or Ubuntu 24.04, GNOME Terminal
+    validations:
+      required: true
+  - type: dropdown
+    id: viewport
+    attributes:
+      label: Viewport
+      description: The default is full-screen; `--inline` is the older scrollback mode.
+      options:
+        - full-screen (default)
+        - inline (`--inline` / `ZEROTH_TUI=inline`)
+        - headless (`-p`)
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Permission mode
+      description: The label pinned at the footer's right edge.
+      options:
+        - auto (default)
+        - manual
+        - edit
+        - master
+        - permissions disabled (`ZEROTH_PERMISSIONS=0`)
+        - not sure
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence that shows it. A prompt, a config file, a URL.
+      placeholder: |
+        1. `/login` with OpenRouter
+        2. `/model`, pick a model
+        3. run `!sleep 3` …
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output, screenshot or capture
+      description: |
+        Paste what the app printed, or a screenshot, or `tmux capture-pane -p`
+        for anything visual. `RUST_BACKTRACE=1` for a crash.
+      render: text
