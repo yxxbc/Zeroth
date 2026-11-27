@@ -44,7 +44,12 @@ mod input_history;
 mod keys;
 mod login;
 mod look;
+pub mod looping;
 mod mascot;
+pub use looping::{
+    AUTONOMOUS_LOOP_PROMPT, GoalCommand, GoalState, LoopCommand, LoopMode, LoopState,
+    MAX_GOAL_ROUNDS, WAKEUP_MIN_SECS, parse_goal_command, parse_loop_command,
+};
 mod model_picker;
 mod permission;
 mod queue;
@@ -407,6 +412,10 @@ pub struct App {
     diff_review: Option<DiffReview>,
     /// The tool-output view's vertical scroll offset, in lines from the top.
     pub tool_scroll: usize,
+    /// Active `/loop` state, if any.
+    pub active_loop: Option<LoopState>,
+    /// Active `/goal` state, if any.
+    pub active_goal: Option<GoalState>,
     /// Whether the tool-output view is pinned to the bottom (tail-follow): it
     /// opens this way and re-streams keep the latest content in view, until you
     /// scroll up to read back (and re-engages when you scroll to the bottom).
@@ -1351,6 +1360,8 @@ impl App {
         self.tasks = crate::tasks::TaskStore::default();
         self.streaming = None;
         self.compact_buffer = None;
+        self.active_loop = None;
+        self.active_goal = None;
         // An open thinking phase goes with the rest of the in-flight turn —
         // the user asked for a blank screen (docs/ui/thinking-stream.md).
         self.drop_reasoning();

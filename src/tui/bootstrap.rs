@@ -196,6 +196,8 @@ impl<'t> Session<'t> {
         // interrupt/`/clear`. Interim output tees to per-task files under the temp
         // dir so the model can `read` progress mid-run.
         let (bg_tx, bg_rx) = tokio::sync::mpsc::unbounded_channel::<BgEvent>();
+        let (wakeup_tx, wakeup_rx) =
+            tokio::sync::mpsc::unbounded_channel::<zeroth::llm::tools::WakeupRequest>();
         // The interim files sit in the session's own temp tree —
         // `{tmp}/zeroth-{uid}/{session}/tasks/{id}.output`, beside the
         // image cache (the pure `scratchpad::tasks_dir` over the
@@ -454,7 +456,7 @@ impl<'t> Session<'t> {
         let steer = zeroth::steer::SteerQueue::new();
 
         // The reply backend and everything that selects it (docs/providers/llm.md).
-        let models = ModelSession::resolve(
+        let mut models = ModelSession::resolve(
             &cwd,
             home.as_deref(),
             &registry,
@@ -556,6 +558,9 @@ impl<'t> Session<'t> {
         render.set_paths(Some(app.path_display().clone()));
         let mut agent_render = ui::StreamRender::new();
         agent_render.set_paths(Some(app.path_display().clone()));
+        if !headless {
+            models.set_wakeup(wakeup_tx);
+        }
         let mut session = Self {
             screen: super::screen::Screen::new(term),
             view: super::view::ConversationView {
@@ -621,6 +626,10 @@ impl<'t> Session<'t> {
                 probe_rx,
                 bg_rx,
                 agent_rx,
+                wakeup_rx,
+                loop_deadline: None,
+                loop_prompt: None,
+                watch_deadline: None,
                 _file_worker: file_worker,
                 registry,
                 agent_registry,

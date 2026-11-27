@@ -193,6 +193,8 @@ impl Session<'_> {
                 self.start_compact_turn(/*auto=*/ false);
             }
             Action::Clear => self.clear_conversation()?,
+            Action::Loop(cmd) => self.handle_loop_command(cmd),
+            Action::Goal(cmd) => self.handle_goal_command(cmd),
             Action::KillBackground(id) => self.conversation.kill_background(&id),
             Action::MoveToBackground => self.conversation.move_to_background(),
             Action::ScrollPageUp => self.scroll_full(Scroll::PageUp),
@@ -425,6 +427,7 @@ impl Session<'_> {
         // Reaching the bottom resumes follow-tail; anywhere above it anchors
         // the view to that line, so new output does not move it.
         self.view.full_top = ui::scroll_anchor(target, self.view.full_len, conv);
+        self.view.full_auto_anchor = false;
         self.view.full_hover = None;
         self.frame.schedule_frame();
     }
@@ -466,6 +469,7 @@ impl Session<'_> {
                     let top = self.full_bar_press(row);
                     self.view.full_top =
                         ui::scroll_anchor(top, self.view.full_len, self.view.full_conv_h);
+                    self.view.full_auto_anchor = false;
                     // The anchor is the **screen** row: a drag is measured in
                     // screen rows, so a pinned prompt appearing mid-drag (it
                     // shifts the track down one) does not teleport the thumb.
@@ -493,6 +497,7 @@ impl Session<'_> {
                     .unwrap_or(press_top);
                     self.view.full_top =
                         ui::scroll_anchor(top, self.view.full_len, self.view.full_conv_h);
+                    self.view.full_auto_anchor = false;
                     self.view.full_press = None;
                     self.view.full_select = None;
                     self.frame.schedule_frame();
@@ -781,6 +786,7 @@ impl Session<'_> {
             return;
         };
         self.view.full_top = ui::scroll_anchor(start, self.view.full_len, self.view.full_conv_h);
+        self.view.full_auto_anchor = false;
         self.view.full_hover = None;
         self.view.full_pin_hover = false;
         self.frame.schedule_frame();
@@ -1017,6 +1023,8 @@ impl Session<'_> {
         self.view.full_reading.clear();
         self.view.full_tail = None;
         self.view.full_top = None;
+        self.view.full_auto_anchor = false;
+        self.view.full_paused_turn = None;
         self.view.full_expanded.clear();
         self.view.full_anchor = None;
         self.view.full_select = None;
@@ -1029,6 +1037,9 @@ impl Session<'_> {
         // the same way (docs/tools/ask.md).
         self.conversation.permissions.clear();
         self.conversation.ask.clear();
+        self.conversation.loop_deadline = None;
+        self.conversation.loop_prompt = None;
+        self.conversation.watch_deadline = None;
         // …and the task list: `clear_conversation` wiped App's snapshot; the
         // shared registry follows so the model's next `tasklist` agrees
         // (docs/tools/task-tools.md).
@@ -1233,5 +1244,214 @@ impl super::conversation::Conversation {
     /// event.
     pub(crate) fn sync_task_registry(&self) {
         self.task_registry.replace(self.app.tasks().clone());
+    }
+}
+
+impl Session<'_> {
+    fn handle_loop_command(&mut self, cmd: zeroth::app::LoopCommand) {
+        use zeroth::app::{AUTONOMOUS_LOOP_PROMPT, LoopCommand, LoopMode, LoopState};
+        match cmd {
+            LoopCommand::Off => {
+                self.conversation.app.active_loop = None;
+                self.conversation.loop_deadline = None;
+                self.conversation.loop_prompt = None;
+                self.conversation.watch_deadline = None;
+                self.toast("Loop stopped", ToastKind::Info);
+            }
+            LoopCommand::Autonomous => {
+                let prompt = AUTONOMOUS_LOOP_PROMPT.to_string();
+                self.conversation.app.active_loop = Some(LoopState {
+                    mode: LoopMode::Autonomous,
+                    prompt: prompt.clone(),
+                    interval_secs: None,
+                    wakeup_called_this_turn: false,
+                });
+                self.conversation.loop_deadline = None;
+                self.conversation.loop_prompt = Some(prompt.clone());
+                self.toast(
+                    "Autonomous loop started (/loop off to stop)",
+                    ToastKind::Info,
+                );
+                self.dispatch_scheduled_prompt(prompt);
+            }
+            LoopCommand::Fixed {
+                interval_secs,
+                prompt,
+            } => {
+                self.conversation.app.active_loop = Some(LoopState {
+                    mode: LoopMode::Fixed,
+                    prompt: prompt.clone(),
+                    interval_secs: Some(interval_secs),
+                    wakeup_called_this_turn: false,
+                });
+                self.conversation.loop_deadline = Some(
+                    tokio::time::Instant::now() + std::time::Duration::from_secs(interval_secs),
+                );
+                self.conversation.loop_prompt = Some(prompt.clone());
+                self.toast(
+                    format!("Loop scheduled every {interval_secs}s (/loop off to stop)"),
+                    ToastKind::Info,
+                );
+                self.dispatch_scheduled_prompt(prompt);
+            }
+            LoopCommand::Dynamic { prompt } => {
+                self.conversation.app.active_loop = Some(LoopState {
+                    mode: LoopMode::Dynamic,
+                    prompt: prompt.clone(),
+                    interval_secs: None,
+                    wakeup_called_this_turn: false,
+                });
+                self.conversation.loop_deadline = None;
+                self.conversation.loop_prompt = Some(prompt.clone());
+                self.toast("Dynamic loop started (/loop off to stop)", ToastKind::Info);
+                self.dispatch_scheduled_prompt(prompt);
+            }
+        }
+    }
+
+    fn handle_goal_command(&mut self, cmd: zeroth::app::GoalCommand) {
+        use zeroth::app::{GoalCommand, GoalState};
+        match cmd {
+            GoalCommand::Help => {
+                if let Some(goal) = &self.conversation.app.active_goal {
+                    self.toast(
+                        format!(
+                            "Active goal (round {}): {} — /goal off to stop",
+                            goal.round, goal.objective
+                        ),
+                        ToastKind::Info,
+                    );
+                } else {
+                    self.toast("Usage: /goal <objective> | /goal off", ToastKind::Info);
+                }
+            }
+            GoalCommand::Off => {
+                self.conversation.app.active_goal = None;
+                self.conversation.watch_deadline = None;
+                self.toast("Goal stopped", ToastKind::Info);
+            }
+            GoalCommand::Start(objective) => {
+                let state = GoalState {
+                    objective: objective.clone(),
+                    round: 1,
+                    stopped_by_model: false,
+                };
+                let prompt = state.round_prompt();
+                self.conversation.app.active_goal = Some(state);
+                self.toast("Goal started (/goal off to stop)", ToastKind::Info);
+                self.dispatch_scheduled_prompt(prompt);
+            }
+        }
+    }
+
+    pub(crate) fn on_wakeup_request(&mut self, req: zeroth::llm::tools::WakeupRequest) {
+        if req.stop {
+            self.conversation.app.active_loop = None;
+            self.conversation.app.active_goal = None;
+            self.conversation.loop_deadline = None;
+            self.conversation.loop_prompt = None;
+            self.conversation.watch_deadline = None;
+            if let Some(reason) = req.reason {
+                self.toast(format!("Stopped: {reason}"), ToastKind::Info);
+            }
+            return;
+        }
+        if let Some(state) = self.conversation.app.active_loop.as_mut() {
+            state.wakeup_called_this_turn = true;
+            if let Some(prompt) = &req.prompt {
+                state.prompt = prompt.clone();
+            }
+        }
+        let prompt = req
+            .prompt
+            .or_else(|| {
+                self.conversation
+                    .app
+                    .active_loop
+                    .as_ref()
+                    .map(|l| l.prompt.clone())
+            })
+            .unwrap_or_else(|| zeroth::app::AUTONOMOUS_LOOP_PROMPT.to_string());
+        self.conversation.loop_prompt = Some(prompt);
+        self.conversation.loop_deadline = Some(
+            tokio::time::Instant::now() + std::time::Duration::from_secs(req.delay_seconds.max(60)),
+        );
+    }
+
+    pub(crate) fn on_loop_due(&mut self) {
+        self.conversation.loop_deadline = None;
+        let Some(prompt) = self.conversation.loop_prompt.clone() else {
+            return;
+        };
+        if let Some(state) = self.conversation.app.active_loop.as_mut() {
+            state.wakeup_called_this_turn = false;
+            if state.mode == zeroth::app::LoopMode::Fixed
+                && let Some(secs) = state.interval_secs
+            {
+                self.conversation.loop_deadline =
+                    Some(tokio::time::Instant::now() + std::time::Duration::from_secs(secs));
+            }
+        }
+        self.dispatch_scheduled_prompt(prompt);
+    }
+
+    pub(crate) fn on_watch_due(&mut self) {
+        self.conversation.watch_deadline = None;
+        if self.conversation.inflight.is_some() {
+            return;
+        }
+        if self.conversation.app.active_loop.is_none()
+            && self.conversation.app.active_goal.is_none()
+        {
+            return;
+        }
+        self.dispatch_scheduled_prompt(
+            "Background task produced new output. Check its progress with `bashwait`/`read` and summarize or continue.".to_string(),
+        );
+    }
+
+    pub(crate) fn dispatch_loop_or_goal_after_turn(&mut self) {
+        if let Some(goal) = self.conversation.app.active_goal.as_mut() {
+            if goal.stopped_by_model || goal.round >= zeroth::app::MAX_GOAL_ROUNDS {
+                let reached = goal.round >= zeroth::app::MAX_GOAL_ROUNDS;
+                self.conversation.app.active_goal = None;
+                if reached {
+                    self.toast("Goal reached max rounds", ToastKind::Info);
+                }
+                return;
+            }
+            goal.round += 1;
+            let prompt = goal.round_prompt();
+            self.dispatch_scheduled_prompt(prompt);
+            return;
+        }
+        if let Some(state) = self.conversation.app.active_loop.as_mut() {
+            if state.mode == zeroth::app::LoopMode::Dynamic && !state.wakeup_called_this_turn {
+                self.conversation.app.active_loop = None;
+                self.conversation.loop_deadline = None;
+                self.conversation.loop_prompt = None;
+                self.toast("Dynamic loop settled", ToastKind::Info);
+            } else {
+                state.wakeup_called_this_turn = false;
+            }
+        }
+    }
+
+    fn dispatch_scheduled_prompt(&mut self, prompt: String) {
+        if self.conversation.inflight.is_some() {
+            self.conversation
+                .app
+                .queued
+                .push_back(zeroth::app::QueuedTurn::Messages {
+                    texts: vec![prompt],
+                    images: Vec::new(),
+                });
+            self.frame.schedule_frame();
+        } else {
+            self.start_turn(TurnInput {
+                texts: vec![prompt],
+                images: Vec::new(),
+            });
+        }
     }
 }

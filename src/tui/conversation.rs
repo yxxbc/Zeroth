@@ -131,6 +131,13 @@ pub(crate) struct Conversation {
     /// (`docs/agents/agent-tool.md`) — never swapped, because both outlive turns.
     pub(crate) bg_rx: tokio::sync::mpsc::UnboundedReceiver<BgEvent>,
     pub(crate) agent_rx: tokio::sync::mpsc::UnboundedReceiver<AgentEvent>,
+    /// Wakeup requests from the `schedule_wakeup` tool (`/loop`, `/goal`).
+    pub(crate) wakeup_rx: tokio::sync::mpsc::UnboundedReceiver<zeroth::llm::tools::WakeupRequest>,
+    /// Next scheduled `/loop` wakeup deadline and prompt.
+    pub(crate) loop_deadline: Option<tokio::time::Instant>,
+    pub(crate) loop_prompt: Option<String>,
+    /// Debounced wakeup deadline when a background task emits output while idle.
+    pub(crate) watch_deadline: Option<tokio::time::Instant>,
     /// The `@` file-search worker's handle, kept so the thread's lifetime is
     /// tied to the session's. Never joined.
     pub(crate) _file_worker: JoinHandle<()>,

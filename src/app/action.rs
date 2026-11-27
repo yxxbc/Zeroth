@@ -486,4 +486,8 @@ pub enum Action {
     },
     /// The user asked to quit.
     Quit,
+    /// Start, update, or stop `/loop`.
+    Loop(crate::app::LoopCommand),
+    /// Start, stop, or show help for `/goal`.
+    Goal(crate::app::GoalCommand),
 }

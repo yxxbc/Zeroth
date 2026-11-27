@@ -162,6 +162,10 @@ pub enum CommandEffect {
     Secrets,
     /// Exit the app (`/quit` — codex's `/quit`/`/exit`, "exit Codex").
     Quit,
+    /// Schedule a recurring or self-paced `/loop`.
+    Loop,
+    /// Work iteratively toward a `/goal`.
+    Goal,
 }
 
 /// One entry in the slash-command palette: how it shows (`name`/`description`)
@@ -231,6 +235,7 @@ impl SlashCommand {
 /// active model lists, spliced in after `/model` by [`App::commands`].
 pub const COMMANDS: &[SlashCommand] = &[
     SlashCommand::builtin("clear", "Clear the conversation", CommandEffect::Clear),
+    SlashCommand::builtin("new", "Start a new conversation", CommandEffect::Clear),
     SlashCommand::builtin(
         "copy",
         "Copy the last response to the clipboard",
@@ -315,6 +320,16 @@ pub const COMMANDS: &[SlashCommand] = &[
         CommandEffect::Secrets,
     ),
     SlashCommand::builtin("quit", "Exit the app", CommandEffect::Quit),
+    SlashCommand::builtin(
+        "loop",
+        "Run a recurring or self-paced loop",
+        CommandEffect::Loop,
+    ),
+    SlashCommand::builtin(
+        "goal",
+        "Work iteratively toward a goal",
+        CommandEffect::Goal,
+    ),
 ];
 
 /// A category the command page can show. Commands always exists; Skills is
@@ -838,6 +853,32 @@ impl App {
                 Action::OpenSecretsPage
             }
             CommandEffect::Quit => Action::Quit,
+            CommandEffect::Loop => Action::Loop(LoopCommand::Autonomous),
+            CommandEffect::Goal => Action::Goal(GoalCommand::Help),
         }
+    }
+
+    /// Parse direct `/loop ...`, `/goal ...`, or `/new` submissions when Enter
+    /// is pressed with arguments (where the slash palette has closed).
+    pub(super) fn try_slash_command_input(&mut self) -> Option<Action> {
+        let raw = self.input.text().trim();
+        let (cmd, rest) = match raw.find(char::is_whitespace) {
+            Some(idx) => (&raw[..idx], raw[idx..].trim()),
+            None => (raw, ""),
+        };
+        let action = match cmd {
+            "/loop" => Action::Loop(parse_loop_command(rest)),
+            "/goal" => Action::Goal(parse_goal_command(rest)),
+            "/new" if rest.is_empty() => {
+                self.clear_conversation();
+                Action::Clear
+            }
+            _ => return None,
+        };
+        let taken = self.take_input();
+        self.file_search = None;
+        self.skill_picker = None;
+        self.input_history.record(&taken);
+        Some(action)
     }
 }

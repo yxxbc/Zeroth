@@ -448,6 +448,8 @@ impl Session<'_> {
         }
         if !self.flush_next_queued() && unheard.iter().any(|note| note.from_model) {
             self.start_background_turn(&unheard);
+        } else if self.conversation.inflight.is_none() {
+            self.dispatch_loop_or_goal_after_turn();
         }
     }
 

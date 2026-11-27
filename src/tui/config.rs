@@ -1511,6 +1511,7 @@ pub(crate) fn system_prompt(cwd: &Path) -> Option<String> {
         .ok()
         .or_else(|| Some(DEFAULT_SYSTEM_PROMPT.to_string()))
         .map(|base| {
+            let base = append_user_prompt_note(base, config_home().as_deref());
             llm::backend::augment_with_environment(
                 &base,
                 &local_date(),
@@ -1519,6 +1520,36 @@ pub(crate) fn system_prompt(cwd: &Path) -> Option<String> {
                 &cwd.display().to_string(),
             )
         })
+}
+
+/// Optional per-user note (`~/.zeroth/USER.md`, or `$ZEROTH_CONFIG_DIR/USER.md`)
+/// appended to a non-empty system prompt so local developer/personal context
+/// stays out of the shared binary and repo.
+fn append_user_prompt_note(base: String, home: Option<&Path>) -> String {
+    const MAX_USER_NOTE_BYTES: usize = 16 * 1024;
+    if base.trim().is_empty() {
+        return base;
+    }
+    let Some(home) = home else {
+        return base;
+    };
+    let Ok(raw) = std::fs::read_to_string(home.join("USER.md")) else {
+        return base;
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return base;
+    }
+    let note = if trimmed.len() > MAX_USER_NOTE_BYTES {
+        let mut end = MAX_USER_NOTE_BYTES;
+        while !trimmed.is_char_boundary(end) {
+            end -= 1;
+        }
+        &trimmed[..end]
+    } else {
+        trimmed
+    };
+    format!("{base}\n\n{note}")
 }
 
 /// The runtime environment without the persona, for custom subagent bodies.
@@ -1682,6 +1713,24 @@ mod tests {
         assert_eq!(
             migration.notice().as_deref(),
             Some("Imported model config and sign-ins from ~/.zeroth")
+        );
+    }
+
+    #[test]
+    fn append_user_prompt_note_reads_user_md_without_affecting_missing_home() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            append_user_prompt_note("base".into(), Some(dir.path())),
+            "base"
+        );
+        std::fs::write(dir.path().join("USER.md"), "  Developer: BlackCat  \n").unwrap();
+        assert_eq!(
+            append_user_prompt_note("base".into(), Some(dir.path())),
+            "base\n\nDeveloper: BlackCat"
+        );
+        assert_eq!(
+            append_user_prompt_note("   ".into(), Some(dir.path())),
+            "   "
         );
     }
 }

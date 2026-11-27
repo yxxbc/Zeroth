@@ -900,7 +900,7 @@ impl InlineViewport {
             && self
                 .prev
                 .as_ref()
-                .is_some_and(|prev| prev.area == view && prev.diff(&buf).is_empty())
+                .is_some_and(|prev| prev.area == view && diff_buffers(prev, &buf).is_empty())
             && self.live_seat == Some((x, y, visible))
         {
             return Ok(());
@@ -972,7 +972,7 @@ impl InlineViewport {
             Some(prev)
                 if repin.scroll_up == 0 && repin.clear_below == 0 && prev.area == buf.area =>
             {
-                let updates = prev.diff(buf);
+                let updates = diff_buffers(prev, buf);
                 if !updates.is_empty() {
                     self.draw_cells(updates.into_iter())?;
                 }
@@ -1854,7 +1854,7 @@ fn paint_full_lines(lines: &[Line<'static>], area: Rect, buf: &mut Buffer) {
 fn overlay_paint<'a>(prev: Option<&Buffer>, next: &'a Buffer) -> OverlayPaint<'a> {
     match prev {
         Some(prev) if prev.area == next.area => {
-            let updates = filter_diff_shadows(next, prev.diff(next));
+            let updates = diff_buffers(prev, next);
             if updates.is_empty() {
                 OverlayPaint::Unchanged
             } else {
@@ -1878,35 +1878,50 @@ enum OverlayPaint<'a> {
     Full,
 }
 
-fn filter_diff_shadows<'a>(
-    next: &'a Buffer,
-    updates: Vec<(u16, u16, &'a Cell)>,
-) -> Vec<(u16, u16, &'a Cell)> {
+/// Diff `prev` -> `next` with wide-glyph awareness:
+/// - Never emit trailing shadow columns of a wide glyph in `next` (unless it
+///   carries VS16 `\u{FE0F}`, which some terminals render narrow).
+/// - Whenever a wide glyph in `prev` is overwritten/erased, scrub every
+///   trailing column it covered in `prev` that is not covered by a wide glyph
+///   in `next` — `ratatui::Buffer::set_stringn` resets shadow cells to
+///   `bg = Reset`, so `Buffer::diff` would otherwise skip them and leave stale
+///   background bars (e.g. `user_bg`) on the terminal.
+fn diff_buffers<'a>(prev: &Buffer, next: &'a Buffer) -> Vec<(u16, u16, &'a Cell)> {
     let area = next.area;
     let max_x = area.x + area.width;
-    updates
-        .into_iter()
-        .filter(|&(x, y, _)| {
-            // Drop any update cell that sits inside the trailing shadow columns
-            // of a wide glyph on the same row in `next` (unless that glyph carries
-            // VS16, which terminals may render narrow and thus needs scrubbing).
-            let mut lx = area.x;
-            while lx < x {
-                let c = &next[(lx, y)];
-                let cw = c.cell_width();
-                if cw > 1 {
-                    let end = (lx + cw).min(max_x);
-                    if x < end && !c.symbol().contains('\u{FE0F}') {
-                        return false;
-                    }
-                    lx = end;
-                } else {
-                    lx += 1;
+    let mut updates = Vec::new();
+    for y in area.y..area.y + area.height {
+        let mut x = area.x;
+        let mut prev_shadow_until = area.x;
+        while x < max_x {
+            let nc = &next[(x, y)];
+            if matches!(nc.diff_option, CellDiffOption::Skip) {
+                x += 1;
+                continue;
+            }
+            let pc = &prev[(x, y)];
+            let nw = nc.cell_width();
+            let wide_next = nw > 1 && !nc.symbol().contains('\u{FE0F}');
+            let step_end = if wide_next {
+                (x + nw).min(max_x)
+            } else {
+                x + 1
+            };
+            let changed = nc != pc;
+            if changed || x < prev_shadow_until {
+                updates.push((x, y, nc));
+            }
+            for px in x..step_end {
+                let pcell = &prev[(px, y)];
+                let pw = pcell.cell_width();
+                if pw > 1 && (px > x || changed) {
+                    prev_shadow_until = prev_shadow_until.max((px + pw).min(max_x));
                 }
             }
-            true
-        })
-        .collect()
+            x = step_end;
+        }
+    }
+    updates
 }
 
 fn visible_cells(
@@ -2456,6 +2471,59 @@ mod tests {
         assert!(
             !updates.iter().any(|(x, _, _)| *x == 1),
             "shadow column of wide CJK char must not be emitted: {updates:?}"
+        );
+    }
+
+    #[test]
+    fn overlay_diff_clears_wide_glyph_trailing_background_on_blank_row() {
+        use ratatui::widgets::{Paragraph, Widget};
+        let area = Rect::new(0, 0, 6, 1);
+        let mut prev = Buffer::empty(area);
+        Paragraph::new(vec![ratatui::text::Line::from("语言  ").style(
+            ratatui::style::Style::default().bg(ratatui::style::Color::DarkGray),
+        )])
+        .render(area, &mut prev);
+        let next = Buffer::empty(area);
+        let OverlayPaint::Diff(updates) = overlay_paint(Some(&prev), &next) else {
+            panic!("a changed frame diffs");
+        };
+        let xs: Vec<u16> = updates.iter().map(|(x, _, _)| *x).collect();
+        assert_eq!(
+            xs,
+            vec![0, 1, 2, 3, 4, 5],
+            "clearing a wide-glyph row rendered by Paragraph must emit every column including former shadows"
+        );
+    }
+
+    #[test]
+    fn overlay_diff_emits_wide_glyph_shifted_onto_former_shadow_column() {
+        let (prev, next) = frames(&["语言"], &[" 你好"], 6);
+        let OverlayPaint::Diff(updates) = overlay_paint(Some(&prev), &next) else {
+            panic!("a changed frame diffs");
+        };
+        assert!(
+            updates
+                .iter()
+                .any(|(x, _, c)| *x == 1 && c.symbol() == "你"),
+            "wide char shifted into former shadow col 1 must be emitted: {updates:?}"
+        );
+        assert!(
+            updates
+                .iter()
+                .any(|(x, _, c)| *x == 3 && c.symbol() == "好"),
+            "wide char shifted into former shadow col 3 must be emitted: {updates:?}"
+        );
+    }
+
+    #[test]
+    fn overlay_diff_scrubs_former_wide_shadow_when_wide_glyph_shifts_left() {
+        let (prev, next) = frames(&[" 你好"], &["你好 "], 6);
+        let OverlayPaint::Diff(updates) = overlay_paint(Some(&prev), &next) else {
+            panic!("a changed frame diffs");
+        };
+        assert!(
+            updates.iter().any(|(x, _, _)| *x == 4),
+            "former trailing shadow col 4 of '好' must be scrubbed: {updates:?}"
         );
     }
 

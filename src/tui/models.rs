@@ -177,6 +177,8 @@ pub(crate) struct ModelSession {
     /// The `AskUserQuestion` gate — `None` in a headless run, where nobody
     /// could answer, so the tool is never offered (`docs/cli/headless.md`).
     ask: Option<zeroth::ask::AskGate>,
+    /// Optional wakeup sink for `schedule_wakeup` (`/loop`, `/goal`).
+    wakeup: Option<zeroth::llm::tools::WakeupSink>,
     /// A headless run's reply budget (`--max-turns`, `docs/cli/headless.md`),
     /// re-attached on every rebuild like the registries; `None` in the TUI.
     round_budget: Option<zeroth::llm::agent::RoundBudget>,
@@ -482,6 +484,7 @@ impl ModelSession {
                 &subagents,
                 hooks.as_ref(),
                 round_budget,
+                None,
             )),
             (None, None) => {
                 // The subagent registry rides the dummy too: the "subagent"
@@ -577,6 +580,7 @@ impl ModelSession {
             steer: steer.clone(),
             permissions: permissions.cloned(),
             ask: ask.cloned(),
+            wakeup: None,
             round_budget: round_budget.cloned(),
             tasks: tasks.clone(),
             subagents,
@@ -1007,7 +1011,13 @@ impl ModelSession {
             &self.subagents,
             self.hooks.as_ref(),
             self.round_budget.as_ref(),
+            self.wakeup.as_ref(),
         ));
+    }
+
+    pub(crate) fn set_wakeup(&mut self, sink: zeroth::llm::tools::WakeupSink) {
+        self.wakeup = Some(sink);
+        self.rebuild_current();
     }
 
     /// Rebuild the *current* selection's backend — what every `/settings` knob
@@ -1850,6 +1860,7 @@ fn session_backend(
     subagents: &zeroth::subagents::SubagentRegistry,
     hooks: Option<&HookSetup>,
     round_budget: Option<&zeroth::llm::agent::RoundBudget>,
+    wakeup: Option<&zeroth::llm::tools::WakeupSink>,
 ) -> LlmBackend {
     // Captured before `configure` consumes the config: the hooks payload
     // names the model that is about to answer (docs/tools/hooks.md).
@@ -1890,6 +1901,9 @@ fn session_backend(
     // which is everywhere but a headless run (docs/cli/headless.md).
     if let Some(ask) = ask {
         backend = backend.with_ask(ask.clone());
+    }
+    if let Some(wakeup) = wakeup {
+        backend = backend.with_wakeup(wakeup.clone());
     }
     // A headless run's reply budget (`--max-turns`, docs/cli/headless.md): every
     // request the lead sends counts against it, over every rebuild.

@@ -60,6 +60,7 @@ struct ToolRuntimeContext {
     web: Option<std::sync::Arc<crate::web::walk::Search>>,
     hooks: Arc<dyn HookSink>,
     secrets: Option<crate::secrets::SecretRegistry>,
+    wakeup: Option<tools::WakeupSink>,
 }
 
 impl Default for ToolRuntimeContext {
@@ -75,6 +76,7 @@ impl Default for ToolRuntimeContext {
             web: None,
             hooks: Arc::new(NoHooks),
             secrets: None,
+            wakeup: None,
         }
     }
 }
@@ -320,6 +322,17 @@ impl LlmBackend {
         self
     }
 
+    /// Attach the wakeup sink, enabling the `schedule_wakeup` tool for `/loop`
+    /// and `/goal` scheduling.
+    #[must_use]
+    pub fn with_wakeup(mut self, sink: tools::WakeupSink) -> Self {
+        if self.tools_enabled {
+            self.runtime.wakeup = Some(sink);
+            self.sync_tool_specs();
+        }
+        self
+    }
+
     /// Attach the shared task list, **enabling the task tools**
     /// (`docs/tools/task-tools.md`): the client's tool set gains the four task
     /// specs (tools must already be enabled). The boundary calls this on
@@ -399,6 +412,9 @@ impl LlmBackend {
         }
         if self.runtime.web.is_some() {
             specs.extend(tools::web_specs());
+        }
+        if self.runtime.wakeup.is_some() {
+            specs.push(tools::schedule_wakeup_spec());
         }
         self.tool_definitions = ToolDefinition::from_specs(&specs);
         self.agent_tools = Arc::default();
@@ -732,6 +748,7 @@ impl ReplySource for LlmBackend {
         let subagent = self.subagent_config();
         let permissions = self.runtime.permissions.clone();
         let ask = self.runtime.ask.clone();
+        let wakeup = self.runtime.wakeup.clone();
         let task_list = self.runtime.tasks.clone();
         let skills = self.runtime.skills.clone();
         let classifier = self.classifier.clone();
@@ -987,9 +1004,12 @@ impl ReplySource for LlmBackend {
                                 };
                                 return super::agent_tools::run_agent_tool(&ctx, call, on_output);
                             }
-                            match (&ask, call.name.as_str()) {
-                                (Some(gate), tools::ASK_TOOL_NAME) => {
+                            match (&ask, &wakeup, call.name.as_str()) {
+                                (Some(gate), _, tools::ASK_TOOL_NAME) => {
                                     super::ask::ask_user(gate, &tx, &cancel, call)
+                                }
+                                (_, Some(sink), tools::WAKEUP_TOOL_NAME) => {
+                                    tools::run_wakeup(sink, &call.arguments)
                                 }
                                 _ => executor.execute(call, &cancel, on_output),
                             }

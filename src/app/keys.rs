@@ -427,6 +427,11 @@ impl App {
                 }
                 if self.input.text().trim().is_empty() {
                     Action::None
+                } else if !self.shell_mode
+                    && self.agent_view.is_none()
+                    && let Some(action) = self.try_slash_command_input()
+                {
+                    action
                 } else if let Some(id) = self.agent_view.clone() {
                     // Inside an agent session view the draft goes to *that
                     // agent*. How it lands is the registry's call, not ours —

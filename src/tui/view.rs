@@ -104,6 +104,12 @@ pub(crate) struct ConversationView {
     /// The scroll anchor: the tail line shown at the top, or `None` to follow
     /// the tail.
     pub(crate) full_top: Option<usize>,
+    /// Whether `full_top` was auto-anchored at the current turn's start during
+    /// a long streaming reply (as opposed to a manual user scroll).
+    pub(crate) full_auto_anchor: bool,
+    /// The `start` row of the turn we already auto-anchored once, so scrolling
+    /// down to the bottom in the same turn does not re-anchor it.
+    pub(crate) full_paused_turn: Option<usize>,
     pub(crate) full_tail_dirty: bool,
     pub(crate) full_tab_hits: ui::SessionBarHits,
     pub(crate) full_tab_press: Option<Option<String>>,
@@ -257,7 +263,7 @@ fn frame_history(
             let mut prompts = Vec::new();
             let mut items = Vec::new();
             let expanded = &view.full_expanded;
-            let mut lines = ui::conversation_lines_carded(
+            let lines = ui::conversation_lines_carded(
                 &history,
                 width,
                 app.path_display(),
@@ -279,24 +285,13 @@ fn frame_history(
                     }
                 },
             );
-            if let Some(text) = run.streaming.as_deref().filter(|text| !text.is_empty()) {
-                let start = lines.len();
-                lines.extend(view.agent_render.committed_rows(text, width));
-                for line in lines.split_off(start) {
-                    if let Some(card) = card_line(&line) {
-                        lines.extend(card);
-                    } else {
-                        lines.push(line);
-                    }
-                }
-            }
             (lines, prompts, items)
         }
         None => {
             let mut prompts = Vec::new();
             let mut items = Vec::new();
             let expanded = &view.full_expanded;
-            let mut lines = ui::conversation_lines_carded(
+            let lines = ui::conversation_lines_carded(
                 &app.history,
                 width,
                 app.path_display(),
@@ -318,22 +313,6 @@ fn frame_history(
                     }
                 },
             );
-            if let Some(text) = app.streaming_text().filter(|text| !text.is_empty()) {
-                let start = lines.len();
-                lines.extend(ui::message_lines_with_paths(
-                    Role::Assistant,
-                    text,
-                    width,
-                    Some(app.path_display()),
-                ));
-                for line in lines.split_off(start) {
-                    if let Some(card) = card_line(&line) {
-                        lines.extend(card);
-                    } else {
-                        lines.push(line);
-                    }
-                }
-            }
             (lines, prompts, items)
         }
     };
@@ -575,6 +554,8 @@ impl Session<'_> {
             let screen = self.screen.screen();
             let live_h = usize::from(height.min(screen.height));
             let conv_area = usize::from(screen.height).saturating_sub(live_h);
+            let streaming = !self.view.full_stream_lines.is_empty();
+            Self::update_turn_top_anchor(&mut self.view, tail.len(), conv_area, streaming);
             // A click-to-expand rebuild pins the toggled item's first line to
             // the screen row it occupied, so the cell does not jump under the
             // pointer (`docs/ui/full-screen.md`).
@@ -694,6 +675,32 @@ impl Session<'_> {
             .saturating_sub(ui::sidebar_columns(&self.conversation.app, screen))
             .saturating_sub(ui::SCROLLBAR_COLUMNS)
             .max(1)
+    }
+
+    /// Auto-anchor a long streaming reply at the start of its turn (`last_prompt`)
+    /// once the reply grows past one viewport, so the reader can read from the top
+    /// while the rest streams below.
+    fn update_turn_top_anchor(
+        view: &mut ConversationView,
+        tail_len: usize,
+        conv_area: usize,
+        streaming: bool,
+    ) {
+        let last_prompt = view.full_prompts.last().map(|p| p.start);
+        if view.full_auto_anchor && last_prompt != view.full_paused_turn {
+            view.full_top = None;
+            view.full_auto_anchor = false;
+        }
+        if view.full_top.is_none()
+            && streaming
+            && let Some(turn_start) = last_prompt
+            && view.full_paused_turn != Some(turn_start)
+            && tail_len.saturating_sub(conv_area) > turn_start
+        {
+            view.full_top = Some(turn_start);
+            view.full_auto_anchor = true;
+            view.full_paused_turn = Some(turn_start);
+        }
     }
 
     /// The screen-owning mode's conversation rows: the startup banner, the
@@ -1734,6 +1741,69 @@ mod tests {
         assert!(
             checked >= 4,
             "the sweep must cover the sidebar's three bands"
+        );
+    }
+
+    #[test]
+    fn turn_top_anchor_pins_long_streaming_reply_and_releases_on_new_turn() {
+        let mut view = ConversationView::default();
+        view.full_prompts.push(ui::UserPrompt {
+            start: 10,
+            end: 11,
+            text: "hello".into(),
+        });
+
+        // Short reply fits in viewport: keep following bottom.
+        super::Session::update_turn_top_anchor(&mut view, 25, 20, true);
+        assert_eq!(view.full_top, None);
+        assert!(!view.full_auto_anchor);
+
+        // Reply grows past viewport: pin at turn start (10).
+        super::Session::update_turn_top_anchor(&mut view, 35, 20, true);
+        assert_eq!(view.full_top, Some(10));
+        assert!(view.full_auto_anchor);
+        assert_eq!(view.full_paused_turn, Some(10));
+
+        // User scrolls to bottom manually: stays unpinned for the rest of this turn.
+        view.full_top = None;
+        view.full_auto_anchor = false;
+        super::Session::update_turn_top_anchor(&mut view, 40, 20, true);
+        assert_eq!(view.full_top, None);
+
+        // If auto-anchored and a new turn arrives, release anchor to follow new turn.
+        view.full_top = Some(10);
+        view.full_auto_anchor = true;
+        view.full_prompts.push(ui::UserPrompt {
+            start: 45,
+            end: 46,
+            text: "next".into(),
+        });
+        super::Session::update_turn_top_anchor(&mut view, 50, 20, true);
+        assert_eq!(view.full_top, None);
+        assert!(!view.full_auto_anchor);
+    }
+
+    #[test]
+    fn frame_history_excludes_streaming_text_so_tailed_with_stream_never_doubles_first_line() {
+        let mut app = App::new();
+        app.record_user_message("你是");
+        app.begin_stream();
+        app.push_chunk("我是 Zer");
+
+        let mut view = ConversationView::default();
+        let (card_tx, _card_rx) = tokio::sync::mpsc::unbounded_channel();
+        frame_history(&app, &mut view, 80, 80, true, &card_tx);
+        let cached: Vec<String> = view
+            .full_tail
+            .as_ref()
+            .unwrap()
+            .lines
+            .iter()
+            .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
+            .collect();
+        assert!(
+            !cached.iter().any(|row| row.contains("我是 Zer")),
+            "frame_history must cache only finished history, never streaming text: {cached:?}"
         );
     }
 }

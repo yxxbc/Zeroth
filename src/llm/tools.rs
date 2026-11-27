@@ -452,6 +452,97 @@ const AGENT_NAME_SUMMARY_CHARS: usize = 60;
 /// matches the offered spec.
 pub const ASK_TOOL_NAME: &str = "askuserquestion";
 
+/// Wire name for the self-scheduled wakeup / loop control tool.
+pub const WAKEUP_TOOL_NAME: &str = "schedule_wakeup";
+
+/// Request emitted by `schedule_wakeup` to arm, reschedule, or stop a `/loop`
+/// or `/goal`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WakeupRequest {
+    pub delay_seconds: u64,
+    pub prompt: Option<String>,
+    pub reason: Option<String>,
+    pub stop: bool,
+}
+
+/// Sender used by `schedule_wakeup` to notify the TUI event loop.
+pub type WakeupSink = tokio::sync::mpsc::UnboundedSender<WakeupRequest>;
+
+/// Tool definition for `schedule_wakeup`.
+#[must_use]
+pub fn schedule_wakeup_spec() -> Value {
+    function_spec(
+        WAKEUP_TOOL_NAME,
+        "Schedule a future wakeup turn (or stop an active `/loop` or `/goal`). \
+         Use this to check back on long-running workflows, CI builds, deploys, \
+         or iterative goals after `delay_seconds` (clamped to >= 60s), or pass \
+         `stop: true` when the loop or goal is complete.",
+        json!({
+            "type": "object",
+            "properties": {
+                "delay_seconds": {
+                    "type": "integer",
+                    "description": "Seconds to wait before the next wakeup (minimum 60)."
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "Optional prompt for the next wakeup turn."
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Short reason for scheduling or stopping."
+                },
+                "stop": {
+                    "type": "boolean",
+                    "description": "Set true to stop the active loop or goal."
+                }
+            }
+        }),
+    )
+}
+
+#[derive(Deserialize)]
+struct WakeupArgs {
+    #[serde(default)]
+    delay_seconds: Option<u64>,
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    reason: Option<String>,
+    #[serde(default)]
+    stop: bool,
+}
+
+/// Execute a `schedule_wakeup` tool call by forwarding the normalized request
+/// to the TUI event loop.
+#[must_use]
+pub fn run_wakeup(sink: &WakeupSink, arguments: &str) -> ToolOutcome {
+    let args: WakeupArgs = match parse_args(arguments) {
+        Ok(args) => args,
+        Err(err) => return ToolOutcome::error(err),
+    };
+    let delay_seconds = if args.stop {
+        0
+    } else {
+        args.delay_seconds.unwrap_or(60).max(60)
+    };
+    let req = WakeupRequest {
+        delay_seconds,
+        prompt: args.prompt.filter(|p| !p.trim().is_empty()),
+        reason: args.reason.filter(|r| !r.trim().is_empty()),
+        stop: args.stop,
+    };
+    let summary = if req.stop {
+        "Stopped active loop/goal.".to_string()
+    } else {
+        format!("Scheduled wakeup in {}s.", req.delay_seconds)
+    };
+    if sink.send(req).is_err() {
+        return ToolOutcome::error("wakeup receiver is closed");
+    }
+    ToolOutcome::ok(summary)
+}
+
 /// The display name the ask tool's cell header shows while it runs; the
 /// resolved cell replaces the whole header with the outcome headline
 /// (`docs/tools/ask.md`).
@@ -2170,7 +2261,7 @@ pub fn apply_edit(
     }
     let (old, new) = (old.as_ref(), new.as_ref());
     match count {
-        0 => Err(EditError::NotFound),
+        0 => apply_edit_relaxed(content, old, new, replace_all),
         n if n > 1 && !replace_all => Err(EditError::NotUnique(n)),
         _ => {
             let (new_content, replacements) = if replace_all {
@@ -2184,6 +2275,218 @@ pub fn apply_edit(
             })
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EditMatchLevel {
+    Loose,
+    Indent,
+}
+
+struct EditView {
+    text: String,
+    spans: Vec<(usize, usize)>,
+}
+
+impl EditView {
+    fn of(text: &str, level: EditMatchLevel) -> Self {
+        let mut view = Self {
+            text: String::with_capacity(text.len()),
+            spans: Vec::with_capacity(text.len()),
+        };
+        let mut blanks: Vec<(char, (usize, usize))> = Vec::new();
+        let mut chars = text.char_indices().peekable();
+        while let Some((at, c)) = chars.next() {
+            let mut end = at + c.len_utf8();
+            if c == '\r' && chars.peek().is_some_and(|(_, next)| *next == '\n') {
+                if let Some((next, _)) = chars.next() {
+                    end = next + 1;
+                }
+                blanks.clear();
+                view.push('\n', (at, end));
+                continue;
+            }
+            if c == '\n' {
+                blanks.clear();
+                view.push('\n', (at, end));
+                continue;
+            }
+            let folded = fold_edit_char(c);
+            if folded == ' ' || folded == '\t' {
+                let fresh = view.text.is_empty() || view.text.ends_with('\n');
+                if !(level == EditMatchLevel::Indent && fresh) {
+                    blanks.push((folded, (at, end)));
+                }
+                continue;
+            }
+            for (blank, span) in blanks.drain(..) {
+                view.push(blank, span);
+            }
+            view.push(folded, (at, end));
+        }
+        view
+    }
+
+    fn push(&mut self, c: char, span: (usize, usize)) {
+        self.text.push(c);
+        for _ in 0..c.len_utf8() {
+            self.spans.push(span);
+        }
+    }
+
+    fn starts(&self, needle: &str) -> Vec<usize> {
+        let mut starts = Vec::new();
+        let mut from = 0;
+        while let Some(found) = self.text[from..].find(needle) {
+            let at = from + found;
+            starts.push(at);
+            let step = self.text[at..].chars().next().map_or(1, char::len_utf8);
+            from = at + step;
+        }
+        starts
+    }
+
+    fn original(&self, range: std::ops::Range<usize>) -> std::ops::Range<usize> {
+        self.spans[range.start].0..self.spans[range.end - 1].1
+    }
+}
+
+fn fold_edit_char(c: char) -> char {
+    match c {
+        '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}' | '\u{2032}' => '\'',
+        '\u{201C}' | '\u{201D}' | '\u{201E}' | '\u{201F}' | '\u{2033}' => '"',
+        '\u{2010}'..='\u{2015}' | '\u{2212}' => '-',
+        '\u{00A0}' | '\u{2000}'..='\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}' => ' ',
+        other => other,
+    }
+}
+
+fn apply_edit_relaxed(
+    content: &str,
+    old: &str,
+    new: &str,
+    replace_all: bool,
+) -> Result<EditResult, EditError> {
+    let new_normalized = if content.contains("\r\n") && !new.contains('\r') {
+        std::borrow::Cow::Owned(new.replace('\n', "\r\n"))
+    } else {
+        std::borrow::Cow::Borrowed(new)
+    };
+    let needle = EditView::of(old, EditMatchLevel::Loose).text;
+    if !needle.trim().is_empty() {
+        let view = EditView::of(content, EditMatchLevel::Loose);
+        let starts = if replace_all {
+            view.text
+                .match_indices(needle.as_str())
+                .map(|(at, _)| at)
+                .collect()
+        } else {
+            view.starts(&needle)
+        };
+        match starts.len() {
+            0 => {}
+            1 => {
+                let range = view.original(starts[0]..starts[0] + needle.len());
+                return Ok(replace_ranges(content, &[range], new_normalized.as_ref()));
+            }
+            _ if replace_all => {
+                let ranges: Vec<_> = starts
+                    .iter()
+                    .map(|at| view.original(*at..*at + needle.len()))
+                    .collect();
+                return Ok(replace_ranges(content, &ranges, new_normalized.as_ref()));
+            }
+            count => return Err(EditError::NotUnique(count)),
+        }
+    }
+
+    if !replace_all
+        && old
+            .lines()
+            .next()
+            .is_some_and(|first| !first.trim().is_empty())
+    {
+        let needle = EditView::of(old, EditMatchLevel::Indent).text;
+        if !needle.trim().is_empty() {
+            let view = EditView::of(content, EditMatchLevel::Indent);
+            let starts: Vec<usize> = view
+                .starts(&needle)
+                .into_iter()
+                .filter(|at| *at == 0 || view.text.as_bytes()[at - 1] == b'\n')
+                .collect();
+            if let [at] = starts.as_slice() {
+                let range = view.original(*at..*at + needle.len());
+                let line = content[..range.start].rfind('\n').map_or(0, |pos| pos + 1);
+                let indent = &content[line..range.start];
+                let matched = &content[range.clone()];
+                let reindented = reindent_edit(new_normalized.as_ref(), old, matched, indent);
+                return Ok(replace_ranges(content, &[range], &reindented));
+            }
+        }
+    }
+
+    Err(EditError::NotFound)
+}
+
+fn replace_ranges(
+    content: &str,
+    ranges: &[std::ops::Range<usize>],
+    replacement: &str,
+) -> EditResult {
+    let mut out = String::with_capacity(content.len());
+    let mut cursor = 0;
+    for range in ranges {
+        out.push_str(&content[cursor..range.start]);
+        out.push_str(replacement);
+        cursor = range.end;
+    }
+    out.push_str(&content[cursor..]);
+    EditResult {
+        new_content: out,
+        replacements: ranges.len(),
+    }
+}
+
+fn lead_ws(line: &str) -> &str {
+    &line[..line.len() - line.trim_start_matches([' ', '\t']).len()]
+}
+
+fn indent_unit<'a>(lines: impl Iterator<Item = &'a str>, base: &str) -> Option<&'a str> {
+    lines
+        .filter(|line| !line.trim().is_empty())
+        .filter_map(|line| lead_ws(line).strip_prefix(base))
+        .filter(|deeper| !deeper.is_empty())
+        .min_by_key(|deeper| deeper.len())
+}
+
+fn reindent_edit(new: &str, old: &str, matched: &str, indent: &str) -> String {
+    let theirs = lead_ws(old.lines().next().unwrap_or(""));
+    let unit_theirs = indent_unit(old.lines().skip(1), theirs);
+    let unit_file = indent_unit(matched.lines().skip(1), indent);
+    let mut out = String::with_capacity(new.len());
+    for (i, line) in new.split_inclusive('\n').enumerate() {
+        if line.trim().is_empty() {
+            out.push_str(line);
+            continue;
+        }
+        let leading = lead_ws(line);
+        let deeper = leading.strip_prefix(theirs).unwrap_or(leading);
+        let levels = match (unit_theirs, unit_file) {
+            (Some(theirs_u), Some(file_u))
+                if deeper.len().is_multiple_of(theirs_u.len())
+                    && deeper == theirs_u.repeat(deeper.len() / theirs_u.len()) =>
+            {
+                file_u.repeat(deeper.len() / theirs_u.len())
+            }
+            _ => deeper.to_string(),
+        };
+        if i > 0 {
+            out.push_str(indent);
+            out.push_str(&levels);
+        }
+        out.push_str(&line[leading.len()..]);
+    }
+    out
 }
 
 /// Format a file's contents as numbered lines for the `read` tool, honouring a
@@ -3847,6 +4150,28 @@ mod tests {
         let out = apply_edit("a\na\na", "a", "b", true).unwrap();
         assert_eq!(out.new_content, "b\nb\nb");
         assert_eq!(out.replacements, 3);
+    }
+
+    #[test]
+    fn apply_edit_matches_loose_trailing_whitespace_and_curly_quotes() {
+        let content = "let msg = \"hello\";   \nlet y = 2;\n";
+        let old = "let msg = \u{201C}hello\u{201D};\nlet y = 2;";
+        let out = apply_edit(content, old, "let msg = \"world\";\nlet y = 3;", false).unwrap();
+        assert_eq!(out.new_content, "let msg = \"world\";\nlet y = 3;\n");
+        assert_eq!(out.replacements, 1);
+    }
+
+    #[test]
+    fn apply_edit_reindents_when_leading_whitespace_differs() {
+        let content = "fn main() {\n\tif true {\n\t\tlet x = 1;\n\t}\n}\n";
+        let old = "if true {\n  let x = 1;\n}";
+        let new = "if false {\n  let x = 2;\n}";
+        let out = apply_edit(content, old, new, false).unwrap();
+        assert_eq!(
+            out.new_content,
+            "fn main() {\n\tif false {\n\t\tlet x = 2;\n\t}\n}\n"
+        );
+        assert_eq!(out.replacements, 1);
     }
 
     #[test]

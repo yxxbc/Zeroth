@@ -64,7 +64,17 @@ impl Session<'_> {
                     .app
                     .bg_started(&id, &command, description, from_model, origin);
             }
-            BgEvent::Output { id, chunk } => self.conversation.app.bg_output(&id, &chunk),
+            BgEvent::Output { id, chunk } => {
+                self.conversation.app.bg_output(&id, &chunk);
+                if (self.conversation.app.active_loop.is_some()
+                    || self.conversation.app.active_goal.is_some())
+                    && self.conversation.inflight.is_none()
+                    && self.conversation.watch_deadline.is_none()
+                {
+                    self.conversation.watch_deadline =
+                        Some(tokio::time::Instant::now() + std::time::Duration::from_secs(3));
+                }
+            }
             BgEvent::Screen { id, text } => self.conversation.app.bg_screen(&id, &text),
             // An exit the model already read — a `bash_session` call reported
             // it (docs/tools/interactive-shell.md): the shell leaves the list, and

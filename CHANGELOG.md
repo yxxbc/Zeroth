@@ -16,6 +16,33 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Turn-top streaming anchor.** Long streaming replies in full-screen mode now
+  automatically pin the turn's starting row at the top of the viewport once
+  content exceeds one screen, letting you read from the beginning while the
+  rest streams below; manual scrolling or starting a new turn releases it.
+- **3-tier `edit` matching & auto-reindent.** `apply_edit` now falls back from
+  exact matching to loose matching (trailing whitespace, curly quotes, dashes,
+  and special spaces) and indentation-insensitive matching with automatic
+  re-indentation to match the target file.
+- **Personal/developer note (`~/.zeroth/USER.md`).** Optional local `USER.md`
+  under `~/.zeroth` (or `$ZEROTH_CONFIG_DIR`) is appended to the system prompt
+  without affecting other users or the shared binary.
+- **`/new`, `/loop`, `/goal`, and `schedule_wakeup`.** Added `/new` (fresh
+  session), `/loop` (autonomous, fixed-interval, or dynamic self-paced loops
+  plus debounced background output watch wakeup), `/goal` (iterative goal
+  rounds), and the `schedule_wakeup` runtime tool.
+
+### Fixed
+
+- **Wide-glyph diff & streaming double-line rendering.** Replaced raw
+  `Buffer::diff` with `diff_buffers` in `src/term.rs` to scrub overwritten
+  wide-glyph shadow columns (eliminating `▌▌▌▌▌` background bars on spacer
+  rows and mouse-selection highlights), and removed duplicate streaming text
+  rendering from `frame_history` in `src/tui/view.rs` that caused a duplicated
+  first `●` line mid-stream.
+
 ## [0.22.1] - 2026-11-27
 
 ### Fixed

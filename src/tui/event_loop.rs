@@ -129,6 +129,15 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             // 14. A backtrack's or a `/resume`'s code reset finished on its
             //     worker thread: report it (docs/state/checkpoint.md).
             Some(done) = session.conversation.restore_rx.recv() => session.on_restore_done(done),
+
+            // 15. Wakeup request from `schedule_wakeup` (`/loop`, `/goal`).
+            Some(req) = session.conversation.wakeup_rx.recv() => session.on_wakeup_request(req),
+
+            // 16. Scheduled `/loop` timer fired.
+            () = sleep_until_optional(session.conversation.loop_deadline) => session.on_loop_due(),
+
+            // 17. Debounced background-output watch wakeup during `/loop` or `/goal`.
+            () = sleep_until_optional(session.conversation.watch_deadline) => session.on_watch_due(),
         }
         session.after_iteration();
     }
@@ -148,6 +157,13 @@ async fn next_event(
 ) -> Option<io::Result<ratatui::crossterm::event::Event>> {
     match events {
         Some(events) => events.next().await,
+        None => std::future::pending().await,
+    }
+}
+
+async fn sleep_until_optional(deadline: Option<tokio::time::Instant>) {
+    match deadline {
+        Some(when) => tokio::time::sleep_until(when).await,
         None => std::future::pending().await,
     }
 }
