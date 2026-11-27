@@ -283,7 +283,7 @@ fn an_agent_session_view_gauges_that_agents_own_context() {
     });
     app.start_agent_group(
         false,
-        &[spec("a1", "Look up linuztx GitHub profile", false)],
+        &[spec("a1", "Look up devuser GitHub profile", false)],
     );
     app.apply_agent_event(
         "a1",

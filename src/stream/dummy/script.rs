@@ -89,8 +89,8 @@ const DEMO_REPLIES: &[&str] = &[
          words are canned and these three calls are scripted. The errand is real \
          enough, mind you: `about.py` knows who wrote zeroth and then prints a \
          card that forgets to say so.\n\n",
-        "Fixed, and the run proves it: **zeroth is by linuztx** — \
-         https://github.com/linuztx. That is the loop a coding agent lives in, \
+        "Fixed, and the run proves it: **zeroth is by the Zeroth contributors** — \
+         https://github.com/yxxbc/zeroth. That is the loop a coding agent lives in, \
          and every cell above is the one a live model draws: the read, the \
          `Edit` showing only the line it touched (green in, red out), the \
          command printing the result. **ctrl+o** opens the full transcript, \
@@ -104,8 +104,8 @@ const DEMO_REPLIES: &[&str] = &[
          printing, run it.\n\n",
         "All three calls were announced before any of them ran, so the ones still \
          queued sat at `⎿ Waiting…` while the front one worked — and the card now \
-         says what it always knew: **linuztx** built this thing — \
-         https://github.com/linuztx. Ask me for a *table*, a *diff*, some \
+         says what it always knew: **the Zeroth contributors** built this \
+         thing — https://github.com/yxxbc/zeroth. Ask me for a *table*, a *diff*, some \
          *parallel* commands, or a couple of *agents* to see the rest.\n\n",
         handoff!()
     ),
@@ -114,8 +114,8 @@ const DEMO_REPLIES: &[&str] = &[
          a scripted stand-in for the model that isn't plugged in yet. Watch this, \
          though: the file below has known who made me all along and never once \
          mentioned it.\n\n",
-        "It does now — **zeroth is the work of linuztx**, \
-         https://github.com/linuztx, and the command output is the proof the edit \
+        "It does now — **zeroth is the work of the Zeroth contributors**, \
+         https://github.com/yxxbc/zeroth, and the command output is the proof the edit \
          landed. Read, change, verify: a real agent works exactly like that, one \
          small checked step at a time.\n\n",
         handoff!()
@@ -250,7 +250,7 @@ pub const MARKDOWN_TOUR: &str = concat!(
      never changes; only the strip above the box moves.\n\n",
     "## Inline styles\n\n",
     "Prose with **bold**, *italic*, ~~struck~~ and `inline code`; a \
-     [link](https://github.com/linuztx/alter-zero) and a bare URL, \
+     [link](https://github.com/yxxbc/zeroth) and a bare URL, \
      https://ratatui.rs/ — each marker is line-local, so the line is held \
      back until it closes.\n\n",
     "## Lists\n\n",

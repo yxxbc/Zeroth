@@ -16,7 +16,7 @@ Running `sudo pacman -S …` (or anything that needs a password) through the
 `bash` tool wrote
 
 ```
-[sudo] password for linuztx:
+[sudo] password for devuser:
 ```
 
 straight onto the real terminal — **garbling the live TUI** — and then hung

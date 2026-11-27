@@ -331,7 +331,7 @@ again (`docs/agents/agent-tools.md` *A resume is news when it starts*).
   (`AgentRun::last_update`, `docs/agents/agent-progress.md`). A **lone** agent
   renders the tool-cell shape instead of a one-row tree:
   `● Agent({description})` over that same one `⎿ {activity}` row —
-  `⎿ Initializing…`, then `⎿ Bash: Fetch public repos for linuztx` /
+  `⎿ Initializing…`, then `⎿ Bash: Fetch public repos for devuser` /
   `⎿ Bash: curl -s https://…` /
   `⎿ Agent: The profile lists 42 public repos; checking the events now.`.
   The strip's `preview_rows`/`preview_lines` size and draw it like the tool

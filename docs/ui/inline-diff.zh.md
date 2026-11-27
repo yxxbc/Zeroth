@@ -7,7 +7,7 @@
 **什么**：
 
 ```
-● Edit(/home/linuztx/hello.txt)
+● Edit(/home/devuser/hello.txt)
   ⎿  Updated hello.txt (+1 -1)
       1 -Bruce Rivera
       1 +Bruce Rivero

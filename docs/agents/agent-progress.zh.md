@@ -7,7 +7,7 @@
 > 加上 "Agent: ..." 来显示 agent 的中间响应或进展更新
 >
 > ```
-> ● Agent(Gather GitHub contexts for user linuztx)
+> ● Agent(Gather GitHub contexts for user devuser)
 >   ⎿  Agent: ... <-like Bash: ... or Edit: ... something like that
 > ```
 >
@@ -43,7 +43,7 @@
 ## 活动行：`Agent: {update}`
 
 ```
-● Agent(Gather GitHub contexts for user linuztx)
+● Agent(Gather GitHub contexts for user devuser)
   ⎿  Agent: The profile lists 42 public repos; checking the events now.
 ```
 
@@ -107,12 +107,12 @@ connection lost mid-reply*）。
 agent 的时间线 —— 每一次调用、它读过的每一条消息、它给出的每一条更新：
 
 ```text
-Running (agent a7k2m9x4q · Gather GitHub contexts for user linuztx · 42s · 2 tool uses)
+Running (agent a7k2m9x4q · Gather GitHub contexts for user devuser · 42s · 2 tool uses)
 Agent: I'll start with the profile, then the repositories.
-Bash(curl -s https://api.github.com/users/linuztx)
+Bash(curl -s https://api.github.com/users/devuser)
 Agent: The profile lists 42 public repos and 100 followers.
   Fetching the repositories next, newest first.
-Bash(curl -s "https://api.github.com/users/linuztx/repos?per_page=100&sort=updated")
+Bash(curl -s "https://api.github.com/users/devuser/repos?per_page=100&sort=updated")
 
 [Still running — you are notified when it finishes; agentoutput with `wait` waits for it.]
 ```

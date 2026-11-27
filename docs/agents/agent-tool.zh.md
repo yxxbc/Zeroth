@@ -281,7 +281,7 @@ base36 字符），保存每个运行中 subagent 的 `CancelToken` + 完成标�
   到下一个调用开始，两者中较新的那个胜出（`AgentRun::last_update`，
   `docs/agents/agent-progress.md`）。一个**单独的** agent 渲染成 tool cell 的
   形状而不是单行树：`● Agent({description})` 压在同一行 `⎿ {activity}` 之上
-  —— `⎿ Initializing…`，然后 `⎿ Bash: Fetch public repos for linuztx` /
+  —— `⎿ Initializing…`，然后 `⎿ Bash: Fetch public repos for devuser` /
   `⎿ Bash: curl -s https://…` /
   `⎿ Agent: The profile lists 42 public repos; checking the events now.`。
   条的 `preview_rows`/`preview_lines` 像划定并绘制 tool 队列那样划定并绘制它。

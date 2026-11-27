@@ -14,7 +14,7 @@
 ● Bash(which yt-dlp youtube-dl 2>/dev/null; curl -s
       "https://www.youtube.com/oembed?url=https://youtu.be/Vr-NEWVLN9Y&f
       ormat=json" 2>/dev/null)
-  ⎿  /home/linuztx/.local/bin/yt-dlp
+  ⎿  /home/devuser/.local/bin/yt-dlp
      {"title":"How to Use Burp MCP with Claude to Find Bugs from HTTP
      History","author_name":"\ud835\ude47\ud835\ude64\ud835\ude68\ud835\
      ude69\ud835\ude68\ud835\ude5a\ud835\ude58","author_url":"https://ww

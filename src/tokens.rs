@@ -866,7 +866,7 @@ mod tests {
         ),
         (
             "urls and paths",
-            "https://github.com/linuztx/alter-zero/blob/main/docs/architecture/compact.md?plain=1#L136\n\
+            "https://github.com/devuser/alter-zero/blob/main/docs/architecture/compact.md?plain=1#L136\n\
              /home/user/zeroth/src/llm/backend.rs:2022:fn stream_round(\n",
             44,
             44,

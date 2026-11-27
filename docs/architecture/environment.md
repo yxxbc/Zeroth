@@ -29,8 +29,8 @@ The `{date}`/`{os}`/`{user}`/`{cwd}` placeholders are filled at runtime, e.g.:
 
 Date Sunday 2026-07-19
 OS linux (Ubuntu 24.04.4 LTS)
-User linuztx
-CWD /home/linuztx/zeroth
+User devuser
+CWD /home/devuser/zeroth
 ```
 
 ## Where it sits in the prompt
@@ -106,7 +106,7 @@ instructions attached, in the block's own terse style:
 |---------------------------|--------------------|
 | uid 0, named `root`       | `User root`        |
 | uid 0 under another name  | `User toor (root)` |
-| any other uid             | `User linuztx`     |
+| any other uid             | `User devuser`     |
 | a uid with no name        | `User uid 1000`    |
 
 **The uid decides root; the name only labels it** (`user_label`). A root

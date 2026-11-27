@@ -146,7 +146,7 @@ impl Session<'_> {
                 // it or commits the red notice.
                 workers::spawn_image_paste(
                     self.conversation.paste_dir.clone(),
-                    self.conversation.img_tx.clone(),
+                    self.conversation.worker_tx.clone(),
                 );
             }
             Action::RunShell(command) => {

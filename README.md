@@ -235,6 +235,7 @@ The essentials are always one keystroke away: `/` opens commands, and `?` in an 
 | `/hooks` | Browse hooks and trust or stop trusting each one |
 | `/skills` | Browse skills and enable or disable each one |
 | `/secrets` | Store credentials the agent uses by placeholder, `<secret:NAME>`, without ever seeing the value |
+| `/donate` | Support the project: the sponsorship links and the crypto addresses, ready to copy |
 | `/quit` | Exit the app |
 
 </details>
@@ -336,6 +337,29 @@ Environment overrides are `ZEROTH_*`; scripts still setting the fork's old prefi
 Claude Code-style `.claude/skills/` folders are also supported. Hooks, yours and a project's, run only after you approve them when the app starts.
 
 </details>
+
+## Sponsorship
+
+Zeroth is free and open source, with no ads and no tracking. If it earns a
+place in your terminal, these keep the work going:
+
+- **[Afdian](https://afdian.com/a/xynrin)** — one-off or monthly sponsorship.
+- **WeChat** — scan the code below from your phone.
+- **Crypto** — `/donate` in the app lists the addresses and copies the one you
+  pick; every entry names the networks its address may be sent on.
+
+<table>
+  <tr>
+    <td align="center" width="260" valign="top">
+      <img src="assets/wechat-donate.jpg" alt="WeChat sponsorship code" width="180" /><br />
+      <b>Scan with WeChat</b>
+    </td>
+  </tr>
+</table>
+
+Other arrangements, including project-level promotion, go to
+[xynrin@icloud.com](mailto:xynrin@icloud.com?subject=%5BZeroth%5D%20Sponsorship).
+A "promotion" means a project-level mention, unrelated to the installer.
 
 ## License
 

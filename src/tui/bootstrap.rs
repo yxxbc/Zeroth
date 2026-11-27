@@ -479,19 +479,11 @@ impl<'t> Session<'t> {
         // queries on a std channel and receives results on a tokio channel it can
         // `select!` on. The worker only *sends* — it is not a stdin reader
         // (invariant 1).
+        let (worker_tx, worker_rx) = tokio::sync::mpsc::unbounded_channel();
         let (file_req_tx, file_req_rx) = std::sync::mpsc::channel::<String>();
-        let (file_res_tx, file_rx) = tokio::sync::mpsc::unbounded_channel();
-        let file_worker = spawn_file_search_worker(cwd.clone(), file_req_rx, file_res_tx);
-        // The Ctrl+V image-paste pipeline (docs/input/image-paste.md) and the `/model`
-        // picker's list fetch (docs/providers/llm.md): each runs on its own short-lived
-        // worker thread and reports here.
-        let (img_tx, img_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (diff_tx, diff_rx) = tokio::sync::mpsc::unbounded_channel();
+        let file_worker = spawn_file_search_worker(cwd.clone(), file_req_rx, worker_tx.clone());
         let (device_tx, device_rx) = tokio::sync::mpsc::unbounded_channel();
         let (model_tx, model_rx) = tokio::sync::mpsc::unbounded_channel::<ModelFetch>();
-        // The `/usage` page's reads, one worker per subscription
-        // (docs/providers/usage.md).
-        let (usage_tx, usage_rx) = tokio::sync::mpsc::unbounded_channel();
         // The capability probe's own channel, so a concurrently-open `/model`
         // picker can't confuse the results (docs/providers/reasoning.md).
         // Spawned once the startup directive is applied (`spawn_pending_probe`
@@ -613,12 +605,9 @@ impl<'t> Session<'t> {
                 tx,
                 reply_rx,
                 file_req_tx,
-                file_rx,
                 last_file_query: None,
-                img_tx,
-                img_rx,
-                diff_tx,
-                diff_rx,
+                worker_tx,
+                worker_rx,
                 diff_generation: 0,
                 paste_dir,
                 device_tx,
@@ -627,8 +616,6 @@ impl<'t> Session<'t> {
                 device_expires: None,
                 model_tx,
                 model_rx,
-                usage_tx,
-                usage_rx,
                 usage_cancel: None,
                 probe_tx,
                 probe_rx,

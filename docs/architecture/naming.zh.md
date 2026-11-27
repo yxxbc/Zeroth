@@ -56,8 +56,10 @@ hooks 的载荷一直带着一个没人分得清是否已废弃的字段。一�
 - `README.md` 的 Fork 说明与 `CHANGELOG.md` 里的“inherited from Alter Zero”，
   以及 changelog 末尾那两条历史链接定义
   `github.com/linuztx/alter-zero/compare/…` 与 `releases/tag/v0.1.0`。
-- `docs/architecture/multithread-core.md` 里的上游 issue 链接，以及
-  `docs/ui/links.md` 和 dummy 后端文档里作者的 `github.com/linuztx` 主页。
+- `docs/architecture/multithread-core.md` 里的上游 issue 链接 —— 那些讨论在
+  上游的 tracker 里，换成 `yxxbc/zeroth` 的 URL 就是死链。
+- flaredantic skill 里的 `https://github.com/linuztx/flaredantic`：那是这个
+  skill 记录的一个**第三方项目**，不是本仓库。
 - `src/update.rs` 里的 `NPM_PACKAGE = "@linuztx/alter-zero"`：那是更早的 release
   *实际发布时用的*名字。`is_package_manager_install` 与 update 命令都要靠它
   认出一个 npm 装出来的安装。等 Zeroth 自己的 npm 包存在了，它就会改。

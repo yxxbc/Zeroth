@@ -3056,19 +3056,19 @@ fn tool_header_renders_a_multiline_command_line_by_line() {
 fn tool_header_spills_a_first_word_that_fits_the_continuation_row_whole() {
     // At 40 columns `● Documentation_lookup_question(` leaves eight columns on
     // its row: `repoName:` used to be hard-broken across the rows as
-    // `repoName` / `: "linuztx/…"`. A first word that fits a continuation row
+    // `repoName` / `: "devuser/…"`. A first word that fits a continuation row
     // moves down whole; the `(` stays with the name, so the header reads as
     // a call whose arguments spill onto the next row.
     let call = tool(
         "Documentation_lookup_question",
-        r#"repoName: "linuztx/flaredantic", question: "What is it?""#,
+        r#"repoName: "devuser/flaredantic", question: "What is it?""#,
         ToolStatus::Failed,
         "err",
     );
     let lines = tool_lines(&call, 40, &PathDisplay::VERBATIM);
     assert_eq!(plain(&lines[0]), "● Documentation_lookup_question(");
     assert!(
-        plain(&lines[1]).starts_with("  repoName: \"linuztx/flaredantic\","),
+        plain(&lines[1]).starts_with("  repoName: \"devuser/flaredantic\","),
         "the first argument moves down whole: {:?}",
         plain(&lines[1])
     );
@@ -3089,7 +3089,7 @@ fn a_spilled_headers_name_row_is_not_one_of_its_two_rows() {
     // spill never costs the content it was meant to make readable.
     let call = tool(
         "Documentation_lookup_question",
-        r#"repoName: "linuztx/flaredantic", question: "How does the tunnel client work?""#,
+        r#"repoName: "devuser/flaredantic", question: "How does the tunnel client work?""#,
         ToolStatus::Failed,
         "err",
     );
@@ -3098,7 +3098,7 @@ fn a_spilled_headers_name_row_is_not_one_of_its_two_rows() {
         header_rows(&lines),
         vec![
             "● Documentation_lookup_question(",
-            "  repoName: \"linuztx/flaredantic\",",
+            "  repoName: \"devuser/flaredantic\",",
             "  question: \"How does the tunnel clien…)",
         ]
     );
@@ -3151,13 +3151,13 @@ fn tool_header_expands_tabs_in_a_command_for_display() {
 // --- the path a file tool's header shows (docs/tools/tools.md "Path display") ---
 
 /// The worked example's session: launched in `~/Codes/tests`, home
-/// `/home/linuztx`. The **header** shortens through the policy; the corner
+/// `/home/devuser`. The **header** shortens through the policy; the corner
 /// head is the executor's own record (`tools::display_path` — `hello.py`
 /// under the cwd, a `../../hello.py` climb outside it) and is never rewritten.
 fn session_paths() -> PathDisplay {
     PathDisplay::new(
-        "/home/linuztx/Codes/tests",
-        Some(std::path::PathBuf::from("/home/linuztx")),
+        "/home/devuser/Codes/tests",
+        Some(std::path::PathBuf::from("/home/devuser")),
     )
 }
 
@@ -3168,7 +3168,7 @@ fn a_file_tool_header_shows_the_path_relative_to_the_cwd() {
     let output = "Wrote 1 line to hello.py\n1 print(\"Hello, world!\")";
     let cell = tool(
         "Write",
-        "/home/linuztx/Codes/tests/hello.py",
+        "/home/devuser/Codes/tests/hello.py",
         ToolStatus::Ok,
         output,
     );
@@ -3179,7 +3179,7 @@ fn a_file_tool_header_shows_the_path_relative_to_the_cwd() {
     let output = "Wrote 1 line to hello/hello.py\n1 print()";
     let nested = tool(
         "Write",
-        "/home/linuztx/Codes/tests/hello/hello.py",
+        "/home/devuser/Codes/tests/hello/hello.py",
         ToolStatus::Ok,
         output,
     );
@@ -3194,7 +3194,7 @@ fn a_file_under_home_but_outside_the_cwd_shows_tilde_relative() {
     // `../../hello.py` climb exactly as recorded — the reference look.
     let paths = session_paths();
     let output = "Wrote 1 line to ../../hello.py\n1 print(\"Hello, World!\")";
-    let cell = tool("Write", "/home/linuztx/hello.py", ToolStatus::Ok, output);
+    let cell = tool("Write", "/home/devuser/hello.py", ToolStatus::Ok, output);
     let lines = tool_lines(&cell, 80, &paths);
     assert_eq!(plain(&lines[0]), "● Write(~/hello.py)");
     assert_eq!(plain(&lines[1]), "  ⎿  Wrote 1 line to ../../hello.py");
@@ -3219,7 +3219,7 @@ fn the_read_header_shortens_and_its_synthesized_head_is_unchanged() {
     let paths = session_paths();
     let cell = tool(
         "Read",
-        "/home/linuztx/Codes/tests/src/app.rs",
+        "/home/devuser/Codes/tests/src/app.rs",
         ToolStatus::Ok,
         "1 fn main() {}\n2 // end",
     );
@@ -3234,7 +3234,7 @@ fn the_edit_head_keeps_its_counts_coloured_beside_a_shortened_header() {
     let output = "Updated a.rs (+1 -1)\n1 -old\n1 +new";
     let cell = tool(
         "Edit",
-        "/home/linuztx/Codes/tests/a.rs",
+        "/home/devuser/Codes/tests/a.rs",
         ToolStatus::Ok,
         output,
     );
@@ -3264,28 +3264,28 @@ fn the_corner_head_is_the_record_and_is_never_rewritten() {
     // hand-written or old record, the legacy `Created` head, a failure body.
     // Only the header derives from the policy.
     let paths = session_paths();
-    let output = "Wrote 1 line to /home/linuztx/hello.py\n1 print()";
-    let cell = tool("Write", "/home/linuztx/hello.py", ToolStatus::Ok, output);
+    let output = "Wrote 1 line to /home/devuser/hello.py\n1 print()";
+    let cell = tool("Write", "/home/devuser/hello.py", ToolStatus::Ok, output);
     let lines = tool_lines(&cell, 80, &paths);
     assert_eq!(plain(&lines[0]), "● Write(~/hello.py)");
     assert_eq!(
         plain(&lines[1]),
-        "  ⎿  Wrote 1 line to /home/linuztx/hello.py"
+        "  ⎿  Wrote 1 line to /home/devuser/hello.py"
     );
-    let output = "Created /home/linuztx/x.py (1 lines)\n1 print()";
-    let cell = tool("Write", "/home/linuztx/x.py", ToolStatus::Ok, output);
+    let output = "Created /home/devuser/x.py (1 lines)\n1 print()";
+    let cell = tool("Write", "/home/devuser/x.py", ToolStatus::Ok, output);
     let lines = tool_lines(&cell, 80, &paths);
     assert_eq!(plain(&lines[0]), "● Write(~/x.py)");
     assert_eq!(
         plain(&lines[1]),
-        "  ⎿  Created /home/linuztx/x.py (1 lines)"
+        "  ⎿  Created /home/devuser/x.py (1 lines)"
     );
-    let output = "could not write /home/linuztx/x.py: permission denied";
-    let cell = tool("Write", "/home/linuztx/x.py", ToolStatus::Failed, output);
+    let output = "could not write /home/devuser/x.py: permission denied";
+    let cell = tool("Write", "/home/devuser/x.py", ToolStatus::Failed, output);
     let lines = tool_lines(&cell, 80, &paths);
     assert_eq!(plain(&lines[0]), "● Write(~/x.py)");
     assert!(
-        plain(&lines[1]).contains("could not write /home/linuztx/x.py"),
+        plain(&lines[1]).contains("could not write /home/devuser/x.py"),
         "the body is the record: {:?}",
         plain(&lines[1])
     );
@@ -3295,7 +3295,7 @@ fn the_corner_head_is_the_record_and_is_never_rewritten() {
 fn the_transcript_expansion_shortens_the_header_alike() {
     let paths = session_paths();
     let output = "Wrote 1 line to ../../hello.py\n1 print()";
-    let cell = tool("Write", "/home/linuztx/hello.py", ToolStatus::Ok, output);
+    let cell = tool("Write", "/home/devuser/hello.py", ToolStatus::Ok, output);
     let lines = tool_full_lines(&cell, 80, &paths);
     assert_eq!(plain(&lines[0]), "● Write(~/hello.py)");
     assert_eq!(plain(&lines[1]), "  ⎿  Wrote 1 line to ../../hello.py");
@@ -3306,7 +3306,7 @@ fn only_a_file_tools_arguments_are_shortened() {
     // A `bash` command is not a path, however many it embeds; an agent's
     // description is prose. Only `Read`/`Write`/`Edit` name a file.
     let paths = session_paths();
-    let cmd = "python3 /home/linuztx/Codes/tests/hello.py";
+    let cmd = "python3 /home/devuser/Codes/tests/hello.py";
     let cell = tool("Bash", cmd, ToolStatus::Ok, "Exit code: 0\nhi");
     assert_eq!(
         plain(&tool_lines(&cell, 80, &paths)[0]),
@@ -3314,13 +3314,13 @@ fn only_a_file_tools_arguments_are_shortened() {
     );
     let cell = tool(
         "Agent",
-        "/home/linuztx/Codes/tests/x",
+        "/home/devuser/Codes/tests/x",
         ToolStatus::Ok,
         "done",
     );
     assert_eq!(
         plain(&tool_lines(&cell, 80, &paths)[0]),
-        "● Agent(/home/linuztx/Codes/tests/x)"
+        "● Agent(/home/devuser/Codes/tests/x)"
     );
 }
 
@@ -3330,9 +3330,9 @@ fn the_verbatim_policy_renders_the_recorded_path_exactly() {
     // shortens, so every other test in this file describes the rows it
     // always did.
     let output = "Wrote 1 line to ../../hello.py\n1 print()";
-    let cell = tool("Write", "/home/linuztx/hello.py", ToolStatus::Ok, output);
+    let cell = tool("Write", "/home/devuser/hello.py", ToolStatus::Ok, output);
     let lines = tool_lines(&cell, 80, &PathDisplay::VERBATIM);
-    assert_eq!(plain(&lines[0]), "● Write(/home/linuztx/hello.py)");
+    assert_eq!(plain(&lines[0]), "● Write(/home/devuser/hello.py)");
     assert_eq!(plain(&lines[1]), "  ⎿  Wrote 1 line to ../../hello.py");
 }
 
@@ -3341,7 +3341,7 @@ fn the_live_cell_shortens_the_header_too() {
     // The strip's live cell — a `Write` waiting on the permission gate wears
     // the header it will commit with (`docs/state/permissions.md`).
     let paths = session_paths();
-    let cell = tool("Write", "/home/linuztx/hello.py", ToolStatus::Running, "");
+    let cell = tool("Write", "/home/devuser/hello.py", ToolStatus::Running, "");
     let lines = live_tool_lines(&cell, 80, Duration::ZERO, &paths);
     assert_eq!(plain(&lines[0]), "● Write(~/hello.py)");
 }
@@ -3354,7 +3354,7 @@ fn the_commit_and_the_rebuild_shorten_alike() {
     let output = "Wrote 1 line to ../../hello.py\n1 print()";
     let history = vec![HistoryItem::Tool(tool(
         "Write",
-        "/home/linuztx/hello.py",
+        "/home/devuser/hello.py",
         ToolStatus::Ok,
         output,
     ))];
@@ -3375,7 +3375,7 @@ fn the_transcript_reads_the_apps_policy() {
     app.set_path_display(session_paths());
     app.history.push(HistoryItem::Tool(tool(
         "Read",
-        "/home/linuztx/hello.py",
+        "/home/devuser/hello.py",
         ToolStatus::Ok,
         "1 x",
     )));
@@ -3385,7 +3385,7 @@ fn the_transcript_reads_the_apps_policy() {
         "the transcript shortens the header: {lines:?}"
     );
     assert!(
-        !lines.iter().any(|l| l.contains("/home/linuztx")),
+        !lines.iter().any(|l| l.contains("/home/devuser")),
         "…and shows the absolute path nowhere: {lines:?}"
     );
 }
@@ -3462,7 +3462,7 @@ fn the_header_cuts_at_its_second_row_when_two_rows_cannot_hold_160_columns() {
 
 /// The command from the two-row report: a `web-search` skill one-liner, as
 /// far as its cell showed it and then a plausible end.
-const WEB_SEARCH_ONE_LINER: &str = "cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3 -c \"import secrets;print(secrets.token_hex(16))\") && python3 scripts/parallel_search.py \"terminal coding agents\"";
+const WEB_SEARCH_ONE_LINER: &str = "cd /home/devuser/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3 -c \"import secrets;print(secrets.token_hex(16))\") && python3 scripts/parallel_search.py \"terminal coding agents\"";
 
 #[test]
 fn the_collapsed_header_stops_at_two_rows() {
@@ -3470,7 +3470,7 @@ fn the_collapsed_header_stops_at_two_rows() {
     // budget alone gave the header a third row for the fragment the cut
     // left behind:
     //
-    //   ● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
+    //   ● Bash(cd /home/devuser/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
     //         -c "import secrets;print(secrets.token_hex(16))") && python3
     //         scripts/parallel_se…)
     //
@@ -3484,7 +3484,7 @@ fn the_collapsed_header_stops_at_two_rows() {
     assert_eq!(
         header_rows(&lines),
         vec![
-            "● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3 -c",
+            "● Bash(cd /home/devuser/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3 -c",
             "      \"import secrets;print(secrets.token_hex(16))\") && python3…)",
         ]
     );
@@ -3880,7 +3880,7 @@ fn a_file_tool_header_links_its_path_to_the_file() {
     let output = "Wrote 2 lines to cat_poem.txt\n1 The Cat in the Box\n2 ";
     let cell = tool(
         "Write",
-        "/home/linuztx/Codes/tests/cat_poem.txt",
+        "/home/devuser/Codes/tests/cat_poem.txt",
         ToolStatus::Ok,
         output,
     );
@@ -3894,7 +3894,7 @@ fn a_file_tool_header_links_its_path_to_the_file() {
         linked_spans(&lines[0]),
         vec![(
             "cat_poem.txt".to_string(),
-            "file:///home/linuztx/Codes/tests/cat_poem.txt".to_string()
+            "file:///home/devuser/Codes/tests/cat_poem.txt".to_string()
         )]
     );
     let close = lines[0].spans.last().expect("the closing paren");
@@ -3918,14 +3918,14 @@ fn a_file_tool_header_links_its_path_to_the_file() {
 fn read_and_edit_headers_link_alike_whatever_form_the_row_shows() {
     let paths = session_paths();
     // `~/hello.py` and an absolute path outside home both link the file.
-    let read = tool("Read", "/home/linuztx/hello.py", ToolStatus::Ok, "1 x");
+    let read = tool("Read", "/home/devuser/hello.py", ToolStatus::Ok, "1 x");
     let lines = tool_lines(&read, 80, &paths);
     assert_eq!(plain(&lines[0]), "● Read(~/hello.py)");
     assert_eq!(
         linked_spans(&lines[0]),
         vec![(
             "~/hello.py".to_string(),
-            "file:///home/linuztx/hello.py".to_string()
+            "file:///home/devuser/hello.py".to_string()
         )]
     );
     let edit = tool(
@@ -3972,7 +3972,7 @@ fn a_wrapped_or_cut_header_path_links_every_fragment_to_the_whole_file() {
     // rows — or cut to the header's column budget — opens the whole file
     // from any fragment, where a terminal's own detection sees row text.
     let paths = session_paths();
-    let file = "/home/linuztx/Codes/tests/some/deeply/nested/directory/tree/file.txt";
+    let file = "/home/devuser/Codes/tests/some/deeply/nested/directory/tree/file.txt";
     let cell = tool(
         "Write",
         file,
@@ -3996,7 +3996,7 @@ fn a_wrapped_or_cut_header_path_links_every_fragment_to_the_whole_file() {
     for (_, url) in &linked {
         assert_eq!(
             url,
-            "file:///home/linuztx/Codes/tests/some/deeply/nested/directory/tree/file.txt"
+            "file:///home/devuser/Codes/tests/some/deeply/nested/directory/tree/file.txt"
         );
     }
     // A path past the header's column budget is cut with `…` in the
@@ -4041,7 +4041,7 @@ fn only_a_file_tools_header_is_a_link() {
     let paths = session_paths();
     let cell = tool(
         "Bash",
-        "python3 /home/linuztx/Codes/tests/hello.py",
+        "python3 /home/devuser/Codes/tests/hello.py",
         ToolStatus::Ok,
         "Exit code: 0\nhi",
     );
@@ -4050,7 +4050,7 @@ fn only_a_file_tools_header_is_a_link() {
     }
     let cell = tool(
         "Agent",
-        "/home/linuztx/Codes/tests/x",
+        "/home/devuser/Codes/tests/x",
         ToolStatus::Ok,
         "done",
     );
@@ -4058,7 +4058,7 @@ fn only_a_file_tools_header_is_a_link() {
     // The `(`/`)` framing a linked path is not part of it.
     let cell = tool(
         "Write",
-        "/home/linuztx/Codes/tests/hello.py",
+        "/home/devuser/Codes/tests/hello.py",
         ToolStatus::Ok,
         "Wrote 1 line to hello.py\n1 x",
     );
@@ -4083,17 +4083,17 @@ fn the_verbatim_policy_links_an_absolute_path_and_leaves_a_relative_one() {
     // — the schema asks for absolute paths — while a relative one is not.
     let cell = tool(
         "Write",
-        "/home/linuztx/hello.py",
+        "/home/devuser/hello.py",
         ToolStatus::Ok,
         "Wrote 1 line to hello.py\n1 x",
     );
     let lines = tool_lines(&cell, 80, &PathDisplay::VERBATIM);
-    assert_eq!(plain(&lines[0]), "● Write(/home/linuztx/hello.py)");
+    assert_eq!(plain(&lines[0]), "● Write(/home/devuser/hello.py)");
     assert_eq!(
         linked_spans(&lines[0]),
         vec![(
-            "/home/linuztx/hello.py".to_string(),
-            "file:///home/linuztx/hello.py".to_string()
+            "/home/devuser/hello.py".to_string(),
+            "file:///home/devuser/hello.py".to_string()
         )]
     );
     let cell = tool(
@@ -4115,19 +4115,19 @@ fn the_live_cell_and_the_transcript_link_the_header_alike() {
     // The strip's running cell (a `Write` waiting on the permission gate) and
     // the Ctrl+O expansion share the header builder, so the link rides both.
     let paths = session_paths();
-    let cell = tool("Write", "/home/linuztx/hello.py", ToolStatus::Running, "");
+    let cell = tool("Write", "/home/devuser/hello.py", ToolStatus::Running, "");
     let live = live_tool_lines(&cell, 80, Duration::ZERO, &paths);
     assert_eq!(plain(&live[0]), "● Write(~/hello.py)");
     assert_eq!(
         linked_spans(&live[0]),
         vec![(
             "~/hello.py".to_string(),
-            "file:///home/linuztx/hello.py".to_string()
+            "file:///home/devuser/hello.py".to_string()
         )]
     );
     let done = tool(
         "Write",
-        "/home/linuztx/hello.py",
+        "/home/devuser/hello.py",
         ToolStatus::Ok,
         "Wrote 1 line to ../../hello.py\n1 x",
     );
@@ -4137,7 +4137,7 @@ fn the_live_cell_and_the_transcript_link_the_header_alike() {
         linked_spans(&full[0]),
         vec![(
             "~/hello.py".to_string(),
-            "file:///home/linuztx/hello.py".to_string()
+            "file:///home/devuser/hello.py".to_string()
         )]
     );
     assert!(linked_spans(&full[1]).is_empty());
@@ -4835,5 +4835,42 @@ fn a_web_fetch_summary_counts_rows_at_the_width_the_expansion_uses() {
         gutter_content(&narrow[1]),
         "Read 9 rows, 400 chars",
         "{narrow:?}"
+    );
+}
+
+#[test]
+fn expanded_json_output_receives_syntax_highlighting() {
+    let call = tool(
+        "Bash",
+        "cat data.json",
+        ToolStatus::Ok,
+        r#"{"status":"ok","count":42}"#,
+    );
+    let lines = tool_full_lines(&call, 80, &PathDisplay::VERBATIM);
+    let body_colors: std::collections::HashSet<_> = lines
+        .iter()
+        .skip(1)
+        .flat_map(|line| line.spans.iter().skip(1))
+        .filter(|span| !span.content.trim().is_empty())
+        .filter_map(|span| span.style.fg)
+        .collect();
+    assert!(
+        body_colors.len() >= 2,
+        "expanded JSON output should use syntax highlighting colours, got {body_colors:?}"
+    );
+}
+
+#[test]
+fn expanded_tool_lines_carry_tool_bg_on_output_spans() {
+    let call = tool("Bash", "echo hi", ToolStatus::Ok, "hi");
+    let lines = tool_full_lines(&call, 80, &PathDisplay::VERBATIM);
+    let output_span = lines[1]
+        .spans
+        .iter()
+        .find(|span| span.content.contains("hi"))
+        .expect("output span present");
+    assert_eq!(
+        output_span.style.bg,
+        Some(crate::ui::theme::tool_bg_color())
     );
 }

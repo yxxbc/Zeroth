@@ -226,7 +226,7 @@ token URL 在若干窄宽度下被渲染进纯散文、行内代码、围栏/高
 span。
 
 `term.rs` 是 I/O 边界，所以 `smoke.sh` 的 **Phase 87** 在一个窄到足以切开 dummy
-回复里 `https://github.com/linuztx` 的窗格里驱动真实二进制，用 `tmux pipe-pane`
+回复里 `https://github.com/devuser` 的窗格里驱动真实二进制，用 `tmux pipe-pane`
 捕获原始字节流，并断言完整 URL 搭乘一次 OSC 8 开启，而可见的窗格显示的是被切开的
 文本 —— 以及 `ZEROTH_HYPERLINKS=0` 时一个都不发。文件 tool 头部也有同样两半：
 `links::file_url` 的解析与编码在 `links.rs` 里做单元测试；头部的盖章 —— 路径被链

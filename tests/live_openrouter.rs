@@ -1942,7 +1942,7 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
     // (docs/agents/agent-tool.md). While its `bash` call runs, the cell is
     // `● Agent({description})` over exactly **one** row: the model's own call
     // description when it gave one (`⎿  Bash: Fetch public repos for
-    // linuztx`), else the clean `⎿  Bash: curl -s https://…` shape
+    // devuser`), else the clean `⎿  Bash: curl -s https://…` shape
     // — dim throughout and clipped at the width, never the white header that
     // used to char-wrap over three rows above a `Running…` line.
     const WIDTH: u16 = 60;
@@ -1958,11 +1958,11 @@ fn live_a_lone_subagents_running_tool_renders_one_dim_clipped_row() {
 
     // One foreground agent, one long-ish `bash` call carrying a description —
     // the exact shape the reported cell had.
-    let prompt = "Use the agent tool exactly once: description \"Fetch GitHub user linuztx \
+    let prompt = "Use the agent tool exactly once: description \"Fetch GitHub user devuser \
                   info\", subagent_type \"general-purpose\", run_in_background false, and this \
                   exact prompt: \"Use the bash tool exactly once, passing the description \
-                  'Fetch public repos for linuztx', to run this command: \
-                  curl -s https://api.github.com/users/linuztx/repos?per_page=100 | head -c 120 \
+                  'Fetch public repos for devuser', to run this command: \
+                  curl -s https://api.github.com/users/devuser/repos?per_page=100 | head -c 120 \
                   . Then reply with one word: done.\" \
                   When the agent returns, reply with one word: done.";
     let context = vec![ContextMessage::new(ContextRole::User, prompt)];

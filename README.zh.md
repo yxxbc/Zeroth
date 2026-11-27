@@ -292,6 +292,7 @@ api_base = "https://api.groq.com/openai/v1"
 | `/hooks` | 浏览 hook，逐个信任或取消信任 |
 | `/skills` | 浏览 skill，逐个启用或停用 |
 | `/secrets` | 存下 agent 以占位符 `<secret:NAME>` 使用的凭据，agent 全程看不见值 |
+| `/donate` | 支持项目：赞助链接与加密货币地址，可直接复制 |
 | `/quit` | 退出应用 |
 
 </details>
@@ -399,6 +400,29 @@ release 装在你正在跑的这个二进制之上。
 都只在你开机时于应用里批准过之后才运行。
 
 </details>
+
+## 赞助
+
+Zeroth 完全开源，没有广告，也没有追踪。如果它在你的终端里占了一席之地，这些方式
+能让这份工作继续：
+
+- **[爱发电](https://afdian.com/a/xynrin)** —— 一次性或按月赞助。
+- **微信** —— 用手机扫下面的赞赏码。
+- **加密货币** —— 应用里的 `/donate` 列出地址，选中哪个就复制哪个；每个条目都点
+  名它的地址可以发在哪条网络上。
+
+<table>
+  <tr>
+    <td align="center" width="260" valign="top">
+      <img src="assets/wechat-donate.jpg" alt="微信赞赏码" width="180" /><br />
+      <b>微信扫码赞赏</b>
+    </td>
+  </tr>
+</table>
+
+其他赞助方式、以及项目层面的展示合作，请发邮件至
+[xynrin@icloud.com](mailto:xynrin@icloud.com?subject=%5BZeroth%5D%20Sponsorship)。
+「展示合作」指项目层面的提及，与安装包无关。
 
 ## 许可
 

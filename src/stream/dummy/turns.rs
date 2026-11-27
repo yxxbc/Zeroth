@@ -90,8 +90,8 @@ const DUMMY_ABOUT_V1: &str = "#!/usr/bin/env python3\n\
     \"\"\"Print the zeroth calling card.\"\"\"\n\n\
     NAME = \"zeroth\"\n\
     TAGLINE = \"an autonomous AI agent that lives in your terminal\"\n\
-    CREATOR = \"linuztx\"\n\
-    HOME = \"https://github.com/linuztx\"\n\n\n\
+    CREATOR = \"the Zeroth contributors\"\n\
+    HOME = \"https://github.com/yxxbc/zeroth\"\n\n\n\
     def card() -> str:\n    \
     \"\"\"Return the calling card.\"\"\"\n    \
     return f\"{NAME} — {TAGLINE}\"\n\n\n\
@@ -103,8 +103,8 @@ const DUMMY_ABOUT_V2: &str = "#!/usr/bin/env python3\n\
     \"\"\"Print the zeroth calling card.\"\"\"\n\n\
     NAME = \"zeroth\"\n\
     TAGLINE = \"an autonomous AI agent that lives in your terminal\"\n\
-    CREATOR = \"linuztx\"\n\
-    HOME = \"https://github.com/linuztx\"\n\n\n\
+    CREATOR = \"the Zeroth contributors\"\n\
+    HOME = \"https://github.com/yxxbc/zeroth\"\n\n\n\
     def card() -> str:\n    \
     \"\"\"Return the calling card.\"\"\"\n    \
     return f\"{NAME} — {TAGLINE}\\n  created by {CREATOR} · {HOME}\"\n\n\n\
@@ -112,7 +112,7 @@ const DUMMY_ABOUT_V2: &str = "#!/usr/bin/env python3\n\
     print(card())";
 /// What the edited script prints — the payoff, and the proof the edit landed.
 const DUMMY_ABOUT_OUTPUT: &str = "zeroth — an autonomous AI agent that lives in your terminal\n  \
-    created by linuztx · https://github.com/linuztx";
+    created by the Zeroth contributors · https://github.com/yxxbc/zeroth";
 
 /// One scripted tool call: the two strings its `● name(args)` header shows, the
 /// output **body** it resolves with, the exit code when it is a command, and

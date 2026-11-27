@@ -75,7 +75,7 @@ impl Session<'_> {
                 provider,
                 cfg,
                 cancel.clone(),
-                self.conversation.usage_tx.clone(),
+                self.conversation.worker_tx.clone(),
             );
         }
         self.frame.schedule_frame();

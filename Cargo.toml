@@ -2,7 +2,7 @@
 name = "zeroth"
 version = "0.21.0"
 edition = "2024"
-authors = ["linuztx <linuztx@gmail.com>"]
+authors = ["the Zeroth contributors"]
 description = "Agent harness for coding, cybersecurity, and automation."
 license = "Apache-2.0"
 repository = "https://github.com/yxxbc/zeroth"

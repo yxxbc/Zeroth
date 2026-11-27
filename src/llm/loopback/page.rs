@@ -16,8 +16,39 @@
 //! forbids whatever the page does not use ([`response`]).
 
 use std::fmt::Write as _;
+use std::sync::OnceLock;
 
 use crate::app::Mascot;
+
+/// The project banner (`assets/banner-v2.jpg`) embedded at compile time so the
+/// callback page renders completely offline without extra loopback routes.
+const BANNER_JPG: &[u8] = include_bytes!("../../../assets/banner-v2.jpg");
+
+/// The project crest icon (`assets/mascot-crest.png`) embedded alongside the
+/// project introduction.
+const CREST_PNG: &[u8] = include_bytes!("../../../assets/mascot-crest.png");
+
+fn data_url(cell: &'static OnceLock<String>, mime: &str, bytes: &[u8]) -> &'static str {
+    cell.get_or_init(|| {
+        let mut out =
+            String::with_capacity("data:;base64,".len() + mime.len() + bytes.len().div_ceil(3) * 4);
+        out.push_str("data:");
+        out.push_str(mime);
+        out.push_str(";base64,");
+        crate::clipboard::base64_encode_into(bytes, &mut out);
+        out
+    })
+}
+
+fn banner_data_url() -> &'static str {
+    static URL: OnceLock<String> = OnceLock::new();
+    data_url(&URL, "image/jpeg", BANNER_JPG)
+}
+
+fn crest_data_url() -> &'static str {
+    static URL: OnceLock<String> = OnceLock::new();
+    data_url(&URL, "image/png", CREST_PNG)
+}
 
 /// How a page reads at a glance: the mascot's colours and the way it moves
 /// (the stylesheet keys both on [`Tone::class`]), and the tab's icon
@@ -102,6 +133,7 @@ pub(super) fn response(status: &str, page: &Page<'_>) -> String {
 pub(super) fn document(page: &Page<'_>) -> String {
     let art = Mascot::default().art();
     let app = escape(crate::APP_NAME);
+    let version = escape(env!("CARGO_PKG_VERSION"));
     let title = escape(page.title);
     let mut lead = escape(page.lead);
     if let Some(command) = page.restart {
@@ -118,6 +150,8 @@ pub(super) fn document(page: &Page<'_>) -> String {
             detail.text.map(escape).unwrap_or_default()
         )
     });
+    let banner = banner_data_url();
+    let crest = crest_data_url();
     format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
@@ -126,9 +160,34 @@ pub(super) fn document(page: &Page<'_>) -> String {
          <link rel=\"icon\" href=\"{favicon}\">\n\
          <style>{STYLE}</style>\n\
          </head>\n<body>\n{sky}\n<main class=\"{tone}\">\n\
+         <figure class=\"banner\">\n\
+         <img src=\"{banner}\" alt=\"{app}’s crested hatchling under the glowing zero ring\">\n\
+         <figcaption class=\"banner-bar\">\n\
+         <span class=\"dot\" aria-hidden=\"true\"></span>\n\
+         <span class=\"proto\">oauth2 · pkce-s256 · loopback</span>\n\
+         <span class=\"ver\">v{version}</span>\n\
+         </figcaption>\n\
+         </figure>\n\
          <div class=\"icon\">{mascot}</div>\n\
          <h1>{title}</h1>\n\
          <p class=\"lead\">{lead}</p>{detail}\n\
+         <section class=\"about\" aria-label=\"About {app}\">\n\
+         <div class=\"about-head\">\n\
+         <img class=\"crest\" src=\"{crest}\" alt=\"{app} crest\" width=\"44\" height=\"44\">\n\
+         <div class=\"about-title\">\n\
+         <strong>{app}</strong>\n\
+         <span>A coding agent that works in your terminal.</span>\n\
+         </div>\n\
+         </div>\n\
+         <p class=\"about-copy\">Open-source AI coding agent written in Rust. Read, build, \
+         debug, and review code alongside you — with live diffs, permission control, \
+         subagents, skills, and local or cloud models.</p>\n\
+         <ul class=\"chips\">\n\
+         <li>Rust native</li>\n\
+         <li>Zero-fetch CSP</li>\n\
+         <li>No-referrer</li>\n\
+         </ul>\n\
+         </section>\n\
          </main>\n</body>\n</html>\n",
         favicon = favicon(art, page.tone),
         sky = sky(),
@@ -206,7 +265,32 @@ main {
 }
 .refused { --wash-a: var(--red); --wash-b: var(--peach); --glow: var(--red-glow); }
 .notice { --wash-a: var(--yellow); --wash-b: var(--peach); --glow: var(--yellow-glow); }
-.icon { margin-bottom: 44px; }
+.banner {
+  width: 100%; margin-bottom: 32px; overflow: hidden; border: 1px solid var(--border);
+  border-radius: 16px; background: var(--surface);
+  box-shadow: 0 18px 48px rgb(0 0 0 / .28), 0 0 32px var(--glow);
+}
+.banner img {
+  display: block; width: 100%; max-height: 210px; object-fit: cover; object-position: center;
+}
+.banner-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  border-top: 1px solid var(--border); font-size: 12px; color: var(--muted);
+}
+.banner-bar .dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--wash-a);
+  box-shadow: 0 0 8px var(--wash-a); flex: none;
+}
+.banner-bar .proto {
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", "Cascadia Code",
+    Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 12px; color: var(--text); letter-spacing: .02em;
+}
+.banner-bar .ver {
+  margin-left: auto; font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: var(--muted);
+}
+.icon { margin-bottom: 28px; }
 .mascot {
   display: block; max-width: 40vw; height: auto; overflow: visible;
   transform-origin: 50% 100%; filter: drop-shadow(0 0 22px var(--glow));
@@ -248,10 +332,33 @@ code {
   text-align: left; overflow-wrap: anywhere;
 }
 .detail code { display: block; margin-bottom: 2px; color: var(--red); font-size: 14px; }
-.icon, h1, .lead, .detail { animation: rise .7s cubic-bezier(.2, .8, .2, 1) both; }
-h1 { animation-delay: .08s; }
+.about {
+  width: 100%; margin-top: 32px; padding: 18px 20px; border: 1px solid var(--border);
+  border-radius: 14px; background: var(--surface); text-align: left;
+}
+.about-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.crest {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg); object-fit: contain; flex: none;
+}
+.about-title { display: flex; flex-direction: column; min-width: 0; }
+.about-title strong { font-size: 16px; line-height: 1.25; color: var(--text); }
+.about-title span { font-size: 13px; color: var(--muted); }
+.about-copy { font-size: 14px; line-height: 1.55; color: var(--muted); }
+.chips {
+  display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin-top: 12px;
+}
+.chips li {
+  padding: 2px 9px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--code-bg); color: var(--sky);
+  font: 11px/1.6 ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+.banner, .icon, h1, .lead, .detail, .about { animation: rise .7s cubic-bezier(.2, .8, .2, 1) both; }
+.icon { animation-delay: .05s; }
+h1 { animation-delay: .1s; }
 .lead { animation-delay: .16s; }
-.detail { animation-delay: .24s; }
+.detail { animation-delay: .22s; }
+.about { animation-delay: .26s; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 @keyframes hop {
   35% { transform: translateY(-14px); }
@@ -838,7 +945,9 @@ mod tests {
     fn the_page_fetches_nothing() {
         for tone in TONES {
             let html = document(&page(tone));
-            assert!(!html.contains("src="), "{html}");
+            for (at, _) in html.match_indices("src=\"") {
+                assert!(html[at + 5..].starts_with("data:"), "{}", &html[at..]);
+            }
             assert!(!html.contains("@import"), "{html}");
             assert!(!html.contains("<script"), "{html}");
             for (at, _) in html.match_indices("href=\"") {
@@ -851,6 +960,20 @@ mod tests {
                 assert!(page[at + 4..].starts_with('#'), "{}", &page[at..]);
             }
         }
+    }
+
+    /// Both bundled assets (`banner-v2.jpg` and `mascot-crest.png`) and the
+    /// project introduction appear on the callback page as inline `data:` URLs.
+    #[test]
+    fn the_page_embeds_both_assets_and_project_intro() {
+        let html = document(&page(Tone::Success));
+        assert!(html.contains("src=\"data:image/jpeg;base64,"), "{html}");
+        assert!(html.contains("src=\"data:image/png;base64,"), "{html}");
+        assert!(
+            html.contains("A coding agent that works in your terminal."),
+            "{html}"
+        );
+        assert!(html.contains("oauth2 · pkce-s256 · loopback"), "{html}");
     }
 
     /// The tab's icon is the mascot in the page's colours, as a data URL

@@ -491,12 +491,12 @@ auto 模式 classifier 的 `Name(args)` 动作列表 —— 自己把摘要压�
 
 ```
 Before:
-● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
+● Bash(cd /home/devuser/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
       -c "import secrets;print(secrets.token_hex(16))") && python3
       scripts/parallel_se…)
 
 Now:
-● Bash(cd /home/linuztx/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
+● Bash(cd /home/devuser/.zeroth/skills/web-search && PARALLEL_SESSION_ID=$(python3
       -c "import secrets;print(secrets.token_hex(16))") && python3…)
 ```
 
@@ -622,11 +622,11 @@ context 重放都保留命令逐字节不变。
 说 *哪个文件*，拐角行说从这里怎么到它：
 
 ```
-● Write(hello.py)                      ← /home/linuztx/Codes/tests/hello.py, under the cwd
+● Write(hello.py)                      ← /home/devuser/Codes/tests/hello.py, under the cwd
   ⎿  Wrote 1 line to hello.py
 ● Write(hello/hello.py)                ← …/Codes/tests/hello/hello.py, still under it
   ⎿  Wrote 1 line to hello/hello.py
-● Write(~/hello.py)                    ← /home/linuztx/hello.py: outside the cwd, under home
+● Write(~/hello.py)                    ← /home/devuser/hello.py: outside the cwd, under home
   ⎿  Wrote 1 line to ../../hello.py
 ● Edit(/tmp/notes.txt)                 ← outside home: absolute
   ⎿  Updated ../../../../tmp/notes.txt (+1 -1)

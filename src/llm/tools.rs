@@ -4343,13 +4343,13 @@ mod tests {
 
     #[test]
     fn display_path_shows_a_file_under_the_cwd_by_its_relative_path() {
-        let cwd = std::path::Path::new("/home/linuztx/Codes/tests");
+        let cwd = std::path::Path::new("/home/devuser/Codes/tests");
         assert_eq!(
-            display_path("/home/linuztx/Codes/tests/readme.md", cwd),
+            display_path("/home/devuser/Codes/tests/readme.md", cwd),
             "readme.md"
         );
         assert_eq!(
-            display_path("/home/linuztx/Codes/tests/src/app.rs", cwd),
+            display_path("/home/devuser/Codes/tests/src/app.rs", cwd),
             "src/app.rs"
         );
     }
@@ -4358,9 +4358,9 @@ mod tests {
     fn display_path_climbs_out_of_the_cwd_with_parent_segments() {
         // The user-visible contract: a target outside the cwd reads as a
         // `../` climb, never the whole absolute path.
-        let cwd = std::path::Path::new("/home/linuztx/Codes/tests/a/b");
+        let cwd = std::path::Path::new("/home/devuser/Codes/tests/a/b");
         assert_eq!(
-            display_path("/home/linuztx/Codes/tests/readme.md", cwd),
+            display_path("/home/devuser/Codes/tests/readme.md", cwd),
             "../../readme.md"
         );
         assert_eq!(
@@ -4392,48 +4392,48 @@ mod tests {
         // The header's rule (docs/tools/tools.md "Path display") beside the corner
         // row's `display_path`: the two answer different questions — the
         // header says which file, the corner row where it is from here.
-        let cwd = std::path::Path::new("/home/linuztx/Codes/tests");
-        let home = Some(std::path::Path::new("/home/linuztx"));
+        let cwd = std::path::Path::new("/home/devuser/Codes/tests");
+        let home = Some(std::path::Path::new("/home/devuser"));
         assert_eq!(
-            header_path("/home/linuztx/Codes/tests/hello.py", cwd, home),
+            header_path("/home/devuser/Codes/tests/hello.py", cwd, home),
             "hello.py"
         );
         assert_eq!(
-            header_path("/home/linuztx/Codes/tests/hello/hello.py", cwd, home),
+            header_path("/home/devuser/Codes/tests/hello/hello.py", cwd, home),
             "hello/hello.py"
         );
         assert_eq!(
-            header_path("/home/linuztx/hello.py", cwd, home),
+            header_path("/home/devuser/hello.py", cwd, home),
             "~/hello.py"
         );
         assert_eq!(
-            display_path("/home/linuztx/hello.py", cwd),
+            display_path("/home/devuser/hello.py", cwd),
             "../../hello.py",
             "the corner row's form is unchanged"
         );
         assert_eq!(
-            header_path("/home/linuztx/Codes/other/x.py", cwd, home),
+            header_path("/home/devuser/Codes/other/x.py", cwd, home),
             "~/Codes/other/x.py"
         );
         assert_eq!(header_path("/tmp/hello.py", cwd, home), "/tmp/hello.py");
         assert_eq!(header_path("/tmp/./a/../x.py", cwd, home), "/tmp/x.py");
-        assert_eq!(header_path("/home/linuztx/Codes/tests", cwd, home), ".");
-        assert_eq!(header_path("/home/linuztx/Codes/tests/", cwd, home), ".");
-        assert_eq!(header_path("/home/linuztx", cwd, home), "~");
+        assert_eq!(header_path("/home/devuser/Codes/tests", cwd, home), ".");
+        assert_eq!(header_path("/home/devuser/Codes/tests/", cwd, home), ".");
+        assert_eq!(header_path("/home/devuser", cwd, home), "~");
         // Component-wise: a neighbour whose name merely starts the same is
         // not inside.
         assert_eq!(
-            header_path("/home/linuztx-old/x.py", cwd, home),
-            "/home/linuztx-old/x.py"
+            header_path("/home/devuser-old/x.py", cwd, home),
+            "/home/devuser-old/x.py"
         );
         assert_eq!(
-            header_path("/home/linuztx/Codes/tests-old/x.py", cwd, home),
+            header_path("/home/devuser/Codes/tests-old/x.py", cwd, home),
             "~/Codes/tests-old/x.py"
         );
         // No known home: absolute outside the cwd.
         assert_eq!(
-            header_path("/home/linuztx/hello.py", cwd, None),
-            "/home/linuztx/hello.py"
+            header_path("/home/devuser/hello.py", cwd, None),
+            "/home/devuser/hello.py"
         );
     }
 
@@ -4442,8 +4442,8 @@ mod tests {
         // Unlike the corner row, which keeps a relative input's own `..`
         // climb, the header names where the file *is* — one rule whichever
         // way the model spelled the path.
-        let cwd = std::path::Path::new("/home/linuztx/Codes/tests");
-        let home = Some(std::path::Path::new("/home/linuztx"));
+        let cwd = std::path::Path::new("/home/devuser/Codes/tests");
+        let home = Some(std::path::Path::new("/home/devuser"));
         assert_eq!(header_path("hello.py", cwd, home), "hello.py");
         assert_eq!(header_path("./src/../README.md", cwd, home), "README.md");
         assert_eq!(header_path("../sib/f.txt", cwd, home), "~/Codes/sib/f.txt");

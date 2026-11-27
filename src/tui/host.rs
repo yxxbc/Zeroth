@@ -190,7 +190,7 @@ pub(crate) fn os_context() -> String {
 }
 
 /// The user for the agent's environment context — the account this process
-/// runs as, e.g. `root` or `linuztx`, so the agent knows whether it is root
+/// runs as, e.g. `root` or `devuser`, so the agent knows whether it is root
 /// (`docs/architecture/environment.md`). The effective uid decides ([`process_uid`], as
 /// `whoami` reports it); the name comes from `/etc/passwd`, else
 /// `$USER`/`$LOGNAME`/`$USERNAME` (macOS and directory-service accounts live

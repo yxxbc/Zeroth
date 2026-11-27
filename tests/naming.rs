@@ -80,3 +80,42 @@ fn collect(dir: &Path, out: &mut Vec<String>) {
         }
     }
 }
+
+#[test]
+fn the_upstream_handle_survives_only_where_it_is_a_fact() {
+    // The project's own strings, fixtures and docs name the Zeroth
+    // contributors and `yxxbc/zeroth`. The one place the old handle stays in
+    // this crate is `update::NPM_PACKAGE`: the name older releases were
+    // *really* published under, which is what recognises an npm-owned
+    // install (`docs/architecture/naming.md`, *What is deliberately not
+    // renamed*). Built with `concat!` so a mechanical rename cannot rewrite
+    // the check itself.
+    const OLD_HANDLE: &str = concat!("linuz", "tx");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut offenders = Vec::new();
+    collect_handle(&root, OLD_HANDLE, &mut offenders);
+    assert_eq!(
+        offenders,
+        vec![root.join("update.rs").to_string_lossy().into_owned()],
+        "the upstream handle belongs only in update.rs's npm constant: {offenders:#?}"
+    );
+}
+
+fn collect_handle(dir: &Path, needle: &str, out: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_handle(&path, needle, out);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            if text.contains(needle) {
+                out.push(path.to_string_lossy().into_owned());
+            }
+        }
+    }
+}

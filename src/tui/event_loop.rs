@@ -84,19 +84,13 @@ pub(crate) async fn run(term: &mut InlineViewport, startup: Startup) -> io::Resu
             // 3. A coalesced draw tick: refresh the injected times, then paint.
             Some(()) = session.draw_rx.recv() => session.on_draw_tick()?,
 
-            // 4. A file-search result for the open `@` picker.
-            Some(result) = session.conversation.file_rx.recv() => session.on_file_matches(result),
-
-            // 5. A finished Ctrl+V clipboard read.
-            Some(result) = session.conversation.img_rx.recv() => session.on_image_paste(result),
-            Some(result) = session.conversation.diff_rx.recv() => session.on_diff_result(result)?,
+            // 4. One-shot background worker results (`file_search`, `image_paste`,
+            //    `diff`, `usage`).
+            Some(event) = session.conversation.worker_rx.recv() => session.on_worker_event(event)?,
 
             // 5b. The `/login` device flow's worker: the code to show, then
             //     the sign-in's verdict (`docs/providers/copilot.md`).
             Some(event) = session.conversation.device_rx.recv() => session.on_device_event(event),
-
-            // 5c. One subscription's `/usage` read (docs/providers/usage.md).
-            Some(result) = session.conversation.usage_rx.recv() => session.on_usage_result(result),
 
             // 6. A finished `/model` fetch from one provider's worker thread.
             Some((label, result)) = session.conversation.model_rx.recv() => {

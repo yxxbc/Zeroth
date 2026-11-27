@@ -19,14 +19,14 @@ fn linked_segments(segments: &[(String, Style)]) -> Vec<(String, String)> {
 #[test]
 fn a_bare_url_is_marked_with_its_full_target() {
     let segs = inline_spans(
-        &parse_inline("the credit lives at https://github.com/linuztx. That is"),
+        &parse_inline("the credit lives at https://github.com/devuser. That is"),
         Style::default(),
     );
     assert_eq!(
         linked_segments(&segs),
         vec![(
-            "https://github.com/linuztx".to_string(),
-            "https://github.com/linuztx".to_string()
+            "https://github.com/devuser".to_string(),
+            "https://github.com/devuser".to_string()
         )],
         "exactly the URL text carries the link: {segs:?}"
     );
@@ -34,7 +34,7 @@ fn a_bare_url_is_marked_with_its_full_target() {
     // untouched, and the visible text is byte-identical to before.
     let url_style = segs
         .iter()
-        .find(|(t, _)| t == "https://github.com/linuztx")
+        .find(|(t, _)| t == "https://github.com/devuser")
         .map(|(_, s)| *s)
         .expect("the URL segment");
     assert_eq!(url_style.fg, Some(link_url_color()));
@@ -42,7 +42,7 @@ fn a_bare_url_is_marked_with_its_full_target() {
     let joined: String = segs.iter().map(|(t, _)| t.as_str()).collect();
     assert_eq!(
         joined,
-        "the credit lives at https://github.com/linuztx. That is"
+        "the credit lives at https://github.com/devuser. That is"
     );
 }
 
@@ -162,9 +162,9 @@ fn wrap_keeps_the_target_on_every_fragment_of_a_hard_broken_url() {
     // The reported bug: a URL wider than the row hard-breaks, and the
     // terminal's own per-row detection then opened only the first fragment.
     // Every wrapped fragment must carry the FULL target.
-    let url = "https://github.com/linuztx";
+    let url = "https://github.com/devuser";
     let segs = inline_spans(
-        &parse_inline("created by linuztx at https://github.com/linuztx today"),
+        &parse_inline("created by devuser at https://github.com/devuser today"),
         Style::default(),
     );
     let rows = wrap_inline(&segs, 12); // far narrower than the URL

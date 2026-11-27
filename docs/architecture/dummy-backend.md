@@ -268,7 +268,7 @@ neither meant anything: the demo read as a widget sampler.
 
 It is one errand in three steps now, on one file — and the file is chosen so
 the errand has a *point*. `about.py` is zeroth's calling card, and it
-carries `CREATOR = "linuztx"` and `HOME = "https://github.com/linuztx"` right at
+carries `CREATOR = "the Zeroth contributors"` and `HOME = "https://github.com/yxxbc/zeroth"` right at
 the top, then prints a card that mentions neither:
 
 1. **`Read(about.py)`** — the file, numbered and highlighted. The two unused
@@ -287,7 +287,7 @@ the top, then prints a card that mentions neither:
 
    ```
    zeroth — an autonomous AI agent that lives in your terminal
-     created by linuztx · https://github.com/linuztx
+     created by the Zeroth contributors · https://github.com/yxxbc/zeroth
    ```
 
    The last cell is proof the middle one landed, and the demo has said who

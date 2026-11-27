@@ -164,7 +164,7 @@ fn a_lone_live_agent_shows_what_it_is_saying() {
     app.begin_stream();
     app.start_agent_group(
         false,
-        &[spec("a1", "Gather GitHub contexts for user linuztx", false)],
+        &[spec("a1", "Gather GitHub contexts for user devuser", false)],
     );
     app.apply_agent_event(
         "a1",
@@ -174,7 +174,7 @@ fn a_lone_live_agent_shows_what_it_is_saying() {
     );
     let lines = live_agent_group_lines(&app, 80);
     let texts: Vec<String> = lines.iter().map(plain).collect();
-    assert_eq!(texts[0], "● Agent(Gather GitHub contexts for user linuztx)");
+    assert_eq!(texts[0], "● Agent(Gather GitHub contexts for user devuser)");
     assert_eq!(texts[1], "  ⎿  Agent: Let me fetch the repositories next.");
     assert_eq!(texts.len(), 2, "one row for the state: {texts:?}");
     assert!(
@@ -1273,15 +1273,15 @@ fn the_composer_label_is_a_lit_chip_in_the_themes_accent() {
 /// The worked example's session policy: launched in `~/Codes/tests`.
 fn session_paths() -> PathDisplay {
     PathDisplay::new(
-        "/home/linuztx/Codes/tests",
-        Some(std::path::PathBuf::from("/home/linuztx")),
+        "/home/devuser/Codes/tests",
+        Some(std::path::PathBuf::from("/home/devuser")),
     )
 }
 
 #[test]
 fn a_live_agents_file_activity_row_shortens_its_path() {
     // The sticky `Write: {path}` row reads by the same rule the cell's
-    // header does — `~/hello.py`, never the record's `/home/linuztx/…` — on
+    // header does — `~/hello.py`, never the record's `/home/devuser/…` — on
     // the lone cell and on every tree row alike. The run's own
     // `last_activity` keeps the verbatim path.
     let mut app = App::new();
@@ -1293,7 +1293,7 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
         &crate::stream::StreamEvent::ToolStart {
             call_id: None,
             name: "Write".into(),
-            args: "/home/linuztx/hello.py".into(),
+            args: "/home/devuser/hello.py".into(),
             detail: None,
             arguments: None,
         },
@@ -1302,7 +1302,7 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
     assert_eq!(texts[1], "  ⎿  Write: ~/hello.py", "{texts:?}");
     assert_eq!(
         app.agent("a1").unwrap().activity(),
-        "Write: /home/linuztx/hello.py",
+        "Write: /home/devuser/hello.py",
         "the record keeps the absolute path"
     );
 
@@ -1321,7 +1321,7 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
         &crate::stream::StreamEvent::ToolStart {
             call_id: None,
             name: "Read".into(),
-            args: "/home/linuztx/Codes/tests/src/app.rs".into(),
+            args: "/home/devuser/Codes/tests/src/app.rs".into(),
             detail: None,
             arguments: None,
         },
@@ -1333,8 +1333,8 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
         &crate::stream::StreamEvent::ToolStart {
             call_id: None,
             name: "Bash".into(),
-            args: "cat /home/linuztx/Codes/tests/x".into(),
-            detail: Some("Reading /home/linuztx/Codes/tests/x".into()),
+            args: "cat /home/devuser/Codes/tests/x".into(),
+            detail: Some("Reading /home/devuser/Codes/tests/x".into()),
             arguments: None,
         },
     );
@@ -1349,7 +1349,7 @@ fn a_live_agents_file_activity_row_shortens_its_path() {
     assert!(
         texts
             .iter()
-            .any(|t| t.contains("Bash: Reading /home/linuztx/Codes/tests/x")),
+            .any(|t| t.contains("Bash: Reading /home/devuser/Codes/tests/x")),
         "a description passes through: {texts:?}"
     );
 }
@@ -1370,9 +1370,9 @@ fn the_transcripts_nested_agent_headers_shorten_their_paths() {
         secs: 9,
         result: "Done.".to_string(),
         tool_headers: vec![
-            "Write(/home/linuztx/Codes/tests/notes.md)".to_string(),
-            "Edit(/home/linuztx/notes.md)".to_string(),
-            "Bash(cat /home/linuztx/Codes/tests/notes.md)".to_string(),
+            "Write(/home/devuser/Codes/tests/notes.md)".to_string(),
+            "Edit(/home/devuser/notes.md)".to_string(),
+            "Bash(cat /home/devuser/Codes/tests/notes.md)".to_string(),
         ],
         output: "Done.".to_string(),
         call_id: None,
@@ -1398,7 +1398,7 @@ fn the_transcripts_nested_agent_headers_shorten_their_paths() {
     assert!(
         texts
             .iter()
-            .any(|t| t.trim() == "Bash(cat /home/linuztx/Codes/tests/notes.md)"),
+            .any(|t| t.trim() == "Bash(cat /home/devuser/Codes/tests/notes.md)"),
         "{texts:?}"
     );
     // The verbatim policy renders the record exactly.
@@ -1413,7 +1413,7 @@ fn the_transcripts_nested_agent_headers_shorten_their_paths() {
     assert!(
         texts
             .iter()
-            .any(|t| t.trim() == "Write(/home/linuztx/Codes/tests/notes.md)"),
+            .any(|t| t.trim() == "Write(/home/devuser/Codes/tests/notes.md)"),
         "{texts:?}"
     );
 }
@@ -1432,7 +1432,7 @@ fn a_live_agent_cells_nested_headers_shorten_from_the_record() {
         &crate::stream::StreamEvent::ToolStart {
             call_id: None,
             name: "Write".into(),
-            args: "/home/linuztx/notes.md".into(),
+            args: "/home/devuser/notes.md".into(),
             detail: None,
             arguments: None,
         },
@@ -1452,7 +1452,7 @@ fn a_live_agent_cells_nested_headers_shorten_from_the_record() {
         &crate::stream::StreamEvent::ToolStart {
             call_id: None,
             name: "Read".into(),
-            args: "/home/linuztx/Codes/tests/a.rs".into(),
+            args: "/home/devuser/Codes/tests/a.rs".into(),
             detail: None,
             arguments: None,
         },

@@ -1302,12 +1302,12 @@ fn the_target_row_reads_by_the_cells_path_rule() {
     // under home, absolute elsewhere. The request's own `target` stays the
     // verbatim path — it is what the rule engine and the model see.
     let paths = PathDisplay::new(
-        "/home/linuztx/Codes/tests",
-        Some(std::path::PathBuf::from("/home/linuztx")),
+        "/home/devuser/Codes/tests",
+        Some(std::path::PathBuf::from("/home/devuser")),
     );
     let mut app = app_with(request(
         PermissionKind::Write,
-        "/home/linuztx/hello.py",
+        "/home/devuser/hello.py",
         WRITE_BODY,
     ));
     app.set_path_display(paths.clone());
@@ -1320,7 +1320,7 @@ fn the_target_row_reads_by_the_cells_path_rule() {
     );
     let mut app = app_with(request(
         PermissionKind::Edit,
-        "/home/linuztx/Codes/tests/script.py",
+        "/home/devuser/Codes/tests/script.py",
         EDIT_BODY,
     ));
     app.set_path_display(paths.clone());
@@ -1336,18 +1336,18 @@ fn the_pending_cell_above_the_prompt_shortens_with_its_header() {
     // file identically.
     let mut app = App::new();
     app.set_path_display(PathDisplay::new(
-        "/home/linuztx/Codes/tests",
-        Some(std::path::PathBuf::from("/home/linuztx")),
+        "/home/devuser/Codes/tests",
+        Some(std::path::PathBuf::from("/home/devuser")),
     ));
     app.begin_stream();
     app.start_tool_batch(&[ToolCallSummary {
         call_id: None,
         name: "Write".to_string(),
-        args: "/home/linuztx/Codes/tests/tt.py".to_string(),
+        args: "/home/devuser/Codes/tests/tt.py".to_string(),
     }]);
     app.open_permission(request(
         PermissionKind::Write,
-        "/home/linuztx/Codes/tests/tt.py",
+        "/home/devuser/Codes/tests/tt.py",
         WRITE_BODY,
     ));
     let lines = rows(&app, 70, 40);

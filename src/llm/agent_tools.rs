@@ -526,7 +526,7 @@ mod tests {
     fn agentoutput_reports_progress_at_once_by_default() {
         let (registry, _rx) = registry();
         let (id, _cancel) = registry.register_agent(GENERAL_PURPOSE, "Fetch profile", "p");
-        registry.record_call(&id, "Bash(curl -s https://api.github.com/users/linuztx)");
+        registry.record_call(&id, "Bash(curl -s https://api.github.com/users/devuser)");
         let started = Instant::now();
         let (outcome, _, _) = run(
             &registry,
@@ -635,7 +635,7 @@ mod tests {
         let (registry, _rx) = registry();
         let (id, _cancel) = registry.register_agent(GENERAL_PURPOSE, "Fetch profile", "p");
         registry.record_update(&id, "I'll start with the profile.");
-        registry.record_call(&id, "Bash(curl -s https://api.github.com/users/linuztx)");
+        registry.record_call(&id, "Bash(curl -s https://api.github.com/users/devuser)");
         registry.record_update(&id, "It lists 42 public repos.");
         let (outcome, _, _) = run(
             &registry,
@@ -652,7 +652,7 @@ mod tests {
             lines[1..4],
             [
                 "Agent: I'll start with the profile.",
-                "Bash(curl -s https://api.github.com/users/linuztx)",
+                "Bash(curl -s https://api.github.com/users/devuser)",
                 "Agent: It lists 42 public repos.",
             ],
             "{}",

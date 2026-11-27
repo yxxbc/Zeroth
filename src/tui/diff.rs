@@ -19,7 +19,7 @@ impl Session<'_> {
     pub(crate) fn load_diff_review(&mut self) {
         self.conversation.diff_generation = self.conversation.diff_generation.wrapping_add(1);
         let generation = self.conversation.diff_generation;
-        let tx = self.conversation.diff_tx.clone();
+        let tx = self.conversation.worker_tx.clone();
         let cwd = self.conversation.cwd.clone();
         let secrets = self.secrets.clone();
         std::thread::spawn(move || {
@@ -36,7 +36,10 @@ impl Session<'_> {
                 });
                 snapshot
             });
-            let _ = tx.send((generation, DiffUpdate::Snapshot(result)));
+            let _ = tx.send(super::conversation::WorkerEvent::DiffResult((
+                generation,
+                DiffUpdate::Snapshot(result),
+            )));
         });
     }
 
@@ -111,11 +114,14 @@ impl super::conversation::Conversation {
         // produce a quiet toast without ever flashing the alternate screen.
         self.diff_generation = self.diff_generation.wrapping_add(1);
         let generation = self.diff_generation;
-        let tx = self.diff_tx.clone();
+        let tx = self.worker_tx.clone();
         let cwd = self.cwd.clone();
         std::thread::spawn(move || {
             let result = super::git_diff_loader::repository_root(&cwd).map(|_| ());
-            let _ = tx.send((generation, DiffUpdate::Repository(result)));
+            let _ = tx.send(super::conversation::WorkerEvent::DiffResult((
+                generation,
+                DiffUpdate::Repository(result),
+            )));
         });
     }
 }

@@ -430,3 +430,16 @@ fn a_terminal_palette_colour_is_never_lifted() {
         Color::Rgb(0x30, 0x30, 0x30)
     );
 }
+
+#[test]
+fn every_theme_defines_a_tool_card_background() {
+    for theme in Theme::ALL {
+        let p = palette_of(theme);
+        if theme == Theme::Ansi {
+            assert_eq!(p.tool_bg, Color::Reset);
+        } else {
+            assert_ne!(p.tool_bg, Color::Reset, "{theme:?}");
+        }
+    }
+    assert_eq!(tool_bg_color(), palette().tool_bg);
+}

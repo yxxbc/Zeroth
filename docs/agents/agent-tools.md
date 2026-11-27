@@ -63,19 +63,19 @@ on its way, each **progress update** an `Agent: …` entry where it said it
 ```text
 Running (agent a7k2m9x4q · Fetch GitHub profile · 42s · 3 tool uses)
 Agent: I'll start with the profile, then the repositories.
-Bash(curl -s https://api.github.com/users/linuztx)
-Bash(curl -s "https://api.github.com/users/linuztx/repos?per_page=100&sort=updated")
+Bash(curl -s https://api.github.com/users/devuser)
+Bash(curl -s "https://api.github.com/users/devuser/repos?per_page=100&sort=updated")
 Agent: 42 public repos, most of them Rust.
   Checking the recent events next.
-Bash(curl -s https://api.github.com/users/linuztx/events/public)
+Bash(curl -s https://api.github.com/users/devuser/events/public)
 ```
 
 Once it has settled the frame says how, and what it answered follows:
 
 ```text
 Done (agent a7k2m9x4q · Fetch GitHub profile · 1m 5s · 3 tool uses)
-Bash(curl -s https://api.github.com/users/linuztx)
-Bash(curl -s https://api.github.com/users/linuztx/repos)
+Bash(curl -s https://api.github.com/users/devuser)
+Bash(curl -s https://api.github.com/users/devuser/repos)
 — message received —
 
 Final response:

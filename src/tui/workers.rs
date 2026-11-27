@@ -554,7 +554,7 @@ fn own_name(path: &str, start: usize, is_dir: bool) -> &str {
 pub(crate) fn spawn_file_search_worker(
     root: PathBuf,
     req_rx: std::sync::mpsc::Receiver<String>,
-    res_tx: tokio::sync::mpsc::UnboundedSender<FileSearchResult>,
+    res_tx: tokio::sync::mpsc::UnboundedSender<super::conversation::WorkerEvent>,
 ) -> JoinHandle<()> {
     std::thread::spawn(move || {
         while let Ok(mut query) = req_rx.recv() {
@@ -574,7 +574,10 @@ pub(crate) fn spawn_file_search_worker(
                 matches,
                 truncated: walk.truncated,
             };
-            if res_tx.send(result).is_err() {
+            if res_tx
+                .send(super::conversation::WorkerEvent::FileMatches(result))
+                .is_err()
+            {
                 break; // the loop is gone
             }
         }
@@ -607,12 +610,14 @@ pub(crate) fn dispatch_file_search(
 /// what codex's synchronous handler does too, minus the UI freeze.
 pub(crate) fn spawn_image_paste(
     dir: PathBuf,
-    tx: tokio::sync::mpsc::UnboundedSender<Result<PathBuf, String>>,
+    tx: tokio::sync::mpsc::UnboundedSender<super::conversation::WorkerEvent>,
 ) {
     std::thread::spawn(move || {
         // The receiver only closes at shutdown — a failed send just means
         // there is nothing left to attach to.
-        let _ = tx.send(clipboard::read_clipboard_image(&dir));
+        let _ = tx.send(super::conversation::WorkerEvent::ImagePaste(
+            clipboard::read_clipboard_image(&dir),
+        ));
     });
 }
 
@@ -648,17 +653,34 @@ pub(crate) fn spawn_usage_fetch(
     provider: String,
     cfg: ModelConfig,
     cancel: CancelToken,
-    tx: tokio::sync::mpsc::UnboundedSender<super::usage::UsageResult>,
+    tx: tokio::sync::mpsc::UnboundedSender<super::conversation::WorkerEvent>,
 ) {
     std::thread::spawn(move || {
         let result = llm::usage::fetch_usage(&cfg, &cancel).map_err(|e| e.to_string());
         if !cancel.is_cancelled() {
-            let _ = tx.send((round, provider, result));
+            let _ = tx.send(super::conversation::WorkerEvent::UsageResult((
+                round, provider, result,
+            )));
         }
     });
 }
 
 impl Session<'_> {
+    /// Dispatch a coalesced one-shot background worker result.
+    pub(crate) fn on_worker_event(
+        &mut self,
+        event: super::conversation::WorkerEvent,
+    ) -> std::io::Result<()> {
+        match event {
+            super::conversation::WorkerEvent::FileMatches(result) => self.on_file_matches(result),
+            super::conversation::WorkerEvent::ImagePaste(result) => self.on_image_paste(result),
+            super::conversation::WorkerEvent::DiffResult(result) => {
+                self.on_diff_result(result)?;
+            }
+            super::conversation::WorkerEvent::UsageResult(result) => self.on_usage_result(result),
+        }
+        Ok(())
+    }
     /// A file-search result from the worker: feed it into the open `@` picker
     /// (stale results — the token moved on — are dropped by `set_file_matches`),
     /// then repaint. See `docs/input/file-search.md`.

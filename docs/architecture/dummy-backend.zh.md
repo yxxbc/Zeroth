@@ -236,8 +236,8 @@ dummy 是第一次运行会遇到的东西 —— 没配 key 就是没有模型�
 品册。
 
 现在它是同一份文件上三步的一件差事 —— 而这份文件选得让这件差事有个*重点*。
-`about.py` 是 zeroth 的名片，它最上面就带着 `CREATOR = "linuztx"` 和
-`HOME = "https://github.com/linuztx"`，然后打印一张两者都没提的卡片：
+`about.py` 是 zeroth 的名片，它最上面就带着 `CREATOR = "the Zeroth contributors"` 和
+`HOME = "https://github.com/yxxbc/zeroth"`，然后打印一张两者都没提的卡片：
 
 1. **`Read(about.py)`** —— 这个文件，带编号、带高亮。两个没用上的常量就坐在可见
    的偷看里，所以读者在 demo 修它之前就看到那处疏漏。这个文件刻意比 cell 十行的
@@ -252,7 +252,7 @@ dummy 是第一次运行会遇到的东西 —— 没配 key 就是没有模型�
 
    ```
    zeroth — an autonomous AI agent that lives in your terminal
-     created by linuztx · https://github.com/linuztx
+     created by the Zeroth contributors · https://github.com/yxxbc/zeroth
    ```
 
 最后一个 cell 是中间那个落地了的证明，而这个 demo 已经说出你正在看的这东西是谁写

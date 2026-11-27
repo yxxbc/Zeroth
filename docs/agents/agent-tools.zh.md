@@ -59,19 +59,19 @@ Ctrl+O 的 agent 单元格所列出的是同一批单行，加上它一路上说
 ```text
 Running (agent a7k2m9x4q · Fetch GitHub profile · 42s · 3 tool uses)
 Agent: I'll start with the profile, then the repositories.
-Bash(curl -s https://api.github.com/users/linuztx)
-Bash(curl -s "https://api.github.com/users/linuztx/repos?per_page=100&sort=updated")
+Bash(curl -s https://api.github.com/users/devuser)
+Bash(curl -s "https://api.github.com/users/devuser/repos?per_page=100&sort=updated")
 Agent: 42 public repos, most of them Rust.
   Checking the recent events next.
-Bash(curl -s https://api.github.com/users/linuztx/events/public)
+Bash(curl -s https://api.github.com/users/devuser/events/public)
 ```
 
 一旦它落定，框架行说明是怎么落定的，它答了什么跟在后面：
 
 ```text
 Done (agent a7k2m9x4q · Fetch GitHub profile · 1m 5s · 3 tool uses)
-Bash(curl -s https://api.github.com/users/linuztx)
-Bash(curl -s https://api.github.com/users/linuztx/repos)
+Bash(curl -s https://api.github.com/users/devuser)
+Bash(curl -s https://api.github.com/users/devuser/repos)
 — message received —
 
 Final response:

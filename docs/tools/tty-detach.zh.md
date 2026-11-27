@@ -16,7 +16,7 @@
 通过 `bash` tool 运行 `sudo pacman -S …`（或任何需要密码的东西）会把
 
 ```
-[sudo] password for linuztx:
+[sudo] password for devuser:
 ```
 
 直接写进真实终端 —— **把 live TUI 搅乱** —— 然后挂住，直到每条命令的超时

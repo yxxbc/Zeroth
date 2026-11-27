@@ -286,7 +286,7 @@ would come back as its own underlined span.
 
 `term.rs` is the I/O boundary, so `smoke.sh` **Phase 87** drives
 the real binary in a pane narrow enough to split the dummy reply's
-`https://github.com/linuztx`, captures the raw byte stream with
+`https://github.com/devuser`, captures the raw byte stream with
 `tmux pipe-pane`, and asserts the full URL rides an OSC 8 open while the
 visible pane shows the split text — and that `ZEROTH_HYPERLINKS=0` emits
 none. The file tool header has the same two halves: `links::file_url`'s

@@ -187,7 +187,64 @@ pub fn tool_group_lines(
     for preview in previews.into_iter().rev() {
         lines.extend(preview);
     }
+    if lines.len() == 1
+        && let Some(target_row) = group_target_row(&members, width, paths)
+    {
+        lines.push(target_row);
+    }
     lines
+}
+
+/// A compact `⎿  a.rs, b.rs (+N)` summary row for a settled group that has no
+/// search-preview rows, so the reader sees which targets were touched without
+/// opening Ctrl+O.
+fn group_target_row(
+    members: &[&ToolCall],
+    width: u16,
+    paths: &PathDisplay,
+) -> Option<Line<'static>> {
+    let mut targets: Vec<String> = Vec::new();
+    for tool in members {
+        let label = if tool.name == "Bash" {
+            let cmd = tool
+                .args
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty())
+                .unwrap_or("");
+            if cmd.is_empty() {
+                continue;
+            }
+            format!("{TOOL_GROUP_COMMAND_PROMPT}{cmd}")
+        } else {
+            let arg = tool.args.trim();
+            if arg.is_empty() {
+                continue;
+            }
+            paths.display(arg)
+        };
+        if !targets.contains(&label) {
+            targets.push(label);
+        }
+    }
+    if targets.is_empty() {
+        return None;
+    }
+    let shown = targets.len().min(2);
+    let extra = targets.len() - shown;
+    let mut summary = targets[..shown].join(", ");
+    if extra > 0 {
+        summary.push_str(&format!(" (+{extra})"));
+    }
+    let room = usize::from(width).saturating_sub(cols(TOOL_RESULT_PREFIX));
+    if room == 0 {
+        return None;
+    }
+    if cols(&summary) > room {
+        let cut = truncate_cols(&summary, room.saturating_sub(cols(TOOL_HEADER_ELLIPSIS)));
+        summary = format!("{}{TOOL_HEADER_ELLIPSIS}", cut.trim_end());
+    }
+    Some(result_row(0, summary))
 }
 
 /// What the group's `⎿` row says a value is about.

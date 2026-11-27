@@ -76,7 +76,10 @@ fn the_clauses_count_in_the_plural_and_the_counts_stand_out() {
     let lines = tool_group_lines(&items, 100, &PathDisplay::VERBATIM);
     assert_eq!(
         texts(&lines),
-        ["Read 3 files, listed 2 directories (ctrl+o to expand)"]
+        [
+            "Read 3 files, listed 2 directories (ctrl+o to expand)",
+            "  ⎿  a.py, b.py (+3)",
+        ]
     );
     let count = lines[0]
         .spans
@@ -100,7 +103,10 @@ fn the_thoughts_a_group_held_leave_only_its_line() {
     let lines = tool_group_lines(&items, 100, &PathDisplay::VERBATIM);
     assert_eq!(
         texts(&lines),
-        ["Read 1 file, listed 1 directory (ctrl+o to expand)"]
+        [
+            "Read 1 file, listed 1 directory (ctrl+o to expand)",
+            "  ⎿  a.py, $ ls -la",
+        ]
     );
 }
 
@@ -528,7 +534,10 @@ fn scratchpad_edits_settle_as_made_with_the_lines_they_changed() {
     let lines = tool_group_lines(&items, 100, &PathDisplay::VERBATIM);
     assert_eq!(
         texts(&lines),
-        ["Made 2 scratchpad edits +57 -1 (ctrl+o to expand)"]
+        [
+            "Made 2 scratchpad edits +57 -1 (ctrl+o to expand)",
+            "  ⎿  /tmp/zeroth-0/s1/scratchpad/guess.py",
+        ]
     );
     let spans = &lines[0].spans;
     let span = |text: &str| {
@@ -559,13 +568,19 @@ fn a_scratchpad_edit_leads_the_reads_on_their_line() {
     ];
     assert_eq!(
         texts(&tool_group_lines(&items, 100, &PathDisplay::VERBATIM)),
-        ["Made 1 scratchpad edit +55, read 1 file (ctrl+o to expand)"]
+        [
+            "Made 1 scratchpad edit +55, read 1 file (ctrl+o to expand)",
+            "  ⎿  a.py, /tmp/zeroth-0/s1/scratchpad/guess.py",
+        ]
     );
     // An edit that changed nothing names no lines at all.
     let items = [edited("Write", &pad("guess.py"), "No changes to guess.py")];
     assert_eq!(
         texts(&tool_group_lines(&items, 100, &PathDisplay::VERBATIM)),
-        ["Made 1 scratchpad edit (ctrl+o to expand)"]
+        [
+            "Made 1 scratchpad edit (ctrl+o to expand)",
+            "  ⎿  /tmp/zeroth-0/s1/scratchpad/guess.py",
+        ]
     );
 }
 

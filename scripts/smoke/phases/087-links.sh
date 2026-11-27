@@ -6,7 +6,7 @@ smoke_begin
 
 # CLICKABLE LINKS (docs/ui/links.md). A URL wider than its row
 # hard-breaks across display rows — this 26-col pane splits the reply's
-# https://github.com/linuztx exactly like the report — and the terminal's own
+# https://github.com/yxxbc/zeroth exactly like the report — and the terminal's own
 # per-row URL detection then opened only the first fragment on click. Every
 # painted fragment must ride an OSC 8 hyperlink carrying the FULL target. The
 # escape renders as nothing, so the assertion reads the RAW byte stream
@@ -27,7 +27,7 @@ submit "$S87" "$USER_MSG"
 # those land with the tool cells, well before the reply streams — a wait that
 # broke on the first open captured the pane mid-tool-loop.
 for _ in $(seq 1 120); do
-	if grep -aqE ']8;id=az[0-9]+;https://github\.com/linuztx' "$LINKS_RAW"; then
+	if grep -aqE ']8;id=az[0-9]+;https://github\.com/yxxbc/zeroth' "$LINKS_RAW"; then
 		break
 	fi
 	sleep 0.1
@@ -39,11 +39,11 @@ printf '%s\n' "$links_pane" | tail -30
 # The visible text is what it always was: the URL hard-breaks at the 24-col
 # content width, so NO single row holds it whole — the split prefix row is
 # there and the unbroken URL is not.
-expect_has "$links_pane" -F "https://github.com/linuz" "the reply's wrapped URL prefix is missing from the pane"
-expect_lacks "$links_pane" -F "https://github.com/linuztx" "the URL fits one row; narrow the pane so this phase tests the split"
+expect_has "$links_pane" -F "https://github.com/yxxbc" "the reply's wrapped URL prefix is missing from the pane"
+expect_lacks "$links_pane" -F "https://github.com/yxxbc/zeroth" "the URL fits one row; narrow the pane so this phase tests the split"
 # The raw stream carries what the screen cannot show: an OSC 8 open whose URI
 # is the WHOLE URL (ESC ] 8 ; id=azN ; url ESC \), plus its close.
-if ! grep -aqE $']8;id=az[0-9]+;https://github\\.com/linuztx\x1b' "$LINKS_RAW"; then
+if ! grep -aqE $']8;id=az[0-9]+;https://github\\.com/yxxbc/zeroth\x1b' "$LINKS_RAW"; then
 	fail "no OSC 8 open carries the full URL in the raw stream"
 fi
 if ! grep -aqF $'\x1b]8;;\x1b' "$LINKS_RAW"; then
@@ -63,10 +63,10 @@ tmux new-session -d -s "$S87" -x 26 -y 40 "env ZEROTH_HYPERLINKS=0 $CFG_ENV_NOHI
 tmux pipe-pane -t "$S87" -o "cat >> $LINKS_RAW_OFF"
 sleep 0.4
 submit "$S87" "$USER_MSG"
-links_off_pane="$(wait_pane 12 "$S87" -S -200 -- -F "https://github.com/linuz")"
+links_off_pane="$(wait_pane 12 "$S87" -S -200 -- -F "https://github.com/yxxbc")"
 echo "==== Phase 87: gate off — same wrap, no escapes ===="
 printf '%s\n' "$links_off_pane" | tail -12
-expect_has "$links_off_pane" -F "https://github.com/linuz" "the wrapped URL is missing with the gate off"
+expect_has "$links_off_pane" -F "https://github.com/yxxbc" "the wrapped URL is missing with the gate off"
 if grep -aqF "]8;" "$LINKS_RAW_OFF"; then
 	fail "ZEROTH_HYPERLINKS=0 still emitted OSC 8"
 fi

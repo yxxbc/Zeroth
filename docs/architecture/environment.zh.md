@@ -28,8 +28,8 @@ CWD {cwd}
 
 Date Sunday 2026-07-19
 OS linux (Ubuntu 24.04.4 LTS)
-User linuztx
-CWD /home/linuztx/zeroth
+User devuser
+CWD /home/devuser/zeroth
 ```
 
 ## 它在 prompt 里的位置
@@ -97,7 +97,7 @@ agent 是不是以 root 运行，决定了它到底需不需要 `sudo`，而一�
 |---------------------------|--------------------|
 | uid 0，名字为 `root`      | `User root`        |
 | uid 0 但名字是别的        | `User toor (root)` |
-| 任何其他 uid              | `User linuztx`     |
+| 任何其他 uid              | `User devuser`     |
 | 一个没有名字的 uid        | `User uid 1000`    |
 
 **uid 决定是不是 root；名字只是给它贴标签**（`user_label`）。一个换了个名字的

@@ -707,8 +707,8 @@ mod tests {
     #[test]
     fn finds_a_bare_url_mid_sentence() {
         assert_eq!(
-            urls("the credit lives at https://github.com/linuztx for real"),
-            vec!["https://github.com/linuztx"]
+            urls("the credit lives at https://github.com/devuser for real"),
+            vec!["https://github.com/devuser"]
         );
         assert_eq!(
             urls("see http://example.com now"),
@@ -734,8 +734,8 @@ mod tests {
     #[test]
     fn trailing_punctuation_stays_prose() {
         assert_eq!(
-            urls("at https://github.com/linuztx. That is"),
-            vec!["https://github.com/linuztx"]
+            urls("at https://github.com/devuser. That is"),
+            vec!["https://github.com/devuser"]
         );
         assert_eq!(urls("see https://x.com/y, then"), vec!["https://x.com/y"]);
         assert_eq!(urls("really https://x.com/y?!"), vec!["https://x.com/y"]);
@@ -908,18 +908,18 @@ mod tests {
 
     #[test]
     fn a_relative_path_resolves_against_the_cwd_and_needs_one() {
-        let cwd = Path::new("/home/linuztx/Codes/tests");
+        let cwd = Path::new("/home/devuser/Codes/tests");
         assert_eq!(
             file_url("hello.py", Some(cwd)).as_deref(),
-            Some("file:///home/linuztx/Codes/tests/hello.py")
+            Some("file:///home/devuser/Codes/tests/hello.py")
         );
         assert_eq!(
             file_url("./src/../hello.py", Some(cwd)).as_deref(),
-            Some("file:///home/linuztx/Codes/tests/hello.py")
+            Some("file:///home/devuser/Codes/tests/hello.py")
         );
         assert_eq!(
             file_url("../sib/f.txt", Some(cwd)).as_deref(),
-            Some("file:///home/linuztx/Codes/sib/f.txt")
+            Some("file:///home/devuser/Codes/sib/f.txt")
         );
         assert_eq!(
             file_url("hello.py", None),

@@ -7,7 +7,7 @@ whole `+` row on a dark-green one (`docs/tools/tools.md` → *Rendering*). That 
 you a line changed. It does not tell you **what** changed:
 
 ```
-● Edit(/home/linuztx/hello.txt)
+● Edit(/home/devuser/hello.txt)
   ⎿  Updated hello.txt (+1 -1)
       1 -Bruce Rivera
       1 +Bruce Rivero

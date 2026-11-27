@@ -9,13 +9,13 @@ Date: 2026-09-05
 > not from the subagent
 
 ```
-─────────────────────────────────────────────── Look up linuztx GitHub profile ─
+─────────────────────────────────────────────── Look up devuser GitHub profile ─
 ❯
 ────────────────────────────────────────────────────────────────────────────────
   kimi-k3 medium · ~ · 23.7k/1M (2.4%)                                      auto
 
   ◯ main
-  ● general-purpose  Look up linuztx GitHub profile 39s · ↓ 64.9k tokens
+  ● general-purpose  Look up devuser GitHub profile 39s · ↓ 64.9k tokens
 ```
 
 Inside a subagent's session view the footer read `23.7k/1M` — the **lead's**

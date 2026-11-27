@@ -8,7 +8,7 @@ Date: 2026-10-22
 > update
 >
 > ```
-> ● Agent(Gather GitHub contexts for user linuztx)
+> ● Agent(Gather GitHub contexts for user devuser)
 >   ⎿  Agent: ... <-like Bash: ... or Edit: ... something like that
 > ```
 >
@@ -48,7 +48,7 @@ model's working, not something it said (`docs/ui/thinking-stream.md`).
 ## The activity row: `Agent: {update}`
 
 ```
-● Agent(Gather GitHub contexts for user linuztx)
+● Agent(Gather GitHub contexts for user devuser)
   ⎿  Agent: The profile lists 42 public repos; checking the events now.
 ```
 
@@ -129,12 +129,12 @@ the agent's timeline — every call, every message it read, every update it
 gave — in the order it happened:
 
 ```text
-Running (agent a7k2m9x4q · Gather GitHub contexts for user linuztx · 42s · 2 tool uses)
+Running (agent a7k2m9x4q · Gather GitHub contexts for user devuser · 42s · 2 tool uses)
 Agent: I'll start with the profile, then the repositories.
-Bash(curl -s https://api.github.com/users/linuztx)
+Bash(curl -s https://api.github.com/users/devuser)
 Agent: The profile lists 42 public repos and 100 followers.
   Fetching the repositories next, newest first.
-Bash(curl -s "https://api.github.com/users/linuztx/repos?per_page=100&sort=updated")
+Bash(curl -s "https://api.github.com/users/devuser/repos?per_page=100&sort=updated")
 
 [Still running — you are notified when it finishes; agentoutput with `wait` waits for it.]
 ```

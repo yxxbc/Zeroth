@@ -214,7 +214,7 @@ hatchling replacing the hooded figure. See `docs/ui/mascot.md`,
   clicking any *fragment* of a wrapped URL opens the full target. (A URL wider
   than its row hard-breaks visually — a narrow terminal, a table column — and
   the terminal's own per-row detection used to open just the first fragment:
-  `https://github.com/linuz` off a `…/linuztx` link.) The visible text and
+  `https://github.com/linuz` off a `…/devuser` link.) The visible text and
   wrap are unchanged; code and headings gain only the invisible target,
   detected across syntax-style boundaries before wrapping, and the dress is
   scoped to the link itself: a `[text](url)` suffix's decoration `(`/`)` keep

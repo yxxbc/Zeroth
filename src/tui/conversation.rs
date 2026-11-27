@@ -36,6 +36,14 @@ use super::turn::{CheckpointDone, PendingCheckpoint, PendingRestore, RestoreDone
 use super::usage;
 use super::workers::{DeviceEvent, FileSearchResult, ModelFetch};
 
+/// One-shot background worker results multiplexed onto a single event-loop channel.
+pub(crate) enum WorkerEvent {
+    FileMatches(FileSearchResult),
+    ImagePaste(Result<PathBuf, String>),
+    DiffResult(super::diff::DiffResult),
+    UsageResult(usage::UsageResult),
+}
+
 /// One conversation's runtime state.
 pub(crate) struct Conversation {
     /// The pure conversation state — the only thing that *decides* anything.
@@ -83,23 +91,21 @@ pub(crate) struct Conversation {
     /// turn (`docs/input/interrupt.md`).
     pub(crate) tx: tokio::sync::mpsc::UnboundedSender<StreamEvent>,
     pub(crate) reply_rx: tokio::sync::mpsc::UnboundedReceiver<StreamEvent>,
-    /// Queries for the `@` file-search worker and its ranked matches, plus the
-    /// last query sent — the dedupe that keeps an unchanged token from
-    /// re-walking the tree (`docs/input/file-search.md`).
+    /// Queries for the `@` file-search worker and its last query sent — the
+    /// dedupe that keeps an unchanged token from re-walking the tree
+    /// (`docs/input/file-search.md`).
     pub(crate) file_req_tx: std::sync::mpsc::Sender<String>,
-    pub(crate) file_rx: tokio::sync::mpsc::UnboundedReceiver<FileSearchResult>,
     pub(crate) last_file_query: Option<String>,
     /// Where this session's pasted images are saved —
     /// `{config_home}/image-cache/{session}`, numbered in paste order
     /// (`docs/input/image-paste.md`). Handed to each paste worker, which creates it.
     pub(crate) paste_dir: PathBuf,
-    /// A Ctrl+V clipboard read's result channel (`docs/input/image-paste.md`).
-    pub(crate) img_tx: tokio::sync::mpsc::UnboundedSender<Result<PathBuf, String>>,
-    pub(crate) img_rx: tokio::sync::mpsc::UnboundedReceiver<Result<PathBuf, String>>,
-    /// Git review workers report by generation so closed reviews cannot reopen.
-    pub(crate) diff_tx: tokio::sync::mpsc::UnboundedSender<super::diff::DiffResult>,
-    pub(crate) diff_rx: tokio::sync::mpsc::UnboundedReceiver<super::diff::DiffResult>,
+    /// Git review generation so closed reviews cannot reopen.
     pub(crate) diff_generation: u64,
+    /// Shared channel for one-shot background worker results (`file_search`,
+    /// `image_paste`, `diff`, `usage`).
+    pub(crate) worker_tx: tokio::sync::mpsc::UnboundedSender<WorkerEvent>,
+    pub(crate) worker_rx: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
     /// The `/login` workers' channel — a sign-in's device flow
     /// (`docs/providers/copilot.md`) or a local server's connection test
     /// (`docs/providers/local-models.md`), one at a time — the `CancelToken` Esc reaps
@@ -114,11 +120,7 @@ pub(crate) struct Conversation {
     /// can't confuse the results (`docs/providers/reasoning.md`).
     pub(crate) model_tx: tokio::sync::mpsc::UnboundedSender<ModelFetch>,
     pub(crate) model_rx: tokio::sync::mpsc::UnboundedReceiver<ModelFetch>,
-    /// The `/usage` page's reads (`docs/providers/usage.md`): one worker per signed-in
-    /// subscription reports here, and the token a closed page or a newer
-    /// round cancels them with.
-    pub(crate) usage_tx: tokio::sync::mpsc::UnboundedSender<usage::UsageResult>,
-    pub(crate) usage_rx: tokio::sync::mpsc::UnboundedReceiver<usage::UsageResult>,
+    /// The token a closed `/usage` page or a newer round cancels its workers with.
     pub(crate) usage_cancel: Option<CancelToken>,
     /// The probe's sender is kept because a probe is spawned more than
     /// once: at bootstrap, and by a resume whose recorded model has facts

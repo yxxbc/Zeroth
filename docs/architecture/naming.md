@@ -63,9 +63,11 @@ legal notice:
 - `README.md`'s Fork note and `CHANGELOG.md`'s "inherited from Alter Zero",
   plus the historical `github.com/linuztx/alter-zero/compare/…` and
   `releases/tag/v0.1.0` link definitions at the foot of the changelog.
-- Upstream issue links in `docs/architecture/multithread-core.md` and the
-  creator's `github.com/linuztx` homepage in `docs/ui/links.md` and the dummy
-  backend docs.
+- Upstream issue links in `docs/architecture/multithread-core.md` — those
+  threads live in the upstream tracker and a `yxxbc/zeroth` URL would be a
+  dead link.
+- `https://github.com/linuztx/flaredantic` in the flaredantic skill: a
+  **third-party project** the skill documents, not this repository.
 - `NPM_PACKAGE = "@linuztx/alter-zero"` in `src/update.rs`: the name older
   releases were *actually published under*. `is_package_manager_install` and
   the update command both need it to recognise an npm-owned install. It will

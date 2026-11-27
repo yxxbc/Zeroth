@@ -65,10 +65,10 @@ fn a_hard_wrapped_url_carries_its_whole_target_on_every_row() {
     // — and clicking the first fragment opened the truncated URL. Every
     // rendered fragment must carry the FULL target through the whole
     // message pipeline (renderer, bullet/indent stamping, wrap).
-    let url = "https://github.com/linuztx";
+    let url = "https://github.com/devuser";
     let lines = message_lines(
         Role::Assistant,
-        "created by linuztx · https://github.com/linuztx. That is the loop",
+        "created by devuser · https://github.com/devuser. That is the loop",
         26,
     );
     let fragments: Vec<(String, String)> = lines

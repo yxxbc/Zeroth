@@ -46,6 +46,39 @@ pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../../prompts/zeroth.md");
 /// tool definitions when tools are enabled) plus the model id it answers as
 /// (for the session footer), whether tools are enabled, and an optional system
 /// prompt.
+/// Shared runtime capabilities and registries attached to an [`LlmBackend`]
+/// for tool execution, permissions, subagents, skills, hooks, and secrets.
+#[derive(Debug, Clone)]
+struct ToolRuntimeContext {
+    background: Option<crate::background::BackgroundRegistry>,
+    agents: Option<AgentRegistry>,
+    subagents: crate::subagents::SubagentRegistry,
+    permissions: Option<PermissionGate>,
+    ask: Option<AskGate>,
+    tasks: Option<crate::tasks::TaskRegistry>,
+    skills: Option<crate::skills::SkillRegistry>,
+    web: Option<std::sync::Arc<crate::web::walk::Search>>,
+    hooks: Arc<dyn HookSink>,
+    secrets: Option<crate::secrets::SecretRegistry>,
+}
+
+impl Default for ToolRuntimeContext {
+    fn default() -> Self {
+        Self {
+            background: None,
+            agents: None,
+            subagents: crate::subagents::SubagentRegistry::new(super::subagent::builtin_agents()),
+            permissions: None,
+            ask: None,
+            tasks: None,
+            skills: None,
+            web: None,
+            hooks: Arc::new(NoHooks),
+            secrets: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LlmBackend {
     client: OpenAiClient,
@@ -69,10 +102,8 @@ pub struct LlmBackend {
     /// built, and the boundary rebuilds the backend when it moves, so it
     /// needs no key. Reset with the client's own set.
     agent_tools: Arc<Mutex<Option<AgentToolsMemo>>>,
-    /// The shared background-shell registry, when the boundary attached one —
-    /// enables the `bash` tool's `run_in_background` and Ctrl+B handoff
-    /// (`docs/tools/background.md`).
-    background: Option<crate::background::BackgroundRegistry>,
+    /// Attached tool-execution registries, gates, hooks, and secrets.
+    runtime: ToolRuntimeContext,
     /// The model's image-input support ([`ModelConfig::vision`]): gates both
     /// the message assembly (attachments degrade to `[image omitted: …]`
     /// notes on a known non-vision model) and the `read` tool's image branch
@@ -85,46 +116,6 @@ pub struct LlmBackend {
     /// the date, the os, the user and the cwd. `None`
     /// when the boundary composed no context (the tests, an embedder).
     prompt_context: Option<String>,
-    /// The shared subagent registry, when the boundary attached one — enables
-    /// the `agent` tool (`docs/agents/agent-tool.md`). Attaching it swaps the
-    /// client's tool set to include `agent`.
-    agents: Option<AgentRegistry>,
-    /// The subagent **definitions** — the `agents/*.md` types a launch picks
-    /// from (`docs/agents/subagents.md`). Shared with the loop, which re-walks the
-    /// roots every turn, so a launcher always reads the current set. Seeded
-    /// with the built-ins, so a backend the boundary never handed definitions
-    /// to still resolves `general-purpose` and `explore`.
-    subagents: crate::subagents::SubagentRegistry,
-    /// The shared tool-permission gate, when the boundary attached one — makes
-    /// every `write`/`edit`/`bash` call ask before it runs
-    /// (`docs/state/permissions.md`). Without it (an embedder, the live tests,
-    /// `ZEROTH_PERMISSIONS` off) tools run unasked, as they always did.
-    permissions: Option<PermissionGate>,
-    /// The shared ask gate, when the boundary attached one — **enables the
-    /// `askuserquestion` tool** (`docs/tools/ask.md`): the model can raise the
-    /// inline question modal and block on the answers. Without it the tool
-    /// isn't offered at all (nobody could answer). Subagents never carry it.
-    ask: Option<AskGate>,
-    /// The shared task list, when the boundary attached one — **enables the
-    /// four task tools** (`docs/tools/task-tools.md`): the model can plan and track
-    /// structured tasks, the live checklist rendering under the status line.
-    /// Without it the tools aren't offered (nobody holds the list). Subagents
-    /// never carry it — the lead agent plans, subagents execute.
-    tasks: Option<crate::tasks::TaskRegistry>,
-    /// The discovered skills, when the boundary attached them — **enables the
-    /// `skill` tool** (`docs/tools/skills.md`): the model can pull an authored
-    /// `SKILL.md` body into the conversation on demand. Attached only when
-    /// at least one skill loaded, since with none the tool has nothing to do.
-    /// Subagents carry it too — a side agent benefits from a skill exactly as
-    /// the lead does, and loading one is pure text.
-    skills: Option<crate::skills::SkillRegistry>,
-    /// The search rules, when the boundary attached them — **enables the
-    /// `web_search` and `web_fetch` tools** (`docs/tools/web-search.md`).
-    /// Attached only when the file loaded and at least one source is
-    /// configured, the `with_skills` posture: a tool that can only answer
-    /// "no sources" spends the model's attention on a dead end. Subagents
-    /// carry it too — research is the case a subagent exists for.
-    web: Option<std::sync::Arc<crate::web::walk::Search>>,
     /// The auto mode classifier bound to this backend's provider
     /// (`docs/state/permissions.md`): consulted by the approve seam for `bash`
     /// calls in [`crate::permission::PermissionMode::Auto`] — idle in every
@@ -167,20 +158,6 @@ pub struct LlmBackend {
     /// (same type, one level down), and the one-off `/compact` backend keeps
     /// this empty — its turn has a single round and nothing to steer.
     steer: SteerQueue,
-    /// The user's lifecycle hooks (`docs/tools/hooks.md`): consulted before and
-    /// after every tool call, and in the user's stead at the permission gate.
-    /// [`NoHooks`] until the boundary attaches a loaded `hooks.json`, so a
-    /// session without one pays a vtable dispatch and nothing else. Subagents
-    /// carry it too — re-tagged with their own id, so a hook can tell.
-    hooks: Arc<dyn HookSink>,
-    /// The user's secrets (`docs/state/secrets.md`), when the boundary attached
-    /// them: every tool call this backend and its subagents run goes through
-    /// `secret_exec::run_with_secrets` — the placeholders in an acting
-    /// tool's arguments expanded for the executor alone, every output
-    /// redacted on its way out — and the permission prompt previews the
-    /// expanded call redacted. Shared by handle, so a `/secrets` save
-    /// reaches the very next call without a rebuild.
-    secrets: Option<crate::secrets::SecretRegistry>,
 }
 
 impl LlmBackend {
@@ -232,29 +209,15 @@ impl LlmBackend {
             compact: false,
             tool_definitions,
             agent_tools: Arc::default(),
-            background: None,
             vision,
             prompt_context: None,
-            agents: None,
-            // Every backend knows the built-in types, definitions attached
-            // or not: the `agent` schema's default is `general-purpose`, so a
-            // launch cannot depend on a file having been found. The boundary
-            // replaces this with the walk's set — which carries the same two
-            // as its own fallback (`docs/agents/subagents.md`).
-            subagents: crate::subagents::SubagentRegistry::new(super::subagent::builtin_agents()),
-            permissions: None,
-            ask: None,
-            tasks: None,
-            skills: None,
-            web: None,
+            runtime: ToolRuntimeContext::default(),
             classifier,
             turn_context: Arc::new(Mutex::new(ClassifierContext::new())),
             max_retries: MAX_RETRIES,
             max_tool_calls: agent::MAX_TOOL_ITERATIONS,
             round_budget: None,
             steer: SteerQueue::new(),
-            hooks: Arc::new(NoHooks),
-            secrets: None,
         }
     }
 
@@ -273,7 +236,7 @@ impl LlmBackend {
     /// this on every backend it builds; tests and offline tools skip it.
     #[must_use]
     pub fn with_background(mut self, registry: crate::background::BackgroundRegistry) -> Self {
-        self.background = Some(registry);
+        self.runtime.background = Some(registry);
         self
     }
 
@@ -285,7 +248,7 @@ impl LlmBackend {
     #[must_use]
     pub fn with_agents(mut self, registry: AgentRegistry) -> Self {
         if self.tools_enabled {
-            self.agents = Some(registry);
+            self.runtime.agents = Some(registry);
             self.sync_tool_specs();
         }
         self
@@ -309,7 +272,7 @@ impl LlmBackend {
     /// per-turn rescan reaches every backend rebuild without one.
     #[must_use]
     pub fn with_subagents(mut self, registry: crate::subagents::SubagentRegistry) -> Self {
-        self.subagents = registry;
+        self.runtime.subagents = registry;
         self
     }
 
@@ -319,7 +282,7 @@ impl LlmBackend {
     /// builds unless `ZEROTH_PERMISSIONS` is falsy.
     #[must_use]
     pub fn with_permissions(mut self, gate: PermissionGate) -> Self {
-        self.permissions = Some(gate);
+        self.runtime.permissions = Some(gate);
         self
     }
 
@@ -329,7 +292,7 @@ impl LlmBackend {
     /// without it a placeholder is ordinary text.
     #[must_use]
     pub fn with_secrets(mut self, secrets: crate::secrets::SecretRegistry) -> Self {
-        self.secrets = Some(secrets);
+        self.runtime.secrets = Some(secrets);
         self
     }
 
@@ -339,7 +302,7 @@ impl LlmBackend {
     /// and behaves exactly as it did before the feature.
     #[must_use]
     pub fn with_hooks(mut self, hooks: Arc<dyn HookSink>) -> Self {
-        self.hooks = hooks;
+        self.runtime.hooks = hooks;
         self
     }
 
@@ -351,7 +314,7 @@ impl LlmBackend {
     #[must_use]
     pub fn with_ask(mut self, gate: AskGate) -> Self {
         if self.tools_enabled {
-            self.ask = Some(gate);
+            self.runtime.ask = Some(gate);
             self.sync_tool_specs();
         }
         self
@@ -365,7 +328,7 @@ impl LlmBackend {
     #[must_use]
     pub fn with_tasks(mut self, registry: crate::tasks::TaskRegistry) -> Self {
         if self.tools_enabled {
-            self.tasks = Some(registry);
+            self.runtime.tasks = Some(registry);
             self.sync_tool_specs();
         }
         self
@@ -395,7 +358,7 @@ impl LlmBackend {
     #[must_use]
     pub fn with_skills(mut self, registry: crate::skills::SkillRegistry) -> Self {
         if self.tools_enabled && registry.has_enabled() {
-            self.skills = Some(registry);
+            self.runtime.skills = Some(registry);
             self.sync_tool_specs();
         }
         self
@@ -407,7 +370,7 @@ impl LlmBackend {
     #[must_use]
     pub fn with_web(mut self, search: std::sync::Arc<crate::web::walk::Search>) -> Self {
         if self.tools_enabled && !search.rules().order.is_empty() {
-            self.web = Some(search);
+            self.runtime.web = Some(search);
             self.sync_tool_specs();
         }
         self
@@ -420,21 +383,21 @@ impl LlmBackend {
     /// [`with_tasks`](Self::with_tasks) compose
     /// in any order.
     fn sync_tool_specs(&mut self) {
-        let mut specs = if self.agents.is_some() {
+        let mut specs = if self.runtime.agents.is_some() {
             tools::tool_specs_with_agents()
         } else {
             tools::tool_specs()
         };
-        if self.ask.is_some() {
+        if self.runtime.ask.is_some() {
             specs.push(tools::ask_spec());
         }
-        if self.tasks.is_some() {
+        if self.runtime.tasks.is_some() {
             specs.extend(tools::task_specs());
         }
-        if self.skills.is_some() {
+        if self.runtime.skills.is_some() {
             specs.push(tools::skill_spec());
         }
-        if self.web.is_some() {
+        if self.runtime.web.is_some() {
             specs.extend(tools::web_specs());
         }
         self.tool_definitions = ToolDefinition::from_specs(&specs);
@@ -763,14 +726,14 @@ impl ReplySource for LlmBackend {
         let client = self.client.clone();
         let wire_history = Arc::clone(&self.wire_history);
         let system = self.system_prompt.clone();
-        let background = self.background.clone();
+        let background = self.runtime.background.clone();
         let vision = self.vision;
-        let agents = self.agents.clone();
+        let agents = self.runtime.agents.clone();
         let subagent = self.subagent_config();
-        let permissions = self.permissions.clone();
-        let ask = self.ask.clone();
-        let task_list = self.tasks.clone();
-        let skills = self.skills.clone();
+        let permissions = self.runtime.permissions.clone();
+        let ask = self.runtime.ask.clone();
+        let task_list = self.runtime.tasks.clone();
+        let skills = self.runtime.skills.clone();
         let classifier = self.classifier.clone();
         let turn_context = Arc::clone(&self.turn_context);
         let max_retries = self.max_retries;
@@ -778,8 +741,8 @@ impl ReplySource for LlmBackend {
         let compact = self.compact;
         // The run's reply budget, when it has one (docs/cli/headless.md).
         let round_budget = self.round_budget.clone();
-        let hooks = Arc::clone(&self.hooks);
-        let secrets = self.secrets.clone();
+        let hooks = Arc::clone(&self.runtime.hooks);
+        let secrets = self.runtime.secrets.clone();
         // The mid-turn queue this turn answers to (docs/input/queue.md): the loop
         // pushes onto it while the turn runs and the agent loop drains it at
         // every round boundary.
@@ -787,7 +750,7 @@ impl ReplySource for LlmBackend {
         // The web tools' search state, cloned out before the spawn takes
         // ownership — `self` must not escape into the thread
         // (`docs/tools/web-search.md`).
-        let web = self.web.clone();
+        let web = self.runtime.web.clone();
         thread::spawn(move || {
             // Encoding the attachments reads files — done here on the backend
             // thread so a large image never stalls the event loop. A known
@@ -1198,12 +1161,13 @@ impl ReplySource for LlmBackend {
             return Arc::default();
         }
         let allowed = self
+            .runtime
             .subagents
             .find(agent_type)
             .map_or(crate::subagents::AgentTools::All, |def| def.tools);
         let Ok(mut memo) = self.agent_tools.lock() else {
             return ToolDefinition::from_specs(&subagent_tool_specs(
-                self.skills.is_some(),
+                self.runtime.skills.is_some(),
                 &allowed,
             ));
         };
@@ -1213,8 +1177,10 @@ impl ReplySource for LlmBackend {
         {
             return Arc::clone(&kept.tools);
         }
-        let tools =
-            ToolDefinition::from_specs(&subagent_tool_specs(self.skills.is_some(), &allowed));
+        let tools = ToolDefinition::from_specs(&subagent_tool_specs(
+            self.runtime.skills.is_some(),
+            &allowed,
+        ));
         *memo = Some(AgentToolsMemo {
             agent_type: agent_type.to_string(),
             allowed,
@@ -1236,7 +1202,7 @@ impl ReplySource for LlmBackend {
     /// conversation when idle. `false` when agents aren't enabled here or the
     /// id is unknown/busy-less-stored.
     fn spawn_agent_chat(&self, id: &str, text: &str) -> AgentChatDelivery {
-        let Some(registry) = &self.agents else {
+        let Some(registry) = &self.runtime.agents else {
             return AgentChatDelivery::Declined;
         };
         // Still running: the message rides its queue to the next round
@@ -1265,13 +1231,14 @@ impl ReplySource for LlmBackend {
     }
 
     fn agent_ready_for_turn(&self, id: &str) -> bool {
-        self.agents
+        self.runtime
+            .agents
             .as_ref()
             .is_some_and(|registry| registry.ready_for_turn(id))
     }
 
     fn reclaim_agent_input(&self, id: &str) -> Option<String> {
-        self.agents.as_ref()?.take_last_input(id)
+        self.runtime.agents.as_ref()?.take_last_input(id)
     }
 }
 
@@ -1334,21 +1301,22 @@ impl LlmBackend {
             client: self.client.clone(),
             base_system_prompt: self.system_prompt.clone(),
             prompt_context: self.prompt_context.clone(),
-            definitions: self.subagents.clone(),
+            definitions: self.runtime.subagents.clone(),
             vision: self.vision,
             detach_helper: self
+                .runtime
                 .background
                 .as_ref()
                 .and_then(crate::background::BackgroundRegistry::detach_helper),
-            background: self.background.clone(),
-            permissions: self.permissions.clone(),
+            background: self.runtime.background.clone(),
+            permissions: self.runtime.permissions.clone(),
             classifier: self.classifier.clone(),
-            web: self.web.clone(),
-            skills: self.skills.clone(),
+            web: self.runtime.web.clone(),
+            skills: self.runtime.skills.clone(),
             max_retries: self.max_retries,
             max_tool_calls: self.max_tool_calls,
-            hooks: Arc::clone(&self.hooks),
-            secrets: self.secrets.clone(),
+            hooks: Arc::clone(&self.runtime.hooks),
+            secrets: self.runtime.secrets.clone(),
         }
     }
 }
@@ -2827,7 +2795,7 @@ mod tests {
         // the spec is never sent (`docs/tools/skills.md`).
         let backend = LlmBackend::configure(ModelConfig::fallback(), None, true)
             .with_skills(crate::skills::SkillRegistry::new(Vec::new()));
-        assert!(backend.skills.is_none());
+        assert!(backend.runtime.skills.is_none());
     }
 
     #[test]
@@ -2844,12 +2812,14 @@ mod tests {
         assert!(
             LlmBackend::configure(ModelConfig::fallback(), None, true)
                 .with_skills(registry.clone())
+                .runtime
                 .skills
                 .is_some()
         );
         assert!(
             LlmBackend::configure(ModelConfig::fallback(), None, false)
                 .with_skills(registry)
+                .runtime
                 .skills
                 .is_none()
         );
@@ -2884,6 +2854,7 @@ mod tests {
         assert!(
             LlmBackend::configure(ModelConfig::fallback(), None, false)
                 .with_web(search)
+                .runtime
                 .web
                 .is_none()
         );
@@ -2984,7 +2955,7 @@ mod tests {
 
     #[test]
     fn render_environment_fills_every_placeholder() {
-        let block = render_environment("Sunday 2026-07-19", "linux", "linuztx", "/home/user/proj");
+        let block = render_environment("Sunday 2026-07-19", "linux", "devuser", "/home/user/proj");
         assert!(
             block.starts_with("## Environment"),
             "the section header leads: {block}"
@@ -2996,7 +2967,7 @@ mod tests {
         assert!(block.contains("OS linux"), "os is in: {block}");
         // The user is a line of its own, so `root` can't hide in another fact.
         assert!(
-            block.lines().any(|line| line == "User linuztx"),
+            block.lines().any(|line| line == "User devuser"),
             "user is in: {block}"
         );
         assert!(block.contains("CWD /home/user/proj"), "cwd is in: {block}");
@@ -3112,10 +3083,10 @@ ID=ubuntu
         let contents = "\
 root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-linuztx:x:1000:1000:Linuz,,,:/home/linuztx:/bin/bash
+devuser:x:1000:1000:Linuz,,,:/home/devuser:/bin/bash
 ";
         assert_eq!(passwd_name(contents, 0).as_deref(), Some("root"));
-        assert_eq!(passwd_name(contents, 1000).as_deref(), Some("linuztx"));
+        assert_eq!(passwd_name(contents, 1000).as_deref(), Some("devuser"));
     }
 
     #[test]
@@ -3136,7 +3107,7 @@ linuztx:x:1000:1000:Linuz,,,:/home/linuztx:/bin/bash
 # User Database
 ##
 
-+linuztx::1000:1000:::
++devuser::1000:1000:::
 nobody:*:-2:-2:Unprivileged User:/var/empty:/usr/bin/false
 root:*:0:0:System Administrator:/var/root:/bin/sh
 ";
@@ -3167,12 +3138,12 @@ root:*:0:0:System Administrator:/var/root:/bin/sh
         // `toor`, or a `$USER` left over from `su` — whatever the name, the
         // agent must still learn it is root.
         assert_eq!(user_label(Some(0), Some("toor")), "toor (root)");
-        assert_eq!(user_label(Some(0), Some("linuztx")), "linuztx (root)");
+        assert_eq!(user_label(Some(0), Some("devuser")), "devuser (root)");
     }
 
     #[test]
     fn user_label_names_an_ordinary_account() {
-        assert_eq!(user_label(Some(1000), Some("linuztx")), "linuztx");
+        assert_eq!(user_label(Some(1000), Some("devuser")), "devuser");
     }
 
     #[test]
@@ -3193,7 +3164,7 @@ root:*:0:0:System Administrator:/var/root:/bin/sh
             "blank is none"
         );
         // Off unix there is no uid: the name is taken as given.
-        assert_eq!(user_label(None, Some("linuztx")), "linuztx");
+        assert_eq!(user_label(None, Some("devuser")), "devuser");
         assert_eq!(user_label(None, None), "unknown");
     }
 

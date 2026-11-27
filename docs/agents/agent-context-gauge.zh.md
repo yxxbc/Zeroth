@@ -8,13 +8,13 @@
 > agent 的上下文 token 数，不是 subagent 的
 
 ```
-─────────────────────────────────────────────── Look up linuztx GitHub profile ─
+─────────────────────────────────────────────── Look up devuser GitHub profile ─
 ❯
 ────────────────────────────────────────────────────────────────────────────────
   kimi-k3 medium · ~ · 23.7k/1M (2.4%)                                      auto
 
   ◯ main
-  ● general-purpose  Look up linuztx GitHub profile 39s · ↓ 64.9k tokens
+  ● general-purpose  Look up devuser GitHub profile 39s · ↓ 64.9k tokens
 ```
 
 在一个 subagent 的会话视图里，页脚读作 `23.7k/1M` —— **lead 的**上下文 —— 而它上

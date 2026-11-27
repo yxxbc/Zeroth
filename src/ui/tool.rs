@@ -3,7 +3,9 @@
 //! See `docs/tools/tools.md` and `docs/ui/tool-streaming.md`.
 
 use super::assistant::expand_code_tabs;
-use super::file_cell::{diff_line_color, file_cell_lines, gutter_row, is_diff_tool};
+use super::file_cell::{
+    diff_line_color, file_cell_lines, gutter_row, gutter_row_spans, is_diff_tool,
+};
 use super::theme::*;
 use super::wrap::{WrapMode, cols, truncate_cols, wrap_output, wrap_output_hanging, wrap_verbatim};
 use super::*;
@@ -1321,7 +1323,25 @@ pub(super) fn tool_full_lines(
     // The classifier's provenance row closes the expanded cell too
     // (docs/state/permissions.md).
     lines.extend(approval_note_row(tool));
+    apply_tool_card_bg(&mut lines);
     lines
+}
+
+/// Apply `tool_bg_color()` to expanded tool output spans that do not already carry
+/// an explicit background (such as inline diff highlights), giving expanded tool
+/// blocks a subtle card container without altering any text geometry.
+fn apply_tool_card_bg(lines: &mut [Line<'static>]) {
+    let bg = tool_bg_color();
+    if bg == Color::Reset {
+        return;
+    }
+    for line in lines.iter_mut().skip(1) {
+        for span in &mut line.spans {
+            if span.style.bg.is_none() {
+                span.style = span.style.bg(bg);
+            }
+        }
+    }
 }
 
 /// [`tool_full_lines`] minus the trailing provenance note (the
@@ -1402,6 +1422,15 @@ fn tool_full_body(tool: &ToolCall, width: u16, paths: &PathDisplay) -> Vec<Line<
             let display = exec_display_lines(tool);
             if display.is_empty() {
                 vec![(TOOL_NO_OUTPUT.to_string(), None)]
+            } else if looks_like_pretty_json(&display, tool.output.len()) {
+                let mut lines = highlighted_json_rows(&display, body_width, tool.truncated);
+                if tool.shell {
+                    return lines;
+                }
+                let mut out =
+                    tool_header_lines(tool, width, /*collapsed=*/ false, pulse, paths);
+                out.append(&mut lines);
+                return out;
             } else {
                 display
                     .iter()
@@ -1432,4 +1461,69 @@ fn tool_full_body(tool: &ToolCall, width: u16, paths: &PathDisplay) -> Vec<Line<
         lines.extend(result);
         lines
     }
+}
+
+/// Whether `display` holds pretty-printed JSON within the highlighting budget.
+fn looks_like_pretty_json(display: &[String], raw_len: usize) -> bool {
+    if raw_len > TOOL_JSON_PRETTY_MAX_BYTES || display.len() < 2 {
+        return false;
+    }
+    let first = display.first().map(|s| s.trim()).unwrap_or("");
+    let last = display.last().map(|s| s.trim()).unwrap_or("");
+    (first == "{" && last == "}") || (first == "[" && last == "]")
+}
+
+/// Render pretty-printed JSON lines with `syntect` highlighting wrapped to `body_width`.
+fn highlighted_json_rows(
+    display: &[String],
+    body_width: u16,
+    truncated: bool,
+) -> Vec<Line<'static>> {
+    let mut hl = crate::highlight::Highlighter::new(Some("json"), super::palette::palette().code);
+    let mut rows = Vec::new();
+    for line in display {
+        let segs: Vec<(String, Style)> = hl
+            .line(line)
+            .into_iter()
+            .map(|seg| (seg.text, seg.style))
+            .collect();
+        for wrapped in wrap_styled_verbatim(&segs, body_width) {
+            rows.push(gutter_row_spans(rows.len(), wrapped));
+        }
+    }
+    if truncated {
+        rows.push(gutter_row(
+            rows.len(),
+            TOOL_TRUNCATED_MARKER.to_string(),
+            None,
+        ));
+    }
+    rows
+}
+
+/// Wrap styled segments across `width` columns while preserving leading indentation verbatim.
+fn wrap_styled_verbatim(segments: &[(String, Style)], width: u16) -> Vec<Vec<Span<'static>>> {
+    let max_cols = usize::from(width.max(1));
+    let mut lines: Vec<Vec<Span<'static>>> = vec![Vec::new()];
+    let mut col = 0usize;
+
+    for (text, style) in segments {
+        for ch in text.chars() {
+            let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+            if col > 0 && col + cw > max_cols {
+                lines.push(Vec::new());
+                col = 0;
+            }
+            let current = lines.last_mut().expect("at least one line");
+            if let Some(last) = current.last_mut()
+                && last.style == *style
+            {
+                last.content.to_mut().push(ch);
+            } else {
+                current.push(Span::styled(ch.to_string(), *style));
+            }
+            col += cw;
+        }
+    }
+    lines
 }
