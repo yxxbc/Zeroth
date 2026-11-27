@@ -172,12 +172,22 @@ pub fn tool_group_lines(
         })
         .collect();
     let counts = group_counts(members.iter().copied(), paths);
+    let errors = members
+        .iter()
+        .filter(|tool| tool.status == ToolStatus::Failed)
+        .count();
     let style = Style::new().fg(reasoning_label_color());
-    let mut lines = vec![Line::from(fit(
-        summary_spans(counts, false, style, style),
-        style,
-        usize::from(width),
-    ))];
+    let mut summary = summary_spans(counts, false, style, style);
+    if errors > 0 {
+        summary.push(Span::styled(" · ".to_string(), style));
+        summary.push(Span::styled(
+            format!("{errors} err"),
+            Style::new()
+                .fg(tool_fail_color())
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+    let mut lines = vec![Line::from(fit(summary, style, usize::from(width)))];
     let previews: Vec<_> = members
         .iter()
         .rev()

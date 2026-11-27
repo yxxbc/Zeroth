@@ -710,3 +710,23 @@ fn a_queued_scratchpad_write_stays_the_group_with_the_lines_it_streamed() {
         ]
     );
 }
+
+#[test]
+fn a_group_with_failed_calls_highlights_the_error_count() {
+    let items = [
+        ok("Read", "a.py"),
+        HistoryItem::Tool(tool("Read", "missing.py", ToolStatus::Failed, "not found")),
+    ];
+    let lines = tool_group_lines(&items, 100, &PathDisplay::VERBATIM);
+    assert!(
+        plain(&lines[0]).contains(" · 1 err"),
+        "expected error tally in {:?}",
+        plain(&lines[0])
+    );
+    let err_span = lines[0]
+        .spans
+        .iter()
+        .find(|span| span.content == "1 err")
+        .expect("1 err span");
+    assert_eq!(err_span.style.fg, Some(crate::ui::theme::tool_fail_color()));
+}

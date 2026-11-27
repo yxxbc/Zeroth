@@ -70,6 +70,7 @@ pub(crate) struct FullTail {
     generation: (u64, usize),
     width: u16,
     theme: zeroth::app::Theme,
+    mascot: zeroth::app::Mascot,
     /// Banner and finished items. The per-item offsets the pin and the hit
     /// map read live beside it, in
     /// `full_prompts` and
@@ -198,6 +199,7 @@ fn frame_history(
             && tail.generation == generation
             && tail.width == width
             && tail.theme == theme
+            && tail.mascot == app.mascot()
             && !view.full_tail_dirty
     });
     if history_cached {
@@ -378,6 +380,7 @@ fn frame_history(
         generation,
         width,
         theme,
+        mascot: app.mascot(),
         lines,
     });
 }
@@ -1078,6 +1081,7 @@ impl Session<'_> {
     /// re-commit can never double up with pre-rebuild leftovers.)
     pub(crate) fn repaint_conversation(&mut self) -> io::Result<()> {
         if self.screen.is_full() {
+            self.view.full_tail_dirty = true;
             return self.draw_conversation();
         }
         let screen = self.screen.screen();

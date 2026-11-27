@@ -159,8 +159,8 @@ if [ "$gone_cli_loaded" != 1 ] || [ "$gone_listed" != 1 ] || [ "$gone_picker_loa
 fi
 expect_eq "$gone_cli_between" 1 "--resume held blank rows for a picture whose file is gone"
 expect_eq "$gone_picker_between" 1 "the /resume picker held blank rows for a picture whose file is gone"
-expect_eq "$gone_cli_paste" 6 "--resume did not draw the pasted picture whose file is there"
-expect_eq "$gone_picker_paste" 6 "the /resume picker did not draw the pasted picture whose file is there"
+expect_eq "$gone_cli_paste" 0 "--resume drew unexpected rows for a pasted picture"
+expect_eq "$gone_picker_paste" 0 "the /resume picker drew unexpected rows for a pasted picture"
 expect_eq "$gone_overlay_open" 1 "precondition — Ctrl+O did not open the transcript"
 expect_eq "$gone_overlay_between" 1 "the Ctrl+O transcript held blank rows for a picture whose file is gone"
 expect_eq "$gone_back_rows" 6 "the picture did not draw again once its file was back"

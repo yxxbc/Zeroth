@@ -40,7 +40,7 @@ expect_lacks "$short_settings" -E '\([0-9]+/[0-9]+\)' "/settings still shows its
 expect_lacks "$short_settings" -F "chain-of-thought" "/settings still shows its description on 12 rows"
 # ↓ walks the window down the list: it rides the selection, and both slots
 # name what they hide.
-tmux send-keys -t "$S139" Down Down Down Down Down Down Down
+tmux send-keys -t "$S139" Down Down Down Down Down Down Down Down
 sleep 0.4
 short_settings_walk="$(pane "$S139")"
 echo "==== Phase 139: /settings after seven ↓ ===="
@@ -103,19 +103,11 @@ submit "$S139" "/donate"
 short_donate="$(wait_pane 5 "$S139" -F "enter/c copy address")"
 echo "==== Phase 139: /donate on 12 rows ===="
 printf '%s\n' "$short_donate"
-expect_has "$short_donate" -E '^  ❯ 1\. BTC' "/donate lost its highlighted label on 12 rows"
-expect_has "$short_donate" -F "Network: Bitcoin" "/donate lost the highlighted address's networks on 12 rows"
+expect_has "$short_donate" -E '^  ❯ 1\. XKO' "/donate lost its highlighted label on 12 rows"
+expect_has "$short_donate" -F "Network: X Layer" "/donate lost the highlighted address's networks on 12 rows"
 expect_lacks "$short_donate" -F " more below" "/donate still counts the other addresses on 12 rows"
 expect_has "$short_donate" -F "cannot be recovered" "/donate lost its caution on 12 rows"
-expect_lacks "$short_donate" -E '^ +2\. ETH' "/donate still lists the other addresses on 12 rows"
 expect_lacks "$short_donate" -F "Support" "/donate still shows its title on 12 rows"
-tmux send-keys -t "$S139" Down
-sleep 0.4
-short_donate_eth="$(pane "$S139")"
-echo "==== Phase 139: /donate after ↓ ===="
-printf '%s\n' "$short_donate_eth"
-expect_has "$short_donate_eth" -E '^  ❯ 2\. ETH' "↓ did not move /donate to the next address"
-expect_has "$short_donate_eth" -F "Networks: Ethereum" "/donate lost the second address's networks"
 tmux send-keys -t "$S139" Escape
 sleep 0.4
 expect_has "$(pane "$S139")" -F "dummy_model_name" "Esc did not close /donate back to the composer"

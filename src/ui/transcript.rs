@@ -146,7 +146,7 @@ fn transcript_item_lines(
 #[must_use]
 pub fn agent_transcript_lines(app: &App, width: u16) -> Option<Vec<Line<'static>>> {
     let run = app.viewed_agent()?;
-    let mut lines = header_lines(app, width);
+    let mut lines = header_lines_plain(app, width);
     lines.push(Line::default());
     let chrome_rows = lines.len();
     for (index, item) in run.history.iter().enumerate() {
@@ -448,7 +448,7 @@ impl TranscriptCache {
             // inline conversation (docs/ui/header.md) — the overlay mirrors the
             // real scrollback, so Ctrl+O never hides it.
             self.rows.clear();
-            self.rows.extend(header_lines(app, width));
+            self.rows.extend(header_lines_plain(app, width));
             self.rows.extend([Line::default()]);
             self.chrome_rows = self.rows.len();
             self.frozen_rows = self.chrome_rows;

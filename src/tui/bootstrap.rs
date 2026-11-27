@@ -1030,15 +1030,17 @@ impl<'t> Session<'t> {
         // `/resume` rollout. It flows in through the normal flicker-free pipeline
         // (the next draw writes it above the box in one synchronized frame).
         let width = self.screen.screen().width;
-        self.screen
-            .insert_before(ui::header_lines(&self.conversation.app, width));
-        self.screen.insert_before(vec![Line::default()]);
+        if !self.screen.is_full() {
+            self.screen
+                .insert_before(ui::header_lines(&self.conversation.app, width));
+            self.screen.insert_before(vec![Line::default()]);
+        }
         // A --continue/--resume load commits the loaded conversation under the
         // banner through the same pipeline (docs/cli/cli.md) — insert_before, never a
         // Purge: a fresh launch must not wipe the user's terminal scrollback (the
         // picker's mid-session purge exists to drop the *previous* conversation's
         // rows; at startup there are none). Capped like every full rebuild.
-        if !self.conversation.app.history.is_empty() {
+        if !self.screen.is_full() && !self.conversation.app.history.is_empty() {
             let lines: Vec<Line<'static>> = ui::repaint_lines(
                 &self.conversation.app.history,
                 width,
