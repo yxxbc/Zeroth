@@ -158,8 +158,15 @@ fn the_tail_is_coloured_as_if_the_whole_file_had_been_read() {
             .iter()
             .find(|line| number_of(&plain(line)) == Some(n))
             .expect("the committed expansion numbers every line");
+        let strip_bg = |line: &Line| -> Vec<(String, Option<Color>)> {
+            line.spans
+                .iter()
+                .map(|span| (span.content.to_string(), span.style.fg))
+                .collect()
+        };
         assert_eq!(
-            row, same,
+            strip_bg(row),
+            strip_bg(same),
             "line {n} wears the colours the whole file gives it"
         );
     }

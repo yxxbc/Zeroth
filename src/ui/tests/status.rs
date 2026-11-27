@@ -997,6 +997,7 @@ fn settled_one_liners_start_at_the_edge_like_the_turn_summary() {
         [
             "Thought for 0s · 16 tokens (ctrl+o to expand)",
             "Listed 1 directory (ctrl+o to expand)",
+            "  ⎿  $ ls",
             "Conjured for 4s · ≈11k tokens (9k cached)",
         ]
     );
