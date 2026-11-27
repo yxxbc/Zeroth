@@ -1,6 +1,6 @@
 ---
 name: zeroth-project
-description: Explain the Zeroth software project, its features, architecture, setup, contributors, and development history using this checkout's documentation and source. Use when asked what Zeroth is, how it works, who develops it, or for project-specific help.
+description: Explain the Zeroth codebase, architecture, CLI setup, and development history from this repository's documentation and source. Use only for in-depth project/codebase questions, not for casual greetings or simple "who made you" questions.
 ---
 
 # Zeroth project answers

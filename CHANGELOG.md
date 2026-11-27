@@ -16,6 +16,30 @@ release heading when a version is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Wide-glyph diff shadow cells in full-screen and overlay repaints.**
+  `overlay_paint` now strips trailing shadow cells covered by a wide glyph on
+  the same row in `src/term.rs`, preventing cursor drift, duplicated first
+  characters, and temporary line-wrap reflows during streaming CJK replies.
+- **TUI scrolling image noise and mascot cache invalidation.** Full-screen
+  `FullTail` now keys on `mascot`, `bootstrap` skips primary-screen header
+  commits in full-screen mode, and the Ctrl+O transcript uses plain headers so
+  scrolling never leaves residual graphic placeholder blocks.
+- **Unnecessary skill loading on simple chat and self-identity questions.**
+  Updated `prompts/zeroth.md`, `prompts/skills/zeroth-project/SKILL.md`, and
+  `SKILL_LISTING_HEADER` so casual questions (such as asking who the author is)
+  are answered directly without invoking unrelated skills or reading local
+  source files.
+
+### Changed
+
+- **Warmer, plain-language default system prompt and richer tool summaries.**
+  `prompts/zeroth.md` now encourages natural, approachable replies without
+  excessive jargon; `tool_group` summaries inline touched targets and highlight
+  error counts (`· N err`), and expanded tool cells render with `tool_bg` card
+  backgrounds and `syntect` JSON syntax highlighting.
+
 ## [0.22.0] - 2026-11-27
 
 ### Changed

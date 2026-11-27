@@ -1854,7 +1854,7 @@ fn paint_full_lines(lines: &[Line<'static>], area: Rect, buf: &mut Buffer) {
 fn overlay_paint<'a>(prev: Option<&Buffer>, next: &'a Buffer) -> OverlayPaint<'a> {
     match prev {
         Some(prev) if prev.area == next.area => {
-            let updates = prev.diff(next);
+            let updates = filter_diff_shadows(next, prev.diff(next));
             if updates.is_empty() {
                 OverlayPaint::Unchanged
             } else {
@@ -1876,6 +1876,37 @@ enum OverlayPaint<'a> {
     /// No comparable frame on screen — emit every visible cell
     /// ([`visible_cells`]).
     Full,
+}
+
+fn filter_diff_shadows<'a>(
+    next: &'a Buffer,
+    updates: Vec<(u16, u16, &'a Cell)>,
+) -> Vec<(u16, u16, &'a Cell)> {
+    let area = next.area;
+    let max_x = area.x + area.width;
+    updates
+        .into_iter()
+        .filter(|&(x, y, _)| {
+            // Drop any update cell that sits inside the trailing shadow columns
+            // of a wide glyph on the same row in `next` (unless that glyph carries
+            // VS16, which terminals may render narrow and thus needs scrubbing).
+            let mut lx = area.x;
+            while lx < x {
+                let c = &next[(lx, y)];
+                let cw = c.cell_width();
+                if cw > 1 {
+                    let end = (lx + cw).min(max_x);
+                    if x < end && !c.symbol().contains('\u{FE0F}') {
+                        return false;
+                    }
+                    lx = end;
+                } else {
+                    lx += 1;
+                }
+            }
+            true
+        })
+        .collect()
 }
 
 fn visible_cells(
@@ -2413,6 +2444,18 @@ mod tests {
         assert!(
             !updates.iter().any(|(x, _, _)| *x == 1),
             "the shadowed column is never emitted: {updates:?}"
+        );
+    }
+
+    #[test]
+    fn overlay_diff_drops_shadow_cells_overwriting_old_narrow_chars() {
+        let (prev, next) = frames(&["abc"], &["你c"], 4);
+        let OverlayPaint::Diff(updates) = overlay_paint(Some(&prev), &next) else {
+            panic!("a changed frame diffs");
+        };
+        assert!(
+            !updates.iter().any(|(x, _, _)| *x == 1),
+            "shadow column of wide CJK char must not be emitted: {updates:?}"
         );
     }
 
