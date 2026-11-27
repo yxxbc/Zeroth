@@ -235,7 +235,6 @@ impl SlashCommand {
 /// active model lists, spliced in after `/model` by [`App::commands`].
 pub const COMMANDS: &[SlashCommand] = &[
     SlashCommand::builtin("clear", "Clear the conversation", CommandEffect::Clear),
-    SlashCommand::builtin("new", "Start a new conversation", CommandEffect::Clear),
     SlashCommand::builtin(
         "copy",
         "Copy the last response to the clipboard",
@@ -319,7 +318,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         "Store credentials the agent uses but never sees",
         CommandEffect::Secrets,
     ),
-    SlashCommand::builtin("quit", "Exit the app", CommandEffect::Quit),
+    SlashCommand::builtin("new", "Start a new conversation", CommandEffect::Clear),
     SlashCommand::builtin(
         "loop",
         "Run a recurring or self-paced loop",
@@ -330,6 +329,7 @@ pub const COMMANDS: &[SlashCommand] = &[
         "Work iteratively toward a goal",
         CommandEffect::Goal,
     ),
+    SlashCommand::builtin("quit", "Exit the app", CommandEffect::Quit),
 ];
 
 /// A category the command page can show. Commands always exists; Skills is

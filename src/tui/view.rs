@@ -554,7 +554,33 @@ impl Session<'_> {
             let screen = self.screen.screen();
             let live_h = usize::from(height.min(screen.height));
             let conv_area = usize::from(screen.height).saturating_sub(live_h);
-            let streaming = !self.view.full_stream_lines.is_empty();
+            let turn_has_tools = self
+                .conversation
+                .app
+                .history
+                .iter()
+                .rev()
+                .take_while(|item| {
+                    !matches!(
+                        item,
+                        HistoryItem::Message(m) if m.role == Role::User
+                    )
+                })
+                .any(|item| !matches!(item, HistoryItem::Message(_) | HistoryItem::Reasoning(_)));
+            let live_empty =
+                ui::conversation_live_lines(&self.conversation.app, self.full_text_width())
+                    .is_empty();
+            let streaming = !turn_has_tools
+                && live_empty
+                && self
+                    .conversation
+                    .app
+                    .streaming_text()
+                    .is_some_and(|t| !t.is_empty());
+            if self.view.full_auto_anchor && (turn_has_tools || !live_empty) {
+                self.view.full_top = None;
+                self.view.full_auto_anchor = false;
+            }
             Self::update_turn_top_anchor(&mut self.view, tail.len(), conv_area, streaming);
             // A click-to-expand rebuild pins the toggled item's first line to
             // the screen row it occupied, so the cell does not jump under the
